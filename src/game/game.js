@@ -1,0 +1,62 @@
+// Scene router. Scenes are classes with { scene, camera, enter(params), exit(), update(dt, gdt), resize(w,h) }.
+import { engine } from '../core/engine.js';
+import { clearUI } from '../ui/ui.js';
+import { audio } from '../core/audio.js';
+import { state } from './state.js';
+
+const loaders = {
+  title: () => import('../scenes/title.js').then((m) => m.TitleScene),
+  lab: () => import('../scenes/lab.js').then((m) => m.LabScene),
+  battle: () => import('../scenes/battle.js').then((m) => m.BattleScene),
+  arena: () => import('../scenes/arena.js').then((m) => m.ArenaScene),
+  preview: () => import('../dev/preview.js').then((m) => m.PreviewScene),
+};
+
+let transitioning = false;
+let fadeEl = null;
+
+function fader() {
+  if (!fadeEl) {
+    fadeEl = document.createElement('div');
+    Object.assign(fadeEl.style, {
+      position: 'absolute', inset: '0', background: '#0b1230', opacity: '0', pointerEvents: 'none', zIndex: '60',
+      transition: 'opacity 0.25s',
+    });
+    document.getElementById('app').appendChild(fadeEl);
+  }
+  return fadeEl;
+}
+
+export const game = {
+  current: null,
+  currentName: null,
+  async go(name, params = {}) {
+    if (transitioning) return;
+    transitioning = true;
+    const f = fader();
+    f.style.pointerEvents = 'auto';
+    f.style.opacity = '1';
+    await new Promise((r) => setTimeout(r, params.instant ? 0 : 260));
+    try {
+      const Cls = await loaders[name]();
+      clearUI();
+      const sc = new Cls();
+      this.current = sc;
+      this.currentName = name;
+      await engine.setScene(sc, params);
+    } catch (e) {
+      console.error('Scene load failed', name, e);
+    }
+    f.style.opacity = '0';
+    f.style.pointerEvents = 'none';
+    transitioning = false;
+  },
+  settings() {
+    const s = state.p.settings;
+    audio.setVolumes(s.sfx, s.music);
+    audio.setMuted(!!s.muted);
+    engine.setPixelMode(s.pixel);
+  },
+};
+
+if (typeof window !== 'undefined') window.__game = game;

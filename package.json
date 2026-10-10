@@ -1,0 +1,20 @@
+{
+  "name": "mrbeast-swarmers",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MrBeast Swarmers - an unofficial fan-made voxel + pixel-art PvP strategy game",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@fontsource/pixelify-sans": "5.3.0",
+    "@fontsource/press-start-2p": "5.3.0",
+    "three": "0.183.2"
+  },
+  "devDependencies": {
+    "vite": "7.3.6"
+  }
+}
