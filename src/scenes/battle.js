@@ -108,7 +108,7 @@ export class BattleScene {
     if (mode === 'boss' && enemy.labStyle === 'mart') theme = 'mart';
     this.arenaId = arenaId;
     this.cfg = { theme, sides: [me, enemy], boss };
-    this.sim = new BattleSim({ sides: [me, enemy], boss, timeLimit: mode === 'tutorial' ? 600 : 180 });
+    this.sim = new BattleSim({ sides: [me, enemy], boss, timeLimit: mode === 'tutorial' ? 600 : 150 });
     this.ai = new BattleAI(this.sim, 1, aiOpts);
     this.view = new BattleView(this.sim, this.cfg);
     this.scene = this.view.scene;

@@ -13,7 +13,7 @@ import { SWARMS, SERIES } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
 import { createSwarm } from '../../models/swarmModels.js';
 import * as Props from '../../models/props.js';
-import { floatText, speech } from '../../ui/ui.js';
+import { floatText, speech, bigBanner } from '../../ui/ui.js';
 import { LAB_X, LAB_HALF } from './sim.js';
 import { state } from '../state.js';
 
@@ -711,6 +711,8 @@ export class BattleView {
         break;
       case 'overtime':
         audio.play('bell');
+        bigBanner('OVERTIME!', '2x energy - finish it!', { dur: 1.8, color: '#ff8a2a' });
+        engine.shake(0.3);
         break;
       case 'end':
         break;

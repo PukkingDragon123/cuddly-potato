@@ -60,7 +60,7 @@ export const SWARMS = {
   },
   trashedCan: {
     name: 'Trashed Can', series: 'homeHorrors', rarity: 'common', role: 'tank',
-    cost: 150, cd: 5, hp: 540, dmg: 10, atk: 1.2, range: 0.7, speed: 0.95, kb: 2, size: 1.1,
+    cost: 150, cd: 5, hp: 460, dmg: 12, atk: 1.2, range: 0.7, speed: 0.95, kb: 2, size: 1.1,
     desc: 'A garbage can with a grudge. Soaks damage for your squad.',
   },
   toiletRollRipper: {
@@ -232,6 +232,9 @@ export const UPGRADE = {
   mythic: { copies: [1, 1, 1, 2, 2, 3, 3, 4, 5], coins: [1500, 3000, 5000, 8000, 12000, 17000, 23000, 30000, 40000] },
 };
 
+// Global damage scale (keeps fights snappy relative to HP values).
+export const DMG_SCALE = 1.5;
+
 export function swarmStats(id, level = 1, variant = 'base', mods = {}) {
   const s = SWARMS[id];
   const m = statMult(level) * (1 + (VARIANTS[variant]?.bonus ?? 0));
@@ -240,7 +243,7 @@ export function swarmStats(id, level = 1, variant = 'base', mods = {}) {
     level,
     variant,
     hp: Math.round(s.hp * m * (mods.hp ?? 1)),
-    dmg: Math.round(s.dmg * m * (mods.dmg ?? 1)),
+    dmg: Math.round(s.dmg * m * DMG_SCALE * (mods.dmg ?? 1)),
   };
 }
 

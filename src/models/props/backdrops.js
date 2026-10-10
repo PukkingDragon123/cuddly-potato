@@ -33,10 +33,6 @@ class Kit {
   rand(a = 0, b = 1) { return a + this.R() * (b - a); }
   /** Instanced voxel scenery (cached geometry). items: [[x,y,z,ry,s]] */
   geo(id, gridFn, opts = {}) {
-    const _t = performance.now();
-    try { return this._geo(id, gridFn, opts); } finally { const d = performance.now() - _t; if (d > 15) console.warn('PROF', this.theme, id, d.toFixed(0)); }
-  }
-  _geo(id, gridFn, opts = {}) {
     return opts.greedy === false ? vgeo('bd_' + id, gridFn, { maxSamples: 8, ...opts }) : greedyGeometry('bd_' + id, gridFn, opts);
   }
   inst(id, gridFn, opts, items, o = {}) {
@@ -803,7 +799,7 @@ function buildSuburb(K) {
   K.add(texPlane(tileTex('sidewalk', 0xb4b8c0, 0xaeb2ba, 0x8a8e96, [40, 1]), -80, 80, -5.0, -3.2, 0.01));
   // far hills + trees + water tower
   K.hills('subHills', { z: -50, scale: 1.5, base: 4, amp: 6, depth: 2, col: (x, y, h) => (y === h - 1 ? 0x3a4a5a : 0x2a3446), seed: 5 });
-  treeLine(K, 'subTreesFar', -90, 90, -34, -26, 50, 1.6, 2.4);
+  treeLine(K, 'subTreesFar', -90, 90, -34, -26, 34, 1.7, 2.5);
   K.mesh('waterTower', () => {
     const g = new VoxGrid();
     for (const [x, z] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) g.box(x, 0, z, x, 30, z, 0x6a7080);

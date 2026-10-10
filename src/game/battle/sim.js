@@ -706,6 +706,8 @@ export class BattleSim {
       this.emit('shieldHit', { side: si });
     }
     if (d <= 0) return;
+    // siege pressure: troops hit Labs harder, ramping up late in the match
+    if (src && src.st) d *= 1.5 * (this.t > 90 ? 1.5 : 1) * (this.overtime ? 1.5 : 1);
     s.labHp -= d;
     if (src && src.side !== undefined) this.sides[src.side].stats.dmg += d;
     this.emit('labHit', { side: si, amount: Math.round(d), src });
@@ -818,7 +820,7 @@ export class BattleSim {
     // time
     if (this.t >= this.timeLimit && !this.overtime) {
       this.overtime = true;
-      this.timeLimit += 60;
+      this.timeLimit += 45;
       this.emit('overtime');
     } else if (this.t >= this.timeLimit && this.overtime) {
       const f0 = this.sides[0].labHp / this.sides[0].labMaxHp, f1 = this.sides[1].labHp / this.sides[1].labMaxHp;
