@@ -276,6 +276,11 @@ export class BattleView {
       scene.add(lab.root);
       lab.style = style;
       lab.shakeT = 0;
+      lab.onChunk = (mesh) => {
+        fx.shatter(mesh, { force: 5, dirX: i === 0 ? 0.4 : -0.4, life: 2 });
+        audio.play('crunch', { pitch: 0.6, gap: 0.1 });
+        engine.shake(0.25);
+      };
       return lab;
     });
     // commanders on labs
@@ -320,7 +325,7 @@ export class BattleView {
     const sim = this.sim;
     const aspect = this.camera.aspect;
     const tanV = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    const wantWidth = aspect >= 1 ? 22 : 12.5;
+    const wantWidth = aspect >= 1 ? 18.5 : 11.5;
     let dist = (wantWidth / (2 * tanV * aspect)) * this.zoom;
     dist = clamp(dist, 9, 46);
     this.dist = dist;
@@ -392,13 +397,25 @@ export class BattleView {
     this.updateProjectiles(gdt);
     this.updateMovers(gdt);
     for (const lab of this.labs) {
-      lab.update && lab.update(gdt);
+      try {
+        lab.update && lab.update(gdt);
+      } catch (e) {
+        lab.update = null;
+        console.error('lab update failed', e);
+      }
       if (lab.shakeT > 0) {
         lab.shakeT -= dt;
         lab.root.position.y = Math.sin(this.t * 60) * 0.03 * (lab.shakeT > 0 ? 1 : 0);
       }
     }
-    this.backdrop.update && this.backdrop.update(dt);
+    if (this.backdrop.update && !this.backdropBroken) {
+      try {
+        this.backdrop.update(dt);
+      } catch (e) {
+        this.backdropBroken = true;
+        console.error('backdrop update failed', e);
+      }
+    }
     this.updateCommanders(dt);
     for (const z of this.zones) z.update(gdt);
     this.zones = this.zones.filter((z) => !z.done);
@@ -812,15 +829,55 @@ export class BattleView {
     for (const b of this.breakables) {
       if (!b.alive || Math.abs(b.x - x) > r) continue;
       b.alive = false;
-      b.obj.updateMatrixWorld(true);
-      b.obj.traverse((o) => { if (o.isMesh) fx.shatter(o, { force: 5, life: 1.8 }); });
-      const wp = new THREE.Vector3();
-      b.obj.getWorldPosition(wp);
-      if (b.kind === 'cart' || b.kind === 'shelf' || b.kind === 'products') fx.groceries(wp.clone().setY(0.6), { count: 10 });
-      b.obj.visible = false;
-      audio.play(b.kind === 'cart' ? 'crunch' : 'shatter', { gap: 0.05 });
-      if (b.kind === 'cart') this.cartsSmashed = (this.cartsSmashed ?? 0) + 1;
-      setTimeout(() => { b.obj.visible = true; b.alive = true; b.obj.scale.setScalar(0.01); tween(b.obj.scale, { x: 1, y: 1, z: 1 }, 0.5, { ease: 'outBack' }); }, 14000);
+      const o = b.obj;
+      if (!b.home) b.home = { p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() };
+      const shatter = () => {
+        o.updateMatrixWorld(true);
+        o.traverse((m) => { if (m.isMesh) fx.shatter(m, { force: 5, life: 1.8 }); });
+        const wp = new THREE.Vector3();
+        o.getWorldPosition(wp);
+        if (['cart', 'shelf', 'products'].includes(b.kind)) fx.groceries(wp.clone().setY(0.6), { count: 10 });
+        o.visible = false;
+        audio.play(b.kind === 'cart' ? 'crunch' : 'shatter', { gap: 0.05 });
+      };
+      const dir = Math.sign(b.x - x) || (side === 0 ? 1 : -1);
+      if (b.kind === 'cart') {
+        // shopping-cart physics: launched, tumbling, bouncing, then wrecked
+        this.cartsSmashed = (this.cartsSmashed ?? 0) + 1;
+        audio.play('squeak', { pitch: 0.8 });
+        const p0 = o.position.clone();
+        let vx = dir * rand(3, 6), vy = rand(4.5, 7), vz = rand(-1, 1.5);
+        let px = p0.x, py = p0.y, pz = p0.z, bounces = 0;
+        const spin = rand(6, 12) * dir;
+        animate(1.4, () => {
+          const dt = 1 / 60;
+          vy -= 18 * dt;
+          px += vx * dt; py += vy * dt; pz += vz * dt;
+          if (py < p0.y) { py = p0.y; vy = -vy * 0.45; vx *= 0.7; bounces++; audio.play('squeak', { pitch: 1 + bounces * 0.2, gap: 0.08 }); fx.dust(new THREE.Vector3(px, 0, pz), { count: 3 }); }
+          o.position.set(px, py, pz);
+          o.rotation.z -= spin * dt;
+          o.rotation.y += spin * 0.3 * dt;
+        }, { onComplete: shatter });
+      } else if (b.kind === 'shelf') {
+        // topples over and spills its products
+        const r0 = o.rotation.x;
+        audio.play('crunch', { pitch: 0.6 });
+        animate(0.55, (e) => { o.rotation.x = r0 - e * 1.45 * (o.position.z < 0 ? -1 : 1); }, { ease: 'inQuad', onComplete: () => {
+          engine.shake(0.2);
+          fx.groceries(o.getWorldPosition(new THREE.Vector3()).setY(0.5), { count: 18, speed: 5 });
+          setTimeout(shatter, 500);
+        } });
+      } else {
+        shatter();
+      }
+      setTimeout(() => {
+        o.visible = true;
+        o.position.copy(b.home.p);
+        o.rotation.copy(b.home.r);
+        o.scale.setScalar(0.01);
+        tween(o.scale, { x: b.home.s.x, y: b.home.s.y, z: b.home.s.z }, 0.5, { ease: 'outBack' });
+        b.alive = true;
+      }, 15000);
     }
   }
 
@@ -1208,10 +1265,11 @@ export class BattleView {
     const marchers = [];
     const defs = ['fan', 'cashier', 'stocker', 'labTech', 'juan'];
     const dir = side === 0 ? 1 : -1;
-    const startX = this.sim.sides[side].labX - dir * 2;
+    const halfW = this.dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.camera.aspect;
+    const startX = this.camX - dir * (halfW + 1);
     for (let i = 0; i < 8; i++) {
       const c = new Chibi({ ...CHARACTERS[defs[i % defs.length]], hat: i % 2 ? { type: 'cap', color: pick([0xff2e88, 0xffd23f, 0x5fdc4a, 0x29b6f6]) } : CHARACTERS[defs[i % defs.length]].hat }, { scale: 0.8 });
-      c.root.position.set(startX - dir * i * 1.3, 0, -2.4 - (i % 2) * 0.8);
+      c.root.position.set(startX - dir * i * 1.3, 0, 2.2 + (i % 2) * 0.7);
       c.root.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       c.play('dance');
       c.expr(pick(['happy', 'star', 'wink']), pick(['grin', 'tongue', 'open']));
@@ -1226,13 +1284,13 @@ export class BattleView {
         t += dt;
         confT -= dt;
         for (const c of marchers) {
-          c.root.position.x += dir * dt * 3.2;
+          c.root.position.x += dir * dt * 2.6;
           c.update(dt);
         }
         if (confT <= 0) {
           confT = 0.25;
           const lead = marchers[0].root.position;
-          fx.confetti(new THREE.Vector3(lead.x - dir * 3, 3, -2.5), { count: 8, colors: [0xff2e88, 0xffd23f, 0x5fdc4a, 0x29b6f6, 0xff8a2a, 0xb05cff], speed: 4 });
+          fx.confetti(new THREE.Vector3(lead.x - dir * 3, 3, 2.4), { count: 8, colors: [0xff2e88, 0xffd23f, 0x5fdc4a, 0x29b6f6, 0xff8a2a, 0xb05cff], speed: 4 });
         }
         if (t > dur + 4) {
           for (const c of marchers) this.scene.remove(c.root);
@@ -1259,7 +1317,7 @@ export class BattleView {
       const juan = new Chibi(CHARACTERS.juan, { scale: 0.7 });
       juan.play('cheer');
       juan.expr('star', 'shout');
-      juan.root.position.set(-0.6, 1.4, 0);
+      juan.root.position.set(t ? -0.95 : -0.6, t ? 1.75 : 1.4, 0);
       juan.root.rotation.y = Math.PI / 2;
       obj.add(juan.root);
       this.movers.set(m.id, { m, obj, wheels, rider: juan, smokeT: 0 });

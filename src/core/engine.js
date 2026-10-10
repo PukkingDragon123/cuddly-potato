@@ -128,7 +128,17 @@ class Engine {
     for (const fn of this.frameListeners) fn(dt, gdt);
     const cur = this.current;
     if (!cur) return;
-    if (cur.update) cur.update(dt, gdt);
+    try {
+      if (cur.update) cur.update(dt, gdt);
+    } catch (e) {
+      // keep rendering even if a subsystem throws; report each distinct error once
+      const key = String(e && e.message);
+      if (!this._errs) this._errs = new Set();
+      if (!this._errs.has(key)) {
+        this._errs.add(key);
+        console.error('Scene update error:', e);
+      }
+    }
     particles.update(gdt);
 
     const cam = cur.camera;

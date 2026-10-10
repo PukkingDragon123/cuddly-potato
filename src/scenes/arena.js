@@ -16,7 +16,7 @@ import { charPortrait } from '../ui/thumbs.js';
 import { Terrain, makeLiquid } from './arena/terrain.js';
 import { World } from './arena/collide.js';
 import { bake } from './arena/batch.js';
-import { prop } from './arena/kit.js';
+import { prop, bboxSize } from './arena/kit.js';
 import { Input, Avatar, RUN } from './arena/player.js';
 import { NPC } from './arena/npc.js';
 import { HUD } from './arena/hud.js';
@@ -81,8 +81,14 @@ export class ArenaScene {
     const p = prop(name, args, { fit: o.fit });
     const root = p.root;
     if (o.scale) root.scale.multiplyScalar(o.scale);
+    let rot = o.rot ?? 0;
+    if (o.long && p.real) {
+      const s = bboxSize(root);
+      if ((o.long === 'z' && s.x > s.z * 1.05) || (o.long === 'x' && s.z > s.x * 1.05)) rot += o.longRot ?? Math.PI / 2;
+    }
     root.position.set(o.x ?? 0, o.y ?? this.terrain.heightAt(o.x ?? 0, o.z ?? 0), o.z ?? 0);
-    if (o.rot) root.rotation.y = o.rot;
+    if (rot) root.rotation.y = rot;
+    o.rot = rot;
     const dynamic = o.dynamic || !!p.update;
     if (dynamic) {
       this.scene.add(root);
@@ -107,6 +113,12 @@ export class ArenaScene {
     return this.world.box(box.min.x + pad, box.min.z + pad, box.max.x - pad, box.max.z - pad, opts);
   }
 
+  /** World-space bounding box of a placed object. */
+  bbox(obj) {
+    obj.updateMatrixWorld(true);
+    return new THREE.Box3().setFromObject(obj);
+  }
+
   /** Add an Object3D to the static batch of a zone. */
   addStatic(obj, zone = 'misc') {
     this.static(zone).add(obj);
@@ -118,10 +130,14 @@ export class ArenaScene {
     this.posts.push({ fn, order });
   }
 
+  /** Per-frame callback fn(dt, t); return true to remove it. Optional range gate around (x,z). */
   onUpdate(fn, x, z, range) {
-    const u = { fn, x, z, r: range };
+    const u = { fn, x, z, r: range, dead: false };
     this.updaters.push(u);
     return u;
+  }
+  offUpdate(u) {
+    if (u) u.dead = true;
   }
 
   interact(o) {
@@ -537,10 +553,16 @@ export class ArenaScene {
     pl.update(dt);
     // updaters (range gated)
     const px = pl.pos.x, pz = pl.pos.z;
+    let dead = 0;
     for (const u of this.updaters) {
+      if (u.dead) {
+        dead++;
+        continue;
+      }
       if (u.r && u.x !== undefined && (Math.abs(u.x - px) > u.r || Math.abs(u.z - pz) > u.r)) continue;
-      u.fn(dt, t);
+      if (u.fn(dt, t) === true) u.dead = true;
     }
+    if (dead > 16) this.updaters = this.updaters.filter((u) => !u.dead);
     for (const n of this.npcs) n.update(dt, t);
     this.updateInteract(dt);
     this.updateZone(dt);

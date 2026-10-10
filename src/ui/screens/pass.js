@@ -83,7 +83,7 @@ function header(scr) {
   const tp = tierProgress();
   const hero = h('div', { class: 'hub-pass-hero' },
     h('div', { class: 'hero-stripes' }),
-    h('div', { class: 'hero-row' },
+    (scr.heroRow = h('div', { class: 'hero-row' },
       h('div', { class: 'col hero-title' }, h('span', { class: 'display outline title' }, SEASON.name), h('span', { class: 'outline-sm tag' }, SEASON.tagline)),
       h('div', { class: 'col grow hero-prog' },
         h('div', { class: 'row' }, icon('calorie'), h('b', { class: 'outline-sm' }, `Tier ${tp.t}/${PASS_TIERS.length}`), h('span', { class: 'spacer' }), h('span', { class: 'small outline-sm' }, `${fmt(p.calories)} Calories`)),
@@ -109,7 +109,7 @@ function header(scr) {
             sparkle(scr.panel, { count: 50, spread: 220 });
           });
         }, 'yellow pulse'),
-    ),
+    )),
   );
   return hero;
 }
@@ -129,14 +129,14 @@ function renderTrack(scr) {
     showRewards(got, { title: `TIER ${i + 1} REWARD!` });
   };
   if (claimables.length > 1) {
-    wrap.appendChild(
-      h('div', { class: 'row center' },
-        button(`Claim all (${claimables.length})`, () => {
-          const all = [];
-          for (const [i, tr] of claimables) all.push(...claimPass(i, tr));
-          showRewards(all, { title: 'SEASON REWARDS!' });
-        }, 'green pulse', { icon: 'chest' })),
-    );
+    const hero = scr.heroRow;
+    const btn = button(`Claim all (${claimables.length})`, () => {
+      const all = [];
+      for (const [i, tr] of claimables) all.push(...claimPass(i, tr));
+      showRewards(all, { title: 'SEASON REWARDS!' });
+    }, 'green pulse hub-claim-all', { icon: 'chest' });
+    if (hero) hero.insertBefore(btn, hero.lastChild);
+    else wrap.appendChild(h('div', { class: 'row center' }, btn));
   }
   const track = h('div', { class: 'hub-pass-track', 'data-sk': 'track' });
   track.appendChild(h('div', { class: 'hub-pass-labels' }, h('div', { class: 'lab free' }, h('span', { class: 'display' }, 'FREE')), h('div', { class: 'lab mid' }), h('div', { class: 'lab prem' }, h('span', { class: 'display' }, 'PREMIUM'))));

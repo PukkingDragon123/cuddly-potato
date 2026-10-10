@@ -227,8 +227,8 @@ async function rollReveal(scr, cmdId) {
     void win.offsetWidth;
     win.classList.add('tickle');
   };
-  let delay = 45;
-  const steps = 24;
+  let delay = 35;
+  const steps = 22;
   for (let i = 0; i < steps; i++) {
     let pk;
     if (i === steps - 1) pk = perk;
@@ -241,7 +241,7 @@ async function rollReveal(scr, cmdId) {
     show(pk);
     audio.play('tick', { pitch: 0.9 + i * 0.03 });
     await sleep(delay);
-    delay *= 1.11;
+    delay *= 1.09;
   }
   win.classList.add('landed');
   audio.play(perk.tier === 'legendary' || perk.tier === 'epic' ? 'chaching' : 'magic');

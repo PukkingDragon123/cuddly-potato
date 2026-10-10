@@ -222,10 +222,10 @@ function lockZone(A, z) {
     // sign wiggle
     const base = sign.rotation.z;
     let t = 0;
-    const wig = A.onUpdate((dt) => {
-      if (t > 0.6) return;
+    A.onUpdate((dt) => {
       t += dt;
-      sign.rotation.z = base + Math.sin(t * 40) * 0.08 * (1 - t / 0.6);
+      sign.rotation.z = t > 0.6 ? base : base + Math.sin(t * 40) * 0.08 * (1 - t / 0.6);
+      return t > 0.6;
     });
   };
   A.world.box(x0, z0, x1, z1, { tag: 'locked', onBump: bump, npc: false, carts: true, data: z });
@@ -260,16 +260,17 @@ export function placeBossGate(A, bossId, x, z, zone) {
   const b = BOSSES[bossId];
   if (!b) return null;
   const color = BOSS_COLORS[bossId] ?? 0xff4a4a;
-  const g = A.put('makeBossGate', [color], { x, z, collide: false, dynamic: true, fit: { h: 6, clamp: 1.4 } });
-  A.world.circle(x - 2.3, z, 0.55);
-  A.world.circle(x + 2.3, z, 0.55);
-  A.world.box(x - 2.6, z - 0.7, x + 2.6, z - 0.25);
+  const g = A.put('makeBossGate', [color], { x, z, collide: false, dynamic: true, fit: { h: 5.6, clamp: 1.3 } });
+  const gb = A.bbox(g.root);
+  A.world.circle(gb.min.x + 0.5, z, 0.55);
+  A.world.circle(gb.max.x - 0.5, z, 0.55);
+  A.world.box(gb.min.x + 0.1, gb.min.z, gb.max.x - 0.1, Math.min(z - 0.25, gb.max.z - 0.3));
   const defeated = state.p.bosses?.[bossId] ?? 0;
   const lines = [{ text: b.name.toUpperCase(), size: 0.26, color: '#ffffff', icon: 'skull' }];
   if (defeated) lines.push({ text: `DEFEATED x${defeated}`, size: 0.17, color: '#7cff6b' });
   else lines.push({ text: `BOSS · ${b.minTrophies}+`, size: 0.17, color: '#ffd23f', icon: 'trophy' });
   const sign = textPanel(lines, { w: 3.6, h: 0.9, bg: '#2a1030', border: '#' + color.toString(16).padStart(6, '0') });
-  sign.position.set(x, 6.9, z + 0.2);
+  sign.position.set(x, gb.max.y + 0.75, z + 0.2);
   A.scene.add(sign);
   const proxy = pickProxy(2.2, 5);
   proxy.position.set(x, 0, z);
@@ -294,7 +295,7 @@ export function placeBossGate(A, bossId, x, z, zone) {
     acc += dt;
     if (acc > 0.18) {
       acc = 0;
-      fx.sparkle(_v.set(x + (Math.random() - 0.5) * 3.4, 0.4 + Math.random() * 4, z + 0.2), { count: 1, color, speed: 0.6, life: 1 });
+      fx.sparkle(_v.set(x + (Math.random() - 0.5) * (gb.max.x - gb.min.x - 1), 0.4 + Math.random() * (gb.max.y - 1.5), z + 0.2), { count: 1, color, speed: 0.6, life: 1 });
     }
   }, x, z, 22);
   A.bossGates[bossId] = { x, z, front };

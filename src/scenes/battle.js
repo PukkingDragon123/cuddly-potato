@@ -126,6 +126,7 @@ export class BattleScene {
     if (params.dev) window.__battle = this;
     this.bindInput();
     audio.music(mode === 'boss' ? 'boss' : 'battle');
+    if (engine.width < engine.height) setTimeout(() => toast('Tip: rotate your phone for the best battle view!', { icon: 'swarm' }), 2600);
     this.intro();
   }
 
@@ -136,7 +137,7 @@ export class BattleScene {
     const deckRow = (d) => h('div', { class: 'deckrow' }, d.deck.map((c) => h('img', { src: swarmThumb(c.id, c.variant, c.skin, 64) })));
     const side = (s, i) => h('div', { class: 'vs-side slide-up' },
       h('img', { class: 'por px-box', src: por(s.commander, swarmThumb(this.cfg.boss?.unit ?? s.deck[0].id, 'base', null, 128)) }),
-      h('div', { class: 'bname outline-sm', style: { background: (BANNERS[s.banner] || BANNERS.default).css, fontSize: '1em' } }, s.name),
+      h('div', { class: 'bname outline-sm' + ((BANNERS[s.banner] || {}).animated ? ' anim-' + BANNERS[s.banner].animated : ''), style: { background: (BANNERS[s.banner] || BANNERS.default).css, fontSize: '1em' } }, s.name),
       s.trophies !== undefined ? h('div', { class: 'row' }, icon('trophy'), String(s.trophies)) : null,
       i === 1 && s.ghost ? h('div', { class: 'tiny muted' }, 'Ghost Player (AI-controlled)') : null,
       deckRow(s));

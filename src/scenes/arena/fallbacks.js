@@ -147,7 +147,7 @@ export function makeFence(len = 4, color = 0xf4f0e6) {
       g.set(x, 5, -1, shade(color, -0.12));
     }
     return g;
-  }, { pivot: 'none' });
+  });
 }
 
 export function makeLamp() {
@@ -815,6 +815,15 @@ const FOOD = {
     g.box(-8, 2, 0, -8, 3, 0, 0x5a3a20);
   },
   bar: (g) => FOOD.choco(g),
+  chocoBar: (g) => FOOD.choco(g),
+  cake: (g) => FOOD.icecream(g),
+  milk: (g) => FOOD.soda(g),
+  watermelon: (g) => {
+    g.ellipsoid(0, 6, 0, 9, 6, 6, 0x3f9e45);
+    g.paint((x, y, z, c) => ((x + 20) % 4 < 2 ? 0x2f7f35 : undefined));
+    g.carve((x, y) => y < 0);
+  },
+  cereal: (g) => FOOD.choco(g),
 };
 
 export function makeFood(kind = 'burger') {

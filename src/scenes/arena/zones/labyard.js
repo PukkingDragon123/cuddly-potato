@@ -56,7 +56,7 @@ export function buildLabYard(A) {
   T.rect(-3.5, 62.5, 3.5, 66, 'bridge', { h: 0.08 });
 
   // ---- Beast Lab building
-  const lab = A.put('makeLabBuilding', [{ style: 'default' }], { x: 0, z: 23.2, zone: Z, fit: { w: 11, clamp: 1.25 } });
+  const lab = A.put('makeLabBuilding', [{ style: 'default' }], { x: 0, z: 23.2, zone: Z, fit: { h: 7.5, clamp: 1.25 } });
   lab.root.updateMatrixWorld(true);
   const lb = new THREE.Box3().setFromObject(lab.root);
   const doorZ = lb.max.z + 0.35;
@@ -75,15 +75,16 @@ export function buildLabYard(A) {
 
   // ---- Ranked Battle Gate
   const [px, pz] = PORTAL_POS;
-  A.put('makePortal', [0xb05cff], { x: px, z: pz, collide: false, dynamic: true, fit: { h: 4.6, clamp: 1.4 } });
-  A.world.circle(px - 2.1, pz, 0.45);
-  A.world.circle(px + 2.1, pz, 0.45);
+  const portal = A.put('makePortal', [0xb05cff], { x: px, z: pz, collide: false, dynamic: true, fit: { h: 4.2, clamp: 1.3 } });
+  const pbx = A.bbox(portal.root);
+  A.world.circle(pbx.min.x + 0.45, pz, 0.45);
+  A.world.circle(pbx.max.x - 0.45, pz, 0.45);
   const arena = currentArena(state.p.trophies);
   const rs = textPanel(
     [{ text: 'RANKED BATTLE', size: 0.3, color: '#ffffff', icon: 'trophy' }, { text: arena.name.toUpperCase(), size: 0.17, color: '#ffd23f' }],
     { w: 3.8, h: 0.95, bg: '#7a2fd0', border: '#0d1029' },
   );
-  rs.position.set(px, 5.15, pz + 0.25);
+  rs.position.set(px, pbx.max.y + 0.75, pz + 0.25);
   A.scene.add(rs);
   const portalProxy = pickProxy(2, 4.4);
   portalProxy.position.set(px, 0, pz);

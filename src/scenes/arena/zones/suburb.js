@@ -33,11 +33,11 @@ export function buildSuburb(A) {
   // houses: north side of each street, facing the camera
   const houses = [[-28.5, 18.6], [-45, 18.6], [-53.5, 18.6], [-28.5, 36.6], [-45, 36.6], [-53.5, 36.6]];
   houses.forEach(([x, z], i) => {
-    const h = A.put('makeHouse', [HOUSE_COLORS[i % HOUSE_COLORS.length]], { x, z, zone: Z, fit: { w: 6.2, clamp: 1.3 } });
+    const h = A.put('makeHouse', [HOUSE_COLORS[i % HOUSE_COLORS.length]], { x, z, zone: Z, fit: { w: 5.4, clamp: 1.25 } });
     T.rect(x - 0.8, z + 2.3, x + 0.8, z + 4.4, 'path');
     // fence pieces either side of the front path
-    A.put('makeFence', [2.2], { x: x - 3.2, z: z + 3.6, zone: Z, collide: false });
-    A.put('makeFence', [2.2], { x: x + 1, z: z + 3.6, zone: Z, collide: false });
+    A.put('makeFence', [2.2], { x: x - 2.1, z: z + 3.6, zone: Z, collide: false });
+    A.put('makeFence', [2.2], { x: x + 2.1, z: z + 3.6, zone: Z, collide: false });
     A.world.box(x - 3.2, z + 3.5, x - 1, z + 3.75);
     A.world.box(x + 1, z + 3.5, x + 3.2, z + 3.75);
     // mailbox + trash can by the sidewalk

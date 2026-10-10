@@ -232,11 +232,18 @@ export function hasModel(id) {
   return !!ALL_MODELS[id];
 }
 
+const defCache = new Map();
+
 /** Build a SwarmRig for a swarm id. opts: { variant, skin, scale, model } */
 export function createSwarm(id, opts = {}) {
   const modelId = opts.model ?? id;
   const builder = ALL_MODELS[modelId] || MODELS.blob;
-  const def = builder({ skin: opts.skin, color: SWARMS[id] ? undefined : undefined });
+  const dkey = `${modelId}|${opts.skin ?? ''}`;
+  let def = defCache.get(dkey);
+  if (!def) {
+    def = builder({ skin: opts.skin });
+    defCache.set(dkey, def);
+  }
   const size = opts.scale ?? 1;
   const rig = new SwarmRig(def, { variant: opts.variant ?? 'base', cacheKey: `${modelId}|${opts.skin ?? ''}`, scale: size });
   rig.id = id;

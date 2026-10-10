@@ -6,6 +6,7 @@ import { PixelFace } from './face.js';
 import { damp, shade } from './util.js';
 
 const HEAD_W = 10, HEAD_H = 10, HEAD_D = 9;
+const GEO_CACHE = new Map();
 const BODY_H = 5, LEG_H = 4;
 
 // ---------------------------------------------------------------------------
@@ -401,7 +402,13 @@ export class Chibi {
     this.hips.position.y = LEG_H * V;
     this.inner.add(this.hips);
 
-    const legGeo = buildLeg(def).build({ pivot: [0, 0, 0] });
+    const ck = JSON.stringify(def);
+    const geo = (part, fn) => {
+      const k = part + '|' + ck;
+      if (!GEO_CACHE.has(k)) GEO_CACHE.set(k, fn().build({ pivot: [0, 0, 0] }));
+      return GEO_CACHE.get(k);
+    };
+    const legGeo = geo('leg', () => buildLeg(def));
     this.legL = new THREE.Group(); this.legL.position.set(-1.5 * V, 0, 0);
     this.legR = new THREE.Group(); this.legR.position.set(1.5 * V, 0, 0);
     this.legL.add(makeMesh(legGeo)); this.legR.add(makeMesh(legGeo));
@@ -411,11 +418,11 @@ export class Chibi {
 
     this.torso = new THREE.Group();
     this.hips.add(this.torso);
-    const bodyGeo = buildBody(def).build({ pivot: [0, 0, 0] });
+    const bodyGeo = geo('body', () => buildBody(def));
     this.bodyMesh = makeMesh(bodyGeo);
     this.torso.add(this.bodyMesh);
 
-    const armGeoL = buildArm(def, -1).build({ pivot: [0, 0, 0] });
+    const armGeoL = geo('arm', () => buildArm(def, -1));
     this.armL = new THREE.Group(); this.armL.position.set(-4 * V, (BODY_H - 0.5) * V, 0);
     this.armR = new THREE.Group(); this.armR.position.set(3.95 * V, (BODY_H - 0.5) * V, 0);
     // arm grid spans x -1..0 => centred around -0? (span -1..1) so offset to pivot
@@ -428,7 +435,7 @@ export class Chibi {
     this.head = new THREE.Group();
     this.head.position.y = BODY_H * V;
     this.torso.add(this.head);
-    const headGeo = buildHead(def).build({ pivot: [0, 0, 0] });
+    const headGeo = geo('head', () => buildHead(def));
     this.headMesh = makeMesh(headGeo);
     this.head.add(this.headMesh);
 

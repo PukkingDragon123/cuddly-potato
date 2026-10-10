@@ -65,16 +65,18 @@ function bigEye(g, x, y, z, o = {}) {
   if (o.glint !== false && pw >= 2 && ph >= 2) g.set(o.side === 'R' ? px + pw - 1 : px, py + ph - 1, z, o.glintC ?? 0xffffff, true);
   if (o.lid) g.box(x, y + h - 1, z, x + w - 1, y + h - 1, z, o.lid);
   if (o.brow) {
+    // slanted brow in the eye plane: outer end high, inner end dips into the eye (angry) or the reverse (sad)
     const outer = o.side === 'R' ? x + w - 1 : x;
     const dir = o.side === 'R' ? -1 : 1; // towards centre
-    for (let i = 0; i < w + 1; i++) {
-      const bx = outer - dir + dir * i;
-      const t = i / w;
+    for (let i = 0; i < w; i++) {
+      const bx = outer + dir * i;
+      const t = w === 1 ? 0 : i / (w - 1);
       let by = y + h;
-      if (o.angry) by = y + h - (t > 0.55 ? 1 : 0);
-      if (o.sad) by = y + h - (t < 0.45 ? 1 : 0);
-      g.set(bx, by, z + 1, o.brow);
+      if (o.angry && t > 0.6) by = y + h - 1;
+      if (o.sad && t < 0.4) by = y + h - 1;
+      g.set(bx, by, z, o.brow);
     }
+    if (o.angry) g.set(outer + dir * w, y + h - 1, z, o.brow);
   }
   if (o.depth) g.box(x, y, z - o.depth, x + w - 1, y + h - 1, z - 1, white, !!o.glow);
 }
@@ -172,6 +174,51 @@ function catHead(o) {
   jaw.set(-1, -1, 2, C.tongue).set(0, -1, 2, C.tongue);
   for (const x of [-2, 1]) jaw.set(x, 0, 4, o.tooth ?? C.tooth);
   return { head, jaw };
+}
+
+// ---------------------------------------------------------------------------
+// Atomic slime (big + mini share one builder)
+function slime(o) {
+  const k = o.mini ? 0.66 : 1;
+  const greens = [0x7cff3a, 0x66e82e, 0x8cff4a, 0x5fd82a];
+  const skin = (x, y, z) => (y <= 0 ? 0x3fae1a : greens[Math.floor(noise(x, y, z) * greens.length) % greens.length]);
+  const body = G();
+  const cy = 4 * k, rx = 4.6 * k, ry = 4.2 * k, rz = 4.3 * k;
+  body.ellipsoid(-0.5, cy, 0, rx, ry, rz, skin);
+  body.carve((x, y) => y < 0);
+  body.ellipsoid(-0.5, 0, 0, rx + 0.8, 0.3, rz + 0.8, 0x4fc81f); // puddle base
+  body.ellipsoid(-0.5, Math.round(cy + ry * 0.95), -1, 1.4 * k, 1.4 * k, 1.4 * k, skin); // droplet tip
+  body.set(-1, Math.round(cy + ry * 0.95 + 1.6 * k), -2, 0x8cff4a);
+  // glowing speckles + bubbles
+  glowWhere(body, (x, y, z) => noise(x + 9, y, z) < 0.09 && y > 0, 0xd8ff9a);
+  glowWhere(body, (x, y, z) => noise(x, y + 4, z + 2) < 0.05 && y > 1, 0xb8ff6a);
+  // drips hanging from the sides
+  const b = body.bounds();
+  for (const [x, z] of o.mini ? [[-3, 1], [2, -2]] : [[-5, 1], [4, -2], [-3, -4], [2, 3], [-1, -5]]) {
+    let top = -1;
+    for (let y = b.maxY; y >= 1; y--) if (body.has(x, y, z)) { top = y; break; }
+    if (top < 0) continue;
+    body.set(x + (x < 0 ? -1 : 1), 1, z, 0x66e82e).set(x + (x < 0 ? -1 : 1), 2, z, 0x7cff3a);
+  }
+  // face on the front surface
+  const fz = (x, y) => { for (let z = b.maxZ; z >= 0; z--) if (body.has(x, y, z)) return z; return 0; };
+  if (o.mini) {
+    const ey = 3, z = Math.max(fz(-2, ey), fz(1, ey)) + 1;
+    bigEye(body, -3, ey, z, { w: 2, h: 2, side: 'L' });
+    bigEye(body, 1, ey, z, { w: 2, h: 2, side: 'R' });
+    body.box(-1, 1, z, 0, 1, z, 0x1a4a0a).set(-1, 1, z, C.tooth);
+  } else {
+    const ey = 4, z = Math.max(fz(-3, ey + 1), fz(2, ey + 1)) + 1;
+    bigEye(body, -4, ey, z, { w: 3, h: 4, side: 'L', look: [0, 0] });
+    bigEye(body, 1, ey + 1, z, { w: 3, h: 3, side: 'R' });
+    body.box(-3, 1, z - 1, 2, 2, z - 1, 0x1a4a0a);
+    body.box(-2, 1, z - 1, 1, 1, z - 1, 0x2a6a10);
+    body.set(-3, 2, z - 1, C.tooth).set(2, 2, z - 1, C.tooth).set(-1, 1, z - 1, C.tongue).set(0, 1, z - 1, C.tongue);
+    body.set(-4, 3, z - 1, 0x1a4a0a).set(3, 3, z - 1, 0x1a4a0a);
+    // a stray bolt stuck in the goo
+    body.box(-6, 5, -1, -5, 5, -1, 0x9aa2b4).set(-6, 6, -1, 0xb8c0cc);
+  }
+  return { gait: 'hop', parts: [{ name: 'body', grid: body, at: [0, 0, 0] }], muzzle: [0, 4 * k, 5 * k] };
 }
 
 // ---------------------------------------------------------------------------
@@ -819,11 +866,1140 @@ export const EXTRA_MODELS = {
         { name: 'legR', grid: foot(), at: [2, 2, 0] },
         { name: 'body', grid: body, at: [0, 2, 0] },
         { name: 'head', grid: head, at: [0, 3, 0] },
-        { name: 'antenna', grid: ant, at: [0, 15, 1] },
+        { name: 'antenna', grid: ant, at: [0, 16, 1] },
         { name: 'armL', grid: armG(), at: [-7, 10, 1] },
         { name: 'armR', grid: armG(), at: [7, 10, 1] },
       ],
       muzzle: [0, 10, 4],
+    };
+  },
+
+  // ======================================================== Techno Terrors
+  glitchBot() {
+    const beige = mot(0xddd3b8, 0xcfc4a4, 0.25), beigeD = 0xb8ab88;
+    const metal = mot(0x8f9ab0, 0x7d889e, 0.3), metalD = 0x4e5668;
+    const head = G();
+    head.box(-4, 0, -3, 3, 7, 3, beige); // CRT casing
+    head.box(-3, 1, -5, 2, 6, -4, beigeD); // tube bulge at the back
+    head.box(-2, 2, -6, 1, 5, -6, beigeD);
+    for (const x of [-4, 3]) for (let z = -2; z <= 1; z += 1) if ((z & 1) === 0) head.box(x, 2, z, x, 5, z, 0x9a8e6e); // side vents
+    // screen with scanlines
+    for (let x = -3; x <= 2; x++) for (let y = 1; y <= 6; y++) head.set(x, y, 4, y % 2 ? 0x0c1420 : 0x182638);
+    head.box(-4, 0, 4, 3, 0, 4, beigeD).box(-4, 7, 4, 3, 7, 4, beigeD).box(-4, 1, 4, -4, 6, 4, beigeD).box(3, 1, 4, 3, 6, 4, beigeD);
+    // glitchy glowing face
+    const mag = 0xff3ad8, cy = 0x3af6ff;
+    head.box(-3, 4, 4, -2, 5, 4, mag, true).set(-3, 5, 5, 0xffb0f0, true);
+    head.box(1, 4, 4, 2, 5, 4, cy, true).set(2, 5, 5, 0xc0ffff, true);
+    head.set(-1, 4, 4, 0x7a1a6a, true); // chromatic smear
+    head.set(-2, 2, 4, mag, true).set(-1, 2, 4, 0xffffff, true).set(0, 2, 4, cy, true).set(1, 3, 4, cy, true).set(-3, 3, 4, mag, true);
+    head.set(2, 1, 4, 0x7cff3a, true).set(-3, 6, 4, 0x3af6ff, true); // dead pixels
+    // knobs + power LED
+    head.set(-3, 0, 5, 0x5a5040).set(-2, 0, 5, 0x5a5040).set(2, 0, 5, 0xff3a3a, true);
+    head.set(-4, 7, 0, 0xff8a2a).set(-4, 6, 1, 0x29b6f6); // sticker
+    const ant = G();
+    ant.box(0, 0, 0, 0, 2, 0, metalD).set(0, 3, 0, 0xff3ad8, true).set(1, 2, 0, 0x8f9ab0).set(1, 3, 0, 0x8f9ab0);
+    const body = G();
+    body.box(-3, 0, -2, 2, 4, 2, metal);
+    body.box(-2, 1, 3, 1, 3, 3, metalD); // chest panel
+    body.set(-2, 3, 3, 0xff3a3a, true).set(-1, 3, 3, 0xffd23f, true).set(0, 3, 3, 0x7cff3a, true);
+    body.box(-2, 1, 3, 1, 1, 3, 0x2a3040).set(1, 2, 3, 0x3af6ff, true).set(-2, 2, 3, 0x9aa2b4);
+    body.box(-3, 4, -2, 2, 4, 2, 0x5d6476); // neck plate
+    for (const x of [-4, 3]) body.box(x, 2, -1, x, 4, 0, metalD); // shoulder joints
+    body.set(-1, 0, -3, metalD).set(0, 0, -3, metalD).set(-1, 2, -3, 0xffd23f); // backpack bolt
+    const legG = () => bipedLeg({ h: 3, color: metalD, foot: 0x3a3f4e, toe: 1, knee: 0x8f9ab0 });
+    const armLg = G();
+    armLg.box(-1, -3, -1, 0, 0, 0, metal).box(-1, -4, -1, 0, -4, 0, metalD);
+    armLg.set(-1, -5, -1, 0xc8d0dc).set(-1, -5, 0, 0xc8d0dc).set(0, -5, 0, 0xc8d0dc).set(-1, -6, 0, 0xc8d0dc); // pincer
+    const armRg = G(); // blaster arm
+    armRg.box(-1, -2, -1, 0, 0, 0, metal);
+    armRg.cylinder(-0.5, -0.5, -6, -3, 1.4, (x, y, z) => (y === -5 ? 0xff3ad8 : 0x5d6476), 'y');
+    armRg.box(-1, -7, -1, 0, -7, 0, 0x3af6ff, true);
+    armRg.set(-2, -4, -1, 0xff3ad8, true).set(1, -4, 0, 0xff3ad8, true);
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: legG(), at: [-2, 3, 0] },
+        { name: 'legR', grid: legG(), at: [2, 3, 0] },
+        { name: 'body', grid: body, at: [0, 3, 0] },
+        { name: 'head', grid: head, at: [0, 8, 0] },
+        { name: 'antenna', grid: ant, at: [1, 16, -1] },
+        { name: 'armL', grid: armLg, at: [-4, 7, 0] },
+        { name: 'armR', grid: armRg, at: [4, 7, 0] },
+      ],
+      muzzle: [4, 6, 5],
+    };
+  },
+
+  droneFang() {
+    const shellC = mot(0x353b4a, 0x2a2f3a, 0.3), top = 0x4a5266, red = 0xe8343c;
+    const body = G();
+    body.box(-3, 0, -4, 2, 4, 3, shellC);
+    body.box(-3, 4, -4, 2, 4, 3, top);
+    body.box(-2, 5, -3, 1, 5, 1, top);
+    for (let z = -4; z <= 3; z++) { body.set(-4, 2, z, red); body.set(3, 2, z, red); }
+    body.box(-4, 1, -4, -4, 3, -3, 0x2a2f3a).box(3, 1, -4, 3, 3, -3, 0x2a2f3a);
+    // arms to the four rotor hubs
+    for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+      const x0 = sx < 0 ? -3 : 2, z0 = sz < 0 ? -4 : 3;
+      const hx = sx < 0 ? -6 : 5, hz = sz < 0 ? -6 : 5;
+      body.line(x0, 3, z0, hx, 3, hz, 0x5d6476);
+      body.box(Math.min(hx, hx + sx), 3, Math.min(hz, hz + sz), Math.max(hx, hx + sx), 4, Math.max(hz, hz + sz), 0x1a1d24);
+      body.set(hx, 2, hz, red, true).set(hx + sx, 4, hz + sz, 0x8a92a4);
+    }
+    // big glowing camera eye
+    for (let x = -3; x <= 2; x++) for (let y = 0; y <= 4; y++) {
+      const d = Math.hypot(x + 0.5, y - 2);
+      if (d > 2.7) continue;
+      body.set(x, y, 4, d > 1.9 ? 0x15121f : d > 1.2 ? 0xff2a2a : 0xffb0a0, d <= 1.9);
+      if (d > 1.9) body.set(x, y, 5, 0x3a3f4e);
+    }
+    body.set(-2, 3, 5, 0xffffff, true);
+    body.box(-1, 1, 5, 0, 2, 5, 0x5a0a10); // pupil
+    // antenna with blinking light
+    body.box(1, 6, -3, 1, 7, -3, 0x8a92a4).set(1, 8, -3, red, true);
+    // fang jaw hanging under the front
+    // body rounding
+    for (const x of [-3, 2]) for (const z of [-4, 3]) body.del(x, 0, z).del(x, 4, z);
+    const jaw = G();
+    jaw.box(-3, -1, 0, 2, -1, 7, 0x2a2f3a);
+    jaw.box(-2, -1, 2, 1, -1, 6, 0x5a0a10);
+    for (const x of [-2, 1]) jaw.box(x, -3, 7, x, -2, 7, C.tooth).set(x, -4, 7, 0xe8e8f0).set(x, -2, 6, C.tooth);
+    for (const x of [-3, -1, 0, 2]) jaw.set(x, -2, 7, C.tooth);
+    for (const x of [-3, 2]) jaw.set(x, -2, 5, C.tooth);
+    // dangling grabber claws
+    for (const x of [-3, 2]) jaw.box(x, -3, 1, x, -2, 1, 0x5d6476).set(x, -4, 2, 0x8a92a4);
+    const prop = () => {
+      const g = G();
+      g.box(-3, 0, 0, 3, 0, 0, 0xd8dde8).box(0, 0, -3, 0, 0, 3, 0xd8dde8);
+      for (const [x, z] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) g.set(x, 0, z, red);
+      g.set(0, 1, 0, 0x8a92a4);
+      return g;
+    };
+    return {
+      gait: 'float',
+      parts: [
+        { name: 'body', grid: body, at: [0, 4, 0] },
+        { name: 'jaw', grid: jaw, at: [0, 0, -4], parent: 'body' },
+        { name: 'prop1', grid: prop(), at: [-5.5, 9, -5.5], pivot: [0.5, 0, 0.5] },
+        { name: 'prop2', grid: prop(), at: [5.5, 9, -5.5], pivot: [0.5, 0, 0.5] },
+        { name: 'prop3', grid: prop(), at: [-5.5, 9, 5.5], pivot: [0.5, 0, 0.5] },
+        { name: 'prop4', grid: prop(), at: [5.5, 9, 5.5], pivot: [0.5, 0, 0.5] },
+      ],
+      muzzle: [0, 5, 7],
+    };
+  },
+
+  circuitShark() {
+    const pcb = (x, y, z) => (noise(x, y, z) < 0.2 ? 0x176030 : 0x1f7a3a), belly = mot(0xbfe8c8, 0xa8dcb4, 0.3);
+    const gold = 0xffcc33;
+    const body = G();
+    for (let z = -9; z <= 9; z++) {
+      const t = (z + 0.5) / 9.5;
+      const w = 3.6 * Math.sqrt(Math.max(0, 1 - t * t * (t > 0 ? 0.8 : 1))) + 0.4;
+      const h = 3.2 * Math.sqrt(Math.max(0, 1 - t * t * (t > 0 ? 0.7 : 1))) + 0.4;
+      for (let x = -5; x <= 4; x++) for (let y = -1; y <= 7; y++) {
+        const dx = (x + 0.5) / w, dy = (y - 3) / h;
+        if (dx * dx + dy * dy <= 1) body.set(x, y, z, y <= 1 ? belly : pcb);
+      }
+    }
+    // gold traces with right-angle turns + vias (glowing)
+    const trace = (pts, side) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [y0, z0] = pts[i], [y1, z1] = pts[i + 1];
+        for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
+          for (let x = side < 0 ? -6 : 5; side < 0 ? x <= 0 : x >= -1; x -= side) if (body.has(x, y, z)) { body.set(x, y, z, gold, true); break; }
+        }
+      }
+    };
+    for (const s of [-1, 1]) {
+      trace([[4, -7], [4, -2], [5, -2], [5, 3]], s);
+      trace([[2, -6], [2, 0], [3, 0], [3, 4]], s);
+      trace([[5, -5], [6, -5]], s);
+    }
+    // IC chips on the flanks
+    for (const s of [-1, 1]) {
+      const x = s < 0 ? -5 : 4;
+      body.box(x, 3, -5, x, 4, -3, 0x15121f);
+      for (const z of [-5, -3]) body.set(x, 5, z, 0xc8d0dc).set(x, 2, z, 0xc8d0dc);
+    }
+    // gills
+    for (const z of [0, 1, 2]) for (const s of [-1, 1]) body.box(s < 0 ? -5 : 4, 2, z * 1, s < 0 ? -5 : 4, 4, z * 1, z === 1 ? pcb : 0x0a2a14);
+    // red LED eyes on the sides of the head
+    for (const s of [-1, 1]) { const x = s < 0 ? -4 : 3; body.box(x, 5, 4, x, 5, 5, 0xff2a2a, true).set(x + s, 5, 5, 0xffb0a0, true).set(x, 6, 4, 0x0a2a14); }
+    // mouth: carve and add upper teeth
+    body.carve((x, y, z) => y <= 2 && z >= 2);
+    body.box(-3, 2, 2, 2, 2, 7, 0x4a0c18);
+    for (let z = 3; z <= 7; z += 1) for (const x of [-4, 3]) if (body.has(x, 3, z)) body.set(x, 2, z, (z & 1) ? C.tooth : null);
+    for (let x = -3; x <= 2; x++) if (body.has(x, 3, 8)) body.set(x, 2, 8, (x & 1) ? C.tooth : null);
+    // dorsal fin
+    for (let i = 0; i < 4; i++) body.box(-1, 7 + i, -3 - i, 0, 7 + i, i < 3 ? 0 - i : -3, pcb);
+    body.box(-1, 8, -2, 0, 8, -1, gold, true).set(-1, 9, -4, gold, true).set(0, 9, -4, gold, true);
+    const jaw = G();
+    for (let z = 0; z <= 6; z++) {
+      const hw = z < 5 ? 3 : z < 6 ? 2 : 1;
+      jaw.box(-hw - 1, -2, z, hw, -1, z, belly);
+    }
+    jaw.box(-3, -1, 0, 2, -1, 5, 0x7a1a2a);
+    for (let z = 1; z <= 5; z++) for (const x of [-4, 3]) jaw.set(x, 0, z, (z & 1) ? null : C.tooth);
+    for (let x = -2; x <= 1; x++) jaw.set(x, 0, 6, (x & 1) ? null : C.tooth);
+    const tail = G();
+    tail.box(-1, 2, -3, 0, 4, -1, pcb);
+    tail.box(-1, 3, -6, 0, 3, -4, pcb);
+    for (let i = 0; i < 4; i++) { tail.box(-1, 4 + i, -6 - i, 0, 4 + i, -5 - i, pcb); }
+    for (let i = 0; i < 3; i++) { tail.box(-1, 2 - i, -6 - i, 0, 2 - i, -5 - i, pcb); }
+    tail.set(-1, 7, -9, gold, true).set(0, 7, -9, gold, true);
+    const leg = () => {
+      const g = G();
+      g.box(-1, -2, -1, 0, -1, 0, 0x5d6476);
+      g.box(-1, -3, -1, 0, -3, 0, 0xffcc33);
+      g.box(-1, -5, 0, 0, -4, 0, 0x8a92a4);
+      g.box(-1, -5, 1, 0, -5, 1, 0x3a3f4e).box(-2, -5, 0, 1, -5, 0, 0x3a3f4e);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        ...quadLegs(leg, leg, { xl: -3, xr: 3, y: 5, fz: 3, bz: -5 }),
+        { name: 'body', grid: body, at: [0, 5, 0] },
+        { name: 'jaw', grid: jaw, at: [0, 2, 2], parent: 'body' },
+        { name: 'tail', grid: tail, at: [0, 5, -8] },
+      ],
+      muzzle: [0, 7, 14],
+    };
+  },
+
+  megaTechMech() {
+    const navy = mot(0x24305e, 0x1c264c, 0.25), navyL = 0x34447a, orange = 0xff7a1a, white = 0xf0f2f6, joint = 0x5d6476;
+    const body = G();
+    body.box(-5, 0, -3, 4, 6, 3, navy);
+    body.box(-4, 1, 4, 3, 2, 4, white); // chest plate
+    body.box(-5, 0, -3, 4, 0, 3, joint);
+    body.box(-5, 3, 4, -5, 6, 4, orange).box(4, 3, 4, 4, 6, 4, orange);
+    // cockpit window
+    body.box(-3, 3, 4, 2, 6, 4, 0x1a2a40);
+    body.box(-2, 4, 5, 1, 6, 5, 0x5ce1e6, true);
+    body.set(-2, 6, 5, 0xd8ffff, true).set(-1, 6, 5, 0xb8ffff, true);
+    body.box(-1, 4, 5, 0, 5, 5, 0x2aa8c0, true); // pilot silhouette
+    body.box(-3, 7, 4, 2, 7, 4, white);
+    body.box(-4, 7, -3, 3, 7, 3, navyL);
+    // orange hazard stripes on the flanks
+    for (let z = -3; z <= 3; z++) { body.set(-6, 2, z, (z & 1) ? orange : C.ink); body.set(5, 2, z, (z & 1) ? C.ink : orange); }
+    body.box(-6, 4, -2, -6, 6, 1, white).box(5, 4, -2, 5, 6, 1, white);
+    body.set(-6, 5, -1, C.ink).set(-6, 5, 0, C.ink).set(5, 5, -1, C.ink).set(5, 5, 0, C.ink); // unit number
+    // exhaust vents on the back
+    body.box(-3, 2, -4, -2, 5, -4, joint).box(1, 2, -4, 2, 5, -4, joint).set(-3, 6, -4, 0xff8a2a, true).set(2, 6, -4, 0xff8a2a, true);
+    // small sensor head
+    const head = G();
+    head.box(-2, 0, -2, 1, 2, 2, navyL);
+    head.box(-2, 1, 3, 1, 1, 3, 0xff3a3a, true);
+    head.box(-2, 2, 3, 1, 2, 3, white);
+    const ant = G();
+    ant.box(0, 0, 0, 0, 3, 0, joint).set(0, 4, 0, orange, true).set(-1, 3, 0, joint);
+    // shoulder missile pods (cannon)
+    const pods = G();
+    for (const s of [-1, 1]) {
+      const x0 = s < 0 ? -9 : 5;
+      pods.box(x0, 0, -3, x0 + 3, 3, 3, navyL);
+      pods.box(x0, 0, -3, x0 + 3, 0, 3, white);
+      for (let x = x0; x <= x0 + 3; x++) for (let y = 1; y <= 3; y++) pods.set(x, y, 4, (x + y) % 2 ? C.red : white);
+      pods.set(s < 0 ? x0 : x0 + 3, 2, 0, orange).set(s < 0 ? x0 : x0 + 3, 2, 1, orange);
+    }
+    const armG = (s) => {
+      const g = G();
+      g.box(-2, -1, -2, 1, 1, 1, joint); // shoulder joint
+      g.box(-1, -5, -1, 0, -2, 0, navy);
+      g.box(-2, -8, -2, 1, -6, 1, white);
+      g.box(-2, -8, 2, 1, -6, 2, orange);
+      g.box(-2, -10, -2, 1, -9, 1, joint);
+      g.set(-2, -10, 2, 0x8a92a4).set(1, -10, 2, 0x8a92a4);
+      return g;
+    };
+    const legG = () => {
+      const g = G();
+      g.box(-2, -3, -1, 1, -1, 1, navy);
+      g.box(-2, -4, -1, 1, -4, 2, orange); // knee
+      g.box(-1, -6, -1, 0, -5, 0, joint);
+      g.box(-3, -7, -2, 2, -6, 3, white).box(-3, -7, 4, 2, -7, 4, joint);
+      g.set(-3, -6, 3, orange).set(2, -6, 3, orange);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: legG(), at: [-3, 7, 0] },
+        { name: 'legR', grid: legG(), at: [3, 7, 0] },
+        { name: 'body', grid: body, at: [0, 7, 0] },
+        { name: 'head', grid: head, at: [0, 15, -1] },
+        { name: 'antenna', grid: ant, at: [1, 18, -2] },
+        { name: 'cannon', grid: pods, at: [0, 13, -1] },
+        { name: 'armL', grid: armG(-1), at: [-7, 12, 0] },
+        { name: 'armR', grid: armG(1), at: [7, 12, 0] },
+      ],
+      muzzle: [6, 15, 4],
+    };
+  },
+
+  // ======================================================== Atomic Series
+  atomicSlime() { return slime({ mini: false }); },
+  miniSlime() { return slime({ mini: true }); },
+
+  plutoniumPup() {
+    const fur = mot(0xf0e0c0, 0xe4d2ac, 0.3), furD = 0xd0b890, ear = 0x8a5a3a, glow1 = 0x7cff3a, glow2 = 0xb8ff6a;
+    const spots = (g, list) => { for (const [x, y, z, r] of list) for (let dx = 0; dx < r; dx++) for (let dy = 0; dy < r; dy++) if (g.has(x + dx, y + dy, z)) g.set(x + dx, y + dy, z, (dx + dy) % 2 ? glow2 : glow1, true); };
+    const body = G();
+    body.box(-3, 0, -5, 2, 4, 3, fur);
+    for (const x of [-3, 2]) for (const z of [-5, 3]) body.del(x, 4, z).del(x, 0, z);
+    body.box(-2, 0, -4, 1, 0, 2, 0xfff4e0);
+    spots(body, [[-3, 2, -3, 2], [-3, 1, 1, 2], [2, 2, -1, 2], [2, 1, -4, 2]]);
+    for (const [x, z] of [[-2, -3], [0, 0], [-1, 2], [1, -4]]) body.set(x, 4, z, glow1, true);
+    // radiation hazard collar + trefoil tag
+    for (let x = -4; x <= 3; x++) for (let y = 1; y <= 5; y++) {
+      if (x > -4 && x < 3 && y > 1 && y < 5) continue;
+      body.set(x, y, 4, (x + y + 20) % 2 ? 0xffd23f : 0x1a1a1a);
+    }
+    body.box(-3, 2, 4, 2, 4, 4, fur);
+    body.box(-1, -1, 5, 0, 1, 5, 0xffd23f).set(-1, 0, 6, C.ink).set(0, 0, 6, 0xffd23f).set(-1, 1, 6, 0xffd23f).set(0, 1, 6, C.ink).set(-1, -1, 6, C.ink).set(0, -1, 6, C.ink);
+    const head = G();
+    head.box(-4, -3, 0, 3, 3, 6, fur);
+    for (const x of [-4, 3]) { head.del(x, 3, 0).del(x, 3, 6).del(x, -3, 6).del(x, -3, 0); }
+    head.box(-2, -3, 7, 1, -1, 9, 0xfff4e0); // snout
+    head.box(-1, -1, 10, 0, -1, 10, C.ink).set(-1, -1, 9, C.ink).set(0, -1, 9, C.ink); // nose
+    head.set(-1, -1, 11, 0x3a3a50);
+    head.box(-2, -3, 10, 1, -3, 10, 0x3a1a1a); // mouth
+    // big puppy eyes
+    bigEyes(head, 1, 0, 7, { w: 3, h: 3, pupil: 0x15121f, glintC: 0xd8ffb0 });
+    head.set(-3, 0, 7, 0x2a5a1a).set(2, 0, 7, 0x2a5a1a);
+    // eyebrow spots + forehead glow spot
+    head.box(-1, 3, 7, 0, 3, 7, glow1, true).set(-1, 4, 6, glow2, true);
+    spots(head, [[-4, 0, 2, 2], [3, -2, 4, 2]]);
+    // floppy ears
+    for (const s of [-1, 1]) {
+      const x = s < 0 ? -5 : 4;
+      head.box(x, -2, 1, x, 3, 3, ear).box(x - s, -3, 1, x - s, -2, 3, ear);
+      head.set(x, 2, 2, glow1, true);
+    }
+    // tongue (jaw)
+    const jaw = G();
+    jaw.box(-1, -1, 0, 0, -1, 1, C.tongue).set(-1, -2, 1, C.tongue).set(0, -2, 1, 0xff4a6a);
+    const tail = G();
+    tail.box(-1, 0, -2, 0, 1, -1, fur).box(-1, 2, -3, 0, 3, -3, fur).set(-1, 4, -3, glow1, true).set(0, 4, -3, glow2, true);
+    const leg = () => quadLeg({ w: 2, h: 3, color: fur, paw: 0xfff4e0, toe: true });
+    return {
+      gait: 'walk',
+      parts: [
+        ...quadLegs(leg, leg, { xl: -2, xr: 2, y: 3, fz: 2, bz: -4 }),
+        { name: 'body', grid: body, at: [0, 3, 0] },
+        { name: 'head', grid: head, at: [0, 9, 4] },
+        { name: 'jaw', grid: jaw, at: [0, -3, 10], parent: 'head' },
+        { name: 'tail', grid: tail, at: [0, 6, -5] },
+      ],
+      muzzle: [0, 7, 14],
+    };
+  },
+
+  reactorRex() {
+    const sc = (x, y, z) => ((x + y * 2 + z + 60) % 5 === 0 ? 0x27967a : noise(x, y, z) < 0.2 ? 0x2ba082 : 0x32b490);
+    const scD = 0x1f7a6a, belly = mot(0xc8f4d0, 0xb0e8bc, 0.3), spike = 0x7cff3a;
+    const body = G();
+    body.ellipsoid(-0.5, 4, -1, 4, 3.6, 5.5, sc);
+    body.box(-3, 1, 2, 2, 5, 4, belly);
+    body.ellipsoid(-0.5, 6, 3.5, 3, 3, 2.5, sc); // shoulders / neck base
+    body.ellipsoid(-0.5, 8, 5, 2.6, 2.6, 2.4, sc); // neck
+    body.ellipsoid(-0.5, 9.5, 7.5, 2.4, 2.4, 2.2, sc);
+    body.carve((x, y, z) => y < 0);
+    // reactor core in the chest
+    for (let x = -4; x <= 3; x++) for (let y = 1; y <= 8; y++) {
+      const d = Math.hypot(x + 0.5, y - 4.5);
+      if (d > 3.3) continue;
+      body.set(x, y, 6, d > 2.3 ? 0x8a92a4 : d > 1.2 ? 0x7cff3a : 0xeaffd0, d <= 2.3);
+      if (d > 2.3) body.set(x, y, 7, (x + y) % 3 === 0 ? 0xc8d0dc : 0x6b7386);
+      else body.set(x, y, 5, 0x3ad85a, true);
+    }
+    body.box(-4, 4, 3, -4, 5, 4, 0x6b7386).box(3, 4, 3, 3, 5, 4, 0x6b7386); // coolant pipes
+    body.set(-5, 5, 2, 0x7cff3a, true).set(4, 5, 2, 0x7cff3a, true);
+    // glowing back plates
+    for (let z = -5; z <= 4; z += 2) {
+      const h = z > 2 ? 1 : 2;
+      for (let i = 0; i < h; i++) { body.set(-1, 8 + i, z, i === h - 1 ? spike : 0x3ad85a, i === h - 1); body.set(0, 8 + i, z, i === h - 1 ? spike : 0x3ad85a, i === h - 1); }
+    }
+    // glowing scars on flanks
+    for (const s of [-1, 1]) { const x = s < 0 ? -5 : 4; body.set(x, 5, -2, spike, true).set(x, 4, -1, spike, true).set(x, 5, 0, spike, true); }
+    const head = G();
+    head.box(-3, 0, 0, 2, 5, 8, sc);
+    head.box(-3, 0, 0, 2, 1, 8, belly);
+    head.carve((x, y, z) => y === 5 && z >= 6 && (x === -3 || x === 2));
+    head.box(-4, 3, 4, -4, 4, 6, scD).box(3, 3, 4, 3, 4, 6, scD); // cheek ridges
+    // brow ridges + glowing eyes on the sides/front
+    for (const s of [-1, 1]) {
+      const x = s < 0 ? -4 : 3;
+      head.box(x, 3, 5, x, 4, 6, 0xffe14a, true);
+      head.set(x, 3, 6, 0x1a1a1a).set(x, 4, 6, 0x1a1a1a);
+      head.box(x, 5, 4, x, 5, 7, scD).set(x + s, 5, 5, scD);
+    }
+    head.box(-3, 3, 9, -3, 3, 9, scD).box(2, 3, 9, 2, 3, 9, scD); // nostrils
+    head.box(-2, 4, 9, 1, 5, 9, sc);
+    head.box(-1, 6, 2, 0, 6, 5, spike, true);
+    // upper teeth
+    for (let z = 2; z <= 8; z++) for (const x of [-3, 2]) if (z % 2 === 0) head.set(x, -1, z, C.tooth);
+    for (const x of [-2, 0, 1]) head.set(x, -1, 9, C.tooth);
+    head.box(-2, 0, 9, 1, 0, 9, sc);
+    head.box(-3, 2, 9, 2, 2, 9, sc);
+    head.set(-2, 1, 9, sc).set(1, 1, 9, sc).set(-1, 1, 9, 0x4a0c18).set(0, 1, 9, 0x4a0c18);
+    const jaw = G();
+    jaw.box(-3, -3, 0, 2, -2, 7, belly);
+    jaw.box(-2, -2, 0, 1, -2, 6, 0x7a1a2a);
+    for (let z = 0; z <= 6; z++) for (const x of [-3, 2]) if (z % 2 === 0) jaw.set(x, -1, z, C.tooth);
+    jaw.set(-1, -1, 7, C.tooth).set(0, -1, 7, C.tooth);
+    const tail = G();
+    for (let i = 0; i < 11; i++) {
+      const r = Math.max(0.6, 2.6 - i * 0.22);
+      tail.ellipsoid(-0.5, 2 - i * 0.15, -i, r, r * 0.9, 0.6, sc);
+      if (i % 2 === 0 && i < 10) tail.set(-1, Math.round(2 - i * 0.15 + r) + 1, -i, spike, true).set(0, Math.round(2 - i * 0.15 + r) + 1, -i, spike, true);
+    }
+    const legG = () => {
+      const g = G();
+      g.box(-2, -3, -2, 1, 0, 2, sc);
+      g.box(-1, -5, -1, 0, -4, 0, sc);
+      g.box(-2, -6, -1, 1, -6, 2, scD);
+      for (const x of [-2, 0, 1]) g.set(x, -6, 3, C.white);
+      return g;
+    };
+    const armG = () => {
+      const g = G();
+      g.box(-1, -2, 0, 0, 0, 1, sc);
+      g.set(-1, -2, 2, C.white).set(0, -2, 2, C.white);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: legG(), at: [-4, 6, -2] },
+        { name: 'legR', grid: legG(), at: [4, 6, -2] },
+        { name: 'body', grid: body, at: [0, 5, 0] },
+        { name: 'head', grid: head, at: [0, 14, 8] },
+        { name: 'jaw', grid: jaw, at: [0, 0, 1], parent: 'head' },
+        { name: 'armL', grid: armG(), at: [-4, 10, 5] },
+        { name: 'armR', grid: armG(), at: [4, 10, 5] },
+        { name: 'tail', grid: tail, at: [0, 8, -6] },
+      ],
+      muzzle: [0, 15, 18],
+    };
+  },
+
+  // ======================================================== Lab Hybrids
+  blazeHybrid() {
+    const rock = pal([0x3a1a1a, 0x4a1f1a, 0x2a1414, 0x5a2418]);
+    const crack = (g, fn) => glowWhere(g, fn, 0xff7a1a);
+    const body = G();
+    body.box(-3, 0, -2, 2, 3, 2, rock);
+    body.box(-2, 0, 3, 1, 2, 3, 0xff8a1a, true).box(-1, 1, 3, 0, 1, 3, 0xffe14a, true); // molten belly
+    crack(body, (x, y, z) => (x === -3 || x === 2) && (y + z + 9) % 4 === 0);
+    const head = G();
+    head.box(-4, 0, -3, 3, 5, 3, rock);
+    for (const x of [-4, 3]) for (const z of [-3, 3]) head.del(x, 5, z).del(x, 0, z);
+    crack(head, (x, y, z) => (x === -4 || x === 3) && (y * 2 + z + 20) % 5 === 0);
+    crack(head, (x, y, z) => z === -3 && (x + y + 20) % 4 === 0);
+    // face
+    for (const [x0, s] of [[-3, -1], [1, 1]]) {
+      head.box(x0, 3, 4, x0 + 1, 4, 4, 0xffe14a, true);
+      head.set(s < 0 ? x0 + 1 : x0, 3, 4, 0xff5a1a, true);
+      head.set(s < 0 ? x0 : x0 + 1, 5, 4, 0x1a0a0a).set(s < 0 ? x0 + 1 : x0, 5, 4, 0x1a0a0a).set(s < 0 ? x0 + 2 : x0 - 1, 4, 4, 0x1a0a0a);
+    }
+    head.box(-3, 1, 4, 2, 2, 4, 0xff6a1a, true);
+    for (let x = -3; x <= 2; x++) head.set(x, (x & 1) ? 2 : 1, 4, 0xfff0c0);
+    head.box(-4, 1, 4, -4, 2, 4, 0x2a1414).box(3, 1, 4, 3, 2, 4, 0x2a1414);
+    // pointed ears + horns
+    for (const s of [-1, 1]) {
+      const x = s < 0 ? -5 : 4;
+      head.box(x, 2, -1, x, 3, 1, rock).set(x + s, 3, -1, rock).set(x + s, 4, -2, 0x2a1414);
+      const hx = s < 0 ? -3 : 2;
+      head.set(hx, 6, 0, 0x1a0a0a).set(hx + s, 7, -1, 0x1a0a0a);
+    }
+    // flame hair
+    for (const [x, z, h] of [[-3, -1, 3], [-2, 1, 4], [-1, -1, 5], [0, 1, 5], [1, -1, 4], [2, 1, 3], [-1, 2, 3], [0, -2, 4], [-2, -2, 3], [1, -2, 3]]) {
+      for (let i = 0; i < h; i++) head.set(x, 6 + i, z - (i >> 1), i >= h - 1 ? 0xfff6a0 : i >= h - 2 ? 0xffd23f : i >= h - 3 ? 0xffa21a : 0xff5a1a, true);
+    }
+    const ember = 0xff5a1a;
+    const armG = () => {
+      const g = G();
+      g.box(-1, -2, -1, 0, 0, 0, rock);
+      g.box(-1, -4, -1, 0, -3, 1, 0xff8a1a, true).set(-1, -3, 1, 0xffd23f, true).set(0, -4, 1, 0xffe14a, true);
+      g.set(-1, -5, 0, 0xffd23f, true).set(0, -5, 1, 0xfff6a0, true);
+      return g;
+    };
+    const tail = G();
+    tail.box(-1, 0, -1, 0, 0, -2, rock).box(-1, 1, -3, 0, 1, -3, rock);
+    tail.box(-1, 2, -4, 0, 2, -4, ember, true);
+    for (let i = 0; i < 4; i++) tail.set(-1 + (i & 1), 3 + i, -4 - (i >> 1), i >= 3 ? 0xfff6a0 : i >= 2 ? 0xffd23f : 0xffa21a, true);
+    tail.set(-1, 3, -5, 0xff7a1a, true).set(0, 4, -3, 0xffa21a, true);
+    const leg = () => {
+      const g = G();
+      g.box(-1, -2, -1, 0, -1, 0, rock);
+      g.box(-1, -2, 1, 0, -2, 1, 0x1a0a0a);
+      g.set(-1, -1, 0, 0xff7a1a, true);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 2, 0] },
+        { name: 'legR', grid: leg(), at: [2, 2, 0] },
+        { name: 'body', grid: body, at: [0, 2, 0] },
+        { name: 'head', grid: head, at: [0, 6, 0] },
+        { name: 'armL', grid: armG(), at: [-4, 5, 0] },
+        { name: 'armR', grid: armG(), at: [4, 5, 0] },
+        { name: 'tail', grid: tail, at: [0, 3, -2] },
+      ],
+      muzzle: [4, 4, 4],
+    };
+  },
+
+  frostHybrid() {
+    const fur = pal([0xf2faff, 0xe2f2fc, 0xd2eaf8, 0xeaf6ff]), skin = 0x6a9ac0, skinD = 0x4a7aa8;
+    const ice = 0x9fe8ff, iceW = 0xe8ffff;
+    const icicle = (g, x, y, z, dx, dy, dz, n) => {
+      for (let i = 0; i < n; i++) g.set(x + dx * i, y + dy * i, z + dz * i, i === n - 1 ? iceW : ice, i === n - 1);
+    };
+    const body = G();
+    body.ellipsoid(-0.5, 4, 0, 4.6, 4.4, 3.6, fur);
+    body.carve((x, y) => y < 0);
+    // shaggy fur tufts
+    for (const [x, y, z] of [[-5, 2, 0], [4, 2, 1], [-5, 5, -1], [4, 5, 0], [-2, 0, 4], [1, 0, 4], [-3, 7, -3], [2, 7, -3]]) body.set(x, y, z, 0xd2eaf8);
+    body.box(-2, 2, 4, 1, 5, 4, mot(0xd8eef8, 0xc4e4f4)); // chest
+    // icicle spikes on shoulders and back
+    icicle(body, -4, 7, 0, 0, 1, 0, 3); icicle(body, 3, 7, 0, 0, 1, 0, 3);
+    icicle(body, -3, 8, -1, 0, 1, -1, 2); icicle(body, 2, 8, -1, 0, 1, -1, 2);
+    for (const [x, y] of [[-2, 6], [1, 6], [-1, 3], [0, 4]]) icicle(body, x, y, -4, 0, 1, -1, 2);
+    const head = G();
+    head.box(-3, 0, -1, 2, 4, 3, fur);
+    head.box(-2, 0, 4, 1, 3, 4, skin);
+    head.box(-3, 4, 4, 2, 4, 4, 0xf2faff); // brow fur
+    head.set(-3, 4, 5, 0xe2f2fc).set(2, 4, 5, 0xe2f2fc).set(-1, 4, 5, 0xe2f2fc).set(0, 4, 5, 0xe2f2fc);
+    for (const [x, s] of [[-2, -1], [1, 1]]) head.set(x, 3, 5, 0x9ff6ff, true).set(x, 2, 5, s < 0 ? 0x2a8ac0 : 0x2a8ac0);
+    head.set(-2, 2, 5, 0xd8ffff, true).set(1, 2, 5, 0xd8ffff, true).set(-2, 3, 5, 0x9ff6ff, true).set(1, 3, 5, 0x9ff6ff, true);
+    head.box(-1, 0, 5, 0, 1, 5, 0x1a2a4a);
+    head.set(-2, 1, 5, C.tooth).set(1, 1, 5, C.tooth).set(-2, 0, 5, 0x1a2a4a).set(1, 0, 5, 0x1a2a4a).set(-1, 1, 5, C.tooth).set(0, 0, 5, C.tooth);
+    head.set(-3, 2, 4, 0xe2f2fc).set(2, 2, 4, 0xe2f2fc);
+    // icy horns
+    for (const s of [-1, 1]) { const x = s < 0 ? -3 : 2; icicle(head, x, 5, 1, 0, 1, 0, 2); head.set(x + s, 7, 0, ice).set(x + s, 8, -1, iceW, true); }
+    const armG = (s) => {
+      const g = G();
+      g.box(-1, -4, -1, 0, 0, 1, fur);
+      g.box(-2, -6, -1, 1, -5, 2, fur);
+      g.box(-2, -8, -1, 1, -7, 2, skin);
+      g.box(-2, -8, 3, 1, -8, 3, skinD);
+      for (const x of [-2, 0, 1]) g.set(x, -9, 3, C.white);
+      icicle(g, s < 0 ? -3 : 2, -5, 0, s, 1, -1, 2);
+      icicle(g, s < 0 ? -2 : 1, -3, 0, s, 1, 0, 2);
+      return g;
+    };
+    const leg = () => {
+      const g = G();
+      g.box(-1, -3, -1, 1, -1, 1, fur);
+      g.box(-2, -3, -1, 1, -3, 3, skin);
+      for (const x of [-2, 0, 1]) g.set(x, -3, 4, C.white);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 3, 0] },
+        { name: 'legR', grid: leg(), at: [2, 3, 0] },
+        { name: 'body', grid: body, at: [0, 3, 0] },
+        { name: 'head', grid: head, at: [0, 10, 1] },
+        { name: 'armL', grid: armG(-1), at: [-5, 10, 0] },
+        { name: 'armR', grid: armG(1), at: [5, 10, 0] },
+      ],
+      muzzle: [0, 10, 7],
+    };
+  },
+
+  stoneHybrid() {
+    const rock = pal([0x7a7f88, 0x8f949c, 0x6b7078, 0x848990]);
+    const moss = [0x4f8a2a, 0x6aa83a, 0x5a9a30];
+    const mossify = (g, p = 0.55) => {
+      const tops = [];
+      g.forEach((x, y, z, c, gl) => { if (!gl && !g.has(x, y + 1, z) && noise(x + 4, y, z * 3) < p && y > 3) tops.push([x, y, z]); });
+      for (const [x, y, z] of tops) {
+        g.set(x, y, z, moss[(x + z + 30) % 3]);
+        if (!g.has(x, y - 1, z + 1) && noise(x, y, z) < 0.35) g.set(x, y - 1, z + 1, moss[1]);
+      }
+    };
+    const crackFront = (g, pts) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+        const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+        for (let k = 0; k <= n; k++) {
+          const x = Math.round(x0 + (x1 - x0) * k / n), y = Math.round(y0 + (y1 - y0) * k / n);
+          for (let z = 12; z >= -12; z--) if (g.has(x, y, z)) { g.set(x, y, z, k % 2 ? 0xff8a1a : 0xffb02a, true); break; }
+        }
+      }
+    };
+    const crackSide = (g, s, pts) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [z0, y0] = pts[i], [z1, y1] = pts[i + 1];
+        const n = Math.max(Math.abs(z1 - z0), Math.abs(y1 - y0));
+        for (let k = 0; k <= n; k++) {
+          const z = Math.round(z0 + (z1 - z0) * k / n), y = Math.round(y0 + (y1 - y0) * k / n);
+          for (let i2 = 0; i2 < 14; i2++) { const x = s < 0 ? -12 + i2 : 11 - i2; if (g.has(x, y, z)) { g.set(x, y, z, 0xff8a1a, true); break; } }
+        }
+      }
+    };
+    const body = G();
+    body.ellipsoid(-0.5, 4.5, 0, 5.2, 4.5, 3.8, rock);
+    body.ellipsoid(-5, 7, 0, 2.6, 2.4, 2.6, rock);
+    body.ellipsoid(4, 7, 0, 2.6, 2.4, 2.6, rock);
+    body.ellipsoid(-0.5, 7, -2, 3.2, 2.6, 2.6, rock);
+    body.carve((x, y) => y < 0);
+    crackFront(body, [[-3, 7], [-2, 5], [-3, 3], [-1, 1]]);
+    crackFront(body, [[2, 8], [1, 6], [2, 4]]);
+    crackSide(body, -1, [[-2, 7], [0, 5], [-1, 3], [1, 1]]);
+    crackSide(body, 1, [[2, 7], [0, 5], [1, 2]]);
+    mossify(body);
+    const head = G();
+    head.box(-2, 0, -1, 1, 3, 3, rock);
+    head.box(-3, 3, 2, 2, 3, 4, 0x5f646c); // heavy brow
+    head.box(-2, 4, -1, 1, 4, 2, rock);
+    head.set(-2, 2, 4, 0xffa21a, true).set(1, 2, 4, 0xffa21a, true).set(-2, 2, 3, 0xff6a1a, true).set(1, 2, 3, 0xff6a1a, true);
+    head.box(-1, 0, 4, 0, 0, 4, 0xff6a1a, true).set(-2, 1, 4, 0x5f646c).set(1, 1, 4, 0x5f646c);
+    mossify(head, 0.8);
+    const armG = (s) => {
+      const g = G();
+      g.ellipsoid(-0.5, -2, 0, 2, 2.2, 2, rock);
+      g.ellipsoid(-0.5, -5, 0.5, 2.3, 2, 2.3, rock);
+      g.ellipsoid(-0.5, -7.5, 1, 2.8, 2.4, 2.8, rock);
+      g.carve((x, y) => y < -9);
+      crackFront(g, [[-2, -7], [0, -8], [1, -6]]);
+      glowWhere(g, (x, y, z) => y === -9 && noise(x, y, z) < 0.3, 0xff8a1a);
+      mossify(g, 0.4);
+      return g;
+    };
+    const leg = () => {
+      const g = G();
+      g.box(-2, -3, -2, 1, -1, 1, rock);
+      g.box(-2, -3, 2, 1, -3, 2, 0x5f646c);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 3, 0] },
+        { name: 'legR', grid: leg(), at: [2, 3, 0] },
+        { name: 'body', grid: body, at: [0, 3, 0] },
+        { name: 'head', grid: head, at: [0, 10, 1] },
+        { name: 'armL', grid: armG(-1), at: [-7, 11, 0] },
+        { name: 'armR', grid: armG(1), at: [7, 11, 0] },
+      ],
+      muzzle: [0, 8, 6],
+    };
+  },
+
+  // ======================================================== Food Fighters
+  fryFiend() {
+    const red = (x, y, z) => (noise(x, y, z) < 0.12 ? 0xc81e22 : 0xe02a2a), redD = 0xa81a1e;
+    const fryC = [0xffd23f, 0xffe066, 0xf0c030, 0xffda50];
+    const body = G();
+    for (let y = 0; y <= 7; y++) {
+      const hx = 3 + y * 0.28, hz = 2.2 + y * 0.12;
+      for (let x = -6; x <= 5; x++) for (let z = -4; z <= 4; z++) {
+        if (Math.abs(x + 0.5) > hx || Math.abs(z + 0.5) > hz) continue;
+        const wall = Math.abs(x + 0.5) > hx - 1 || Math.abs(z + 0.5) > hz - 1;
+        if (y === 0 || wall) body.set(x, y, z, red);
+      }
+    }
+    // scalloped front/back top edges
+    body.carve((x, y, z) => y >= 6 && Math.abs(z + 0.5) > 2 && Math.abs(x + 0.5) < 3.5 - (y - 6) * 1.5);
+    body.paint((x, y, z, c) => (y === 0 ? redD : undefined));
+    // white stripe band + yellow star sticker
+    body.paint((x, y, z, c) => (y === 1 ? 0xf7f7f2 : undefined));
+    // fries
+    const fries = [[-3, -1, 10], [-2, 0, 12], [-1, -1, 11], [0, 1, 12], [1, -1, 10], [2, 0, 11], [-3, 1, 9], [3, -1, 9], [-1, 1, 13], [1, 1, 10], [0, -2, 11], [-2, -2, 10], [2, -2, 9], [-4, 0, 8], [4, 0, 8]];
+    for (const [x, z, h] of fries) {
+      const c = fryC[(x * 7 + z * 3 + 50) % fryC.length];
+      for (let y = 2; y <= h; y++) body.set(x, y, z, c);
+      body.set(x, h, z, 0xd89a20);
+    }
+    body.set(-4, 9, 1, 0xffe066).set(-5, 10, 1, 0xffe066).set(3, 10, -2, 0xf0c030).set(4, 11, -2, 0xd89a20); // leaning fries
+    // face on the carton front
+    const fz = 3;
+    bigEye(body, -4, 3, fz, { w: 2, h: 3, side: 'L', brow: C.ink, angry: true });
+    bigEye(body, 2, 3, fz, { w: 2, h: 3, side: 'R', brow: C.ink, angry: true });
+    body.box(-2, 2, fz, 1, 3, fz, 0x3a0a10);
+    body.set(-2, 3, fz, C.tooth).set(1, 3, fz, C.tooth).set(-1, 2, fz, C.tongue).set(0, 2, fz, C.tongue);
+    body.set(-3, 2, fz, C.ink).set(2, 2, fz, C.ink);
+    // ketchup splat
+    body.box(3, 4, -1, 3, 5, 0, 0xc80a14).set(3, 3, 0, 0xc80a14);
+    const armG = () => {
+      const g = G();
+      g.box(0, -3, 0, 0, 0, 0, 0xffd23f).set(0, -3, 1, 0xffd23f);
+      g.box(-1, -5, 0, 1, -4, 1, 0xf7f7f2);
+      return g;
+    };
+    const foot = () => { const g = G(); g.box(-1, -2, -1, 0, -1, 0, 0x8a1418).box(-1, -2, 1, 0, -2, 1, 0x6a0a10); return g; };
+    return {
+      gait: 'hop',
+      parts: [
+        { name: 'legL', grid: foot(), at: [-2, 2, 0] },
+        { name: 'legR', grid: foot(), at: [2, 2, 0] },
+        { name: 'body', grid: body, at: [0, 2, 0] },
+        { name: 'armL', grid: armG(), at: [-5, 8, 0], parent: 'body' },
+        { name: 'armR', grid: armG(), at: [5, 8, 0], parent: 'body' },
+      ],
+      muzzle: [0, 12, 3],
+    };
+  },
+
+  pizzaSlicer() {
+    const cheese = (x, y, z) => (noise(x, y, z) < 0.2 ? 0xffe07a : noise(x + 3, y, z) < 0.15 ? 0xffb02a : 0xffc83a);
+    const crust = (x, y, z) => (noise(x, y, z) < 0.25 ? 0xc0803a : noise(x, y + 2, z) < 0.12 ? 0x9a5a28 : 0xd89a4a);
+    const hw = (y) => 0.6 + (y - 1) * 0.62;
+    const head = G(); // the whole slice (lunges on attack)
+    for (let y = 1; y <= 9; y++) for (let x = -7; x <= 6; x++) {
+      if (Math.abs(x + 0.5) > hw(y)) continue;
+      head.set(x, y, 0, 0xe8b870);
+      head.set(x, y, 1, Math.abs(x + 0.5) > hw(y) - 1 ? 0xd8402a : cheese);
+      head.set(x, y, 2, cheese);
+    }
+    // crust
+    for (let x = -6; x <= 5; x++) for (let y = 10; y <= 11; y++) for (let z = 0; z <= 3; z++) {
+      if ((x === -6 || x === 5) && (y === 11 || z === 3)) continue;
+      if (y === 11 && z === 3) continue;
+      head.set(x, y, z, crust);
+    }
+    // cheese drips
+    for (const [x, y, n] of [[-5, 8, 2], [4, 7, 3], [-3, 4, 2], [2, 3, 2], [0, 1, 2]]) for (let i = 0; i < n; i++) fill(head, x, y - i, 3, 0xffd04a);
+    // pepperoni
+    const pep = (cx, cy) => {
+      for (let x = cx - 1; x <= cx + 1; x++) for (let y = cy - 1; y <= cy + 1; y++) if (Math.abs(x - cx) + Math.abs(y - cy) < 2 || (x === cx || y === cy)) head.set(x, y, 3, (x + y) % 3 === 0 ? 0x9a1a1a : 0xc8282a);
+    };
+    pep(-4, 8); pep(3, 8); pep(0, 9 - 6);
+    // face
+    bigEye(head, -3, 5, 3, { w: 2, h: 2, side: 'L', brow: 0x8a3a1a, angry: true });
+    bigEye(head, 1, 5, 3, { w: 2, h: 2, side: 'R', brow: 0x8a3a1a, angry: true });
+    head.box(-1, 3, 3, 0, 4, 3, 0x6a1a1a).set(-1, 4, 3, C.tooth).set(0, 3, 3, C.tongue);
+    head.set(-2, 4, 3, 0x6a1a1a).set(1, 4, 3, 0x6a1a1a);
+    // basil leaf
+    head.set(2, 6, 3, 0x3a9a3a).set(3, 6, 3, 0x2a7a2a);
+    const leg = () => {
+      const g = G();
+      g.box(-1, -3, -1, 0, -1, 0, 0xe8b870);
+      g.box(-1, -3, 1, 0, -3, 1, 0xd8402a).box(-2, -3, -1, 0, -3, 0, 0xd8402a);
+      return g;
+    };
+    const armL = arm({ len: 3, color: 0xe8b870, hand: 0xf7f7f2, handH: 2 });
+    const armR = G();
+    armR.box(-1, -3, -1, 0, 0, 0, 0xe8b870).box(-1, -5, -1, 0, -4, 0, 0xf7f7f2);
+    armR.box(-1, -5, 1, 0, -5, 3, 0xe8343c); // cutter handle
+    armR.box(-1, -4, 3, 0, -4, 4, 0xb8c0cc); // fork arm
+    const mount = G();
+    const wheel = G();
+    for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) {
+      const d = Math.hypot(x, z);
+      if (d > 2.6) continue;
+      wheel.set(x, 0, z, d > 1.9 ? 0xeef2f8 : d > 0.9 ? 0xb8c0cc : 0xe8343c);
+    }
+    wheel.set(-2, 0, 0, 0x8a92a4).set(2, 0, 0, 0xffffff);
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 4, 0] },
+        { name: 'legR', grid: leg(), at: [2, 4, 0] },
+        { name: 'head', grid: head, at: [0, 3, 0] },
+        { name: 'armL', grid: armL, at: [-6, 11, 1] },
+        { name: 'armR', grid: armR, at: [6, 11, 1] },
+        { name: 'cutterMount', grid: mount, at: [1, -4.5, 5.5], parent: 'armR', rot: [0, 0, Math.PI / 2] },
+        { name: 'spin1', grid: wheel, at: [0, 0, 0], pivot: [0.5, 0.5, 0.5], parent: 'cutterMount' },
+      ],
+      muzzle: [6, 6, 6],
+    };
+  },
+
+  donutDasher() {
+    const R = 4.1, r = 2.05, cy = 6;
+    const dough = mot(0xd89a5a, 0xc8843a, 0.3);
+    const frost = (x, y, z) => (noise(x, y, z) < 0.15 ? 0xff8ac0 : 0xff6fb0);
+    const sprinkles = [0xffffff, 0xffd23f, 0x29b6f6, 0x7cff3a, 0xb05cff, 0xff4a3a];
+    const body = G();
+    for (let x = -4; x <= 3; x++) for (let y = -6; y <= 6; y++) for (let z = -6; z <= 6; z++) {
+      const px = x + 0.5, py = y, pz = z;
+      const q = Math.hypot(py, pz) - R;
+      if (q * q + px * px > (r + 0.35) * (r + 0.35)) continue;
+      const side = Math.abs(px) > 0.9;
+      body.set(x, y, z, side ? frost : dough);
+    }
+    // sprinkles on both frosted faces + frosting drips over the rim
+    body.forEach((x, y, z, c) => {});
+    const pts = [];
+    body.forEach((x, y, z) => { if ((x === -3 || x === 2) && noise(x * 3, y, z) < 0.2) pts.push([x, y, z]); });
+    for (const [x, y, z] of pts) body.set(x, y, z, sprinkles[Math.floor(noise(y, z, x) * sprinkles.length) % sprinkles.length]);
+    for (let a = 0; a < 12; a++) {
+      const ang = a / 12 * Math.PI * 2;
+      const y = Math.round(Math.sin(ang) * (R + 1.2)), z = Math.round(Math.cos(ang) * (R + 1.2));
+      if (a % 2 === 0) { if (body.has(-1, y, z)) body.set(-1, y, z, 0xff6fb0); if (body.has(0, y, z)) body.set(0, y, z, 0xff6fb0); }
+    }
+    // face plates (do not rotate)
+    const head = G();
+    for (const s of [-1, 1]) {
+      const x = s < 0 ? -5 : 4;
+      // eyes above the hole, mouth below, looking at the camera from the side
+      for (const [z0, eyeS] of [[-3, 'a'], [1, 'b']]) {
+        head.box(x, 2, z0, x, 4, z0 + 1, C.white);
+        head.box(x, 2, eyeS === 'a' ? z0 + 1 : z0 + 1, x, 3, eyeS === 'a' ? z0 + 1 : z0 + 1, C.ink);
+        head.set(x, 3, z0 + 1, 0xffffff, true);
+        head.set(x, 2, z0 + 1, C.ink).set(x, 4, z0 + 1, C.white);
+      }
+      head.box(x, -4, -2, x, -3, 1, 0x5a1a2a);
+      head.set(x, -3, -2, C.tooth).set(x, -3, 1, C.tooth).set(x, -4, -1, C.tongue).set(x, -4, 0, C.tongue);
+      head.set(x, -2, -3, 0xff4f8a).set(x, -2, 2, 0xff4f8a); // cheeks
+    }
+    // front: eyes peeking over the rolling rim
+    head.box(-3, 2, 7, -2, 3, 7, C.white).box(1, 2, 7, 2, 3, 7, C.white);
+    head.set(-2, 2, 7, C.ink).set(1, 2, 7, C.ink).set(-3, 3, 7, 0xffffff, true).set(2, 3, 7, 0xffffff, true);
+    head.box(-1, -1, 7, 0, -1, 7, 0x5a1a2a);
+    return {
+      gait: 'roll',
+      parts: [
+        { name: 'body', grid: body, at: [0, cy + 0.5, 0.5], pivot: [0, 0.5, 0.5] },
+        { name: 'head', grid: head, at: [0, cy, 0] },
+      ],
+      muzzle: [0, 6, 7],
+    };
+  },
+
+  burgerBrute() {
+    const bun = (x, y, z) => (noise(x, y, z) < 0.2 ? 0xe0a050 : 0xd8902e), bunL = 0xf0c070;
+    const patty = (x, y, z) => (noise(x, y, z) < 0.3 ? 0x4a2410 : noise(x + 1, y, z) < 0.2 ? 0x7a4220 : 0x5e3018);
+    const body = G();
+    body.cylinder(-0.5, -0.5, 0, 1, 5.2, bun, 'y');
+    body.cylinder(-0.5, -0.5, 0, 0, 4.6, 0xc07a28, 'y');
+    body.cylinder(-0.5, -0.5, 2, 4, 5.6, patty, 'y');
+    // cheese slice with drooping corners
+    body.box(-6, 5, -6, 5, 5, 5, 0xffc21a);
+    for (const [x, z] of [[-6, -6], [5, -6], [-6, 5], [5, 5]]) { body.del(x, 5, z); }
+    for (const [x, z, n] of [[-7, 0, 2], [6, -2, 3], [-1, 6, 3], [2, -7, 2], [-4, 6, 2]]) for (let i = 0; i < n; i++) body.set(x, 5 - i, z, 0xffb000);
+    // lettuce ruffle
+    for (let a = 0; a < 40; a++) {
+      const ang = a / 40 * Math.PI * 2, rr = 6.2 + (a % 2) * 0.6;
+      const x = Math.round(-0.5 + Math.cos(ang) * rr), z = Math.round(-0.5 + Math.sin(ang) * rr);
+      body.set(x, 6, z, a % 3 ? 0x5ac83a : 0x3aa82a);
+      if (a % 4 === 0) body.set(x, 5, z, 0x3aa82a);
+    }
+    body.cylinder(-0.5, -0.5, 6, 6, 5.4, 0x6ad84a, 'y');
+    // tomato slices
+    for (const [cx, cz] of [[-3, 2], [2, 1], [-1, -3]]) body.cylinder(cx, cz, 7, 7, 2.4, (x, y, z) => (Math.hypot(x - cx, z - cz) < 1.2 ? 0xff7a6a : 0xe02a2a), 'y');
+    // monster mouth: teeth row under the top bun at the front + tongue
+    for (let x = -4; x <= 3; x++) body.set(x, 7, 5, (x & 1) ? C.tooth : null);
+    body.box(-2, 7, 4, 1, 7, 4, 0x4a0c18);
+    body.box(-1, 6, 6, 0, 6, 7, C.tongue);
+    // big fists
+    const head = G(); // sesame top bun
+    for (let y = 0; y <= 5; y++) {
+      const rr = 5.6 * Math.sqrt(Math.max(0, 1 - (y / 6.2) ** 2)) + 0.2;
+      head.cylinder(-0.5, -0.5, y, y, rr, bun, 'y');
+    }
+    head.paint((x, y, z) => (y === 0 ? bunL : undefined));
+    // sesame seeds
+    head.forEach(() => {});
+    const seeds = [];
+    head.forEach((x, y, z) => { if (!head.has(x, y + 1, z) && y >= 2 && noise(x * 2, y, z * 2) < 0.22) seeds.push([x, y, z]); });
+    for (const [x, y, z] of seeds) head.set(x, y + 1, z, 0xfff4d0);
+    // upper teeth along the bun's lip + eyes
+    for (let x = -4; x <= 3; x++) head.set(x, -1, 5, (x & 1) ? null : C.tooth);
+    for (const [x0, s] of [[-4, -1], [1, 1]]) {
+      bigEye(head, x0, 1, 6, { w: 3, h: 3, side: s < 0 ? 'L' : 'R', brow: 0x7a4220, angry: true });
+    }
+    const armG = () => {
+      const g = G();
+      g.box(-1, -3, -1, 0, 0, 0, 0xd8902e);
+      g.box(-2, -6, -2, 1, -4, 1, 0xe0a050);
+      g.set(-2, -4, 2, 0xe0a050).set(1, -4, 2, 0xe0a050).set(-1, -5, 2, 0xe0a050).set(0, -5, 2, 0xe0a050);
+      return g;
+    };
+    const leg = () => bipedLeg({ h: 3, color: 0xc07a28, foot: 0x8a4a1a, toe: 1, wide: true });
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 3, 0] },
+        { name: 'legR', grid: leg(), at: [2, 3, 0] },
+        { name: 'body', grid: body, at: [0, 3, 0] },
+        { name: 'head', grid: head, at: [0, 11, 0] },
+        { name: 'armL', grid: armG(), at: [-7, 8, 0] },
+        { name: 'armR', grid: armG(), at: [7, 8, 0] },
+      ],
+      muzzle: [0, 10, 7],
+    };
+  },
+
+  sodaSurge() {
+    const body = G();
+    const canC = (x, y, z) => {
+      if (y === 0 || y === 10) return 0xc8d0dc;
+      if (y === 4 || y === 6) return 0xf7f7f2;
+      if (y === 5) return 0x1d6ad8;
+      const ang = Math.atan2(z + 0.5, x + 0.5);
+      if (y === 8 && Math.sin(ang * 3) > 0.3) return 0xf7f7f2; // wave stripe
+      return noise(x, y, z) < 0.12 ? 0xc81a24 : 0xe0222c;
+    };
+    body.cylinder(-0.5, -0.5, 0, 10, 3.6, canC, 'y');
+    body.cylinder(-0.5, -0.5, 10, 10, 2.8, 0xb8c0cc, 'y'); // lid
+    body.cylinder(-0.5, -0.5, 11, 11, 3.2, null, 'y');
+    for (let x = -4; x <= 3; x++) for (let z = -4; z <= 3; z++) { const d = Math.hypot(x + 0.5, z + 0.5); if (d > 2.9 && d < 4.1) body.set(x, 11, z, 0xd8dee8); }
+    body.box(-1, 10, 1, 0, 10, 2, 0x2a2a33); // opening
+    // fizz bubbling out
+    for (const [x, y, z, c] of [[-1, 11, 1, 0xffffff], [0, 11, 2, 0xd8f4ff], [-1, 12, 2, 0xffffff], [0, 12, 1, 0xbfe8ff], [-2, 12, 2, 0xd8f4ff], [1, 13, 2, 0xffffff], [-1, 13, 1, 0xe8fbff], [0, 14, 2, 0xffffff], [-2, 14, 1, 0xd8f4ff], [1, 15, 1, 0xffffff]]) body.set(x, y, z, c, c === 0xffffff);
+    // face
+    bigEye(body, -3, 6, 3, { w: 2, h: 3, side: 'L', brow: C.ink, angry: true });
+    bigEye(body, 1, 6, 3, { w: 2, h: 3, side: 'R', brow: C.ink, angry: true });
+    body.box(-2, 2, 3, 1, 3, 3, 0x3a0a10);
+    body.set(-2, 3, 3, C.tooth).set(1, 3, 3, C.tooth).set(-1, 2, 3, 0x7fd8ff).set(0, 2, 3, 0x7fd8ff);
+    body.set(-1, 1, 4, 0x7fd8ff).set(0, 0, 4, 0xbfe8ff); // fizzy drool
+    // dent
+    body.set(-4, 7, -1, 0xa8141c).set(-4, 6, -1, 0xa8141c);
+    const tab = G();
+    tab.box(-1, 0, 0, 0, 0, 0, 0xdfe6f0).box(-1, 0, -2, 0, 0, -1, 0xc8d0dc).set(-1, 1, -2, 0xc8d0dc).set(0, 1, -2, 0xc8d0dc);
+    tab.del(-1, 0, -1);
+    const armG = () => {
+      const g = G();
+      g.box(0, -3, 0, 0, 0, 0, 0xc8d0dc);
+      g.box(-1, -5, -1, 1, -4, 1, 0xf7f7f2);
+      return g;
+    };
+    const foot = () => { const g = G(); g.box(-1, -2, -1, 0, -1, 0, 0x1d6ad8).box(-1, -2, 1, 0, -2, 1, 0xf7f7f2); return g; };
+    return {
+      gait: 'hop',
+      parts: [
+        { name: 'legL', grid: foot(), at: [-2, 2, 0] },
+        { name: 'legR', grid: foot(), at: [2, 2, 0] },
+        { name: 'body', grid: body, at: [0, 2, 0] },
+        { name: 'antenna', grid: tab, at: [0, 13, 0] },
+        { name: 'armL', grid: armG(), at: [-5, 9, 0], parent: 'body' },
+        { name: 'armR', grid: armG(), at: [4, 9, 0], parent: 'body' },
+      ],
+      muzzle: [0, 9, 5],
+    };
+  },
+
+  chocoChomper() {
+    const choco = 0x6e3c22, chocoL = 0x93593a, groove = 0x2e170b;
+    const inChunkX = (x) => (x >= -5 && x <= -2) || (x >= 1 && x <= 4);
+    const inChunkY = (y) => (y + 1) % 4 !== 0;
+    const bar = (x, y, z) => (!inChunkY(y) ? groove : noise(x, y, z) < 0.25 ? chocoL : choco);
+    const body = G();
+    body.box(-5, 0, -2, 4, 12, 1, bar);
+    // raised chunks on the front and back with a lit top edge
+    for (let y = 0; y <= 12; y++) for (let x = -5; x <= 4; x++) {
+      if (!inChunkY(y) || !inChunkX(x)) continue;
+      const top = (y + 2) % 4 === 0;
+      body.set(x, y, 2, top ? chocoL : choco);
+      body.set(x, y, -3, top ? chocoL : choco);
+    }
+    body.box(-1, 0, 1, 0, 12, 1, groove);
+    // bite marks in the top corner
+    body.carve((x, y, z) => y >= 10 && x >= 2 && (x - 2) + (y - 10) >= 1);
+    // peeled wrapper (lower half) with torn edge and flaps
+    const wrapC = (x, y, z) => (y === 3 || y === 4 ? 0xff4fa3 : y === 1 ? 0xf7f7f2 : 0x1d9bf0);
+    for (let y = 0; y <= 4; y++) for (let x = -6; x <= 5; x++) for (let z = -4; z <= 3; z++) {
+      if (x > -6 && x < 5 && z > -4 && z < 3) continue;
+      if (y === 4 && (x + z + 20) % 2 === 0) continue;
+      body.set(x, y, z, wrapC(x, y, z));
+    }
+    body.box(-7, 4, 3, -6, 4, 4, 0x1d9bf0).set(-8, 3, 4, 0xd8dde8); // peeled flaps
+    body.box(5, 5, -4, 6, 6, -4, 0x1d9bf0).set(6, 7, -4, 0xd8dde8);
+    body.box(-1, 2, 3, 0, 2, 3, 0xffd23f); // label star
+    // face: big eyes, monster mouth cavity
+    bigEye(body, -5, 8, 3, { w: 3, h: 3, side: 'L', brow: groove, angry: true });
+    bigEye(body, 2, 8, 3, { w: 3, h: 3, side: 'R', brow: groove, angry: true });
+    body.carve((x, y, z) => y >= 5 && y <= 7 && z >= 1 && x >= -4 && x <= 3);
+    body.box(-3, 7, 0, 2, 7, 0, 0x2a0a0a);
+    for (const x of [-4, -2, 1, 3]) body.set(x, 7, 2, C.tooth);
+    body.box(-3, 8, 2, 2, 8, 2, groove);
+    // melty drips down the sides
+    for (const [x, y, z, n] of [[-6, 11, 0, 3], [5, 9, -1, 2], [-6, 8, -2, 2]]) for (let i = 0; i < n; i++) body.set(x, y - i, z, 0x5a3220);
+    const jaw = G();
+    jaw.box(-4, -2, 1, 3, -1, 4, bar);
+    jaw.box(-3, -1, 1, 2, -1, 3, 0x7a1a2a);
+    for (const x of [-3, -1, 0, 2]) jaw.set(x, 0, 4, C.tooth);
+    jaw.set(-3, 1, 4, C.tooth).set(2, 1, 4, C.tooth);
+    const armG = () => {
+      const g = G();
+      g.box(-1, -3, -1, 0, 0, 0, choco);
+      g.box(-2, -5, -1, 1, -4, 1, chocoL);
+      g.set(-2, -5, 2, groove).set(1, -5, 2, groove);
+      return g;
+    };
+    const leg = () => bipedLeg({ h: 3, color: choco, foot: groove, toe: 1, wide: true });
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 3, 0] },
+        { name: 'legR', grid: leg(), at: [2, 3, 0] },
+        { name: 'body', grid: body, at: [0, 3, 0] },
+        { name: 'jaw', grid: jaw, at: [0, 7, 0], parent: 'body' },
+        { name: 'armL', grid: armG(), at: [-7, 11, 0] },
+        { name: 'armR', grid: armG(), at: [7, 11, 0] },
+      ],
+      muzzle: [0, 9, 6],
+    };
+  },
+
+  melonMauler() {
+    const rind = (x, y, z) => {
+      const ang = Math.atan2(z, x + 0.5) + Math.sin(y * 0.7) * 0.25;
+      const st = Math.floor((ang + Math.PI) / (Math.PI / 7)) % 2;
+      return st ? 0x1f6a2a : noise(x, y, z) < 0.3 ? 0x6ab84a : 0x5aa83a;
+    };
+    const body = G();
+    body.ellipsoid(-0.5, 6, 0, 6.3, 5.6, 5.6, rind);
+    body.carve((x, y) => y < 0);
+    // bitten-open mouth: carve a wedge and line it with rind, white and red flesh
+    const inBite = (x, y, z) => z >= 2 && y >= 1 && y <= 6 && Math.abs(x + 0.5) <= 4.5 - Math.max(0, y - 5) - Math.max(0, 2 - y);
+    body.carve(inBite);
+    const fleshAt = [];
+    body.forEach((x, y, z) => {
+      const n = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1]].some(([dx, dy, dz]) => inBite(x + dx, y + dy, z + dz));
+      if (n) fleshAt.push([x, y, z]);
+    });
+    for (const [x, y, z] of fleshAt) {
+      const deep = !inBite(x, y, z + 1) ? 0 : 1;
+      body.set(x, y, z, 0xf04a5a);
+    }
+    // white rind lip around the bite
+    body.forEach((x, y, z, c) => {});
+    for (let x = -6; x <= 5; x++) for (let y = 0; y <= 7; y++) {
+      for (let z = 6; z >= 2; z--) {
+        if (!body.has(x, y, z)) continue;
+        const c = body.get(x, y, z);
+        if (c !== 0xf04a5a && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inBite(x + dx, y + dy, z))) body.set(x, y, z, 0xe8f4d8);
+        break;
+      }
+    }
+    // seeds in the red flesh
+    for (const [x, y, z] of fleshAt) if (noise(x * 5, y * 3, z) < 0.13) body.set(x, y, z, 0x15121f);
+    // a couple of teeth on the upper lip
+    for (const x of [-3, 2]) for (let z = 6; z >= 2; z--) if (body.has(x, 7, z)) { body.set(x, 6, z, C.tooth); break; }
+    // angry eyes on the rind
+    const fz = (x, y) => { for (let z = 8; z >= 0; z--) if (body.has(x, y, z)) return z; return 0; };
+    const ez = Math.max(fz(-3, 9), fz(2, 9)) + 1;
+    bigEye(body, -4, 8, ez, { w: 3, h: 3, side: 'L', brow: 0x0f3a14, angry: true });
+    bigEye(body, 1, 8, ez, { w: 3, h: 3, side: 'R', brow: 0x0f3a14, angry: true });
+    // stem + leaf
+    body.box(-1, 12, -1, 0, 13, -1, 0x7a5a2a).set(1, 13, -1, 0x4aa83a).set(2, 13, -1, 0x4aa83a).set(2, 14, -1, 0x3a8a2a);
+    const armG = () => arm({ len: 2, color: 0x1f6a2a, hand: 0x5aa83a, handH: 2, x0: -1, x1: 0, z0: -1, z1: 0 });
+    const leg = () => bipedLeg({ h: 2, color: 0x1f6a2a, foot: 0x174f20, toe: 1, wide: true });
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-3, 2, 0] },
+        { name: 'legR', grid: leg(), at: [3, 2, 0] },
+        { name: 'body', grid: body, at: [0, 1, 0] },
+        { name: 'armL', grid: armG(), at: [-7, 8, 0] },
+        { name: 'armR', grid: armG(), at: [7, 8, 0] },
+      ],
+      muzzle: [0, 5, 7],
+    };
+  },
+
+  seedling() {
+    const body = G();
+    body.ellipsoid(-0.5, 3.5, 0, 2.6, 3.2, 2.4, mot(0x6ac84a, 0x5ab83a, 0.3));
+    body.carve((x, y) => y < 1);
+    body.box(-2, 1, 1, 1, 1, 2, 0x4a9a2a);
+    bigEye(body, -3, 3, 3, { w: 2, h: 2, side: 'L' });
+    bigEye(body, 1, 3, 3, { w: 2, h: 2, side: 'R' });
+    body.set(-1, 2, 3, 0x2a5a1a).set(0, 2, 3, 0x2a5a1a);
+    body.set(-3, 2, 2, 0xff8aa0).set(2, 2, 2, 0xff8aa0); // blush
+    // sprout
+    body.box(-1, 7, 0, -1, 8, 0, 0x4a9a2a);
+    body.box(-3, 9, 0, -2, 9, 1, 0x7ad84a).set(-4, 9, 1, 0x6ac83a);
+    body.box(0, 9, -1, 1, 9, 0, 0x6ac83a).set(2, 10, -1, 0x7ad84a).set(-1, 9, 0, 0x4a9a2a);
+    const leg = () => { const g = G(); g.box(0, -1, 0, 0, -1, 0, 0x3a7a2a).box(0, -2, 0, 0, -2, 1, 0x2a5a1a); return g; };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: leg(), at: [-2, 2, 0] },
+        { name: 'legR', grid: leg(), at: [1, 2, 0] },
+        { name: 'body', grid: body, at: [0, 1, 0] },
+      ],
+      muzzle: [0, 4, 4],
+    };
+  },
+
+  // ======================================================== Bosses
+  cartKong() {
+    const wire = (x, y, z) => (noise(x, y, z) < 0.25 ? 0xa4acbc : 0xc4ccd8), wireD = 0x7a8294, red = 0xe8343c;
+    const wireBox = (g, x0, y0, z0, x1, y1, z1, step = 2, col = wire) => {
+      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+        const fx = x === x0 || x === x1, fy = y === y0 || y === y1, fz = z === z0 || z === z1;
+        if (!fx && !fy && !fz) continue;
+        const edges = (fx ? 1 : 0) + (fy ? 1 : 0) + (fz ? 1 : 0);
+        let on = edges >= 2;
+        if (!on && fx) on = (y - y0) % step === 0 || (z - z0) % step === 0;
+        if (!on && fy) on = (x - x0) % step === 0 || (z - z0) % step === 0;
+        if (!on && fz) on = (x - x0) % step === 0 || (y - y0) % step === 0;
+        if (on) g.set(x, y, z, col);
+      }
+    };
+    const body = G();
+    wireBox(body, -7, 0, -4, 6, 8, 4, 3);
+    wireBox(body, -6, 6, -2, 5, 10, 5, 3); // hunched shoulders
+    // red plastic trim along the shoulders and hips
+    for (let x = -7; x <= 6; x++) { body.set(x, 8, 4, red); body.set(x, 0, 4, 0xb8202a); }
+    body.box(-3, 2, 5, 2, 6, 5, red); // child-seat chest plate
+    body.box(-2, 3, 6, 1, 5, 6, 0xff5a5a);
+    body.box(-1, 4, 6, 0, 4, 6, 0xffd23f);
+    // groceries stuck inside (visible through the wire gaps)
+    body.box(-6, 1, -3, -4, 6, 0, (x, y, z) => (y === 3 || y === 4 ? C.red : 0xffd23f)); // cereal box
+    body.box(2, 1, -3, 4, 5, -1, (x, y, z) => (y >= 5 ? 0x1d6ad8 : 0xf7f7f2)); // milk carton
+    body.sphere(-1, 2, 2, 1.4, 0xe8343c).sphere(1.5, 2, 2, 1.2, 0x7cd83a); // apples
+    body.box(-2, 1, -3, 0, 2, -1, 0xd8a050); // bread
+    body.cylinder(4.5, 2, 1, 4, 1, 0xe0222c, 'y'); // soda can
+    for (let i = 0; i < 5; i++) body.set(-4 + i, 7 + (i === 2 ? 1 : 0), 0, 0xffd23f); // banana bunch
+    body.box(-5, 9, -1, -5, 12, -1, 0xd8a050).set(-5, 13, -1, 0xc08040); // baguette sticking out
+    body.box(3, 9, 0, 3, 11, 0, 0x6ac83a).set(4, 12, 0, 0x8ae85a).set(2, 12, 0, 0x8ae85a); // celery
+    // head: solid face plate inside a wire skull, cart-handle brow
+    const head = G();
+    wireBox(head, -4, 0, -2, 3, 5, 3);
+    head.box(-3, 0, 4, 2, 4, 4, 0x5d6476);
+    head.box(-5, 4, 5, 4, 4, 5, red); // handle brow
+    head.set(-6, 4, 5, wireD).set(5, 4, 5, wireD);
+    head.box(-3, 2, 5, -2, 3, 5, 0xff3a2a, true).box(1, 2, 5, 2, 3, 5, 0xff3a2a, true);
+    head.set(-2, 3, 5, 0xffd0a0, true).set(1, 3, 5, 0xffd0a0, true);
+    head.box(-3, 0, 5, 2, 1, 6, 0x2a2f3a); // muzzle
+    for (let x = -3; x <= 2; x++) head.set(x, 1, 7, (x & 1) ? C.tooth : 0x4a0c18);
+    head.box(-3, 0, 7, 2, 0, 7, 0x4a0c18).set(-3, 0, 7, C.tooth).set(2, 0, 7, C.tooth);
+    head.set(-1, 2, 6, 0x15121f).set(0, 2, 6, 0x15121f);
+    const castor = (g, x0, x1, y, z) => {
+      g.box(x0, y, z - 1, x1, y + 1, z, 0x1a1a22);
+      g.set(x0, y, z - 1, red).set(x1, y + 1, z, red);
+    };
+    const armG = () => {
+      const g = G();
+      wireBox(g, -2, -5, -2, 1, 0, 1, 3);
+      wireBox(g, -3, -9, -2, 2, -6, 2, 3);
+      g.box(-3, -10, -2, 2, -10, 2, wireD);
+      g.box(-3, -9, 3, 2, -8, 3, red); // plastic knuckle guard
+      castor(g, -2, -1, -12, 0);
+      castor(g, 0, 1, -12, 0);
+      return g;
+    };
+    const legG = () => {
+      const g = G();
+      wireBox(g, -2, -3, -2, 1, -1, 1);
+      g.box(-2, -4, -2, 1, -4, 2, wireD);
+      castor(g, -2, 1, -5, 1);
+      return g;
+    };
+    return {
+      gait: 'walk',
+      parts: [
+        { name: 'legL', grid: legG(), at: [-3, 5, -1] },
+        { name: 'legR', grid: legG(), at: [3, 5, -1] },
+        { name: 'body', grid: body, at: [0, 5, 0] },
+        { name: 'head', grid: head, at: [0, 13, 4] },
+        { name: 'armL', grid: armG(), at: [-9, 12, 2] },
+        { name: 'armR', grid: armG(), at: [9, 12, 2] },
+      ],
+      muzzle: [0, 12, 12],
     };
   },
 };

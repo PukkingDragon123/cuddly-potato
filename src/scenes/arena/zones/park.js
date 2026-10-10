@@ -88,9 +88,11 @@ function subscribeButton(A, x, z) {
   }
   root.position.set(x, 0, z);
   A.scene.add(root);
-  A.world.box(x - 1.8, z - 1.3, x + 1.8, z + 1.2);
+  const press = root.userData.button ?? null;
+  const sb = A.bbox(root);
+  A.world.box(sb.min.x, sb.min.z, sb.max.x, sb.max.z);
   const label = textPanel([{ text: 'SUBSCRIBE', size: 0.3, color: '#ffffff', icon: 'play' }], { w: 2.9, h: 0.5, bg: '#e01010', border: '#0d1029' });
-  label.position.set(x, 0.3, z + 1.26);
+  label.position.set(x, 0.3, sb.max.z + 0.06);
   A.scene.add(label);
   const proxy = pickProxy(1.8, 1.4);
   proxy.position.set(x, 0, z);
@@ -101,10 +103,13 @@ function subscribeButton(A, x, z) {
     squash = Math.max(0, squash - dt * 4);
     const k = Math.sin(squash * Math.PI) * 0.6;
     if (cap) cap.position.y = 0.45 - k * 0.35;
-    else root.scale.y = 1 - k * 0.35;
+    else if (press) {
+      press.position.z = -k * 0.25;
+      press.scale.set(1 + k * 0.08, 1 - k * 0.12, 1);
+    } else root.scale.y = 1 - k * 0.35;
   }, x, z, 25);
   A.interact({
-    id: 'subscribe', pos: new THREE.Vector3(x, 0, z + 2), range: 1.6, label: 'PRESS', icon: 'play', color: 'red', hit: proxy, ringR: 1,
+    id: 'subscribe', pos: new THREE.Vector3(x, 0, sb.max.z + 1), range: 1.6, label: 'PRESS', icon: 'play', color: 'red', hit: proxy, ringR: 1,
     act: () => {
       presses++;
       squash = 1;
@@ -193,7 +198,7 @@ function hotDogStand(A, x, z) {
 }
 
 function trophyPodium(A, x, z) {
-  const p = A.put('makeTrophyPodium', [], { x, z, zone: 'park', collide: { r: 0.75 }, fit: { h: 2, clamp: 1.6 } });
+  const p = A.put('makeTrophyPodium', [], { x, z, zone: 'park', fit: { h: 2, clamp: 1.6 } });
   const best = state.p.bestTrophies;
   const next = ARENAS.filter((a) => !a.seasonal && a.trophies > best).sort((a, b) => a.trophies - b.trophies)[0];
   const sign = textPanel(

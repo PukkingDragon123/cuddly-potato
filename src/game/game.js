@@ -59,4 +59,7 @@ export const game = {
   },
 };
 
-if (typeof window !== 'undefined') window.__game = game;
+if (typeof window !== 'undefined') {
+  window.__game = game;
+  window.__state = state;
+}

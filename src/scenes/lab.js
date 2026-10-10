@@ -171,21 +171,26 @@ export class LabScene {
       g.add(vox((gg) => { gg.cylinder(-0.5, -0.5, 0, 3, 1.6, 0xffffff); gg.box(2, 1, 0, 2, 2, 0, 0xffffff); gg.cylinder(-0.5, -0.5, 3, 3, 1, 0x5a3220); }, 0.06));
       return g;
     });
-    // display pedestal
-    this.pedestal = place('makeTrophyPodium', [], 3.6, 0, 0.6, 0, 1, () => {
-      const g = new THREE.Group();
-      g.add(vox((gg) => { gg.cylinder(-0.5, -0.5, 0, 4, 7, 0x5a6488); gg.cylinder(-0.5, -0.5, 5, 5, 7, 0x29b6f6, true); }, 0.1));
-      return g;
-    });
-    this.pedestalTop = 0.6;
-    if (this.pedestal) {
-      this.pedestal.updateMatrixWorld(true);
-      const bb = new THREE.Box3().setFromObject(this.pedestal);
-      if (isFinite(bb.max.y)) this.pedestalTop = bb.max.y;
-    }
+    // display pedestal (holographic, used by the hub to preview Swarms)
+    this.pedPos = new THREE.Vector3(3.1, 0, -1.3);
+    this.pedestal = new THREE.Group();
+    this.pedestal.add(vox((gg) => {
+      gg.cylinder(-0.5, -0.5, 0, 1, 8, 0x3a4466);
+      gg.cylinder(-0.5, -0.5, 2, 5, 6.5, (x, y, z) => (y === 5 ? 0x5a6488 : (x + z) & 1 ? 0xeaf2ff : 0xd6e4f4));
+      gg.cylinder(-0.5, -0.5, 6, 6, 7, 0x29b6f6, 'y', true);
+      gg.cylinder(-0.5, -0.5, 6, 6, 5.5, 0x5a6488);
+      for (let a = 0; a < 8; a++) gg.set(Math.round(Math.cos(a * 0.785) * 7.6 - 0.5), 3, Math.round(Math.sin(a * 0.785) * 7.6 - 0.5), 0xff2e88, true);
+    }, 0.1));
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 2.4, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.y = 1.9;
+    this.pedestal.add(beam);
+    this.pedestal.position.copy(this.pedPos);
+    s.add(this.pedestal);
+    this.pedestalTop = 0.7;
+    place('makeTrophyPodium', [], 7.4, 0, -4.6, -0.6, 0.8, null);
     const spot = new THREE.SpotLight(0xffffff, 18, 9, 0.45, 0.6);
-    spot.position.set(3.6, 5.5, 2.4);
-    spot.target.position.set(3.6, 0.6, 0.6);
+    spot.position.set(3.1, 5.5, 1.0);
+    spot.target.position.set(3.1, 0.6, -1.3);
     s.add(spot, spot.target);
 
     // characters
@@ -424,7 +429,7 @@ export class LabScene {
     const rig = createSwarm(id, { variant, skin });
     const fit = 1.3 / Math.max(rig.height, rig.length * 0.7, 0.5);
     rig.baseScale = fit;
-    rig.root.position.set(3.6, this.pedestalTop, 0.6);
+    rig.root.position.set(this.pedPos.x, this.pedestalTop, this.pedPos.z);
     this.scene.add(rig.root);
     rig.boing(0.6);
     fx.sparkle(rig.root.position.clone().setY(this.pedestalTop + 0.5), { count: 20, colors: [0xffffff, 0x29b6f6], speed: 2 });
@@ -517,13 +522,14 @@ export class LabScene {
     j.play('point');
     j.expr('determined', 'smirk');
     await say(this.J('determined', 'smirk'), "Now... think you can beat ME? Let's battle! First to destroy the other's Lab wins. My *Mansion Lab* has never lost!");
+    const wrap = h('div', { style: { position: 'absolute', left: '0', right: '0', bottom: 'calc(var(--safe-b) + 18%)', display: 'flex', justifyContent: 'center' } });
     const btn = button('BATTLE JIMMY!', () => {
-      btn.remove();
+      wrap.remove();
       audio.play('levelUp');
       game.go('battle', { mode: 'tutorial' });
     }, 'pink big pulse', { icon: 'sword' });
-    Object.assign(btn.style, { position: 'absolute', left: '50%', bottom: 'calc(var(--safe-b) + 18%)', transform: 'translateX(-50%)' });
-    $ui().appendChild(btn);
+    wrap.appendChild(btn);
+    $ui().appendChild(wrap);
     this.busy = false;
   }
 

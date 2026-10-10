@@ -242,6 +242,7 @@ export function sparkle(target, opts = {}) {
       { duration: 650 + Math.random() * 400, easing: 'cubic-bezier(.2,.8,.4,1)' },
     );
     anim.onfinish = () => el.remove();
+    setTimeout(() => el.remove(), 1600);
   }
 }
 

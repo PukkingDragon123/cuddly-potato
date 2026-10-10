@@ -68,40 +68,43 @@ export function makeMoneyBag() {
   return vmesh('moneyBag', () => {
     const g = new VoxGrid();
     const burlap = (x, y, z) => {
-      const n = vnoise(x * 0.5, y * 0.5, z * 0.5);
-      if ((x + y) % 3 === 0 && (y % 2 === 0)) return 0xb88a52;
-      return n < 0.4 ? 0xc99a5e : n > 0.7 ? 0xdcb27a : 0xd1a46a;
+      if ((x + y * 2) % 5 === 0 && y % 3 === 0) return 0xc9a066;
+      return vnoise(x * 0.25, y * 0.25, z * 0.25) < 0.42 ? 0xd4ac70 : 0xdfba7e;
     };
-    g.ellipsoid(0, 8, 0, 8.5, 8, 7.5, burlap);
-    g.carve((x, y) => y < 0);
-    g.ellipsoid(0, 0.5, 0, 6, 1, 5, burlap);
+    g.ellipsoid(0, 11, 0, 11.5, 11, 10, burlap);
+    g.carve((x, y) => y < 1);
+    g.ellipsoid(0, 1, 0, 8, 1, 7, burlap);
     // neck + rope + tuft
-    g.cylinder(0, 0, 15, 17, 3, burlap);
-    ring(g, 0, 0, 16, 17, 4, 0x7a4a26);
-    g.set(4, 15, 3, 0x7a4a26).set(5, 14, 3, 0x7a4a26).set(5, 13, 4, 0x7a4a26);
-    g.cylinder(0, 0, 18, 19, 4, burlap);
-    for (let a = 0; a < 10; a++) {
-      const t = (a / 10) * Math.PI * 2;
-      g.set(Math.round(Math.cos(t) * 4), 20 + (a & 1), Math.round(Math.sin(t) * 4), 0xdcb27a);
+    g.cylinder(0, 0, 21, 24, 4, burlap);
+    ring(g, 0, 0, 22, 23, 5, 0x8a5a2e);
+    for (let i = 0; i < 6; i++) g.set(5 + (i >> 2), 21 - i, 4 - (i >> 1), i % 2 ? 0x8a5a2e : 0x6e4224);
+    g.cylinder(0, 0, 25, 26, 5, burlap);
+    for (let a = 0; a < 12; a++) {
+      const t = (a / 12) * Math.PI * 2;
+      g.set(Math.round(Math.cos(t) * 5), 27 + (a & 1), Math.round(Math.sin(t) * 5), 0xe8c88e);
     }
-    g.box(-2, 18, -2, 1, 19, 1, null);
-    g.box(-1, 18, -1, 0, 18, 0, PAL.cash);
-    // big $ on front (green) + 100K
-    const big = ['..#..', '.####', '#.#..', '#.#..', '.###.', '..#.#', '..#.#', '####.', '..#..'];
-    const zf = (x, y) => { let z = 9; while (z > 0 && !g.has(x, y, z)) z--; return z; };
+    g.cylinder(0, 0, 25, 27, 3, null);
+    g.box(-2, 25, -1, 1, 26, 1, PAL.cash).box(-1, 27, 0, 0, 27, 0, PAL.cashL);
+    // front patch with big $ and 100K
+    const zf = (x, y) => { let z = 12; while (z > 0 && !g.has(x, y, z)) z--; return z; };
+    for (let x = -9; x <= 9; x++) for (let y = 3; y <= 20; y++) {
+      const d = (x / 9.5) ** 2 + ((y - 11.5) / 9) ** 2;
+      if (d > 1) continue;
+      g.set(x, y, zf(x, y), d > 0.8 ? 0xb88a52 : 0xf6e6c0);
+    }
+    const big = ['...##...', '.######.', '##.##...', '##.##...', '.######.', '...##.##', '...##.##', '.######.', '...##...'];
     big.forEach((row, r) => [...row].forEach((c, i) => {
       if (c !== '#') return;
-      const x = i - 2, y = 15 - r;
-      g.set(x, y, zf(x, y), 0x2f8a3a);
-      g.set(x, y, zf(x, y) + 1, 0x3fa84a);
+      const x = i - 4, y = 19 - r;
+      g.set(x, y, zf(x, y) + 1, 0x2f9a3a);
     }));
     const tmp = new VoxGrid();
-    text(tmp, '100K', 0, 1, 0, '+z', 0xf4ead0, { center: true, gap: 0 });
+    text(tmp, '100K', 0, 5, 0, '+z', 0x1d6a2a, { center: true, gap: 1 });
     tmp.forEach((x, y, z, c) => g.set(x, y, zf(x, y) + 1, c));
-    // patch
-    g.box(-6, 9, 5, -5, 10, 5, 0xa87a42);
+    // patch stitches
+    g.box(-10, 13, 2, -10, 13, 2, 0xb88a52);
     return g;
-  }, { scale: 0.08 });
+  }, { scale: 0.058 });
 }
 
 // ---------------------------------------------------------------------------
@@ -153,8 +156,18 @@ export function makeTruck() {
     // exhaust stacks
     for (const z of [-6, 5]) { g.box(-3, 13, z, -3, 24, z, chrome); g.set(-3, 25, z, PAL.ink); }
     // wheel arches
-    for (const x of [-10, 11]) for (const z of [-8, 7]) g.box(x - 5, 12, z, x + 5, 13, z, PAL.ink);
-    return g;
+    for (const x of [-10, 11]) for (const z of [-8, 7]) g.box(x - 6, 8, z, x + 6, 9, z, PAL.ink);
+    // lift it up: monster-truck suspension
+    const out = new VoxGrid().merge(g, 0, 5, 0);
+    for (const x of [-10, 11]) {
+      out.box(x - 1, 5, -6, x, 6, 5, PAL.metalDD); // axle
+      for (const z of [-5, 4]) {
+        for (let y = 7; y <= 10; y++) out.set(x - 2 + (y & 1), y, z, PAL.yellow).set(x + 1 - (y & 1), y, z, PAL.yellow);
+        out.box(x - 1, 7, z, x, 10, z, 0x3a3f4e);
+      }
+    }
+    out.box(-12, 7, -1, 13, 8, 0, PAL.metalD); // drive shaft
+    return out;
   }, { scale: 0.1, pivot: [0, 0, 0] });
   const wheelGeo = vgeo('truck_wheel', () => {
     const g = new VoxGrid();
@@ -200,17 +213,17 @@ export function makeFootball() {
     const t = (1 + Math.sqrt(5)) / 2;
     const ico = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]]
       .map(([a, b, c]) => { const l = Math.hypot(a, b, c); return [a / l, b / l, c / l]; });
-    const R = 4.6;
-    for (let x = -5; x <= 5; x++) for (let y = -5; y <= 5; y++) for (let z = -5; z <= 5; z++) {
+    const R = 6.1;
+    for (let x = -7; x <= 7; x++) for (let y = -7; y <= 7; y++) for (let z = -7; z <= 7; z++) {
       const r = Math.hypot(x, y, z);
       if (r > R + 0.3) continue;
       const nx = x / (r || 1), ny = y / (r || 1), nz = z / (r || 1);
       let best = -1;
       for (const v of ico) best = Math.max(best, v[0] * nx + v[1] * ny + v[2] * nz);
-      g.set(x, y, z, best > 0.93 ? 0x1a1a22 : (r > R - 0.7 && best > 0.86 ? 0xc8ccd6 : 0xffffff));
+      g.set(x, y, z, best > 0.935 ? 0x1a1a22 : (best > 0.9 ? 0xd0d4de : 0xffffff));
     }
     return g;
-  }, { scale: 0.035, pivot: 'bottom' });
+  }, { scale: 0.027, pivot: 'bottom' });
 }
 
 // ---------------------------------------------------------------------------
@@ -252,30 +265,37 @@ export function makeSubscribeButton() {
 export function makeSodaRocket() {
   const m = vmesh('sodaRocket', () => {
     const g = new VoxGrid();
-    const bottle = 0x3fbf6a, bottleL = 0x8ff0a8, label = PAL.red;
-    // inverted 2L bottle: cap (nozzle) at bottom, body up, nose cone on top
-    g.cylinder(0, 0, 3, 4, 1, 0xffffff);
-    g.cylinder(0, 0, 5, 6, 2, bottle);
-    g.cylinder(0, 0, 7, 8, 3, bottle);
-    g.cylinder(0, 0, 9, 21, 4, (x, y, z) => ((x + z) % 5 === 0 && y > 10 ? bottleL : bottle));
-    g.cylinder(0, 0, 12, 17, 4, (x, y, z) => (y === 12 || y === 17 ? 0xffffff : label));
-    g.cylinder(0, 0, 22, 23, 3, 0xffffff);
-    g.cylinder(0, 0, 24, 25, 2, PAL.red);
-    g.cylinder(0, 0, 26, 26, 1, PAL.red);
-    g.set(0, 27, 0, PAL.yellow, true);
-    text(g, 'FIZZ', 0, 13, 5, '+z', 0xffffff, { center: true });
-    // fins
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
-      for (let i = 0; i < 6; i++) for (let k = 0; k <= Math.min(3, 5 - i); k++) g.set(dx * (5 + k), 4 + i, dz * (5 + k), PAL.yellow);
-    // foam blast from the nozzle
-    const foam = [0xffffff, 0xeef8ff, 0xd8f0ff];
-    for (let i = 0; i < 70; i++) {
-      const a = hash3(i, 1, 2) * Math.PI * 2, rr = hash3(i, 3, 4) * 3.5, y = -Math.floor(hash3(i, 5, 6) * 6);
-      g.set(Math.round(Math.cos(a) * rr * (1 - y * 0.1)), y + 2, Math.round(Math.sin(a) * rr * (1 - y * 0.1)), foam[i % 3]);
+    const bottle = 0x3fbf6a, bottleL = 0x9ff5b8, bottleD = 0x2a9a50;
+    // foam cloud blasting out of the nozzle
+    const foam = (x, y, z) => (hash3(x, y, z) < 0.3 ? 0xdff2ff : y > 3 ? 0xffffff : 0xf0f8ff);
+    g.ellipsoid(0, 2.5, 0, 4.5, 2.5, 4.5, foam);
+    g.ellipsoid(3, 1.5, 2, 2.5, 1.5, 2.5, foam);
+    g.ellipsoid(-3, 1.8, -2, 2.5, 1.8, 2.5, foam);
+    g.ellipsoid(-1, 1.2, 3, 2, 1.2, 2, foam);
+    g.carve((x, y) => y < 0);
+    // inverted bottle: cap at the bottom
+    g.cylinder(0, 0, 5, 6, 2, PAL.red);
+    g.cylinder(0, 0, 7, 8, 2, bottle);
+    g.cylinder(0, 0, 9, 9, 3, bottle);
+    g.cylinder(0, 0, 10, 26, 4, (x, y, z) => (x === -2 && z > 2 ? bottleL : (x + z) % 7 === 0 ? bottleD : bottle));
+    // label with white swoosh
+    g.cylinder(0, 0, 14, 20, 4, (x, y, z) => ((Math.round(x * 0.5 + z * 0.3) === y - 17) ? 0xffffff : y === 14 || y === 20 ? PAL.yellow : PAL.red));
+    // nose cone
+    for (let y = 27; y <= 33; y++) g.cylinder(0, 0, y, y, Math.max(0.3, 4 - (y - 27) * 0.62), (y - 27) % 3 === 2 ? 0xffffff : PAL.red);
+    g.set(0, 34, 0, PAL.yellow, true);
+    // 3 fins
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + 0.4;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      for (let r = 4; r <= 8; r++) for (let y = 8; y <= 16 - (r - 4) * 1.4; y++) {
+        const x = Math.round(ca * r), z = Math.round(sa * r);
+        g.set(x, y, z, r === 8 || y === 8 ? 0xffffff : PAL.red);
+      }
     }
-    g.sphere(0, 0, 0, 2, 0xffffff);
+    // shake marks
+    for (const [x, y, z] of [[6, 24, 2], [7, 22, 1], [-6, 23, 2], [-7, 21, 1]]) g.set(x, y, z, PAL.yellow, true);
     return g;
-  }, { scale: 0.06 });
+  }, { scale: 0.05 });
   const root = group(m);
   root.name = 'sodaRocket';
   return root;
@@ -455,7 +475,7 @@ const FOOD = {
     g.box(-2, 3, 2, 2, 7, 2, PAL.yellow);
     g.ellipsoid(0, 5, 2, 1.5, 1.5, 0, 0xffffff);
     g.set(-1, 5, 3, PAL.ink).set(1, 5, 3, PAL.ink).set(0, 4, 3, PAL.red);
-    text(g, 'O', 0, 9, 2, '+z', PAL.red, { center: true });
+    for (const [x, c] of [[-2, PAL.red], [0, PAL.pink], [2, PAL.blue]]) g.set(x, 8, 2, c);
     g.box(-2, 1, 2, -1, 1, 2, 0xffffff).box(1, 1, 2, 2, 1, 2, 0xffffff);
     return g;
   },

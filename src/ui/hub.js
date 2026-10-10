@@ -93,6 +93,12 @@ export function mountHub(ctx = {}) {
   const hub = {
     ctx, el, screens,
     refresh, destroy, openScreen, closeAll, runCutscene, openVialNow, skipVial, startUnlockSlot, vialTap,
+    /** Hide/show the whole hub (e.g. during Lab cutscenes). Closes open screens when hiding. */
+    hide(on = true) {
+      if (on) closeAll();
+      el.classList.toggle('hidden', !!on);
+      if (!on) refresh();
+    },
     _screenClosed(scr) {
       const i = screens.indexOf(scr);
       if (i >= 0) screens.splice(i, 1);
@@ -226,7 +232,7 @@ export function mountHub(ctx = {}) {
           else if (mode === 'idle') s.appendChild(h('div', { class: 'vs-st tap' }, 'Tap to unlock'));
           else s.appendChild(h('div', { class: 'vs-st tiny muted' }, icon('clock', 'ic-xs'), fmtTime(st.v.time)));
           if (st.ready && !force) {
-            requestAnimationFrame(() => sparkle(s, { count: 12, spread: 50 }));
+            requestAnimationFrame(() => s.offsetParent && sparkle(s, { count: 12, spread: 50 }));
           }
         }
       } else if (st.unlocking) {
@@ -290,7 +296,10 @@ export function mountHub(ctx = {}) {
     const p = state.p;
     renderProfileChip();
     nameEl.textContent = p.name;
+    // while hidden (cutscenes / Lab hideHub) hold the old numbers so the roll-up plays on return
+    const hiddenNow = el.classList.contains('hidden') || el.style.opacity === '0';
     const upd = (key, elv, val, dur = 0.7) => {
+      if (hiddenNow && shown[key] !== null) return;
       if (shown[key] === null) elv.textContent = fmt(val);
       else if (shown[key] !== val) {
         rollNumber(elv, shown[key], val, dur);
@@ -304,8 +313,8 @@ export function mountHub(ctx = {}) {
     upd('trophies', trophyVal, p.trophies);
     const tier = passTier();
     const max = tier >= PASS_TIERS.length;
-    if (shown.tier !== null && tier > shown.tier) bump(calPill);
-    shown.tier = tier;
+    if (shown.tier !== null && tier > shown.tier && !hiddenNow) bump(calPill);
+    if (!hiddenNow || shown.tier === null) shown.tier = tier;
     calTier.textContent = String(tier);
     calBarI.style.width = (max ? 100 : ((p.calories - tier * SEASON.calPerTier) / SEASON.calPerTier) * 100) + '%';
     arenaName.textContent = currentArena(p.trophies).name;
@@ -336,7 +345,15 @@ export function mountHub(ctx = {}) {
     }
   }, 1000);
   const onKey = (e) => {
-    if (e.key === 'Escape' && screens.length) {
+    if (e.key !== 'Escape' || destroyed) return;
+    const pops = document.querySelectorAll('#overlay .modal-back');
+    if (pops.length) {
+      const x = pops[pops.length - 1].querySelector('.close-x');
+      if (x) x.click();
+      e.preventDefault();
+      return;
+    }
+    if (screens.length) {
       e.preventDefault();
       screens[screens.length - 1].close();
     }
