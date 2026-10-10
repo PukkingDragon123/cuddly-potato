@@ -22,7 +22,7 @@ export function buildFactory(A) {
   T.rect(RIVER[0] - 0.6, 2, RIVER[1] + 0.6, 4.4, 'bridge', { h: 0.08 });
   T.rect(22, -7.5, 50, -4.5, 'candy');
   T.rect(43, -11, 46, -4.5, 'candy');
-  const L = A.liquid((RIVER[0] + RIVER[1]) / 2, -6, RIVER[1] - RIVER[0] + 0.2, 30, 'choco', -0.28, { texel: 2, flow: [0.0, -0.18], range: 40 });
+  const L = A.liquid((RIVER[0] + RIVER[1]) / 2, -6, RIVER[1] - RIVER[0] + 1.4, 30, 'choco', -0.28, { texel: 2, flow: [0.0, -0.18], range: 40 });
   // bridge rails
   for (const [z0, z1] of [[-7.6, -4.4], [2, 4.4]]) for (const z of [z0 + 0.1, z1 - 0.1]) {
     const r = new THREE.Mesh(new THREE.BoxGeometry(RIVER[1] - RIVER[0] + 1.4, 0.5, 0.14), new THREE.MeshLambertMaterial({ color: 0xff8ac0 }));

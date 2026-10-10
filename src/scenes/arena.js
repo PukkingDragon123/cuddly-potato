@@ -78,7 +78,7 @@ export class ArenaScene {
    * Place a prop. o: { x, z, y, rot, zone, fit, scale, collide: 'box'|'circle'|false|{r}|{w,d}, pad, dynamic, tag, data, onBump }
    */
   put(name, args = [], o = {}) {
-    const p = prop(name, args, { fit: o.fit });
+    const p = prop(name, args, { fit: o.fit, fallback: o.fallback });
     const root = p.root;
     if (o.scale) root.scale.multiplyScalar(o.scale);
     let rot = o.rot ?? 0;
@@ -222,7 +222,7 @@ export class ArenaScene {
     this.terrain.build(this.scene);
     const ocean = makeLiquid(420, 420, 'water', { opacity: 0.8, texel: 4, flow: [0.012, 0.02] });
     ocean.mesh.position.set(0, -0.55, 0);
-    ocean.mesh.renderOrder = 2;
+    ocean.mesh.renderOrder = -1;
     this.scene.add(ocean.mesh);
     this.onUpdate(ocean.update);
     this.ocean = ocean;

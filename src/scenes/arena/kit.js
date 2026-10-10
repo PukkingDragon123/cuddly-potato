@@ -11,7 +11,10 @@ const _size = new THREE.Vector3();
 
 /** Call Props[name](...args) if it exists and works, else the local fallback. Returns { value, real }. */
 export function propRaw(name, ...args) {
-  const f = Props[name];
+  return propRawOpt(name, args, false);
+}
+function propRawOpt(name, args, forceFallback) {
+  const f = forceFallback ? null : Props[name];
   if (typeof f === 'function') {
     try {
       const r = f(...args);
@@ -35,7 +38,7 @@ export const rootOf = (r) => (r?.isObject3D ? r : r?.root);
  *           clamp: only rescale if off by more than this factor (default: always).
  */
 export function prop(name, args = [], opts = {}) {
-  const { value, real } = propRaw(name, ...args);
+  const { value, real } = propRawOpt(name, args, !!opts.fallback);
   const root = rootOf(value);
   const out = { root, update: typeof value.update === 'function' ? value.update.bind(value) : null, real, raw: value };
   if (real && opts.fit) fit(root, opts.fit);

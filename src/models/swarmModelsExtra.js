@@ -529,15 +529,16 @@ export const EXTRA_MODELS = {
     body.set(-4, 5, -3, 0xffd23f).set(-4, 9, 3, 0x3a7cf0);
     // big wonky eyeballs on top
     const eyeBall = (x0, y0, z0, lx, ly, lid) => {
-      body.box(x0, y0, z0, x0 + 2, y0 + 2, z0 + 2, 0xf7f7f2);
-      body.del(x0, y0 + 2, z0).del(x0 + 2, y0 + 2, z0).del(x0, y0, z0).del(x0 + 2, y0, z0);
-      body.box(x0 + lx, y0 + ly, z0 + 2, x0 + lx + 1, y0 + ly + 1, z0 + 2, C.ink);
-      body.set(x0 + lx, y0 + ly + 1, z0 + 2, 0xffffff, true);
-      if (lid) body.box(x0, y0 + 2, z0, x0 + 2, y0 + 2, z0 + 2, 0x2456c0).box(x0, y0 + 3, z0, x0 + 2, y0 + 3, z0 + 1, 0x2f68e0);
+      body.box(x0, y0, z0, x0 + 3, y0 + 3, z0 + 3, 0xf7f7f2);
+      for (const dx of [0, 3]) for (const dy of [0, 3]) { body.del(x0 + dx, y0 + dy, z0); body.del(x0 + dx, y0 + dy, z0 + 3); }
+      body.box(x0 + lx, y0 + ly, z0 + 3, x0 + lx + 1, y0 + ly + 1, z0 + 3, C.ink);
+      body.set(x0 + lx, y0 + ly + 1, z0 + 3, 0xffffff, true);
+      body.set(x0 + lx + 1, y0 + ly, z0 + 4, C.ink);
+      if (lid) body.box(x0, y0 + 3, z0, x0 + 3, y0 + 3, z0 + 3, 0x2456c0).box(x0 + 1, y0 + 4, z0 + 1, x0 + 2, y0 + 4, z0 + 2, 0x2f68e0);
     };
-    eyeBall(-3, 9, 2, 1, 0, false);
-    eyeBall(0, 10, 2, 0, 0, true);
-    body.set(1, 9, 3, 0x2f68e0).set(0, 9, 3, 0x2f68e0);
+    eyeBall(-4, 9, 2, 1, 1, false);
+    eyeBall(0, 9, 1, 1, 0, true);
+    body.box(-2, 9, 2, 1, 9, 3, 0x2f68e0);
     // front door = jaw (hinged at the bottom front, slightly ajar)
     const door = G();
     for (let x = -3; x <= 2; x++) for (let y = 0; y <= 6; y++) {
@@ -1371,17 +1372,21 @@ export const EXTRA_MODELS = {
     icicle(body, -3, 8, -1, 0, 1, -1, 2); icicle(body, 2, 8, -1, 0, 1, -1, 2);
     for (const [x, y] of [[-2, 6], [1, 6], [-1, 3], [0, 4]]) icicle(body, x, y, -4, 0, 1, -1, 2);
     const head = G();
-    head.box(-3, 0, -1, 2, 4, 3, fur);
-    head.box(-2, 0, 4, 1, 3, 4, skin);
-    head.box(-3, 4, 4, 2, 4, 4, 0xf2faff); // brow fur
-    head.set(-3, 4, 5, 0xe2f2fc).set(2, 4, 5, 0xe2f2fc).set(-1, 4, 5, 0xe2f2fc).set(0, 4, 5, 0xe2f2fc);
-    for (const [x, s] of [[-2, -1], [1, 1]]) head.set(x, 3, 5, 0x9ff6ff, true).set(x, 2, 5, s < 0 ? 0x2a8ac0 : 0x2a8ac0);
-    head.set(-2, 2, 5, 0xd8ffff, true).set(1, 2, 5, 0xd8ffff, true).set(-2, 3, 5, 0x9ff6ff, true).set(1, 3, 5, 0x9ff6ff, true);
-    head.box(-1, 0, 5, 0, 1, 5, 0x1a2a4a);
-    head.set(-2, 1, 5, C.tooth).set(1, 1, 5, C.tooth).set(-2, 0, 5, 0x1a2a4a).set(1, 0, 5, 0x1a2a4a).set(-1, 1, 5, C.tooth).set(0, 0, 5, C.tooth);
-    head.set(-3, 2, 4, 0xe2f2fc).set(2, 2, 4, 0xe2f2fc);
+    head.box(-4, 0, -1, 3, 5, 3, fur);
+    head.box(-3, 0, 4, 2, 4, 4, 0x8ab8d8); // face
+    head.box(-4, 5, 4, 3, 5, 5, 0xf2faff); // shaggy brow
+    head.set(-4, 4, 4, 0xe2f2fc).set(3, 4, 4, 0xe2f2fc).set(-4, 4, 5, 0xe2f2fc).set(3, 4, 5, 0xe2f2fc);
+    for (const [x0, s] of [[-3, -1], [1, 1]]) {
+      head.box(x0, 3, 5, x0 + 1, 4, 5, 0x9ff6ff, true);
+      head.set(s < 0 ? x0 + 1 : x0, 3, 5, 0x1a4a8a).set(s < 0 ? x0 : x0 + 1, 4, 5, 0xe8ffff, true);
+      head.set(s < 0 ? x0 + 1 : x0, 4, 5, 0xf2faff); // angry fur brow dip
+    }
+    head.box(-2, 0, 5, 1, 1, 5, 0x1a2a4a);
+    head.set(-2, 1, 5, C.tooth).set(1, 1, 5, C.tooth).set(-1, 0, 5, C.tooth).set(0, 0, 5, C.tooth);
+    head.set(-2, 0, 6, C.tooth).set(1, 0, 6, C.tooth); // tusks
+    head.set(-1, 2, 5, 0x5a88b0).set(0, 2, 5, 0x5a88b0); // nose
     // icy horns
-    for (const s of [-1, 1]) { const x = s < 0 ? -3 : 2; icicle(head, x, 5, 1, 0, 1, 0, 2); head.set(x + s, 7, 0, ice).set(x + s, 8, -1, iceW, true); }
+    for (const s of [-1, 1]) { const x = s < 0 ? -4 : 3; icicle(head, x, 6, 1, 0, 1, 0, 2); head.set(x + s, 8, 0, ice).set(x + s, 9, -1, iceW, true); }
     const armG = (s) => {
       const g = G();
       g.box(-1, -4, -1, 0, 0, 1, fur);

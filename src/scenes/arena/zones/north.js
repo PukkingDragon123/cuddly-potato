@@ -185,7 +185,7 @@ export function buildReactor(A) {
   }, 46, -48, 38);
   // toxic barrels
   const barrels = [[37, -40], [37.8, -39.2], [36.5, -38.6], [55, -38], [54.2, -37.2], [25, -54], [25.9, -54.6], [44, -30], [56, -56]];
-  barrels.forEach(([x, z], i) => A.put('makeBarrel', ['toxic'], { x, z, rot: i, zone: Z, collide: { r: 0.36 }, fit: { h: 1.05, clamp: 1.6 } }));
+  barrels.forEach(([x, z], i) => A.put('makeBarrel', ['toxic'], { x, z, rot: i, zone: Z, collide: { r: 0.36 }, fallback: true }));
   // geiger crackle near barrels
   A.onUpdate(() => {
     const p = A.player.pos;

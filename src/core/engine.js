@@ -101,6 +101,7 @@ class Engine {
 
   /** Add camera trauma (0..1). Shake magnitude grows with trauma². */
   shake(amount) {
+    if (this.shakeEnabled === false) return;
     this.trauma = Math.min(1, this.trauma + amount);
   }
   hitstop(sec) {

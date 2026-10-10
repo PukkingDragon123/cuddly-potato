@@ -56,6 +56,7 @@ export const game = {
     audio.setVolumes(s.sfx, s.music);
     audio.setMuted(!!s.muted);
     engine.setPixelMode(s.pixel);
+    engine.shakeEnabled = s.shake !== false;
   },
 };
 

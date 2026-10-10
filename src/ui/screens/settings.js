@@ -92,6 +92,7 @@ export function openSettings(hub) {
       root.appendChild(
         toggle('Screen shake', 'energy', s.shake !== false, (v) => {
           s.shake = v;
+          engine.shakeEnabled = v;
           state.emit('settings');
           if (v) engine.shake(0.5);
         }),

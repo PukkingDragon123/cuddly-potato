@@ -393,6 +393,11 @@ export class LabScene {
     this.hub = { el, destroy: () => el.remove(), refresh() {} };
   }
   hideHub(hide) {
+    if (this.hub?.hide) {
+      this.hub.hide(hide);
+      if (!hide) this.hub.refresh && this.hub.refresh();
+      return;
+    }
     const el = this.hub?.el;
     if (!el) return;
     el.style.transition = 'opacity 0.25s';
@@ -718,7 +723,7 @@ export class LabScene {
     this.busy = true;
     this.hideHub(true);
     const bench = this.benchPos.clone();
-    await this.camTo(new THREE.Vector3(bench.x, bench.y + 1.5, bench.z + 3.6), new THREE.Vector3(bench.x, bench.y + 0.8, bench.z), 0.8);
+    await this.camTo(new THREE.Vector3(bench.x + 0.6, bench.y + 1.7, bench.z + 4.8), new THREE.Vector3(bench.x + 0.4, bench.y + 0.8, bench.z), 0.8);
     audio.music(null);
     const rig = createSwarm(baseId, { variant: state.p.swarms[baseId]?.variant ?? 'base' });
     rig.baseScale = 1 / Math.max(rig.height, 0.5);
@@ -775,9 +780,10 @@ export class LabScene {
     fx.shockwave(bench, { radius: 4, color: 0xff2e88 });
     fx.confetti(bench.clone().setY(bench.y + 1), { count: 60, colors: [0x1d9bf0, 0xff4fa3, 0xffd23f, 0xc0c8d8] });
     const mega = createSwarm(megaId, {});
-    const fit = 2.2 / Math.max(mega.height, 0.5);
+    const fit = 1.9 / Math.max(mega.height, 0.5);
+    this.camTo(new THREE.Vector3(bench.x + 0.9, bench.y + 2.1, bench.z + 5.6), new THREE.Vector3(bench.x + 0.6, bench.y + 1.0, bench.z), 0.6);
     mega.baseScale = fit;
-    mega.root.position.copy(bench);
+    mega.root.position.copy(bench).add(new THREE.Vector3(-0.3, 0, 0));
     mega.root.rotation.y = 0.35;
     this.scene.add(mega.root);
     mega.boing(1);
@@ -795,7 +801,7 @@ export class LabScene {
     audio.jingle('rare');
     await wait(1.2);
     setMega(baseId, true);
-    await revealCard({ kind: 'swarm', id: megaId, copies: 1, isNew: true }, { tapText: 'Tap to continue' });
+    await revealCard({ kind: 'swarm', id: megaId, copies: 1, isNew: true }, { side: true, tapText: 'Tap to continue' });
     animate(0.4, (e) => mega.root.scale.setScalar(1 - e), { onComplete: () => this.scene.remove(mega.root) });
     this.scene.remove(light);
     this.interaction = null;
