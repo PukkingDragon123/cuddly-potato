@@ -205,9 +205,14 @@ export class SwarmRig {
         case 'antenna': case 'antennaL': case 'antennaR': rz += Math.sin(t * 6 + (name === 'antennaR' ? 1 : 0)) * 0.2; break;
         default:
           if (name.startsWith('wheel')) rx += t * (moving ? 10 : 0);
+          else if (name.startsWith('prop')) ry += t * 30;
+          else if (name.startsWith('spin')) ry += t * (8 + (a >= 0 ? 16 : 0));
+          else if (name.startsWith('antenna')) rz += Math.sin(t * 6 + name.length) * 0.2;
+          else if (name.startsWith('arm')) rx += (name.endsWith('L') ? -sw : sw) * 0.5 - wind * 1.2;
+          else if (name.startsWith('leg')) rx += (name.length % 2 ? sw : -sw) * 0.7;
       }
       g.rotation.set(damp(g.rotation.x, rx, k, dt), damp(g.rotation.y, ry, k, dt), damp(g.rotation.z, rz, k, dt));
-      if (name === 'spin' || name === 'prop' || name.startsWith('wheel')) g.rotation.set(rx, ry, rz);
+      if (name.startsWith('spin') || name.startsWith('prop') || name.startsWith('wheel')) g.rotation.set(rx, ry, rz);
       g.position.set(damp(g.position.x, px, k, dt), damp(g.position.y, py, k, dt), damp(g.position.z, pz, k, dt));
     }
 

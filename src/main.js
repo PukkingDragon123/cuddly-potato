@@ -36,6 +36,7 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   const dev = params.get('dev');
   if (dev === 'reset') state.reset();
+  if (params.get('seed')) (await import('./dev/seed.js')).seedProfile(params.get('seed'));
   if (dev === 'models' || dev === 'chars' || dev === 'props') await game.go('preview', { mode: dev, id: params.get('id'), instant: true });
   else if (params.get('scene')) await game.go(params.get('scene'), { instant: true, dev: true, ...Object.fromEntries(params) });
   else await game.go('title', { instant: true });

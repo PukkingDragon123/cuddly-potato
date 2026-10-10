@@ -358,7 +358,7 @@ export function floatText(pos, text, cls = 'dmg', opts = {}) {
 
 /** Speech bubble following an Object3D-like target with getWorldPosition, or a chibi (uses headTop). */
 export function speech(target, text, dur = 2.2, opts = {}) {
-  const el = h('div', { class: 'speech bounce-in' }, h('span', { html: rich(text) }));
+  const el = h('div', { class: 'speech' }, h('span', { class: 'speech-b bounce-in', html: rich(text) }));
   $world().appendChild(el);
   const b = { el, target, t: 0, dur, offsetY: opts.offsetY ?? 0 };
   bubbles.push(b);
@@ -369,7 +369,7 @@ export function speech(target, text, dur = 2.2, opts = {}) {
 export function pointAt(target, tip = '', opts = {}) {
   const hand = h('img', { class: 'tut-hand', src: handURL() });
   const ring = h('div', { class: 'tut-ring' });
-  const tipEl = tip ? h('div', { class: 'tut-tip bounce-in' }, tip) : null;
+  const tipEl = tip ? h('div', { class: 'tut-tip fade-in' }, tip) : null;
   const layer = $overlay();
   layer.appendChild(ring);
   layer.appendChild(hand);
