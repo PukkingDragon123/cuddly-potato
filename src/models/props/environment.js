@@ -3,7 +3,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, PAL, shade, mixHex, hash3, vnoise, ring, text, vmesh, vgeo, glowMat, tintMat, group,
   hazardC,
 } from './common.js';
-import { barrel, crate, vaultDoor } from './labParts.js';
+import { barrel, crate } from './labParts.js';
 import { variantMaterials } from '../../core/voxel.js';
 
 const leafCols = [0x4fb84a, 0x5fcf4f, 0x3f9a3a, 0x6fdc5a];
@@ -166,12 +166,12 @@ export const ENV_GRIDS = {
 };
 
 const S = { scale: 0.1 };
-const envMesh = (name, opts = S) => vmesh('env_' + name, ENV_GRIDS[name], opts);
+const envMesh = (name, opts = S) => vmesh('env_' + name + '_' + opts.scale, ENV_GRIDS[name], opts);
 const wrap = (m, name) => { const r = group(m); r.name = name; return r; };
 
 export function makeTree(kind = 'round') {
   const k = kind === 'pine' ? 'treePine' : kind === 'palm' ? 'treePalm' : 'treeRound';
-  return wrap(envMesh(k), 'tree:' + kind);
+  return wrap(envMesh(k, { scale: 0.13 }), 'tree:' + kind);
 }
 export function makeRock(size = 1) {
   const m = envMesh('rock');
@@ -264,7 +264,7 @@ export function houseGrid(color = 0x8fd0ff, seed = 1) {
   return g;
 }
 export function makeHouse(color = 0x8fd0ff) {
-  return wrap(vmesh('house_' + color, () => houseGrid(color, color % 3), { scale: 0.12 }), 'house');
+  return wrap(vmesh('house_' + color, () => houseGrid(color, color % 3), { scale: 0.15 }), 'house');
 }
 
 export function mansionGrid() {
@@ -320,7 +320,6 @@ export function technoTowerGrid() {
       if ((yy - y) % 3 === 1 && (x + z) % 2 === 0) return neon[(i + (x > 0 ? 1 : 0)) % 3];
       return dark;
     });
-    g.paint((x, yy, z, c) => (yy >= y && yy < y + h && (yy - y) % 3 === 1 && neon.includes(c) ? c : undefined));
     g.box(-r - 1, y + h - 1, -r - 1, r, y + h - 1, r, neon[i % 3], true);
     y += h;
   });
@@ -348,7 +347,6 @@ export function reactorGrid() {
   // dome reactor
   g.box(2, 0, -10, 24, 8, 10, 0xd8dce4);
   g.ellipsoid(13, 9, 0, 10, 10, 10, (x, y, z) => ((x + y + z) % 5 === 0 ? 0xc8ccd4 : 0xe4e8ee));
-  g.carve((x, y) => y < 9 && y > 8 && false);
   g.box(10, 2, 11, 16, 8, 11, PAL.metalDD);
   g.box(11, 3, 11, 15, 7, 11, PAL.toxic, true);
   hazard3(g, 2, 8, 11, 24, 8, 11);

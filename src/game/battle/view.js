@@ -258,6 +258,8 @@ export class BattleView {
     const bd = propOr('makeBattleBackdrop', theme) || fallbackBackdrop(theme);
     this.backdrop = bd;
     scene.add(bd.root);
+    if (bd.sky !== undefined && bd.sky !== null) scene.background = new THREE.Color(bd.sky);
+    scene.fog = new THREE.Fog(bd.fog ?? T.fog, 40, 125);
     this.breakables = (bd.breakables || []).map((b) => ({ ...b, alive: true }));
 
     // shared meshes
@@ -1350,8 +1352,9 @@ export class BattleView {
         this.smashNear(m.x, 1.2, m.side);
         engine.shake(0.05);
       } else {
-        mv.obj.rotation.z -= dt * 25 * (m.side === 0 ? 1 : -1);
-        mv.obj.position.y = 0.6 + Math.abs(Math.sin(this.t * 10)) * 0.4;
+        const ball = mv.obj.userData.ball || mv.obj;
+        ball.rotation.z -= dt * 25 * (m.side === 0 ? 1 : -1);
+        mv.obj.position.y = (mv.obj.userData.ball ? 0.1 : 0.6) + Math.abs(Math.sin(this.t * 10)) * 0.4;
         mv.smokeT -= dt;
         if (mv.smokeT <= 0) {
           mv.smokeT = 0.03;
@@ -1444,5 +1447,19 @@ export class BattleView {
   dispose() {
     for (const a of this.actors.values()) a.dispose();
     this.actors.clear();
+    // free GPU memory held by the backdrop/labs (cached geometry simply re-uploads if reused)
+    const seen = new Set([Mats.solid, Mats.glow, Mats.flash, Mats.flashRed]);
+    const free = (root) => root && root.traverse((o) => {
+      if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) {
+        if (seen.has(m)) continue;
+        seen.add(m);
+        for (const k of ['map', 'emissiveMap', 'alphaMap']) if (m[k] && !seen.has(m[k])) { seen.add(m[k]); m[k].dispose(); }
+        m.dispose();
+      }
+    });
+    free(this.backdrop?.root);
+    for (const lab of this.labs) free(lab.root);
   }
 }

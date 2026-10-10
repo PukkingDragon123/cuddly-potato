@@ -20,35 +20,12 @@ import { CMD_SKINS, BANNERS } from '../data/season.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arena.js';
 import { VIALS } from '../data/vials.js';
 import { game } from '../game/game.js';
+import { net } from '../net/p2p.js';
+import { HostSync, RemoteSim } from '../game/battle/netsync.js';
+import { commanderCfg, playerSide } from '../game/battle/loadout.js';
 import { fmt, clamp } from '../core/util.js';
 
 const JIMMY = () => ({ name: 'Jimmy', color: '#29b6f6', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) });
-
-function commanderCfg(id, level, skinId) {
-  const c = COMMANDERS[id];
-  if (!c) return null;
-  const skin = skinId ? CMD_SKINS[skinId] : null;
-  const override = skin ? { ...skin } : null;
-  if (override) { delete override.name; delete override.commander; }
-  return { id, level, char: c.char, override };
-}
-
-function playerSide() {
-  const p = state.p;
-  const deck = p.deck.filter((id) => p.swarms[id]).map((id) => {
-    const d = deployInfo(id);
-    return { id: d.unit, baseId: id, level: d.level, variant: d.variant, skin: d.skin };
-  });
-  const spells = p.spells.equipped.filter((id) => p.spells.owned[id]).map((id) => ({ id, level: p.spells.owned[id].level }));
-  const cid = p.commanders.equipped;
-  const cs = p.commanders.owned[cid];
-  const commander = commanderCfg(cid, cs?.level ?? 1, cs?.skin);
-  if (commander && cid === 'recruit') commander.override = { ...(commander.override || {}) };
-  return {
-    name: p.name, deck, spells, commander, perks: perkBonuses(), labStyle: p.cosmetics.labSkin === 'default' ? 'default' : p.cosmetics.labSkin,
-    banner: p.cosmetics.banner, trophies: p.trophies,
-  };
-}
 
 export class BattleScene {
   constructor() {
@@ -85,6 +62,11 @@ export class BattleScene {
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
       aiOpts = { difficulty: 0.55 + b.level * 0.04 };
+    } else if (mode === 'friend') {
+      const ar = arenaById(params.arena) ?? ARENAS[0];
+      arenaId = ar.id;
+      enemy = { ...params.remote, ghost: false };
+      this.opponentTrophies = enemy.trophies ?? 0;
     } else if (mode === 'practice') {
       enemy = {
         name: 'Training Dummy', deck: [{ id: 'panther', level: 1 }, { id: 'trashedCan', level: 1 }, { id: 'cloggedToilet', level: 1 }], spells: [],
@@ -108,8 +90,22 @@ export class BattleScene {
     if (mode === 'boss' && enemy.labStyle === 'mart') theme = 'mart';
     this.arenaId = arenaId;
     this.cfg = { theme, sides: [me, enemy], boss };
-    this.sim = new BattleSim({ sides: [me, enemy], boss, timeLimit: mode === 'tutorial' ? 600 : 150 });
-    this.ai = new BattleAI(this.sim, 1, aiOpts);
+    if (mode === 'friend') {
+      me.labHp = enemy.labHp = arena.labHp;
+      const peer = net.peer;
+      this.peer = peer;
+      if (params.role === 'guest') {
+        this.sim = new RemoteSim({ sides: [me, enemy] }, peer);
+      } else {
+        this.sim = new BattleSim({ sides: [me, enemy], timeLimit: 150 });
+        this.hostSync = peer ? new HostSync(this.sim, peer) : null;
+      }
+      this.ai = { update() {} };
+      this.offClose = peer?.onClose(() => this.peerLost());
+    } else {
+      this.sim = new BattleSim({ sides: [me, enemy], boss, timeLimit: mode === 'tutorial' ? 600 : 150 });
+      this.ai = new BattleAI(this.sim, 1, aiOpts);
+    }
     this.view = new BattleView(this.sim, this.cfg);
     this.scene = this.view.scene;
     this.camera = this.view.camera;
@@ -153,6 +149,21 @@ export class BattleScene {
       this.tutorial();
       return;
     }
+    if (this.mode === 'friend') {
+      if (this.params.role === 'guest') {
+        // keep pinging until the host's snapshots arrive
+        const iv = setInterval(() => {
+          if (this.ended || this.sim.t > 0 || !this.peer?.open) clearInterval(iv);
+          else this.peer.send({ t: 'ready' });
+        }, 400);
+      } else {
+        toast('Waiting for your friend...', { icon: 'clock' });
+        await new Promise((res) => {
+          const off = this.peer?.on((m) => { if (m.t === 'ready') { off(); res(); } });
+          setTimeout(res, 12000);
+        });
+      }
+    }
     for (const n of ['3', '2', '1']) {
       bigBanner(n, '', { dur: 0.5 });
       audio.play('tick', { pitch: 0.5 });
@@ -160,7 +171,7 @@ export class BattleScene {
     }
     bigBanner(this.mode === 'boss' ? 'BOSS FIGHT!' : 'FIGHT!', '', { dur: 0.8, color: '#ffd23f' });
     audio.play('bell');
-    this.sim.paused = false;
+    if (!(this.mode === 'friend' && this.params.role === 'guest')) this.sim.paused = false;
     this.ready = true;
   }
 
@@ -248,8 +259,9 @@ export class BattleScene {
 
   pauseMenu() {
     if (this.ended || this.pauseOpen) return;
+    const online = this.mode === 'friend';
     const wasPaused = this.sim.paused;
-    this.sim.paused = true;
+    if (!online) this.sim.paused = true;
     this.pauseOpen = true;
     const m = modal({
       title: 'PAUSED', size: 'narrow', color: 'purple',
@@ -265,7 +277,7 @@ export class BattleScene {
         this.mode !== 'tutorial' ? button('Surrender', () => { m.close(); this.sim.end(1); }, 'red') : null),
       onClose: () => {
         this.pauseOpen = false;
-        if (!wasPaused) this.sim.paused = false;
+        if (!wasPaused && !online) this.sim.paused = false;
       },
     });
   }
@@ -346,7 +358,20 @@ export class BattleScene {
     this.hud?.destroy();
     this.view?.dispose();
     this.tutCleanup && this.tutCleanup();
+    this.hostSync?.dispose();
+    this.sim?.dispose?.();
+    this.offClose && this.offClose();
+    this.offRematch && this.offRematch();
     engine.timeScale = 1;
+  }
+
+  peerLost() {
+    if (this.ended) return;
+    toast('Your friend disconnected - you win by forfeit!', { icon: 'trophy' });
+    if (this.sim instanceof RemoteSim) {
+      this.sim.over = true;
+      this.sim.winner = 0;
+    } else this.sim.end(0);
   }
 
   resize(w, hh) {
@@ -357,6 +382,7 @@ export class BattleScene {
     if (!this.sim) return;
     if (!this.sim.paused) this.ai.update(gdt);
     this.sim.update(gdt);
+    this.hostSync && this.hostSync.update(dt);
     this.view.update(dt, this.sim.paused && !this.sim.over ? 0 : gdt);
     this.hud.update();
     this.tutTick && this.tutTick(dt);
@@ -480,6 +506,7 @@ export class BattleScene {
     state.save();
     await wait(2.2);
     if (this.mode === 'tutorial') return this.tutorialEnd(win);
+    if (this.mode === 'friend') return this.friendResults(win);
     const res = battleRewards({ win, arenaId: this.arenaId, mode: this.mode === 'practice' ? 'practice' : this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
     this.showResults(win, res);
   }
@@ -495,6 +522,33 @@ export class BattleScene {
     state.p.tutorial = 'briefcase';
     state.save();
     game.go('lab', { tutorial: 'briefcase' });
+  }
+
+  friendResults(win) {
+    const host = this.params.role !== 'guest';
+    const peer = this.peer;
+    const status = h('div', { class: 'small muted' }, peer?.open ? (host ? 'Play again?' : 'Waiting for the host to start a rematch...') : 'Connection closed.');
+    const body = h('div', { class: 'result-panel' },
+      h('div', { class: 'display big ' + (win ? 'gold' : 'redt') }, win ? 'VICTORY!' : 'DEFEAT'),
+      h('div', { class: 'small' }, `Friendly battle vs ${this.cfg.sides[1].name}`),
+      status);
+    const foot = [button('Lab', () => { m.close(); net.clear(); game.go('lab'); }, 'blue', { icon: 'flask' })];
+    if (host && peer?.open) {
+      foot.push(button('Rematch', () => {
+        m.close();
+        const me = this.cfg.sides[0];
+        peer.send({ t: 'start', host: me, guest: this.params.remote, arena: this.arenaId });
+        game.go('battle', { mode: 'friend', role: 'host', remote: this.params.remote, arena: this.arenaId });
+      }, 'pink', { icon: 'sword' }));
+    }
+    const m = modal({ title: 'FRIEND BATTLE', color: win ? 'yellow' : 'purple', size: 'narrow', closable: false, body, foot });
+    if (!host && peer) {
+      this.offRematch = peer.on((msg) => {
+        if (msg.t !== 'start') return;
+        m.close();
+        game.go('battle', { mode: 'friend', role: 'guest', remote: msg.host, arena: msg.arena });
+      });
+    }
   }
 
   showResults(win, res) {

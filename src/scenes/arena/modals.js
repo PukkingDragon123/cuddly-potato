@@ -64,7 +64,12 @@ export function openMatchmaking(A) {
   const body = h('div', { class: 'ar-mm' });
   const noDeck = !p.deck || p.deck.length === 0;
   const fight = button('FIGHT!', () => go(), 'pink big pulse', { icon: 'sword', sound: 'bigPop' });
-  const reroll = button('Another', () => search(), 'small', { icon: 'speed' });
+  const reroll = noDeck
+    ? button('Build deck in Lab', () => {
+      m.close();
+      A.goLab();
+    }, 'small green', { icon: 'flask' })
+    : button('Another', () => search(), 'small', { icon: 'speed' });
   const m = modal({
     title: 'RANKED BATTLE',
     color: 'pink',

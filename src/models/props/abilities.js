@@ -208,7 +208,7 @@ export function makeTruck() {
 
 // ---------------------------------------------------------------------------
 export function makeFootball() {
-  return vmesh('football', () => {
+  const ball = vmesh('football', () => {
     const g = new VoxGrid();
     const t = (1 + Math.sqrt(5)) / 2;
     const ico = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]]
@@ -223,7 +223,13 @@ export function makeFootball() {
       g.set(x, y, z, best > 0.935 ? 0x1a1a22 : (best > 0.9 ? 0xd0d4de : 0xffffff));
     }
     return g;
-  }, { scale: 0.027, pivot: 'bottom' });
+  }, { scale: 0.027, pivot: 'center' });
+  // root sits on y=0; spin root.userData.ball (centred) for rolling/kicks
+  ball.position.y = 6.5 * 0.027;
+  const root = group(ball);
+  root.name = 'football';
+  root.userData.ball = ball;
+  return root;
 }
 
 // ---------------------------------------------------------------------------

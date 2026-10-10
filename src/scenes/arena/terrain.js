@@ -172,6 +172,7 @@ export class Terrain {
           m.receiveShadow = true;
           m.castShadow = cast;
           m.name = 'terrain';
+          m.userData.disposable = true;
           scene.add(m);
           this.meshes.push(m);
         }

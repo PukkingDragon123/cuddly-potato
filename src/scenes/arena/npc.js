@@ -149,7 +149,10 @@ export class NPC {
       if (this.wanderR > 0) moving = this.wander(dt);
     }
     this.reactT -= dt;
-    if (!moving && !this.busy && this.chibi.anim === 'walk') this.chibi.play(this.idleAnim);
+    if (!moving) {
+      this.chibi.speed = 1;
+      if (!this.busy && (this.chibi.anim === 'walk' || this.chibi.anim === 'run')) this.chibi.play(this.idleAnim);
+    }
     // ambient lines
     if (this.lines.length && dist < 10 && !this.busy && !A.player.locked) {
       this.lineT -= dt;

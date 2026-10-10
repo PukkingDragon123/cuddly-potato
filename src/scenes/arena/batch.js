@@ -127,6 +127,7 @@ export function bake(group, opts = {}) {
     m.castShadow = b.cast && opts.cast !== false;
     m.receiveShadow = opts.receive !== false;
     m.matrixAutoUpdate = false;
+    m.userData.disposable = true;
     out.add(m);
   }
   for (const k of keep) out.attach(k);

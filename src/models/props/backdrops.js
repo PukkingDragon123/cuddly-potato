@@ -523,7 +523,7 @@ function buildMart(K) {
   fgKinds.forEach(([id, fn], v) => {
     const items = [];
     for (let x = -40 + v * 5.5; x <= 40; x += 22) items.push([x + K.rand(-1, 1), 0, 5.6 + K.rand(0, 1.3), K.rand(-0.5, 0.5)]);
-    K.inst(id, fn, { scale: 0.1 }, items, { shadow: true });
+    K.inst(id, fn, { scale: 0.08 }, items, { shadow: true });
   });
 
   // breakables near the lane
@@ -613,7 +613,7 @@ function buildLab(K) {
     c.fillRect(0, 24, 32, 1);
     c.fillStyle = css(0x29b6f6); c.fillRect(0, 23, 32, 1); c.fillRect(0, 25, 32, 1);
   }, [15, 1]);
-  K.ground(lane, noiseTex('labYard', [0x9aa2ae, 0xa6aeba, 0x8e96a2, 0x7aa85a], [60, 22], {
+  K.ground(lane, noiseTex('labYard', [0x9aa2ae, 0xa6aeba, 0x9aa2ae, 0x8e96a2, 0xa6aeba, 0x7aa85a], [60, 22], {
     draw: (c) => { c.fillStyle = css(0x868e9a); c.fillRect(0, 0, 32, 1); c.fillRect(0, 0, 1, 32); },
   }), { far: noiseTex('grassFar', [0x5fbf4a, 0x52b048, 0x6fcf55], [70, 14]) });
   laneEdge(K, 'labEdge', hazardC(PAL.yellow, PAL.ink, 4), { w: 2 });
@@ -1015,7 +1015,7 @@ function buildMansion(K) {
     for (const x of [-15, 0, 15]) { g.cylinder(x, 0, 0, 0, 2, PAL.goldD); g.box(x, 1, 0, x, 9, 0, PAL.gold); g.sphere(x, 10, 0, 1, PAL.goldL); }
     for (let x = -15; x <= 15; x++) if (x % 15) g.set(x, 8 - Math.round(Math.sin(((x + 15) % 15) / 15 * Math.PI) * 3), 0, 0xc0203a);
     return g;
-  }, { scale: 0.1 }, [[-7, 0, 5.6], [8, 0, 5.8]], { shadow: true });
+  }, { scale: 0.09 }, [[-7, 0, 5.6], [8, 0, 5.8]], { shadow: true });
   K.inst('fgFlowers', ENV_GRIDS.flowers, { scale: 0.1 }, [[-28, 0, 5.4], [-13, 0, 6.0, 1], [0, 0, 6.6, 2], [14, 0, 5.9, 3], [28, 0, 5.5, 4], [44, 0, 6.0]], { shadow: true });
   // breakables
   const B = [['urn', -16, -2.4], ['cash', -12, 2.4], ['gold', -8, -2.5], ['urn', -4, 2.6], ['statue', 0, -2.5], ['cash', 4, 2.3], ['urn', 8, -2.5], ['gold', 12, 2.5], ['cash', 15.5, -2.4], ['urn', 17.5, 2.5]];

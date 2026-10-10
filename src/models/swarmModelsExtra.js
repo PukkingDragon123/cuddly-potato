@@ -1613,12 +1613,12 @@ export const EXTRA_MODELS = {
   },
 
   donutDasher() {
-    const R = 4.1, r = 2.05, cy = 6;
+    const R = 4.2, r = 2.4, cy = 6;
     const dough = mot(0xd89a5a, 0xc8843a, 0.3);
     const frost = (x, y, z) => (noise(x, y, z) < 0.15 ? 0xff8ac0 : 0xff6fb0);
     const sprinkles = [0xffffff, 0xffd23f, 0x29b6f6, 0x7cff3a, 0xb05cff, 0xff4a3a];
     const body = G();
-    for (let x = -4; x <= 3; x++) for (let y = -6; y <= 6; y++) for (let z = -6; z <= 6; z++) {
+    for (let x = -4; x <= 3; x++) for (let y = -7; y <= 7; y++) for (let z = -7; z <= 7; z++) {
       const px = x + 0.5, py = y, pz = z;
       const q = Math.hypot(py, pz) - R;
       if (q * q + px * px > (r + 0.35) * (r + 0.35)) continue;
@@ -1637,7 +1637,7 @@ export const EXTRA_MODELS = {
     // face plates (do not rotate)
     const head = G();
     for (const s of [-1, 1]) {
-      const x = s < 0 ? -3 : 2;
+      const x = s < 0 ? -4 : 3;
       // eyes above the hole, mouth below, looking at the camera from the side
       for (const [z0, eyeS] of [[-3, 'a'], [1, 'b']]) {
         head.box(x, 2, z0, x, 4, z0 + 1, C.white);

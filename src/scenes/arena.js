@@ -203,6 +203,7 @@ export class ArenaScene {
     this.player = new Avatar(this);
 
     // Build the island (order matters: terrain paint first, then props).
+    const t0 = performance.now();
     const builders = [buildIsland, buildLabYard, buildPark, buildSuburb, buildMansion, buildMart, buildTechno, buildReactor, buildFactory, buildGates, buildCritters];
     for (const b of builders) {
       try {
@@ -232,6 +233,7 @@ export class ArenaScene {
     }
     this.statics.clear();
     this.world.buildPathGrid();
+    if (params.dev && params.perf) console.log(`[arena] island built in ${Math.round(performance.now() - t0)}ms`);
 
     // tap marker
     this.tapMarker = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.5, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false }));
@@ -322,6 +324,9 @@ export class ArenaScene {
       } catch (e) { /* ignore */ }
     }
     closeDialogue();
+    this.scene.traverse((o) => {
+      if (o.userData?.disposable && o.geometry) o.geometry.dispose();
+    });
     if (window.__arena === this) window.__arena = null;
   }
 

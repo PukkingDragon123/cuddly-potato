@@ -187,7 +187,12 @@ export function mountHub(ctx = {}) {
     closeAll();
     ctx.startBattle?.({ mode: 'practice' });
   }, 'hub-practice', { icon: 'swarm' });
-  const play = h('div', { class: 'hub-play' }, battleBtn, h('div', { class: 'row hub-play-row' }, mapBtn, practiceBtn));
+  const friendBtn = button('Friend Battle', async () => {
+    if (!state.p.deck.length) return deny('Add some swarms to your deck first!');
+    closeAll();
+    (await import('./screens/friend.js')).openFriendBattle();
+  }, 'pink hub-practice hub-friend', { icon: 'heart' });
+  const play = h('div', { class: 'hub-play' }, battleBtn, h('div', { class: 'row hub-play-row' }, mapBtn, practiceBtn), h('div', { class: 'row hub-play-row' }, friendBtn));
 
   // ---------------------------------------------------------------- vial strip
   const vials = h('div', { class: 'hub-vials' });

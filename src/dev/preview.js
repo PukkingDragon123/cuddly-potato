@@ -105,6 +105,7 @@ export class PreviewScene {
   }
   update(dt) {
     this.t += dt;
+    if (!this.target) return;
     const cam = this.camera;
     cam.position.set(this.target.x + Math.sin(this.yaw) * this.dist, this.target.y + this.dist * 0.45, this.target.z + Math.cos(this.yaw) * this.dist);
     cam.lookAt(this.target);
