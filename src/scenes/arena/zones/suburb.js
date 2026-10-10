@@ -217,22 +217,39 @@ function aliveMailbox(A, x, z, color) {
 }
 
 function tpTree(A, x, z) {
-  A.put('makeTree', ['round', 1], { x, z, zone: 'suburb', collide: { r: 0.4 }, fit: { h: 3.6, clamp: 1.6 } });
-  const geo = cachedGeometry('arena:tp', () => {
-    const g = new VoxGrid();
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
-      const r = 5.5 + (i % 2);
-      const bx = Math.round(Math.cos(a) * r), bz = Math.round(Math.sin(a) * r);
-      const len = 3 + ((i * 7) % 5);
-      for (let k = 0; k < len; k++) g.set(bx, 18 - k, bz, 0xffffff);
+  const t = A.put('makeTree', ['round', 1], { x, z, zone: 'suburb', collide: { r: 0.4 }, fit: { h: 3.6, clamp: 1.6 } });
+  const b = A.bbox(t.root);
+  const r = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) / 2;
+  const H = b.max.y;
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const strand = (px, py, pz, len, w = 0.07) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, len, w), mat);
+    m.position.set(px, py - len / 2, pz);
+    m.castShadow = false;
+    A.addStatic(m, 'suburb');
+  };
+  // hanging strands around the canopy edge
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + 0.3;
+    const rr = r * (0.82 + (i % 2) * 0.12);
+    strand(x + Math.cos(a) * rr, H * (0.62 + (i % 3) * 0.06), z + Math.sin(a) * rr, 0.45 + ((i * 7) % 4) * 0.18);
+  }
+  // loops thrown over the top
+  for (const rot of [0.4, 1.9]) {
+    for (let k = 0; k <= 8; k++) {
+      const u = (k / 8) * Math.PI;
+      const px = x + Math.cos(rot) * Math.cos(u) * r * 0.85, pz = z + Math.sin(rot) * Math.cos(u) * r * 0.85;
+      const py = H * 0.62 + Math.sin(u) * H * 0.4;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.16), mat);
+      m.position.set(px, py, pz);
+      A.addStatic(m, 'suburb');
     }
-    for (let a = 0; a < 24; a++) g.set(Math.round(Math.cos(a / 3.8) * 6), 19 + (a % 3 === 0 ? 1 : 0), Math.round(Math.sin(a / 3.8) * 6), 0xffffff);
-    return g;
-  }, { scale: 0.2, pivot: [0, 0, 0] });
-  const m = makeMesh(geo);
-  m.position.set(x, 0, z);
-  A.addStatic(m, 'suburb');
+  }
+  // a roll on the ground
+  const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.22, 10), mat);
+  roll.rotation.z = Math.PI / 2;
+  roll.position.set(x + r + 0.3, 0.12, z + 0.6);
+  A.addStatic(roll, 'suburb');
 }
 
 function graves(A, x, z) {

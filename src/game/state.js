@@ -368,11 +368,15 @@ export function rollVial(type, opts = {}) {
   for (let i = 0; i < vial.cards; i++) {
     let r = weightedPick(Object.values(RARITIES), (x) => x.weight, rng).id;
     if (i === vial.cards - 1 && !gotMin && minIdx > 0) r = RARITY_ORDER[Math.max(minIdx, RARITY_ORDER.indexOf(r))];
-    let cand = pool.filter((s) => s.rarity === r);
     let ri = RARITY_ORDER.indexOf(r);
-    while (!cand.length && ri > 0) {
-      ri--;
-      cand = pool.filter((s) => s.rarity === RARITY_ORDER[ri]);
+    let cand = pool.filter((s) => s.rarity === r);
+    // nothing of that rarity in this series: look down first, then up
+    for (let d = 1; !cand.length && d < RARITY_ORDER.length; d++) {
+      for (const k of [ri - d, ri + d]) {
+        if (k < 0 || k >= RARITY_ORDER.length || RARITY_ORDER[k] === 'mythic') continue;
+        cand = pool.filter((s) => s.rarity === RARITY_ORDER[k]);
+        if (cand.length) { ri = k; break; }
+      }
     }
     if (!cand.length) continue;
     if (ri >= minIdx) gotMin = true;

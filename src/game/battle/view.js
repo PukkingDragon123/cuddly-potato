@@ -344,8 +344,9 @@ export class BattleView {
     this.camTargetX = minX > maxX ? 0 : clamp(this.camTargetX, minX, maxX);
     this.camX = snap ? this.camTargetX : damp(this.camX, this.camTargetX, 3.5, dt);
     const cam = this.camera;
+    const portraitLift = aspect < 1 ? dist * 0.09 : 0;
     cam.position.set(this.camX, 2.2 + dist * 0.16, dist);
-    cam.lookAt(this.camX, 1.25 + dist * 0.02, 0);
+    cam.lookAt(this.camX, 1.25 + dist * 0.02 + portraitLift, 0);
     // sun follows camera so shadows stay crisp
     this.sun.position.set(this.camX - 6, 14, 10);
     this.sun.target.position.set(this.camX, 0, 0);

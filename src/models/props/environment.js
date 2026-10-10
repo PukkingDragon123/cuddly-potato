@@ -401,7 +401,7 @@ export function makeFactory() {
 
 // ---------------------------------------------------------------------------
 // Golden panther statue
-function pantherStatueGrid() {
+export function pantherStatueGrid() {
   const g = new VoxGrid();
   const go = 0xffd040, goL = 0xffe680, goD = 0xc89a20;
   // sitting panther, faces +z

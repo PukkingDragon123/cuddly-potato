@@ -510,7 +510,7 @@ export const EXTRA_MODELS = {
     body.box(-3, 4, -4, 2, 7, 5, blue);
     body.cylinder(-0.5, 7, -4, 5, 3.2, blue, 'z');
     body.carve((x, y, z) => y < 4);
-    body.box(-1, 2, -1, 0, 3, 0, wood);
+    body.box(-1, 0, -1, 0, 3, 0, wood);
     body.box(-3, 0, -1, 2, 0, 0, wood);
     // hollow mouth opening at the front
     body.carve((x, y, z) => z >= 2 && z <= 5 && x >= -2 && x <= 1 && y >= 5 && y <= 9);
@@ -679,8 +679,8 @@ export const EXTRA_MODELS = {
     lid.set(-5, 6, 0, 0xffd23f).set(-5, 6, -1, 0xffd23f).set(-5, 7, -1, C.ink);
     // fuse (antenna) with a glowing tip
     const fuse = G();
-    fuse.set(0, 0, 0, 0x5a4a3a).set(0, 1, 0, 0x3a2a1a).set(0, 2, -1, 0x3a2a1a).set(1, 3, -1, 0x3a2a1a);
-    fuse.set(1, 4, -1, 0xff6a1a, true).set(1, 5, -1, 0xffd23f, true).set(2, 5, -1, 0xfff6a0, true).set(0, 5, -2, 0xffa21a, true).set(1, 6, 0, 0xfff27a, true);
+    fuse.set(0, 0, 0, 0x5a4a3a).set(0, 1, -1, 0x3a2a1a).set(1, 2, -1, 0x3a2a1a);
+    fuse.set(1, 3, -1, 0xff6a1a, true).set(1, 4, -1, 0xffd23f, true).set(2, 4, -1, 0xfff6a0, true).set(0, 4, -2, 0xffa21a, true).set(2, 3, 0, 0xfff27a, true);
     const leg = () => {
       const g = G();
       g.box(0, -3, 0, 0, -1, 0, 0xff9a2a);
@@ -846,8 +846,8 @@ export const EXTRA_MODELS = {
     for (const [x, y, z] of [[-5, 10, 1], [-6, 11, 1], [-5, 12, 1], [-6, 13, 1], [4, 10, 1], [5, 11, 1], [4, 12, 1], [5, 13, 1], [-4, 2, 1], [-5, 1, 1], [-6, 2, 1], [3, 2, 1], [4, 1, 1], [5, 2, 1]]) head.set(x, y, z, (x + y) % 2 ? spark : sparkW, true);
     // antenna with sparking tip
     const ant = G();
-    ant.box(0, 0, 0, 0, 2, 0, 0x8a92a4);
-    ant.set(0, 3, 0, 0xffffff, true).set(-1, 4, 0, spark, true).set(1, 4, 0, spark, true).set(0, 5, 0, sparkW, true).set(-1, 3, 0, spark, true).set(1, 3, 0, sparkW, true);
+    ant.box(0, 0, 0, 0, 1, 0, 0x8a92a4);
+    ant.set(0, 2, 0, 0xffffff, true).set(-1, 3, 0, spark, true).set(1, 3, 0, spark, true).set(-1, 2, 0, spark, true).set(1, 2, 0, sparkW, true);
     const body = G();
     body.box(-1, 0, -1, 0, 3, 0, mot(0x9aa2b4, 0x8a92a4));
     body.box(-3, 0, -2, 2, 0, 1, 0x6b7386);
@@ -907,27 +907,27 @@ export const EXTRA_MODELS = {
     body.box(-3, 4, -2, 2, 4, 2, 0x5d6476); // neck plate
     for (const x of [-4, 3]) body.box(x, 2, -1, x, 4, 0, metalD); // shoulder joints
     body.set(-1, 0, -3, metalD).set(0, 0, -3, metalD).set(-1, 2, -3, 0xffd23f); // backpack bolt
-    const legG = () => bipedLeg({ h: 3, color: metalD, foot: 0x3a3f4e, toe: 1, knee: 0x8f9ab0 });
+    const legG = () => bipedLeg({ h: 2, color: metalD, foot: 0x3a3f4e, toe: 1, knee: 0x8f9ab0 });
     const armLg = G();
     armLg.box(-1, -3, -1, 0, 0, 0, metal).box(-1, -4, -1, 0, -4, 0, metalD);
     armLg.set(-1, -5, -1, 0xc8d0dc).set(-1, -5, 0, 0xc8d0dc).set(0, -5, 0, 0xc8d0dc).set(-1, -6, 0, 0xc8d0dc); // pincer
     const armRg = G(); // blaster arm
     armRg.box(-1, -2, -1, 0, 0, 0, metal);
-    armRg.cylinder(-0.5, -0.5, -6, -3, 1.4, (x, y, z) => (y === -5 ? 0xff3ad8 : 0x5d6476), 'y');
-    armRg.box(-1, -7, -1, 0, -7, 0, 0x3af6ff, true);
+    armRg.cylinder(-0.5, -0.5, -5, -3, 1.4, (x, y, z) => (y === -4 ? 0xff3ad8 : 0x5d6476), 'y');
+    armRg.box(-1, -6, -1, 0, -6, 0, 0x3af6ff, true);
     armRg.set(-2, -4, -1, 0xff3ad8, true).set(1, -4, 0, 0xff3ad8, true);
     return {
       gait: 'walk',
       parts: [
-        { name: 'legL', grid: legG(), at: [-2, 3, 0] },
-        { name: 'legR', grid: legG(), at: [2, 3, 0] },
-        { name: 'body', grid: body, at: [0, 3, 0] },
-        { name: 'head', grid: head, at: [0, 8, 0] },
-        { name: 'antenna', grid: ant, at: [1, 16, -1] },
-        { name: 'armL', grid: armLg, at: [-4, 7, 0] },
-        { name: 'armR', grid: armRg, at: [4, 7, 0] },
+        { name: 'legL', grid: legG(), at: [-2, 2, 0] },
+        { name: 'legR', grid: legG(), at: [2, 2, 0] },
+        { name: 'body', grid: body, at: [0, 2, 0] },
+        { name: 'head', grid: head, at: [0, 7, 0] },
+        { name: 'antenna', grid: ant, at: [1, 15, -1] },
+        { name: 'armL', grid: armLg, at: [-4, 6, 0] },
+        { name: 'armR', grid: armRg, at: [4, 6, 0] },
       ],
-      muzzle: [4, 6, 5],
+      muzzle: [4, 5, 5],
     };
   },
 
@@ -1095,7 +1095,7 @@ export const EXTRA_MODELS = {
     head.box(-2, 1, 3, 1, 1, 3, 0xff3a3a, true);
     head.box(-2, 2, 3, 1, 2, 3, white);
     const ant = G();
-    ant.box(0, 0, 0, 0, 3, 0, joint).set(0, 4, 0, orange, true).set(-1, 3, 0, joint);
+    ant.box(0, 0, 0, 0, 1, 0, joint).set(0, 2, 0, orange, true).set(-1, 1, 0, joint);
     // shoulder missile pods (cannon)
     const pods = G();
     for (const s of [-1, 1]) {
@@ -1119,24 +1119,24 @@ export const EXTRA_MODELS = {
       const g = G();
       g.box(-2, -3, -1, 1, -1, 1, navy);
       g.box(-2, -4, -1, 1, -4, 2, orange); // knee
-      g.box(-1, -6, -1, 0, -5, 0, joint);
-      g.box(-3, -7, -2, 2, -6, 3, white).box(-3, -7, 4, 2, -7, 4, joint);
-      g.set(-3, -6, 3, orange).set(2, -6, 3, orange);
+      g.box(-1, -5, -1, 0, -5, 0, joint);
+      g.box(-3, -6, -2, 2, -6, 3, white).box(-3, -6, 4, 2, -6, 4, joint);
+      g.box(-2, -5, 1, 1, -5, 2, white).set(-3, -5, 0, orange).set(2, -5, 0, orange);
       return g;
     };
     return {
       gait: 'walk',
       parts: [
-        { name: 'legL', grid: legG(), at: [-3, 7, 0] },
-        { name: 'legR', grid: legG(), at: [3, 7, 0] },
-        { name: 'body', grid: body, at: [0, 7, 0] },
-        { name: 'head', grid: head, at: [0, 15, -1] },
-        { name: 'antenna', grid: ant, at: [1, 18, -2] },
-        { name: 'cannon', grid: pods, at: [0, 13, -1] },
-        { name: 'armL', grid: armG(-1), at: [-7, 12, 0] },
-        { name: 'armR', grid: armG(1), at: [7, 12, 0] },
+        { name: 'legL', grid: legG(), at: [-3, 6, 0] },
+        { name: 'legR', grid: legG(), at: [3, 6, 0] },
+        { name: 'body', grid: body, at: [0, 6, 0] },
+        { name: 'head', grid: head, at: [0, 14, -1] },
+        { name: 'antenna', grid: ant, at: [1, 17, -2] },
+        { name: 'cannon', grid: pods, at: [0, 12, -1] },
+        { name: 'armL', grid: armG(-1), at: [-7, 11, 0] },
+        { name: 'armR', grid: armG(1), at: [7, 11, 0] },
       ],
-      muzzle: [6, 15, 4],
+      muzzle: [6, 14, 5],
     };
   },
 
@@ -1386,7 +1386,7 @@ export const EXTRA_MODELS = {
     head.set(-2, 0, 6, C.tooth).set(1, 0, 6, C.tooth); // tusks
     head.set(-1, 2, 5, 0x5a88b0).set(0, 2, 5, 0x5a88b0); // nose
     // icy horns
-    for (const s of [-1, 1]) { const x = s < 0 ? -4 : 3; icicle(head, x, 6, 1, 0, 1, 0, 2); head.set(x + s, 8, 0, ice).set(x + s, 9, -1, iceW, true); }
+    for (const s of [-1, 1]) { const x = s < 0 ? -4 : 3; head.set(x, 6, 1, ice).set(x + s, 6, 0, ice).set(x + s, 7, 0, iceW, true); }
     const armG = (s) => {
       const g = G();
       g.box(-1, -4, -1, 0, 0, 1, fur);
@@ -1645,7 +1645,7 @@ export const EXTRA_MODELS = {
     // face plates (do not rotate)
     const head = G();
     for (const s of [-1, 1]) {
-      const x = s < 0 ? -5 : 4;
+      const x = s < 0 ? -3 : 2;
       // eyes above the hole, mouth below, looking at the camera from the side
       for (const [z0, eyeS] of [[-3, 'a'], [1, 'b']]) {
         head.box(x, 2, z0, x, 4, z0 + 1, C.white);
@@ -1946,7 +1946,7 @@ export const EXTRA_MODELS = {
     };
     const body = G();
     wireBox(body, -7, 0, -4, 6, 8, 4, 3);
-    wireBox(body, -6, 6, -2, 5, 10, 5, 3); // hunched shoulders
+    wireBox(body, -6, 6, -2, 5, 9, 5, 3); // hunched shoulders
     // red plastic trim along the shoulders and hips
     for (let x = -7; x <= 6; x++) { body.set(x, 8, 4, red); body.set(x, 0, 4, 0xb8202a); }
     body.box(-3, 2, 5, 2, 6, 5, red); // child-seat chest plate
@@ -1959,8 +1959,8 @@ export const EXTRA_MODELS = {
     body.box(-2, 1, -3, 0, 2, -1, 0xd8a050); // bread
     body.cylinder(4.5, 2, 1, 4, 1, 0xe0222c, 'y'); // soda can
     for (let i = 0; i < 5; i++) body.set(-4 + i, 7 + (i === 2 ? 1 : 0), 0, 0xffd23f); // banana bunch
-    body.box(-5, 9, -1, -5, 12, -1, 0xd8a050).set(-5, 13, -1, 0xc08040); // baguette sticking out
-    body.box(3, 9, 0, 3, 11, 0, 0x6ac83a).set(4, 12, 0, 0x8ae85a).set(2, 12, 0, 0x8ae85a); // celery
+    body.box(-5, 8, -1, -5, 11, -1, 0xd8a050).set(-5, 12, -1, 0xc08040); // baguette sticking out
+    body.box(3, 8, 0, 3, 10, 0, 0x6ac83a).set(4, 11, 0, 0x8ae85a).set(2, 11, 0, 0x8ae85a); // celery
     // head: solid face plate inside a wire skull, cart-handle brow
     const head = G();
     wireBox(head, -4, 0, -2, 3, 5, 3);
@@ -2000,7 +2000,7 @@ export const EXTRA_MODELS = {
         { name: 'legL', grid: legG(), at: [-3, 5, -1] },
         { name: 'legR', grid: legG(), at: [3, 5, -1] },
         { name: 'body', grid: body, at: [0, 5, 0] },
-        { name: 'head', grid: head, at: [0, 13, 4] },
+        { name: 'head', grid: head, at: [0, 12, 4] },
         { name: 'armL', grid: armG(), at: [-9, 12, 2] },
         { name: 'armR', grid: armG(), at: [9, 12, 2] },
       ],
