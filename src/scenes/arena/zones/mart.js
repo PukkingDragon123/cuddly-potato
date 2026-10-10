@@ -4,6 +4,7 @@
 // boss gate, the Cart Corral and the hidden Golden Chocolate Bar.
 import * as THREE from 'three';
 import { VoxGrid, Mats, makeMesh, cachedGeometry } from '../../../core/voxel.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { fx, particles } from '../../../core/particles.js';
 import { audio } from '../../../core/audio.js';
 import { rand, pick, shuffle, shade } from '../../../core/util.js';
@@ -28,65 +29,74 @@ const SX0 = 29, SX1 = 57, SZ0 = 17.6, SZ1 = 45;
 // ---------------------------------------------------------------------------
 // Products (tiny voxel models, tinted per instance)
 
+// Low-poly merged primitives (instanced ~1300x, so keep them cheap: 24-70 tris each).
+function part(geo, color, x = 0, y = 0, z = 0) {
+  geo.translate(x, y, z);
+  geo.deleteAttribute('uv');
+  const n = geo.attributes.position.count;
+  const c = new THREE.Color(color);
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    arr[i * 3] = c.r;
+    arr[i * 3 + 1] = c.g;
+    arr[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return geo.index ? geo : geo;
+}
+function merged(parts) {
+  const g = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)));
+  g.computeBoundingSphere();
+  return g;
+}
+const BODY = 0xb4b4b4, LABEL = 0xffffff, DARK = 0x5a5a5a;
 const PRODUCTS = {
   box: {
     w: 0.26, h: 0.42, d: 0.2,
-    grid: () => {
-      const g = new VoxGrid();
-      g.box(-6, 0, -5, 6, 20, 4, 0xb4b4b4);
-      g.box(-6, 8, 5, 6, 14, 5, 0xffffff);
-      g.box(-3, 10, 6, 2, 12, 6, 0x505050);
-      g.box(-6, 18, -5, 6, 20, 4, 0x8c8c8c);
-      return g;
-    },
+    make: () => merged([
+      part(new THREE.BoxGeometry(0.26, 0.42, 0.2), BODY, 0, 0.21, 0),
+      part(new THREE.BoxGeometry(0.22, 0.14, 0.01), LABEL, 0, 0.24, 0.105),
+      part(new THREE.BoxGeometry(0.08, 0.05, 0.01), DARK, 0, 0.24, 0.112),
+    ]),
   },
   can: {
     w: 0.18, h: 0.24, d: 0.18,
-    grid: () => {
-      const g = new VoxGrid();
-      g.cylinder(0, 0, 0, 11, 4, 0xb4b4b4);
-      g.paint((x, y) => (y >= 4 && y <= 7 ? 0xffffff : y === 11 || y === 0 ? 0xd8d8d8 : undefined));
-      return g;
-    },
+    make: () => merged([
+      part(new THREE.CylinderGeometry(0.085, 0.085, 0.24, 8), BODY, 0, 0.12, 0),
+      part(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 8, 1, true), LABEL, 0, 0.12, 0),
+      part(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 8), 0xe0e0e0, 0, 0.245, 0),
+    ]),
   },
   bottle: {
     w: 0.12, h: 0.42, d: 0.12,
-    grid: () => {
-      const g = new VoxGrid();
-      g.cylinder(0, 0, 0, 13, 3, 0xb4b4b4);
-      g.cylinder(0, 0, 14, 18, 1.5, 0xd0d0d0);
-      g.box(-1, 19, -1, 1, 20, 1, 0x404040);
-      g.paint((x, y, z, c) => (y >= 5 && y <= 9 && c === 0xb4b4b4 ? 0xffffff : undefined));
-      return g;
-    },
+    make: () => merged([
+      part(new THREE.CylinderGeometry(0.06, 0.06, 0.28, 6), BODY, 0, 0.14, 0),
+      part(new THREE.CylinderGeometry(0.063, 0.063, 0.09, 6, 1, true), LABEL, 0, 0.13, 0),
+      part(new THREE.CylinderGeometry(0.025, 0.05, 0.08, 6), 0xd0d0d0, 0, 0.32, 0),
+      part(new THREE.BoxGeometry(0.05, 0.04, 0.05), DARK, 0, 0.38, 0),
+    ]),
   },
   bag: {
     w: 0.28, h: 0.34, d: 0.14,
-    grid: () => {
-      const g = new VoxGrid();
-      g.ellipsoid(0, 8, 0, 6.5, 8, 3, 0xb4b4b4);
-      g.box(-6, 16, -1, 6, 17, 1, 0xe0e0e0);
-      g.box(-6, 0, -1, 6, 1, 1, 0xe0e0e0);
-      g.box(-3, 6, 3, 3, 10, 3, 0xffffff);
-      g.carve((x, y) => y < 0);
-      return g;
-    },
+    make: () => merged([
+      part(new THREE.BoxGeometry(0.26, 0.3, 0.12), BODY, 0, 0.17, 0),
+      part(new THREE.BoxGeometry(0.28, 0.03, 0.06), 0xe0e0e0, 0, 0.33, 0),
+      part(new THREE.BoxGeometry(0.16, 0.12, 0.01), LABEL, 0, 0.17, 0.065),
+    ]),
   },
   bar: {
     w: 0.32, h: 0.22, d: 0.14,
-    grid: () => {
-      const g = new VoxGrid();
-      for (let k = 0; k < 3; k++) {
-        const y = k * 4;
-        g.box(-8, y, -3, 7, y + 2, 3, 0xb4b4b4);
-        g.box(-8, y, 4, 7, y + 2, 4, 0xffffff);
-        g.box(-8, y, -3, -8, y + 2, 3, 0x6a3a22);
-      }
-      return g;
-    },
+    make: () => merged([
+      part(new THREE.BoxGeometry(0.32, 0.06, 0.14), BODY, 0, 0.03, 0),
+      part(new THREE.BoxGeometry(0.32, 0.06, 0.14), BODY, 0.01, 0.105, 0),
+      part(new THREE.BoxGeometry(0.32, 0.06, 0.14), BODY, -0.01, 0.18, 0),
+      part(new THREE.BoxGeometry(0.1, 0.2, 0.01), LABEL, 0.06, 0.105, 0.072),
+      part(new THREE.BoxGeometry(0.02, 0.2, 0.12), 0x6a3a22, -0.165, 0.105, 0),
+    ]),
   },
 };
-for (const [k, p] of Object.entries(PRODUCTS)) p.geo = () => cachedGeometry('arena:prod:' + k, p.grid, { scale: 0.02 });
+const prodGeoCache = {};
+for (const [k, p] of Object.entries(PRODUCTS)) p.geo = () => prodGeoCache[k] ?? (prodGeoCache[k] = p.make());
 
 const KINDS = {
   snacks: { types: ['bag', 'box'], colors: [0xff8a2a, 0xffd23f, 0xe8343c, 0x29b6f6, 0x5fdc4a], sign: 'SNACKS', signColor: 0xff8a2a },

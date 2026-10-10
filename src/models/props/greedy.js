@@ -19,78 +19,75 @@ export function buildGreedy(grid, opts = {}) {
 
   const min = [b.minX, b.minY, b.minZ];
   const size = [b.maxX - b.minX + 1, b.maxY - b.minY + 1, b.maxZ - b.minZ + 1];
-  // dense key volume: 0 = empty, else (colour << 1 | glow) + 1
-  const N = size[0] * size[1] * size[2];
-  const vol = new Float64Array(N);
-  const idx = (x, y, z) => (x * size[1] + y) * size[2] + z;
-  grid.forEach((x, y, z, c, glow) => { vol[idx(x - min[0], y - min[1], z - min[2])] = c * 2 + (glow ? 1 : 0) + 1; });
-  const at = (p) => {
-    if (p[0] < 0 || p[1] < 0 || p[2] < 0 || p[0] >= size[0] || p[1] >= size[1] || p[2] >= size[2]) return 0;
-    return vol[idx(p[0], p[1], p[2])];
-  };
+  const str = [size[1] * size[2], size[2], 1];
+  // dense key volume: 0 = empty, else (colour * 2 + glow) + 1
+  const vol = new Float64Array(size[0] * size[1] * size[2]);
+  grid.forEach((x, y, z, c, glow) => { vol[(x - min[0]) * str[0] + (y - min[1]) * str[1] + (z - min[2])] = c * 2 + (glow ? 1 : 0) + 1; });
 
   const pos = [], nor = [], col = [], iS = [], iG = [];
   let vc = 0;
   const tmp = new THREE.Color();
-  const sideShade = [0.92, 0.92, 1.0, 0.8, 0.96, 0.88]; // +x -x +y -y +z -z (subtle baked shading)
-  const p = [0, 0, 0], q = [0, 0, 0];
+  const sideShade = [0.92, 0.92, 1.0, 0.8, 0.96, 0.88]; // +x -x +y -y +z -z
+  const base = [0, 0, 0];
   for (let d = 0; d < 3; d++) {
     const u = (d + 1) % 3, v = (d + 2) % 3;
-    const mask = new Float64Array(size[u] * size[v]);
+    const su = size[u], sv = size[v], sd = size[d];
+    const stD = str[d], stU = str[u], stV = str[v];
+    const mask = new Float64Array(su * sv);
     for (const dir of [1, -1]) {
-      for (let s = 0; s < size[d]; s++) {
-        // build mask
+      const fi = d * 2 + (dir > 0 ? 0 : 1);
+      for (let s = 0; s < sd; s++) {
+        const nIn = s + dir >= 0 && s + dir < sd;
         let n = 0;
-        for (let j = 0; j < size[v]; j++)
-          for (let i = 0; i < size[u]; i++) {
-            p[d] = s; p[u] = i; p[v] = j;
-            const a = at(p);
-            q[0] = p[0]; q[1] = p[1]; q[2] = p[2]; q[d] += dir;
-            mask[n++] = a && !at(q) ? a : 0;
+        let any = false;
+        for (let j = 0; j < sv; j++) {
+          let id = s * stD + j * stV;
+          for (let i = 0; i < su; i++, id += stU) {
+            const a = vol[id];
+            const m = a && !(nIn && vol[id + dir * stD]) ? a : 0;
+            mask[n++] = m;
+            if (m) any = true;
           }
-        // greedy rectangles
+        }
+        if (!any) continue;
         n = 0;
-        for (let j = 0; j < size[v]; j++)
-          for (let i = 0; i < size[u]; ) {
+        for (let j = 0; j < sv; j++)
+          for (let i = 0; i < su; ) {
             const k = mask[n];
             if (!k) { i++; n++; continue; }
             let w = 1;
-            while (i + w < size[u] && mask[n + w] === k) w++;
-            let h = 1, done = false;
-            while (j + h < size[v]) {
-              for (let t = 0; t < w; t++) if (mask[n + t + h * size[u]] !== k) { done = true; break; }
-              if (done) break;
+            while (i + w < su && mask[n + w] === k) w++;
+            let h = 1;
+            outer: while (j + h < sv) {
+              const row = n + h * su;
+              for (let t = 0; t < w; t++) if (mask[row + t] !== k) break outer;
               h++;
             }
-            // emit quad
             const key = k - 1;
             const glow = key % 2 === 1;
-            const c = Math.floor(key / 2);
-            const base = [0, 0, 0];
+            const c = (key - (glow ? 1 : 0)) / 2;
             base[d] = s + (dir > 0 ? 1 : 0); base[u] = i; base[v] = j;
-            const du = [0, 0, 0], dv = [0, 0, 0];
-            du[u] = w; dv[v] = h;
-            const corners = [
-              [base[0], base[1], base[2]],
-              [base[0] + du[0], base[1] + du[1], base[2] + du[2]],
-              [base[0] + du[0] + dv[0], base[1] + du[1] + dv[1], base[2] + du[2] + dv[2]],
-              [base[0] + dv[0], base[1] + dv[1], base[2] + dv[2]],
-            ];
-            const fi = d * 2 + (dir > 0 ? 0 : 1);
-            const jt = glow || !jitter ? 1 : 1 + (hash3(base[0] + min[0], base[1] + min[1], base[2] + min[2] + fi) - 0.5) * 2 * jitter;
-            const l = glow ? 1 : jt * (shadeSides ? [sideShade[0], sideShade[1], sideShade[2], sideShade[3], sideShade[4], sideShade[5]][[0, 1, 2, 3, 4, 5][fi === 0 ? 0 : fi === 1 ? 1 : fi === 2 ? 2 : fi === 3 ? 3 : fi === 4 ? 4 : 5]] : 1);
+            const x0 = base[0], y0 = base[1], z0 = base[2];
+            const jt = glow || !jitter ? 1 : 1 + (hash3(x0 + min[0], y0 + min[1], z0 + min[2] + fi) - 0.5) * 2 * jitter;
+            const l = glow ? 1 : jt * (shadeSides ? sideShade[fi] : 1);
             tmp.setHex(c);
-            const nx = [0, 0, 0]; nx[d] = dir;
-            for (const cr of corners) {
-              pos.push((cr[0] + min[0] - px) * scale, (cr[1] + min[1] - py) * scale, (cr[2] + min[2] - pz) * scale);
-              nor.push(nx[0], nx[1], nx[2]);
-              col.push(tmp.r * l, tmp.g * l, tmp.b * l);
-            }
+            const cr = tmp.r * l, cg = tmp.g * l, cb = tmp.b * l;
+            const du0 = u === 0 ? w : 0, du1 = u === 1 ? w : 0, du2 = u === 2 ? w : 0;
+            const dv0 = v === 0 ? h : 0, dv1 = v === 1 ? h : 0, dv2 = v === 2 ? h : 0;
+            const ox = min[0] - px, oy = min[1] - py, oz = min[2] - pz;
+            pos.push(
+              (x0 + ox) * scale, (y0 + oy) * scale, (z0 + oz) * scale,
+              (x0 + du0 + ox) * scale, (y0 + du1 + oy) * scale, (z0 + du2 + oz) * scale,
+              (x0 + du0 + dv0 + ox) * scale, (y0 + du1 + dv1 + oy) * scale, (z0 + du2 + dv2 + oz) * scale,
+              (x0 + dv0 + ox) * scale, (y0 + dv1 + oy) * scale, (z0 + dv2 + oz) * scale,
+            );
+            const nx = d === 0 ? dir : 0, ny = d === 1 ? dir : 0, nz = d === 2 ? dir : 0;
+            for (let q = 0; q < 4; q++) { nor.push(nx, ny, nz); col.push(cr, cg, cb); }
             const tgt = glow ? iG : iS;
             if (dir > 0) tgt.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3);
             else tgt.push(vc, vc + 2, vc + 1, vc, vc + 3, vc + 2);
             vc += 4;
-            for (let hh = 0; hh < h; hh++) for (let t = 0; t < w; t++) mask[n + t + hh * size[u]] = 0;
+            for (let hh = 0; hh < h; hh++) mask.fill(0, n + hh * su, n + hh * su + w);
             i += w; n += w;
           }
       }

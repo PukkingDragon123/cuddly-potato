@@ -25,13 +25,6 @@ function glowWhere(g, fn, col) {
 function fill(g, x, y, z, c, glow) {
   if (!g.has(x, y, z)) g.set(x, y, z, c, glow);
 }
-/** Recolour existing voxels in a box. */
-function paintBox(g, x0, y0, z0, x1, y1, z1, c, glow) {
-  for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++)
-    for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
-      for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) if (g.has(x, y, z)) g.set(x, y, z, c, glow);
-  return g;
-}
 /** Mirror helper for a single voxel set (x and -1-x). */
 function sym(g, x, y, z, c, glow) {
   g.set(x, y, z, c, glow);
@@ -1607,15 +1600,15 @@ export const EXTRA_MODELS = {
     return {
       gait: 'walk',
       parts: [
-        { name: 'legL', grid: leg(), at: [-2, 4, 0] },
-        { name: 'legR', grid: leg(), at: [2, 4, 0] },
-        { name: 'head', grid: head, at: [0, 3, 0] },
-        { name: 'armL', grid: armL, at: [-6, 11, 1] },
-        { name: 'armR', grid: armR, at: [6, 11, 1] },
+        { name: 'legL', grid: leg(), at: [-2, 3, 0] },
+        { name: 'legR', grid: leg(), at: [2, 3, 0] },
+        { name: 'head', grid: head, at: [0, 2, 0] },
+        { name: 'armL', grid: armL, at: [-6, 10, 1] },
+        { name: 'armR', grid: armR, at: [6, 10, 1] },
         { name: 'cutterMount', grid: mount, at: [1, -4.5, 5.5], parent: 'armR', rot: [0, 0, Math.PI / 2] },
         { name: 'spin1', grid: wheel, at: [0, 0, 0], pivot: [0.5, 0.5, 0.5], parent: 'cutterMount' },
       ],
-      muzzle: [6, 6, 6],
+      muzzle: [6, 5, 6],
     };
   },
 
@@ -1633,9 +1626,8 @@ export const EXTRA_MODELS = {
       body.set(x, y, z, side ? frost : dough);
     }
     // sprinkles on both frosted faces + frosting drips over the rim
-    body.forEach((x, y, z, c) => {});
     const pts = [];
-    body.forEach((x, y, z) => { if ((x === -3 || x === 2) && noise(x * 3, y, z) < 0.2) pts.push([x, y, z]); });
+    body.forEach((x, y, z) => { if ((!body.has(x - 1, y, z) || !body.has(x + 1, y, z)) && Math.abs(x + 0.5) > 0.9 && noise(x * 3, y, z) < 0.2) pts.push([x, y, z]); });
     for (const [x, y, z] of pts) body.set(x, y, z, sprinkles[Math.floor(noise(y, z, x) * sprinkles.length) % sprinkles.length]);
     for (let a = 0; a < 12; a++) {
       const ang = a / 12 * Math.PI * 2;
@@ -1704,7 +1696,6 @@ export const EXTRA_MODELS = {
     }
     head.paint((x, y, z) => (y === 0 ? bunL : undefined));
     // sesame seeds
-    head.forEach(() => {});
     const seeds = [];
     head.forEach((x, y, z) => { if (!head.has(x, y + 1, z) && y >= 2 && noise(x * 2, y, z * 2) < 0.22) seeds.push([x, y, z]); });
     for (const [x, y, z] of seeds) head.set(x, y + 1, z, 0xfff4d0);
@@ -1865,11 +1856,9 @@ export const EXTRA_MODELS = {
       if (n) fleshAt.push([x, y, z]);
     });
     for (const [x, y, z] of fleshAt) {
-      const deep = !inBite(x, y, z + 1) ? 0 : 1;
       body.set(x, y, z, 0xf04a5a);
     }
     // white rind lip around the bite
-    body.forEach((x, y, z, c) => {});
     for (let x = -6; x <= 5; x++) for (let y = 0; y <= 7; y++) {
       for (let z = 6; z >= 2; z--) {
         if (!body.has(x, y, z)) continue;

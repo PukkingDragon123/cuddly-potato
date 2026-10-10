@@ -47,7 +47,7 @@ export class PreviewScene {
       const rows = Math.ceil(ids.length / cols);
       const span = Math.max(cols, rows) * 2.4;
       this.target = new THREE.Vector3(0, 0.6, (rows - 1) * 1.2);
-      this.dist = params.id ? 6 : span * 1.1;
+      this.dist = params.id && ids.length === 1 ? 6 : Math.max(7, span * 1.1);
     } else if (params.mode === 'chars') {
       const ids = Object.keys(CHARACTERS);
       const anims = ['idle', 'walk', 'talk', 'cheer', 'dance', 'wave', 'sit', 'point', 'angry', 'shake'];

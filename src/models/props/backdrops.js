@@ -33,6 +33,10 @@ class Kit {
   rand(a = 0, b = 1) { return a + this.R() * (b - a); }
   /** Instanced voxel scenery (cached geometry). items: [[x,y,z,ry,s]] */
   geo(id, gridFn, opts = {}) {
+    const _t = performance.now();
+    try { return this._geo(id, gridFn, opts); } finally { const d = performance.now() - _t; if (d > 15) console.warn('PROF', this.theme, id, d.toFixed(0)); }
+  }
+  _geo(id, gridFn, opts = {}) {
     return opts.greedy === false ? vgeo('bd_' + id, gridFn, { maxSamples: 8, ...opts }) : greedyGeometry('bd_' + id, gridFn, opts);
   }
   inst(id, gridFn, opts, items, o = {}) {
@@ -367,11 +371,8 @@ function buildMart(K) {
     tileTex('martFloor', 0xf0f4fa, 0xcfe6f6, 0xb8c0cc, [80, 22]),
   );
   // lane edge stripes
-  K.mesh('martLaneEdge', () => {
-    const g = new VoxGrid();
-    for (const z of [-30, 29]) g.box(-300, 0, z, 299, 0, z, (x) => (Math.floor(x / 4) % 2 ? PAL.pink : PAL.yellow));
-    return g;
-  }, { scale: 0.1, pivot: [0, 0.9, 0], ao: false }, 0, 0, 0, 0, 1, { receive: true });
+  K.inst('martLaneEdge', () => new VoxGrid().box(-300, 0, 0, 299, 0, 0, (x) => (Math.floor(x / 4) % 2 ? PAL.pink : PAL.yellow)),
+    { scale: 0.1, pivot: [0, 0.9, 0] }, [[0, 0, -3], [0, 0, 2.9]], { receive: true });
 
   // back wall (textured) + ceiling band
   const wallTex = pixelTex('martWall', 16, 32, (c) => {
@@ -579,20 +580,29 @@ function treeLine(K, id, x0, x1, z0, z1, n, s0, s1, kinds = ['treeRound', 'treeP
     const k = Math.floor(K.R() * kinds.length);
     per[k].push([K.rand(x0, x1), 0, K.rand(z0, z1), K.rand(0, 6), K.rand(s0, s1)]);
   }
-  kinds.forEach((k, i) => K.inst(id + '_' + k, ENV_GRIDS[k], { scale: 0.1 }, per[i]));
+  kinds.forEach((k, i) => K.inst('far_' + k, farTree(k), { scale: 0.1 }, per[i]));
 }
+/** Tree grid with blocky 2-tone leaves (merges well with the greedy mesher). */
+const farTree = (k) => () => {
+  const g = ENV_GRIDS[k]();
+  g.paint((x, y, z, c) => {
+    const r = (c >> 16) & 255, gg = (c >> 8) & 255, b = c & 255;
+    if (gg > r + 30 && gg > b) return hash3(x >> 2, y >> 2, z >> 2) < 0.5 ? (k === 'treePine' ? 0x2f7a42 : 0x4fb84a) : (k === 'treePine' ? 0x3a8a4a : 0x5fcf4f);
+    if (r > 200 && gg < 120) return 0x4fb84a;
+    return undefined;
+  });
+  return g;
+};
 const skyDay = (seed) => (c, w, h) => {
   gradient([[0, 0x3a8ae8], [0.55, 0x8fd0ff], [1, 0xd8f0ff]])(c, w, h);
   pixelClouds(c, w, h, 0xffffff, 9, 6, 30, seed);
   pixelClouds(c, w, h, 0xeaf6ff, 5, 20, 36, seed + 5);
 };
 function laneEdge(K, id, colFn, o = {}) {
-  K.mesh(id, () => {
-    const g = new VoxGrid();
-    const w = o.w ?? 1;
-    for (const z of [-30, 30 - w]) g.box(-300, 0, z, 299, o.h ?? 0, z + w - 1, colFn);
-    return g;
-  }, { scale: 0.1, pivot: [0, (o.h ?? 0) + 0.9, 0] }, 0, (o.h ?? 0) * 0.1, 0, 0, 1, { receive: true });
+  const w = o.w ?? 1, hh = o.h ?? 0;
+  const im = K.inst(id, () => new VoxGrid().box(-300, 0, 0, 299, hh, w - 1, colFn), { scale: 0.1, pivot: [0, hh + 0.9, 0] },
+    [[0, hh * 0.1, -3], [0, hh * 0.1, 3 - w * 0.1]], { receive: true });
+  return im;
 }
 
 // ---------------------------------------------------------------------------
@@ -618,7 +628,7 @@ function buildLab(K) {
   // main lab building (greedy, 0.25)
   K.mesh('labMain', () => {
     const g = new VoxGrid();
-    panelBox(g, -48, 0, -12, 47, 26, 11, { px: 8, py: 9 });
+    panelBox(g, -48, 0, -12, 47, 26, 11, { px: 8, py: 9, hollow: true });
     g.box(-48, 0, -12, 47, 2, 11, PAL.metalD);
     g.box(-48, 20, -12, 47, 21, 11, PAL.blue);
     g.box(-49, 25, -13, 48, 27, 12, PAL.pink);
@@ -642,9 +652,9 @@ function buildLab(K) {
   // dome lab (left) and hangar (right)
   K.mesh('labDome', () => {
     const g = new VoxGrid();
-    panelBox(g, -24, 0, -10, 23, 14, 9, { c1: PAL.white, c2: PAL.white2 });
+    panelBox(g, -24, 0, -10, 23, 14, 9, { c1: PAL.white, c2: PAL.white2, hollow: true });
     g.box(-25, 14, -11, 24, 15, 10, PAL.blue);
-    g.ellipsoid(0, 16, 0, 18, 14, 9, (x, y, z) => ((x + y) % 4 === 0 ? PAL.white2 : (y + z) % 6 === 0 ? PAL.cyan : PAL.blueL), false);
+    g.ellipsoid(0, 16, 0, 18, 14, 9, (x, y, z) => ((x / 16.5) ** 2 + ((y - 16) / 12.5) ** 2 + (z / 7.5) ** 2 < 1 ? null : (x + y) % 4 === 0 ? PAL.white2 : (y + z) % 6 === 0 ? PAL.cyan : PAL.blueL), false);
     g.carve((x, y) => y < 16 && y > 15);
     g.forEach((x, y, z, c) => { if (c === PAL.cyan) g.set(x, y, z, c, true); });
     for (let x = -20; x <= 18; x += 6) g.box(x, 4, 10, x + 3, 9, 10, PAL.cyan, true);
@@ -652,7 +662,7 @@ function buildLab(K) {
   }, { scale: 0.25 }, -32, 0, -19);
   K.mesh('labHangar', () => {
     const g = new VoxGrid();
-    panelBox(g, -22, 0, -10, 21, 20, 9, { c1: 0xdfe5ee, c2: 0xd0d8e4, px: 6 });
+    panelBox(g, -22, 0, -10, 21, 20, 9, { c1: 0xdfe5ee, c2: 0xd0d8e4, px: 6, hollow: true });
     for (let x = -23; x <= 22; x++) {
       const y = 21 + Math.round(Math.sqrt(Math.max(0, 1 - (x / 23) ** 2)) * 7);
       g.box(x, 21, -11, x, y, 10, x % 4 === 0 ? PAL.metalD : PAL.metal);
@@ -786,11 +796,8 @@ function buildSuburb(K) {
   }, [15, 1]);
   K.ground(road, noiseTex('duskGrass', [0x3f7a3a, 0x356e34, 0x4a8a42, 0x2e6430], [70, 22]), { far: noiseTex('duskGrassFar', [0x2f5a32, 0x284e2c], [60, 14]) });
   // curbs + sidewalks
-  K.mesh('curbs', () => {
-    const g = new VoxGrid();
-    for (const z of [-32, 30]) g.box(-300, 0, z, 299, 1, z + 1, (x) => (x % 10 === 0 ? 0x9aa0a8 : 0xb8bcc4));
-    return g;
-  }, { scale: 0.1, pivot: [0, 0, 0] }, 0, 0, 0, 0, 1, { receive: true });
+  K.inst('curbs', () => new VoxGrid().box(-300, 0, 0, 299, 1, 1, (x) => (x % 10 === 0 ? 0x9aa0a8 : 0xb8bcc4)),
+    { scale: 0.1, pivot: [0, 0, 0] }, [[0, 0, -3.2], [0, 0, 3.0]], { receive: true });
   const walk = tileTex('sidewalk', 0xb4b8c0, 0xaeb2ba, 0x8a8e96, [40, 1]);
   K.add(texPlane(walk, -80, 80, 3.2, 5.0, 0.01));
   K.add(texPlane(tileTex('sidewalk', 0xb4b8c0, 0xaeb2ba, 0x8a8e96, [40, 1]), -80, 80, -5.0, -3.2, 0.01));
@@ -923,8 +930,7 @@ function buildMansion(K) {
   K.hills('manHills', { z: -55, scale: 1.6, base: 4, amp: 6, depth: 2, col: (x, y, h) => (y === h - 1 ? 0x7fd05a : 0x5fb84a), seed: 9 });
   treeLine(K, 'manCypress', -90, 90, -38, -30, 40, 1.8, 2.6, ['treePine', 'treeRound']);
   // mansion + guest wings
-  K.mesh('mansionBig', mansionGrid, { scale: 0.19 }, 0, 0, -21);
-  K.inst('mansionSmall', mansionGrid, { scale: 0.12 }, [[-38, 0, -24, 0.25], [38, 0, -24, -0.25]]);
+  K.inst('mansion', mansionGrid, { scale: 0.12 }, [[0, 0, -21, 0, 1.58], [-38, 0, -24, 0.25], [38, 0, -24, -0.25]]);
   // hedge wall with gaps
   K.inst('hedge', () => {
     const g = new VoxGrid();
@@ -978,7 +984,7 @@ function buildMansion(K) {
       g.box(-5, 9, 5, 4, 9, 5, PAL.gold);
       return g;
     }, { scale: 0.1 }, x, 0, -6.3, ry, 1, { shadow: true });
-    const st = K.mesh('pantherGold', pantherGrid, { scale: 0.065, greedy: false }, x, 1.2, -6.3, ry, 1, { shadow: true, mats: goldM });
+    const st = K.mesh('pantherGold', pantherGrid, { scale: 0.065 }, x, 1.2, -6.3, ry, 1, { shadow: true, mats: goldM });
     st.castShadow = true;
   }
   // palms in gold planters
@@ -1019,7 +1025,7 @@ function buildMansion(K) {
   const B = [['urn', -16, -2.4], ['cash', -12, 2.4], ['gold', -8, -2.5], ['urn', -4, 2.6], ['statue', 0, -2.5], ['cash', 4, 2.3], ['urn', 8, -2.5], ['gold', 12, 2.5], ['cash', 15.5, -2.4], ['urn', 17.5, 2.5]];
   for (const [kind, x, z] of B) {
     const ry = K.rand(-0.6, 0.6);
-    if (kind === 'urn') K.breakable('urn', [['urn', G.urn, { scale: 0.1 }]], x, z, ry);
+    if (kind === 'urn') K.breakable('urn', [['urn', G.urn, { scale: 0.075 }]], x, z, ry);
     else if (kind === 'cash') K.breakable('cash', [['cashPile', G.cashPile, { scale: 0.1 }]], x, z, ry);
     else if (kind === 'gold') K.breakable('gold', [['goldPile', G.goldPile, { scale: 0.1 }]], x, z, ry);
     else K.breakable('statue', [['bust', G.bust, { scale: 0.1 }]], x, z, ry);
@@ -1074,12 +1080,12 @@ function buildTechno(K) {
   const holoGeo = greedyGeometry('bd_holo', () => {
     const g = new VoxGrid();
     g.box(-1, 0, -1, 0, 30, 0, 0x2a3046);
-    g.box(-14, 31, -1, 13, 46, -1, 0x0a1830, true);
-    for (let x = -14; x <= 13; x++) { g.set(x, 31, 0, 0xffffff, true); g.set(x, 46, 0, 0xffffff, true); }
-    for (let y = 31; y <= 46; y++) { g.set(-14, y, 0, 0xffffff, true); g.set(13, y, 0, 0xffffff, true); }
-    const bolt = ['....##', '...##.', '..##..', '.#####', '...##.', '..##..', '.##...', '##....'];
-    bolt.forEach((row, r) => [...row].forEach((ch, i) => ch === '#' && g.box(-10 + i * 2, 43 - r * 1.5, 0, -9 + i * 2, 43 - r * 1.5, 0, 0xffffff, true)));
-    text(g, 'SWARM', 5, 35, 0, '+z', 0xffffff, { center: true, glow: true });
+    g.box(-20, 31, -1, 19, 44, -1, 0x0a1830, true);
+    for (let x = -20; x <= 19; x++) { g.set(x, 31, 0, 0xffffff, true); g.set(x, 44, 0, 0xffffff, true); }
+    for (let y = 31; y <= 44; y++) { g.set(-20, y, 0, 0xffffff, true); g.set(19, y, 0, 0xffffff, true); }
+    const bolt = ['...##', '..##.', '.##..', '#####', '..##.', '.##..', '##...'];
+    bolt.forEach((row, r) => [...row].forEach((ch, i) => ch === '#' && g.box(-18 + i * 2, 41 - r * 1.5, 0, -17 + i * 2, 42 - r * 1.5, 0, 0xffffff, true)));
+    text(g, 'SWARM', 4, 35, 0, '+z', 0xffffff, { center: true, glow: true });
     return g;
   }, { scale: 0.1 });
   const holoMats = [0x5ce1e6, 0xff4fa3, 0xb05cff].map((c) => [Mats.solid, tintMat(c)]);
@@ -1277,11 +1283,11 @@ function buildFactory(K) {
     tileTex('factoryFloor', 0xb8a088, 0xa89078, 0x7a6450, [60, 22]),
   );
   laneEdge(K, 'chocoEdge', (x) => (x % 5 === 0 ? PAL.chocoL : PAL.choco), { w: 2, h: 0 });
-  K.mesh('chocoDrips', () => {
+  K.inst('chocoDrips', () => {
     const g = new VoxGrid();
-    for (const z of [-28, 27]) for (let x = -300; x < 300; x++) { const d = Math.floor(hash3(x, 3, z) * 3); g.box(x, 0, z, x, 0, z + (z > 0 ? -d : d), PAL.choco); }
+    for (let x = -300; x < 300; x++) { const d = Math.floor(hash3(x, 3, 1) * 3); g.box(x, 0, 0, x, 0, d, PAL.choco); }
     return g;
-  }, { scale: 0.1, pivot: [0, 0.9, 0] }, 0, 0, 0, 0, 1, { receive: true });
+  }, { scale: 0.1, pivot: [0, 0.9, 0] }, [[0, 0, -2.8], [0, 0, 2.8, Math.PI]], { receive: true });
   // back wall (brick texture) + windows
   const brick = pixelTex('factoryWall', 16, 16, (c) => {
     c.fillStyle = css(0x7a3a2a); c.fillRect(0, 0, 16, 16);
@@ -1323,11 +1329,8 @@ function buildFactory(K) {
   river.rotation.x = -Math.PI / 2;
   river.position.set(0, 0.06, -8.0);
   K.add(river);
-  K.mesh('riverBanks', () => {
-    const g = new VoxGrid();
-    for (const z of [-99, -61]) g.box(-400, 0, z, 399, 1, z + 1, (x) => (x % 4 === 0 ? 0xc8a070 : 0xd8b080));
-    return g;
-  }, { scale: 0.1, pivot: [0, 0, 0] }, 0, 0, 0);
+  K.inst('riverBanks', () => new VoxGrid().box(-400, 0, 0, 399, 1, 1, (x) => (x % 4 === 0 ? 0xc8a070 : 0xd8b080)),
+    { scale: 0.1, pivot: [0, 0, 0] }, [[0, 0, -9.9], [0, 0, -6.1]]);
   K.inst('candyRail', () => {
     const g = new VoxGrid();
     for (const x of [-20, 0]) for (let y = 0; y <= 9; y++) g.set(x, y, 0, (y >> 1) % 2 ? 0xffffff : PAL.red);
@@ -1337,18 +1340,22 @@ function buildFactory(K) {
   }, { scale: 0.1 }, Array.from({ length: 24 }, (_, i) => [-58 + i * 5, 0, -5.8]).filter(([x]) => Math.abs(x) > 3));
   // chocolate waterfall from a pipe
   const fallTex = pixelTex('chocoFall', 8, 32, (c) => {
-    c.fillStyle = css(0x5a3220); c.fillRect(0, 0, 8, 32);
-    c.fillStyle = css(0x7a4a2a); for (let i = 0; i < 10; i++) c.fillRect((i * 3) % 8, (i * 7) % 32, 1, 4);
-  }, [2, 2]);
-  const fall = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 5.8), new THREE.MeshLambertMaterial({ map: fallTex }));
-  fall.position.set(0, 3.0, -9.6);
+    c.fillStyle = css(0x6a3c24); c.fillRect(0, 0, 8, 32);
+    c.fillStyle = css(0x8a5a38); for (let i = 0; i < 12; i++) c.fillRect((i * 3) % 8, (i * 7) % 32, 1, 5);
+    c.fillStyle = css(0x4a2814); c.fillRect(0, 0, 1, 32); c.fillRect(7, 0, 1, 32);
+  }, [1, 1.5]);
+  const fall = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 4.7), new THREE.MeshLambertMaterial({ map: fallTex, emissive: 0x1a0a04 }));
+  fall.position.set(-10, 2.35, -9.4);
+  const splash = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 0.25, 12), new THREE.MeshLambertMaterial({ color: 0x7a4a2a }));
+  splash.position.set(-10, 0.1, -9.0);
+  K.add(splash);
   K.add(fall);
   K.mesh('fallPipe', () => {
     const g = new VoxGrid();
-    pipe(g, 'z', -40, 0, 0, 0, PAL.gold, PAL.goldD, 6, 10);
-    g.cylinder(0, 0, 0, 2, 7, PAL.goldD, 'z');
+    pipe(g, 'z', -40, 0, 0, 0, 0xc8783a, PAL.gold, 6, 10);
+    g.cylinder(0, 0, -2, 0, 5, PAL.choco, 'z');
     return g;
-  }, { scale: 0.11, pivot: [0.5, 0, 0] }, 0, 5.4, -9.9);
+  }, { scale: 0.08, pivot: [0.5, 0, 0] }, -10, 4.2, -9.4);
   // vats, gears, conveyor with moving bars, pipes, lollipops
   K.inst('vat', () => {
     const g = new VoxGrid();
@@ -1432,7 +1439,8 @@ function buildFactory(K) {
   K.updaters.push((dt) => {
     t += dt;
     riverTex.offset.x -= dt * 0.05;
-    fallTex.offset.y += dt * 0.6;
+    fallTex.offset.y += dt * 0.9;
+    splash.scale.y = 1 + Math.sin(t * 9) * 0.3;
     for (const [m, d] of gears) m.rotation.z += dt * d * 0.6;
     for (let i = 0; i < 40; i++) {
       const x = ((i * 0.75 + t * 1.2) % 30) - 15;

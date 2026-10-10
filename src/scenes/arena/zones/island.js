@@ -66,7 +66,7 @@ function scatter(A) {
   }
   // Grass tufts (one instanced draw call).
   const geo = makeGrassTuft();
-  const max = 3200;
+  const max = 1800;
   const inst = new THREE.InstancedMesh(geo, Mats.solid, max);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler();
   let k = 0;

@@ -7,6 +7,7 @@ export function panelBox(g, x0, y0, z0, x1, y1, z1, o = {}) {
   const px = o.px ?? 8, py = o.py ?? 9;
   g.box(x0, y0, z0, x1, y1, z1, (x, y, z) => {
     const onZ = z === z0 || z === z1, onX = x === x0 || x === x1;
+    if (o.hollow && !onZ && !onX && y !== y0 && y !== y1) return null;
     const u = onZ ? x - x0 : z - z0;
     if ((onZ || onX) && (u % px === 0 || (y - y0) % py === 0)) return seam;
     if (!onZ && !onX && (x - x0) % px === 0) return seam; // top seams

@@ -121,14 +121,12 @@ export function makeFlowers(seed = 0) {
 }
 
 export function makeGrassTuft() {
-  return cachedGeometry('arena:tuft', () => {
+  return cachedGeometry('arena:tuft2', () => {
     const g = new VoxGrid();
     g.box(0, 0, 0, 0, 2, 0, 0x4f9e3a);
     g.box(1, 0, 1, 1, 1, 1, 0x5aad40);
-    g.box(-1, 0, 0, -1, 1, 0, 0x5aad40);
-    g.box(0, 0, -1, 0, 3, -1, 0x4a9636);
     return g;
-  }, { scale: 0.1 });
+  }, { scale: 0.1, ao: false });
 }
 
 // ---------------------------------------------------------------------------

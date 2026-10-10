@@ -12,8 +12,8 @@ import { prop, bboxSize, fit } from './kit.js';
 const _v = new THREE.Vector3();
 const _contacts = [];
 const CART_R = 0.6;
-const SMASH = 6.4;
-const KNOCK = 2.6;
+const SMASH = 5.6;
+const KNOCK = 2.2;
 
 export class Carts {
   constructor(A, opts) {
@@ -124,7 +124,7 @@ export class Carts {
       const fwx = Math.sin(c.ang), fwz = Math.cos(c.ang);
       let vf = c.vx * fwx + c.vz * fwz;
       let lx = c.vx - fwx * vf, lz = c.vz - fwz * vf;
-      const lat = Math.exp(-2.2 * dt);
+      const lat = Math.exp(-1.4 * dt);
       c.vx = (fwx * vf + lx * lat) * fr;
       c.vz = (fwz * vf + lz * lat) * fr;
       speed = Math.hypot(c.vx, c.vz);

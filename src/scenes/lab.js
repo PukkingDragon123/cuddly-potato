@@ -462,8 +462,8 @@ export class LabScene {
     this.busy = true;
     const j = this.jimmy;
     // dramatic intro: start on the tank
-    this.camPos.set(0, 2.4, 0.2);
-    this.camLook.set(0, 2.1, -4.4);
+    this.camPos.set(1.1, 2.5, 0.6);
+    this.camLook.set(0, 2.0, -4.4);
     j.root.visible = false;
     audio.play('bubble');
     await wait(1.2);
