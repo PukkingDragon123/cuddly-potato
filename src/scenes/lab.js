@@ -232,7 +232,14 @@ export class LabScene {
     }
   }
 
+  /** Dialogue that goes inert once this scene has exited (stops orphaned tutorial coroutines). */
+  say(who, text, opts) {
+    if (this.dead) return new Promise(() => {});
+    return say(who, text, opts);
+  }
+
   exit() {
+    this.dead = true;
     engine.canvas.removeEventListener('pointerdown', this.onDown);
     this.hub?.destroy?.();
     closeDialogue();
@@ -511,17 +518,17 @@ export class LabScene {
     j.play('wave');
     j.expr('happy', 'grin');
     fx.confetti(new THREE.Vector3(j.root.position.x, 2.5, j.root.position.z), { count: 40 });
-    await say(this.J(), 'Whoa, a new recruit! Welcome to the *BEAST LAB*, where we make the craziest creatures on the planet!');
+    await this.say(this.J(), 'Whoa, a new recruit! Welcome to the *BEAST LAB*, where we make the craziest creatures on the planet!');
     j.play('point');
-    await say(this.J('side', 'smirk'), "See the big guy in the tank? That's the *Beast Tiger*. Don't tap the glass. Seriously. He hates that.");
+    await this.say(this.J('side', 'smirk'), "See the big guy in the tank? That's the *Beast Tiger*. Don't tap the glass. Seriously. He hates that.");
     j.play('talk');
-    await say(this.J(), "First things first... what should I call you?");
+    await this.say(this.J(), "First things first... what should I call you?");
     await this.askName();
     j.play('cheer', { dur: 1.2, then: 'idle' });
-    await say(this.J('star', 'grin'), `Nice to meet you, *${state.p.name}*! Every Swarm starts inside one of THESE...`);
+    await this.say(this.J('star', 'grin'), `Nice to meet you, *${state.p.name}*! Every Swarm starts inside one of THESE...`);
     // starter vial
     j.play('present');
-    await say(this.J(), "A *Swarms Vial*! Grab it, SHAKE it until it's ready to blow, then POP it open!");
+    await this.say(this.J(), "A *Swarms Vial*! Grab it, SHAKE it until it's ready to blow, then POP it open!");
     state.p.tutorial = 'vial';
     state.save();
     const res = { type: 'starter', coins: 100, bucks: 0, cards: [{ id: 'panther', copies: 1, variant: 'base' }], spells: ['foodThrow'] };
@@ -530,10 +537,10 @@ export class LabScene {
     await openVialSequence(this, 'starter', res, { hints: true });
     this.busy = true;
     j.play('cheer', { dur: 1.2, then: 'idle' });
-    await say(this.J('star', 'grin'), 'A *Panther*! Our very first Swarm design. Fast, cheap and fearless. And *Food Throw*: nothing powers up a Swarm like a food challenge!');
+    await this.say(this.J('star', 'grin'), 'A *Panther*! Our very first Swarm design. Fast, cheap and fearless. And *Food Throw*: nothing powers up a Swarm like a food challenge!');
     // gift: Clogged Toilet
     j.play('present');
-    await say(this.J('wink', 'smirk'), "Here, take my *Clogged Toilet* too. Every Lab needs ranged backup... and plumbing.");
+    await this.say(this.J('wink', 'smirk'), "Here, take my *Clogged Toilet* too. Every Lab needs ranged backup... and plumbing.");
     grantSwarm('cloggedToilet', 1);
     if (!state.p.deck.includes('cloggedToilet')) state.p.deck.push('cloggedToilet');
     state.save();
@@ -557,7 +564,7 @@ export class LabScene {
     const j = this.jimmy;
     j.play('point');
     j.expr('determined', 'smirk');
-    await say(this.J('determined', 'smirk'), "Now... think you can beat ME? Let's battle! First to destroy the other's Lab wins. My *Mansion Lab* has never lost!");
+    await this.say(this.J('determined', 'smirk'), "Now... think you can beat ME? Let's battle! First to destroy the other's Lab wins. My *Mansion Lab* has never lost!");
     const wrap = h('div', { style: { position: 'absolute', left: '0', right: '0', bottom: 'calc(var(--safe-b) + 18%)', display: 'flex', justifyContent: 'center' } });
     const btn = button('BATTLE JIMMY!', () => {
       wrap.remove();
@@ -572,11 +579,12 @@ export class LabScene {
   async tutorialBattleAgain() {
     this.busy = true;
     await wait(0.4);
-    await say(this.J(), `Back for more, ${state.p.name}? My Mansion Lab is ready when you are.`);
+    await this.say(this.J(), `Back for more, ${state.p.name}? My Mansion Lab is ready when you are.`);
     await this.challenge();
   }
 
   async askName() {
+    if (this.dead) return new Promise(() => {});
     return new Promise((res) => {
       const input = h('input', { class: 'px-input', maxlength: '14', value: state.p.name === 'Recruit' ? '' : state.p.name, placeholder: 'Recruit' });
       const done = () => {
@@ -597,14 +605,14 @@ export class LabScene {
     await wait(0.5);
     j.play('shocked', { dur: 0.8, then: 'idle' });
     j.expr('shock', 'open', 2);
-    await say(this.J('shock', 'open'), "I can't believe you beat my Mansion Lab! A deal's a deal...");
+    await this.say(this.J('shock', 'open'), "I can't believe you beat my Mansion Lab! A deal's a deal...");
     j.play('wave');
-    await say(this.J('money', 'grin'), 'Winners get the *BRIEFCASE*!');
+    await this.say(this.J('money', 'grin'), 'Winners get the *BRIEFCASE*!');
     await this.briefcaseSequence();
     // home horrors vial + timer skip
     await this.homeVialSequence();
     j.play('point');
-    await say(this.J('star', 'grin'), "Your Lab is officially ready! Now the real fun begins: the *ARENA*. Real rivals, bosses, a giant grocery store... go make me proud!");
+    await this.say(this.J('star', 'grin'), "Your Lab is officially ready! Now the real fun begins: the *ARENA*. Real rivals, bosses, a giant grocery store... go make me proud!");
     state.p.tutorial = 'arena';
     state.save();
     this.busy = false;
@@ -696,7 +704,7 @@ export class LabScene {
   async homeVialSequence() {
     const j = this.jimmy;
     j.play('present');
-    await say(this.J('happy', 'grin'), "AND... a *Home Horrors* vial! The fan-favourite series - toilets, trash cans and mailboxes gone FERAL.");
+    await this.say(this.J('happy', 'grin'), "AND... a *Home Horrors* vial! The fan-favourite series - toilets, trash cans and mailboxes gone FERAL.");
     // show the vial slot with a timer and a skip price
     const type = 'homeHorrors';
     const def = VIALS[type];
@@ -713,10 +721,10 @@ export class LabScene {
     const holder = h('div', { style: { position: 'absolute', right: '8%', top: '18%', zIndex: 21 } }, panel);
     $overlay().appendChild(holder);
     audio.play('pop');
-    await say(this.J('sad', 'flat'), `Normally vials take time to open. This one's *30 minutes*... or *${price} Beast Bucks* to skip.`);
+    await this.say(this.J('sad', 'flat'), `Normally vials take time to open. This one's *30 minutes*... or *${price} Beast Bucks* to skip.`);
     j.play('flick', { restart: true });
     j.expr('wink', 'smirk', 2);
-    await say(this.J('wink', 'smirk'), "BUT... your first one's on me. *flick*");
+    await this.say(this.J('wink', 'smirk'), "BUT... your first one's on me. *flick*");
     // dramatic flick: price counts down to zero and the tag spins
     j.play('flick', { restart: true });
     audio.play('flick');

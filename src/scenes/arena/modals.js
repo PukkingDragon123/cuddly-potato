@@ -70,12 +70,16 @@ export function openMatchmaking(A) {
       A.goLab();
     }, 'small green', { icon: 'flask' })
     : button('Another', () => search(), 'small', { icon: 'speed' });
+  const friend = noDeck ? null : button('Friend', async () => {
+    m.close();
+    (await import('../../ui/screens/friend.js')).openFriendBattle();
+  }, 'small blue', { icon: 'heart' });
   const m = modal({
     title: 'RANKED BATTLE',
     color: 'pink',
     size: 'narrow',
     body,
-    foot: [reroll, fight],
+    foot: [friend, reroll, fight].filter(Boolean),
     onClose: () => {
       A.player.locked = false;
     },

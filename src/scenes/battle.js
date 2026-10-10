@@ -349,6 +349,7 @@ export class BattleScene {
   }
 
   exit() {
+    this.dead = true;
     const c = engine.canvas;
     c.removeEventListener('pointerdown', this.onDown);
     window.removeEventListener('pointermove', this.onMove);
@@ -408,6 +409,7 @@ export class BattleScene {
       };
     });
     const talk = async (text, opts) => {
+      if (this.dead) return new Promise(() => {});
       sim.paused = true;
       await say({ ...J, chibi: ch }, text, opts);
       sim.paused = false;

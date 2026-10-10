@@ -19,6 +19,7 @@ import { revealCard } from './reveal.js';
  * opts: { hints: bool (tutorial prompts), quick: bool }
  */
 export async function openVialSequence(lab, type, result, opts = {}) {
+  if (lab.dead) return new Promise(() => {});
   const def = VIALS[type] || VIALS.lab;
   const bench = lab.benchPos.clone();
   lab.busy = true;
