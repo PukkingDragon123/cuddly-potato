@@ -64,10 +64,11 @@ function scatter(A) {
     if (rng() < 0.7) continue;
     const m = A.put('makeRock', [1.4 + rng() * 1.2, Math.floor(rng() * 9)], { x, z, y: -1.2, rot: rng() * 6.28, collide: false });
   }
-  // Grass tufts (one instanced draw call).
+  // Grass tufts: instanced per 32x32 region so frustum culling works.
   const geo = makeGrassTuft();
   const max = 1800;
-  const inst = new THREE.InstancedMesh(geo, Mats.solid, max);
+  const R = 32;
+  const regions = new Map();
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler();
   let k = 0;
   for (let n = 0; n < 12000 && k < max; n++) {
@@ -82,11 +83,17 @@ function scatter(A) {
     s.set(sc, sc * (0.8 + rng() * 0.6), sc);
     p.set(x, T.heightAt(x, z), z);
     m4.compose(p, q, s);
-    inst.setMatrixAt(k++, m4);
+    const key = Math.floor(x / R) + ',' + Math.floor(z / R);
+    if (!regions.has(key)) regions.set(key, []);
+    regions.get(key).push(m4.clone());
+    k++;
   }
-  inst.count = k;
-  inst.castShadow = false;
-  inst.receiveShadow = true;
-  inst.computeBoundingSphere();
-  A.scene.add(inst);
+  for (const list of regions.values()) {
+    const inst = new THREE.InstancedMesh(geo, Mats.solid, list.length);
+    list.forEach((m, i) => inst.setMatrixAt(i, m));
+    inst.castShadow = false;
+    inst.receiveShadow = true;
+    inst.computeBoundingSphere();
+    A.scene.add(inst);
+  }
 }

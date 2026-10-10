@@ -46,6 +46,8 @@ function part(geo, color, x = 0, y = 0, z = 0) {
 }
 function merged(parts) {
   const g = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)));
+  g.clearGroups();
+  g.addGroup(0, g.attributes.position.count, 0);
   g.computeBoundingSphere();
   return g;
 }
@@ -96,6 +98,34 @@ const PRODUCTS = {
   },
 };
 const prodGeoCache = {};
+const frameCache = {};
+function shelfFrameGeo(L, cap) {
+  const key = L + ':' + cap;
+  if (frameCache[key]) return frameCache[key];
+  const metal = 0xe8ecf2, dark = 0x5d6476, tag = 0xffd23f;
+  const parts = [
+    part(new THREE.BoxGeometry(L, 0.1, 1.6), dark, 0, 0.05, 0),
+    part(new THREE.BoxGeometry(L, 0.1, 1.6), metal, 0, 0.15, 0),
+    part(new THREE.BoxGeometry(L, 0.1, 1.2), metal, 0, 0.65, 0),
+    part(new THREE.BoxGeometry(L, 0.1, 0.8), metal, 0, 1.15, 0),
+    part(new THREE.BoxGeometry(L, 1.5, 0.2), 0xc8ccd8, 0, 0.85, 0),
+    part(new THREE.BoxGeometry(L + 0.04, 0.12, 0.42), cap, 0, 1.66, 0),
+  ];
+  for (const [y, e] of [[0.15, 0.8], [0.65, 0.6], [1.15, 0.4]]) {
+    parts.push(part(new THREE.BoxGeometry(L, 0.08, 0.05), tag, 0, y, e + 0.02));
+    parts.push(part(new THREE.BoxGeometry(L, 0.08, 0.05), tag, 0, y, -e - 0.02));
+  }
+  for (const sx of [-1, 1]) {
+    const x = sx * (L / 2 - 0.05);
+    parts.push(part(new THREE.BoxGeometry(0.1, 0.6, 1.6), dark, x, 0.3, 0));
+    parts.push(part(new THREE.BoxGeometry(0.1, 0.5, 1.2), dark, x, 0.85, 0));
+    parts.push(part(new THREE.BoxGeometry(0.1, 0.6, 0.8), dark, x, 1.4, 0));
+  }
+  const g = merged(parts);
+  g.computeBoundingBox();
+  frameCache[key] = g;
+  return g;
+}
 for (const [k, p] of Object.entries(PRODUCTS)) p.geo = () => prodGeoCache[k] ?? (prodGeoCache[k] = p.make());
 
 const KINDS = {
@@ -140,33 +170,8 @@ class Shelf {
           n++;
         }
       }
-    // frame
-    const geo = cachedGeometry(`arena:shelf2:${L}:${kind}`, () => {
-      const g = new VoxGrid();
-      const W = Math.round(L * 10);
-      const x0 = -Math.floor(W / 2), x1 = x0 + W - 1;
-      const metal = 0xe8ecf2, dark = 0x5d6476, cap = K.signColor, tag = 0xffd23f;
-      g.box(x0, 0, -8, x1, 0, 7, dark);
-      g.box(x0, 1, -8, x1, 1, 7, metal);
-      g.box(x0, 6, -6, x1, 6, 5, metal);
-      g.box(x0, 11, -4, x1, 11, 3, metal);
-      g.box(x0, 1, -1, x1, 15, 0, 0xc8ccd8);
-      g.box(x0, 16, -2, x1, 16, 1, cap);
-      for (const [y, e] of [[1, 7], [6, 5], [11, 3]]) {
-        g.box(x0, y, e + 1, x1, y, e + 1, tag);
-        g.box(x0, y, -e - 2, x1, y, -e - 2, tag);
-        for (let xx = x0 + 3; xx < x1; xx += 6) {
-          g.set(xx, y, e + 2, 0xffffff);
-          g.set(xx, y, -e - 3, 0xffffff);
-        }
-      }
-      for (const xx of [x0, x1]) {
-        g.box(xx, 0, -8, xx, 5, 7, dark);
-        g.box(xx, 6, -6, xx, 10, 5, dark);
-        g.box(xx, 11, -4, xx, 16, 3, dark);
-      }
-      return g;
-    }, { scale: 0.1, pivot: [0, 0, 0] });
+    // frame (merged boxes: ~250 triangles)
+    const geo = shelfFrameGeo(L, K.signColor);
     this.mesh = makeMesh(geo);
     this.mesh.position.set(x, 0, z);
     this.A.scene.add(this.mesh);
@@ -354,15 +359,6 @@ export function buildMart(A) {
     const b = textPanel([{ text: 'FOOD', size: 0.32, color: '#ffd23f' }, { text: 'SEASON', size: 0.24, color: '#ffffff' }, { text: 'S1', size: 0.3, color: '#1d9bf0' }], { w: 1.3, h: 1.5, bg: '#ff4fa3', border: '#0d1029' });
     b.position.set(x, 2.25, SZ0 + 0.66);
     A.scene.add(b);
-  }
-  // ceiling light bars
-  const lightGeo = new THREE.BoxGeometry(6.5, 0.08, 0.28);
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff8e0 });
-  for (const z of [25.75, 30.25, 34.75]) for (const x of [37, 45.6]) {
-    const l = new THREE.Mesh(lightGeo, lightMat);
-    l.position.set(x, 3.6, z);
-    l.castShadow = false;
-    A.addStatic(l, Z);
   }
   // sliding doors (west entrance)
   slidingDoors(A, SX0 + 0.3, 30.5);

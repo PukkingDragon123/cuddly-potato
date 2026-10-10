@@ -160,13 +160,11 @@ export class LabScene {
     this.door = place('makeLabDoor', [], -9.3, 0, 1.6, Math.PI / 2, 1, fbBox(0.3, 3, 2, 0xff2e88));
     // workbench (front centre) where vials are opened
     const bench = place('makeLabDesk', [], this.benchPos.x, 0, this.benchPos.z, 0, 1, fbBox(2.6, 0.95, 1.2, 0x8a93b8));
-    if (bench) {
-      bench.updateMatrixWorld(true);
-      const bb = new THREE.Box3().setFromObject(bench);
-      if (isFinite(bb.max.y) && bb.max.y > 0.3) this.benchPos.y = bb.max.y;
-    }
+    // desk surface height (the props desk top sits at 0.9; the fallback box is 0.95 tall)
+    this.benchPos.y = typeof Props.makeLabDesk === 'function' ? 0.9 : 0.95;
+    void bench;
     // coffee mug easter egg on the bench corner
-    this.mug = place('makeMug', [], this.benchPos.x + 1.05, this.benchPos.y, this.benchPos.z - 0.2, 0.4, 1.2, () => {
+    this.mug = place('makeMug', [], this.benchPos.x - 1.0, this.benchPos.y, this.benchPos.z + 0.38, 0.4, 1.2, () => {
       const g = new THREE.Group();
       g.add(vox((gg) => { gg.cylinder(-0.5, -0.5, 0, 3, 1.6, 0xffffff); gg.box(2, 1, 0, 2, 2, 0, 0xffffff); gg.cylinder(-0.5, -0.5, 3, 3, 1, 0x5a3220); }, 0.06));
       return g;
@@ -278,13 +276,46 @@ export class LabScene {
       this.preview.root.rotation.y += dt * 0.8;
       this.preview.update(dt);
     }
-    // ambient life
+    // ambient life: the lab tech wanders between stations and tinkers
     this.techT -= dt;
-    if (this.techT <= 0) {
-      this.techT = rand(3, 7);
-      this.tech.play(pick(['talk', 'shake', 'point', 'idle', 'facepalm']));
-      this.tech.expr(pick(['normal', 'happy', 'side', 'determined']), pick(['smile', 'flat', 'o']), 2);
-      if (Math.random() < 0.3) fx.sparkle(new THREE.Vector3(-4.6, 1.3, -3.4), { count: 6, colors: [0x9ff2ff, 0xff4fd8], speed: 1 });
+    const tech = this.tech;
+    if (tech.walkTo) {
+      const p = tech.root.position;
+      const d = tech.walkTo.clone().sub(p);
+      d.y = 0;
+      if (d.length() < 0.1) {
+        tech.walkTo = null;
+        tech.play(pick(['talk', 'shake', 'point']));
+        tech.root.rotation.y = tech.faceAfter ?? 2.6;
+      } else {
+        d.normalize();
+        p.addScaledVector(d, dt * 1.1);
+        tech.root.rotation.y = Math.atan2(d.x, d.z);
+        if (Math.random() < dt * 4) fx.dust(p, { count: 1, scale: 0.6 });
+      }
+    } else if (this.techT <= 0) {
+      this.techT = rand(4, 8);
+      if (Math.random() < 0.45) {
+        const spots = [[-4.4, -2.6, 2.6], [4.2, -2.9, -2.6], [-7.2, -1.2, -1.6], [7.0, -1.0, 1.6]];
+        const sp = pick(spots);
+        tech.walkTo = new THREE.Vector3(sp[0], 0, sp[1]);
+        tech.faceAfter = sp[2];
+        tech.play('walk');
+      } else {
+        tech.play(pick(['talk', 'shake', 'point', 'idle', 'facepalm']));
+        tech.expr(pick(['normal', 'happy', 'side', 'determined']), pick(['smile', 'flat', 'o']), 2);
+        if (Math.random() < 0.4) fx.sparkle(tech.root.position.clone().setY(1.3), { count: 6, colors: [0x9ff2ff, 0xff4fd8], speed: 1 });
+      }
+    }
+    // the Beast Tiger stirs now and then
+    this.tigerT = (this.tigerT ?? rand(12, 20)) - dt;
+    if (this.tigerT <= 0 && !this.busy) {
+      this.tigerT = rand(14, 26);
+      this.tiger.attack(0.8);
+      this.tiger.boing(0.4);
+      audio.play('growl', { pitch: 0.7 });
+      fx.bubbles(new THREE.Vector3(this.tankPos.x, 1.8, this.tankPos.z + 1), { count: 25, color: 0x9ff2ff, radius: 0.9, speed: 2 });
+      if (Math.random() < 0.5) speech(this.jimmy, pick(["He's dreaming about chocolate.", 'Easy, big guy...', 'Did the tank just... move?']), 2);
     }
     if (!this.busy) {
       this.idleT -= dt;
