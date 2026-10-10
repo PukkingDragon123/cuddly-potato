@@ -19,19 +19,23 @@ src/
   game/
     state.js           profile persistence + ALL economy operations (grant/upgrade/vials/pass/quests/shop)
     game.js            scene router: game.go('lab' | 'battle' | 'arena' | 'title', params)
-    battle/            sim.js (logic), ai.js, view.js (3D), hud.js (DOM)
+    battle/            sim.js (logic), ai.js, view.js (3D), hud.js (DOM), loadout.js (player side config),
+                       netsync.js (friend battles: HostSync streams state, RemoteSim mirrors it for the guest)
+  net/
+    p2p.js             WebRTC data channel with copy/paste "battle code" signalling (no server)
   models/
     helpers.js         modelling helpers (eyes, teeth, mouth, legs4, feet2, arms2, colours C)
     swarmRig.js        multi-part animated swarm model
     swarmModels.js     createSwarm(id, {variant, skin, scale}) + core models
     swarmModelsExtra.js remaining swarm models
     props.js           props & buildings (labs, grocery, environment, ability props)
-  scenes/              title.js, lab.js (hub + tutorial), battle.js, arena.js (+ arena/*)
+  scenes/              title.js, lab.js (+ lab/: vial, openVial, reveal), battle.js,
+                       arena.js (+ arena/: terrain, layout, zones/*, player, npc, carts, gates, quests, hud, modals)
   ui/
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), modal(), toast(), say(), speech(), floatText(), pointAt()
     thumbs.js          swarmThumb(id, variant, skin), charPortrait(charId), objThumb(key, factory)
     hub.js             hub top bar + nav (mounted by the Lab scene)
-    screens/*.js       collection, deck, spells, commanders, mega, shop, pass, vials, trophy road, profile, settings
+    screens/*.js       collection, deck, commanders, mega, shop, pass, vials, trophy road, profile, settings, friend
   dev/preview.js       ?dev=models[&id=a,b] | ?dev=chars | ?dev=props[&id=...]
 ```
 

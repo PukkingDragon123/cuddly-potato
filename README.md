@@ -41,15 +41,20 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
   explosion) that unlocks *$100K Drop*, plus a **Home Horrors vial** whose skip price Jimmy flicks down to 0.
 
 **Arena (explorable 3D voxel map)**
-- Walk your chibi around (tap to move, a virtual joystick, or WASD) through the Trophy Road zones. Challenge
-  ranked opponents at the Battle Gate, fight bosses, meet NPCs like **Nolan** (quest chain) and **Juan**, and find
-  secrets.
-- **Beast Mart**, the Season 1 grocery store, has aisles of shelves, checkout lanes and pushable shopping carts
-  with physics.
+- Walk your chibi around (tap to move, drag for a virtual joystick, or WASD; `E` interact, `Q` dance, `M` map)
+  through the Trophy Road zones: Beast Lab Yard, Suburb of Horrors, Jimmy's Mansion, Techno Tower, Atomic Reactor
+  and the Chocolate Factory. Zones unlock with Trophies.
+- Challenge ranked opponents at the Ranked Gate, fight bosses behind skull gates (King Clog, Jimmy Rematch,
+  Cart Kong, Mega Mech Prime, Beast Tiger Unleashed), and meet NPCs like **Nolan** (quest chain that unlocks him
+  as a Commander), **Juan**, and Lab techs, cashiers and super fans.
+- **Beast Mart**, the Season 1 grocery store, has aisles of shelves, checkout lanes, a produce stand and pushable
+  shopping carts with physics. Smash them, knock products flying, or return one to the corral.
+- Secrets: the Golden Chocolate Bar, Nolan's lost phone, a giant Subscribe button, a hidden golden Panther statue,
+  and (back in the Lab) Jimmy's coffee mug and the Tiger's tank.
 
 **Collection and progression**
-- 30+ Swarms across the Beast Originals, Home Horrors, Techno Terrors, Atomic, Lab Hybrids and Food Fighters
-  series. Rarities run Common, Rare, Ultra Rare, Legendary and Limited, with **Silver, Gold and Chrome shiny
+- 30 collectable Swarms plus a Mega Form, across the Beast Originals, Home Horrors, Techno Terrors, Atomic,
+  Lab Hybrids and Food Fighters series. Rarities run Common, Rare, Ultra Rare, Legendary and Limited, with **Silver, Gold and Chrome shiny
   variants**.
 - Beast Coins and duplicate copies upgrade troops. Beast Bucks are the premium currency (earned in game only: no
   real-money purchases).
@@ -72,11 +77,23 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 | Pan / zoom battle camera | drag / pinch | drag / mouse wheel |
 | Shake a vial | hold and drag back and forth | arrow keys |
 
-## About "real players"
+## Real players: Friend Battles (peer-to-peer)
 
-There is no game server, so ranked opponents are **Ghost Players**: AI-controlled rivals with generated names,
-decks and trophy counts. The game labels them as AI. The battle simulation (`src/game/battle/sim.js`) is a
-fixed-step, seeded, input-driven model, so real networked PvP could be added later by syncing player inputs.
+**Friend Battle** (hub button, or *Friend* on the Arena's Ranked Gate) lets two real players fight each other
+directly over WebRTC, with no account or game server:
+
+1. One player taps **HOST A BATTLE** and sends the battle code (Copy, or Share to any chat app).
+2. The friend taps **JOIN A BATTLE**, pastes it, and sends back the reply code.
+3. The host pastes the reply and the battle starts. Each player sees their own Lab on the left.
+
+The host's device runs the authoritative simulation and streams state to the guest about 15 times a second.
+The guest's taps are sent back as inputs. A public STUN server is used only so the two devices can find each
+other. A few very strict networks (some corporate or carrier NATs) block direct connections; those would need a
+TURN relay, which isn't included.
+
+**Ranked** matches (for Trophies) are against **Ghost Players**: AI-controlled rivals with generated names,
+decks and trophy counts, matched to your Trophies. The game labels them "Ghost Player (AI)", because there is no
+matchmaking server.
 
 ## Developer URLs
 
