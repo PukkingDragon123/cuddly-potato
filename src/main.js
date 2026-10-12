@@ -46,6 +46,7 @@ async function boot() {
   else if (dev === 'island') await game.go('islandview', { ...Object.fromEntries(params), instant: true });
   else if (dev === 'ui') await game.go('uibench', { ...Object.fromEntries(params), instant: true });
   else if (dev === 'screens') await game.go('screenbench', { ...Object.fromEntries(params), instant: true });
+  else if (params.getAll('dev').includes('vial')) await game.go('vialopen', { type: params.get('type') ?? 'testTube', back: params.get('back') ?? 'home', instant: true });
   else if (params.get('scene')) await game.go(params.get('scene'), { instant: true, dev: true, ...Object.fromEntries(params) });
   else await game.go('title', { instant: true });
   const b = document.getElementById('boot');

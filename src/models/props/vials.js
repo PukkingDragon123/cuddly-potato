@@ -128,32 +128,30 @@ const hyper = (a, y) => mixHex(0xe4eaf4, HYPER[(Math.floor((a / Math.PI) * 3 + y
 // Test tube
 
 // world-space layout of the tube (y up, y = 0 on the table)
-const TUBE = { puckTop: 0.35, glassR: 0.335, glassTop: 1.52, capY: 1.44, liqBottom: 0.34, liqTop: 1.44, liqR: 0.3 };
+const TUBE = { puckTop: 0.35, glassR: 0.27, glassTop: 1.95, capY: 1.87, liqBottom: 0.34, liqTop: 1.86, liqR: 0.235 };
 
 function tubeGrids(def) {
   const cap = def.cap, label = def.label, chrome = !!def.chrome;
   // ---- puck stand with the LAB logo
   const puck = G();
-  cyl(puck, 'y', -0.5, -0.5, 0, 6, 9.4, 9.4, (x, y, z) => {
+  cyl(puck, 'y', -0.5, -0.5, 0, 6, 8.2, 8.2, (x, y, z) => {
     if (y === 0) return INK;
     if (y === 6) return chrome ? hyper(Math.atan2(z + 0.5, x + 0.5), 0) : shade(cap, 0.05);
     if (y === 1) return BLUE_D;
     return n3(x, y, z) < 0.05 ? shade(BLUE, -0.06) : BLUE;
   });
-  cyl(puck, 'y', -0.5, -0.5, 6, 6, 7, 7, 0x0b1030);
+  cyl(puck, 'y', -0.5, -0.5, 6, 6, 5.6, 5.6, 0x0b1030);
   stamp(puck, textArt('LAB'), { T: WHITE }, { axis: 'z', x: -6, y: 5 });
-  stamp(puck, ['M.', 'MM', '.M'], { M: PINK }, { axis: 'z', x: -10, y: 4 });
-  stamp(puck, ['.M', 'MM', 'M.'], { M: PINK }, { axis: 'z', x: 7, y: 4 });
 
   // ---- screw cap with grip ridges and a raised bolt on top
   const capG = G();
   for (let y = 0; y <= 7; y++) {
-    const rBase = y >= 7 ? 7.0 : y >= 6 ? 7.9 : 8.1;
-    for (let x = -10; x <= 9; x++) for (let z = -10; z <= 9; z++) {
+    const rBase = y >= 7 ? 5.6 : y >= 6 ? 6.3 : 6.5;
+    for (let x = -9; x <= 8; x++) for (let z = -9; z <= 8; z++) {
       const dx = x + 0.5, dz = z + 0.5, d = Math.hypot(dx, dz);
       const a = Math.atan2(dz, dx);
-      const ridge = y >= 1 && y <= 5 && (Math.floor((a / (Math.PI * 2)) * 30 + 100) & 1);
-      if (d > rBase + (ridge ? 0.65 : 0) + 0.35) continue;
+      const ridge = y >= 1 && y <= 5 && (Math.floor((a / (Math.PI * 2)) * 24 + 100) & 1);
+      if (d > rBase + (ridge ? 0.6 : 0) + 0.35) continue;
       let c = chrome ? hyper(a, y) : ridge ? shade(cap, 0.14) : cap;
       if (y === 0) c = shade(chrome ? 0xb8c2d6 : cap, -0.28);
       else if (y === 7) c = chrome ? hyper(a, 3) : shade(cap, 0.08);
@@ -162,50 +160,50 @@ function tubeGrids(def) {
   }
   stamp(capG, BOLT_SMALL, { M: { c: chrome ? PINK : onColor(cap) === INK ? PINK : WHITE, raise: 1 } }, { axis: 'y', x: -3, z: -4 });
 
-  // ---- wrap label: hazard bands + Lab badge (rows 8..20 => 0.4 .. 1.05)
+  // ---- wrap label: hazard bands + Lab badge (rows 9..21 => 0.45 .. 1.1)
   const lab = G();
-  const L0 = 8, L1 = 20;
-  cyl(lab, 'y', -0.5, -0.5, L0, L1, 7.35, 7.35, (x, y, z) => {
+  const L0 = 9, L1 = 21, LR = 5.95;
+  cyl(lab, 'y', -0.5, -0.5, L0, L1, LR, LR, (x, y, z) => {
     const a = Math.atan2(x + 0.5, z + 0.5);
-    if (y <= L0 + 1 || y >= L1 - 1) return hazard(Math.round(a * 7.35), y);
+    if (y <= L0 + 1 || y >= L1 - 1) return hazard(Math.round(a * LR), y);
     if (Math.abs(a) > 2.2) return shade(label, (y & 1) ? -0.06 : -0.12); // seam at the back
     return label;
   }, { hollow: 1.3 });
-  stamp(lab, BADGE.slice(1, 10).map((r) => r), { W: WHITE, B: BLUE, M: PINK }, { axis: 'z', x: -6, y: L1 - 2 });
+  stamp(lab, BADGE.slice(1, 10).map((r) => r.slice(1, 10)), { W: WHITE, B: BLUE, M: PINK }, { axis: 'z', x: -5, y: L1 - 2 });
   // side stripes in the cap colour (the "Swarms" graphic)
   lab.paint((x, y, z, c) => {
     if (y <= L0 + 1 || y >= L1 - 1 || c !== label) return undefined;
     const a = Math.atan2(x + 0.5, z + 0.5);
-    const s = Math.floor(a * 7.35 - y * 0.6);
-    return Math.abs(a) > 1.0 && Math.abs(a) < 2.2 && (s % 4 === 0) ? (chrome ? 0x6a7590 : cap) : undefined;
+    const s = Math.floor(a * LR - y * 0.6);
+    return Math.abs(a) > 1.05 && Math.abs(a) < 2.2 && (s % 4 === 0) ? (chrome ? 0x6a7590 : cap) : undefined;
   });
 
   // ---- dissolvable paper bag (inside, sits on the puck)
   const bag = G();
-  blob(bag, -0.5, 9, -0.5, 4.4, 9, 3.6, (x, y, z) => (n3(x, y, z, 3) < 0.1 ? BLUE_L : (y % 5 === 0 ? 0xdcd8cc : 0xf4f0e6)), { p: 2.6 });
-  for (let x = -5; x <= 4; x++) bag.set(x, 19 + (x & 1), -1, 0xe8e2d4).set(x, 19, 0, 0xe8e2d4);
-  stamp(bag, ['.MM', 'MM.', '.MM', 'MM.'], { M: PINK }, { axis: 'z', x: -2, y: 14 });
+  blob(bag, -0.5, 11, -0.5, 3.4, 11, 2.8, (x, y, z) => (n3(x, y, z, 3) < 0.1 ? BLUE_L : (y % 5 === 0 ? 0xdcd8cc : 0xf4f0e6)), { p: 2.6 });
+  for (let x = -4; x <= 3; x++) bag.set(x, 23 + (x & 1), -1, 0xe8e2d4).set(x, 23, 0, 0xe8e2d4);
+  stamp(bag, ['.MM', 'MM.', '.MM', 'MM.'], { M: PINK }, { axis: 'z', x: -2, y: 19 });
 
   // ---- foam cap (scaled in y) + overflow dome
   const foam = G();
-  cyl(foam, 'y', -0.5, -0.5, 0, 4, 6.2, 6.2, (x, y, z) => (n3(x, y, z) < 0.25 ? 0xeaf6ff : 0xffffff));
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2, r = i % 2 ? 3.4 : 1;
-    blob(foam, Math.cos(a) * r - 0.5, 5, Math.sin(a) * r - 0.5, 2.4, 2, 2.4, 0xffffff);
+  cyl(foam, 'y', -0.5, -0.5, 0, 4, 4.7, 4.7, (x, y, z) => (n3(x, y, z) < 0.25 ? 0xeaf6ff : 0xffffff));
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2, r = i % 2 ? 2.6 : 0.8;
+    blob(foam, Math.cos(a) * r - 0.5, 5, Math.sin(a) * r - 0.5, 2, 1.8, 2, 0xffffff);
   }
-  foam.carve((x, y, z) => Math.hypot(x + 0.5, z + 0.5) > 6.4);
+  foam.carve((x, y, z) => Math.hypot(x + 0.5, z + 0.5) > 4.9);
   const over = G();
   for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2, r = i ? 5 : 0;
-    blob(over, Math.cos(a) * r - 0.5, 3 + (i ? 0 : 3), Math.sin(a) * r - 0.5, 4.2, 3.6, 4.2, (x, y, z) => (n3(x, y, z, 5) < 0.2 ? 0xe4f4ff : 0xffffff));
+    const a = (i / 7) * Math.PI * 2, r = i ? 4 : 0;
+    blob(over, Math.cos(a) * r - 0.5, 3 + (i ? 0 : 3), Math.sin(a) * r - 0.5, 3.4, 3.2, 3.4, (x, y, z) => (n3(x, y, z, 5) < 0.2 ? 0xe4f4ff : 0xffffff));
   }
   over.carve((x, y) => y < 0);
 
   // ---- mystery silhouettes swirling in the liquid
   const sil = G();
-  blob(sil, -0.5, 3, -0.5, 2.6, 2.4, 2.2, 0x1a1238);
-  sil.box(-3, 5, -1, -2, 6, 0, 0x1a1238).box(1, 5, -1, 2, 6, 0, 0x1a1238);
-  sil.set(-2, 3, 2, 0xff2e88, true).set(1, 3, 2, 0xff2e88, true);
+  blob(sil, -0.5, 2.5, -0.5, 2.2, 2, 1.8, 0x1a1238);
+  sil.box(-3, 4, -1, -2, 5, 0, 0x1a1238).box(1, 4, -1, 2, 5, 0, 0x1a1238);
+  sil.set(-2, 3, 1, 0xff2e88, true).set(1, 3, 1, 0xff2e88, true);
   return { puck, cap: capG, label: lab, bag, foam, over, sil };
 }
 
@@ -493,7 +491,7 @@ class VialModel {
     for (let i = 0; i < 3; i++) {
       const s = makeMesh(g.sil, Mats.toyPair);
       s.visible = false;
-      s.scale.setScalar(0.8 + i * 0.1);
+      s.scale.setScalar(0.75 + i * 0.1);
       this.body.add(s);
       this.sils.push(s);
     }
@@ -794,7 +792,7 @@ class VialModel {
       this.sils.forEach((m, i) => {
         if (!m.visible) return;
         const a = t * (0.9 + i * 0.25) + i * 2.1;
-        m.position.set(Math.cos(a) * 0.1, TUBE.puckTop + 0.12 + ((Math.sin(t * 0.8 + i * 2) + 1) / 2) * Math.max(0, surface - TUBE.puckTop - 0.45), Math.sin(a) * 0.1);
+        m.position.set(Math.cos(a) * 0.07, TUBE.puckTop + 0.12 + ((Math.sin(t * 0.8 + i * 2) + 1) / 2) * Math.max(0, surface - TUBE.puckTop - 0.45), Math.sin(a) * 0.07);
         m.rotation.y = -a;
       });
       if (!this.opened) {

@@ -7,6 +7,9 @@ import { h, icon, button, modal, toast, clear, sparkle, $overlay } from '../ui.j
 import { cardEl } from '../cards.js';
 import { lazyImg, charPortrait, swarmThumb } from '../thumbs.js';
 import { audio } from '../../core/audio.js';
+import { engine } from '../../core/engine.js';
+import { Chibi } from '../../core/chibi.js';
+import { CHARACTERS } from '../../data/characters.js';
 import { fmt, fmtTime } from '../../core/util.js';
 import { state } from '../../game/state.js';
 import { cardDef } from '../../data/cards.js';
@@ -383,6 +386,24 @@ export function cmdImg(cmdId, skinId = null, opts = {}, cls = '') {
   const c = COMMANDERS[cmdId];
   return charImg(c?.char ?? 'recruit', { ...opts, override: skinId ? cmdOverride(skinId) : null }, cls);
 }
+/** Full-body render of a chibi character in a pose (w x h). */
+export function charFullImg(charId, o = {}, cls = '') {
+  const w = o.w ?? 160, hh = o.h ?? 200;
+  const key = `hmf|${charId}|${w}x${hh}|${JSON.stringify(o.override ?? null)}|${o.pose}|${o.mouth}|${o.yaw}`;
+  return lazyImg(key, () => {
+    const c = new Chibi({ ...CHARACTERS[charId], ...(o.override ?? {}) });
+    c.expr(o.eyes ?? 'normal', o.mouth ?? 'smile');
+    c.face.blinkT = 99;
+    if (o.pose) c.play(o.pose);
+    for (let i = 0; i < 8; i++) c.update(o.pose ? 0.09 : 0.016);
+    c.face.redraw();
+    return engine.renderThumb(c.root, { w, h: hh, yaw: o.yaw ?? -0.4, pitch: 0.1, zoom: o.zoom ?? 0.92 });
+  }, 'smooth ' + cls, { priority: o.priority ?? true });
+}
+export function cmdFullImg(cmdId, skinId = null, o = {}, cls = '') {
+  const c = COMMANDERS[cmdId];
+  return charFullImg(c?.char ?? 'recruit', { ...o, override: skinId ? cmdOverride(skinId) : null }, cls);
+}
 export function swarmImg(id, variant = 'base', skin = null, size = 160, cls = '') {
   return lazyImg(`s|${id}|${variant}|${skin}|${size}`, () => swarmThumb(id, variant, skin, size), 'smooth ' + cls);
 }
@@ -560,3 +581,11 @@ export function priceBtn(label, cur, amount, onClick, cls = 'green', extra = {})
 /** Rarity → ribbon colour for headers. */
 export const RARITY_RIBBON = { common: 'blue', rare: 'gold', epic: 'purple', legendary: 'green', mythic: 'pink' };
 export const RARITY_BTN = { common: 'blue', rare: 'orange', epic: 'purple', legendary: 'teal', mythic: 'pink' };
+
+/** Hexagonal Lab Level badge. */
+export function labBadge(level, cls = '') {
+  return h('div', { class: 'hm-labbadge ' + cls }, h('div', { class: 'hm-labbadge-in' }, h('b', { class: 't-d outline' }, String(level))));
+}
+
+/** Big pretty number (full digits below 100k). */
+export const fmtN = (n) => (Math.abs(n) < 100000 ? Math.floor(n).toLocaleString('en-US') : fmt(n));
