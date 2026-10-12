@@ -545,6 +545,33 @@ const SFX = {
   go: (a) => { a.tone({ type: 'square', f0: 990, dur: 0.35, vol: 0.12 }); a.tone({ type: 'square', f0: 1320, dur: 0.35, vol: 0.06 }); },
   cardPick: (a, p) => a.tone({ type: 'triangle', f0: 500 * p, f1: 820 * p, dur: 0.07, vol: 0.13 }),
   emote: (a, p) => a.tone({ type: 'sine', f0: 700 * p, f1: 1100 * p, dur: 0.12, vol: 0.12, vibrato: 30, vibRate: 18 }),
+  // vial opening (src/scenes/vialOpen.js)
+  pour: (a, p) => {
+    a.noise({ dur: 0.9, vol: 0.16, type: 'bandpass', f0: 650 * p, f1: 1100 * p, q: 1.4, attack: 0.08 });
+    for (let i = 0; i < 6; i++) a.tone({ type: 'sine', f0: rand(260, 420) * p, f1: rand(700, 1100) * p, dur: 0.07, vol: 0.06, delay: 0.1 + i * 0.12 });
+  },
+  rattle: (a, p) => { for (let i = 0; i < 4; i++) a.noise({ dur: 0.035, vol: 0.2, type: 'bandpass', f0: rand(1600, 3200) * p, q: 4, delay: i * 0.045 }); },
+  latch: (a, p) => {
+    a.tone({ type: 'square', f0: 1900 * p, f1: 900 * p, dur: 0.04, vol: 0.11 });
+    a.noise({ dur: 0.05, vol: 0.22, type: 'highpass', f0: 3000 });
+    a.tone({ type: 'square', f0: 1300 * p, f1: 700 * p, dur: 0.05, vol: 0.09, delay: 0.07 });
+  },
+  cork: (a, p) => { a.tone({ type: 'sine', f0: 380 * p, f1: 1900 * p, dur: 0.07, vol: 0.38 }); a.noise({ dur: 0.09, vol: 0.28, type: 'highpass', f0: 2200 }); },
+  flare: (a, p) => {
+    a.noise({ dur: 0.85, vol: 0.15, type: 'bandpass', f0: 300 * p, f1: 3200 * p, q: 2, attack: 0.55 });
+    a.tone({ type: 'sawtooth', f0: 180 * p, f1: 760 * p, dur: 0.85, vol: 0.05, attack: 0.6, curve: 'lin' });
+  },
+  heartbeat: (a, p) => { a.tone({ type: 'sine', f0: 95 * p, f1: 40, dur: 0.16, vol: 0.55 }); a.tone({ type: 'sine', f0: 80 * p, f1: 36, dur: 0.14, vol: 0.35, delay: 0.17 }); },
+  lightsOut: (a) => { a.tone({ type: 'sawtooth', f0: 420, f1: 45, dur: 0.6, vol: 0.12 }); a.noise({ dur: 0.18, vol: 0.22, type: 'lowpass', f0: 900 }); },
+  shimmer: (a, p) => { for (let i = 0; i < 9; i++) a.tone({ type: 'sine', f0: (1500 + i * 240) * p, dur: 0.28, vol: 0.045, delay: i * 0.035 }); },
+  reveal: (a, p) => { a.noise({ dur: 0.18, vol: 0.12, type: 'bandpass', f0: 1100 * p, f1: 3200 * p, q: 1.5 }); a.tone({ type: 'triangle', f0: 880 * p, f1: 1320 * p, dur: 0.12, vol: 0.1, delay: 0.07 }); },
+  countTick: (a, p) => a.tone({ type: 'square', f0: 1500 * p, dur: 0.03, vol: 0.05 }),
+  stamp: (a) => { a.tone({ type: 'square', f0: 240, f1: 110, dur: 0.08, vol: 0.18 }); a.noise({ dur: 0.07, vol: 0.22, type: 'lowpass', f0: 1600 }); },
+  fanfare: (a) => {
+    ['G4', 'C5', 'E5', 'G5'].forEach((n, i) => a.tone({ type: 'square', f0: hz(midi(n)), dur: 0.12, vol: 0.08, delay: i * 0.09 }));
+    ['C5', 'E5', 'G5', 'C6'].forEach((n) => a.tone({ type: 'square', f0: hz(midi(n)), dur: 0.7, vol: 0.05, delay: 0.38, attack: 0.02 }));
+    a.tone({ type: 'sine', f0: hz(midi('C7')), dur: 0.8, vol: 0.05, delay: 0.42 });
+  },
 };
 
 export const audio = new AudioSys();

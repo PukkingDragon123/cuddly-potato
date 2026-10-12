@@ -299,11 +299,12 @@ const variantMats = {};
 export function variantMaterials(kind) {
   if (variantMats[kind]) return variantMats[kind];
   const params = {
-    chrome: { metalness: 0.95, roughness: 0.1 },
+    chrome: { metalness: 0.95, roughness: 0.16 },
     silver: { metalness: 0.85, roughness: 0.24 },
     gold: { metalness: 0.92, roughness: 0.2 },
   }[kind] || { metalness: 0.5, roughness: 0.4 };
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, ...params, envMapIntensity: 1.6 });
+  // metals get their look from reflections: the engine's env map is dimmed (ENV_GAIN), so boost them
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, ...params, envMapIntensity: 2.6 });
   variantMats[kind] = [m, Mats.glow];
   return variantMats[kind];
 }

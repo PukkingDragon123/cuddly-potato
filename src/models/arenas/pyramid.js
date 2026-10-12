@@ -563,11 +563,12 @@ export function buildBattle(K) {
   addGlints(K, [[-1.8, 0.3, -7.6, 1.6, 0.4], [11.2, 0.3, -7.2, 1.6, 0.4], [-27.5, 0.3, -6.4, 1.6, 0.4], [10, 17.4, -52, 2, 1]], 26);
 
   // ---- landmarks: panther sphinx, giant pyramid, oasis
-  K.mesh('sphinx', sphinxGrid, { scale: 0.16 }, -15.5, 0, -19, 0.32, 1, { shadow: true });
+  K.mesh('sphinx', sphinxGrid, { scale: 0.16 }, -10.5, 0, -21, 0.22, 1, { shadow: true });
   K.mesh('pyramid', pyramidGrid, { scale: 0.8 }, 10, 0, -52, 0.62, 1);
   K.mesh('pyramidS', pyramidGrid, { scale: 0.45 }, -36, 0, -50, 0.3, 1);
   K.mesh('pyramidS', pyramidGrid, { scale: 0.38 }, 44, 0, -46, -0.4, 1);
-  // oasis
+  // oasis in front of the pyramid
+  const OX = 11.2, OZ = -19.5;
   K.mesh('oasisRim', () => {
     const g = new VoxGrid();
     for (let x = -30; x <= 30; x++) for (let z = -18; z <= 18; z++) {
@@ -577,25 +578,25 @@ export function buildBattle(K) {
       else if (d > 0.5) g.set(x, 0, z, C.sandD);
     }
     return g;
-  }, { scale: 0.18, pivot: [0, 0, 0] }, 21, -0.1, -14.5);
+  }, { scale: 0.18, pivot: [0, 0, 0] }, OX, -0.1, OZ, 0, [0.78, 1, 0.78]);
   const wt = waterTex().clone();
   wt.needsUpdate = true;
   wt.wrapS = wt.wrapT = THREE.RepeatWrapping;
   wt.repeat.set(3, 2);
   const pool = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshLambertMaterial({ map: wt, color: 0xffffff }));
   pool.rotation.x = -Math.PI / 2;
-  pool.scale.set(4.4, 2.6, 1);
-  pool.position.set(21, 0.02, -14.5);
+  pool.scale.set(3.5, 2.05, 1);
+  pool.position.set(OX, 0.02, OZ);
   K.add(pool);
   K.onUpdate((dt, t) => { wt.offset.x = (t * 0.03) % 1; wt.offset.y = Math.sin(t * 0.5) * 0.04; });
-  K.inst('reeds', reedGrid, { scale: 0.1 }, [[17.4, 0, -13.2], [24.8, 0, -13.5, 1], [19, 0, -12.2, 2], [23.5, 0, -16.4, 0.5]]);
+  K.inst('reeds', reedGrid, { scale: 0.1 }, [[OX - 3.4, 0, OZ + 1.2], [OX + 3.6, 0, OZ + 0.8, 1], [OX - 1.6, 0, OZ + 2.1, 2], [OX + 2.4, 0, OZ - 1.8, 0.5]]);
   const palms = [];
-  for (const [x, z, s, seed] of [[16.5, -15.8, 0.2, 1], [25.6, -12.6, 0.22, 2], [22.6, -17.6, 0.19, 3], [-29, -11, 0.21, 4], [-34.5, -16, 0.23, 5], [34, -12, 0.2, 6], [-22, -27, 0.2, 7], [28, -30, 0.22, 8]]) {
+  for (const [x, z, s, seed] of [[OX - 4.2, OZ - 0.8, 0.2, 1], [OX + 4.4, OZ + 1.6, 0.22, 2], [OX + 1.6, OZ - 2.6, 0.19, 3], [24, -12.5, 0.22, 2], [19, -15, 0.2, 1], [-29, -11, 0.21, 4], [-34.5, -16, 0.23, 5], [34, -12, 0.2, 6], [-22, -27, 0.2, 7], [28, -30, 0.22, 8]]) {
     const m = K.mesh('palm' + (seed % 3), palmGrid(seed % 3), { scale: 1 }, x, 0, z, K.rand(0, 6), s, { shadow: true });
     palms.push([m, seed]);
   }
   K.onUpdate((dt, t) => { for (const [m, ph] of palms) { m.rotation.z = Math.sin(t * 0.9 + ph) * 0.025; m.rotation.x = Math.sin(t * 0.7 + ph * 2) * 0.015; } });
-  K.inst('boulder', () => rockGrid({ color: C.stone, r: 4 }), { scale: 0.14 }, [[-24, 0, -4.8, 0.4], [26.5, 0, -4.6, 1.2], [-36, 0, 5, 2], [37, 0, 6, 0.1], [14, 0, -18, 1]]);
+  K.inst('boulder', () => rockGrid({ color: C.stone, r: 4 }), { scale: 0.14 }, [[-24, 0, -4.8, 0.4], [26.5, 0, -4.6, 1.2], [-36, 0, -6, 2], [37, 0, -7, 0.1], [17, 0, -16, 1]]);
 
   // ---- vultures circling the pyramid
   const birds = liveInst(K, 'vulture', () => {
@@ -654,7 +655,7 @@ export function buildBattle(K) {
     fog: { color: 0xffd2a0, near: 65, far: 200 },
     lights: { sky: 0xfff0d8, ground: 0xc8905a, hemi: 1.15, sun: 2.5, sunColor: 0xfff0d2, dir: [-7, 13, 9], rim: 1.0, rimColor: 0xffb878 },
     dust: 0xf2d4a0,
-    bloom: { strength: 0.6, threshold: 1.18, radius: 0.45 },
+    bloom: { strength: 0.65, threshold: 1.7, radius: 0.25 },
   };
 }
 
@@ -674,7 +675,7 @@ export function buildZone(K) {
     }
     return g;
   }, { scale: 0.25, pivot: [0, 1, 0] }, 0, 0, 0);
-  K.mesh('pyramid', pyramidGrid, { scale: 0.15 }, 1.0, 0, -3.4, 0.5);
+  K.mesh('pyramid', pyramidGrid, { scale: 0.13 }, 1.2, 0, -3.6, 0.5);
   K.mesh('sphinx', sphinxGrid, { scale: 0.07 }, -3.4, 0, -0.6, 0.5, 1, { shadow: true });
   K.mesh('obelisk', obeliskGrid(2), { scale: 0.06 }, -1.2, 0, 2.6, 0, 1, { shadow: true });
   K.mesh('glyphWall', glyphWallGrid(2), { scale: 0.05, pivot: [0, 0, 0] }, -5.6, 0, -4.4, 0.25, 1, { shadow: true });

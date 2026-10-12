@@ -176,7 +176,6 @@ function blazeHybrid() {
   };
   blob(head, -0.5, 20, 1.5, 8.8, 7.6, 7.8, headCol, { p: 2.3 });
   blob(head, -0.5, 16, 4, 8, 3.6, 5.4, K.skin, { p: 2.2 }); // cheeks / jowls
-  glowWhere(head, (x, y, z, c) => c === K.crack && n3(x, y, z, 12) < 0.5);
   // pointed ears + horns
   for (const s of [-1, 1]) {
     const ex = s < 0 ? -8.5 : 7.5;
@@ -194,7 +193,7 @@ function blazeHybrid() {
   // eyes: glowing ember eyes under heavy crust brows
   for (const [cx, side] of [[-4.6, -1], [3.6, 1]]) {
     const cz = (frontZ(head, Math.round(cx), 20.5) ?? 8) - 1;
-    eyeBall(head, cx, 20.5, cz, [2.8, 3, 2], side, { white: K.eye, glow: true, pw: 2, ph: 3, inward: 0.6, browCol: K.brow, browT: 2, browOut: 1, browHi: 1.05, browLo: 0.3 });
+    eyeBall(head, cx, 20.5, cz, [2.8, 3, 2], side, { white: K.eye, pw: 2, ph: 3, inward: 0.6, browCol: K.brow, browT: 2, browOut: 1, browHi: 1.05, browLo: 0.3 });
   }
   // magenta bolt war-paint on the cheeks
   stamp(head, ['..MM', '.MM.', 'MMMM', '.MM.', 'MM..'], { M: MAG }, { axis: '-x', y: 18, z: 5 });
@@ -204,7 +203,7 @@ function blazeHybrid() {
   const bases = TONGUES.map(([x, z]) => { for (let y = 40; y > 10; y--) if (head.has(Math.round(x), y, Math.round(z))) return y; return 26; });
   TONGUES.forEach(([x, z, h, lean], i) => {
     const b = bases[i];
-    flame(head, [[x, b - 1, z], [x, b + h * 0.45, z - lean * 0.35], [x, b + h * 0.8, z - lean * 0.8], [x, b + h, z - lean]], 2.1, { glowFrom: 0.55 });
+    flame(head, [[x, b - 1, z], [x, b + h * 0.45, z - lean * 0.35], [x, b + h * 0.8, z - lean * 0.8], [x, b + h, z - lean]], 2.1, { glowFrom: 0.93 });
   });
   gradY(head, 12, 27, -0.08, 0.05, (x, y, z, c) => c === K.skin || c === K.skinD);
 
@@ -226,11 +225,11 @@ function blazeHybrid() {
   const arm = G();
   capsule(arm, [-6.5, 12.5, 0], [-9, 9, 2], 1.9, 1.7, lava(0));
   blob(arm, -9.5, 7.6, 3, 2.5, 2.3, 2.5, K.crust, { p: 2.3 });
-  for (const [dx, dz] of [[-1.2, 1.2], [0.2, 2.2], [1.2, 1]]) flame(arm, [[-9.5 + dx, 9, 3 + dz * 0.5], [-9.5 + dx, 11, 2 + dz * 0.4], [-9.5 + dx * 1.3, 12.5, 1.5]], 0.9, { glowFrom: 0.3 });
+  for (const [dx, dz] of [[-1.2, 1.2], [0.2, 2.2], [1.2, 1]]) flame(arm, [[-9.5 + dx, 9, 3 + dz * 0.5], [-9.5 + dx, 11, 2 + dz * 0.4], [-9.5 + dx * 1.3, 12.5, 1.5]], 0.9, { glowFrom: 0.75 });
   const armR = flipX(arm);
   // the right fist palms a fireball
   blob(armR, 8.6, 8, 6.4, 2.6, 2.6, 2.6, (x, y, z) => (Math.hypot(x - 8.6, y - 8, z - 6.4) < 1.5 ? F_WHITE : Math.hypot(x - 8.6, y - 8, z - 6.4) < 2.3 ? F_YELLOW : F_ORANGE), { glow: true });
-  flame(armR, [[8.6, 10, 6.4], [8.6, 12, 5.6], [8.6, 13.5, 4.6]], 1.6, { glowFrom: 0 });
+  flame(armR, [[8.6, 10, 6.4], [8.6, 12, 5.6], [8.6, 13.5, 4.6]], 1.6, { glowFrom: 0.5 });
 
   return {
     gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
@@ -253,9 +252,9 @@ function blazeHybrid() {
 function frostHybrid() {
   const K = {
     fur: 0xf2f8ff, furS: 0xd2e4f8, furB: 0xb8d8ff, skin: 0x4fa6ff, skinD: 0x2f78e0, skinL: 0x8cc8ff,
-    ice: 0x8ff0ff, iceL: 0xe6ffff, iceD: 0x48c8f0, eye: 0xb8fbff, brow: 0xffffff, nail: 0xffffff,
+    ice: 0x8ff0ff, iceL: 0xe6ffff, iceD: 0x48c8f0, eye: 0xe4fdff, brow: 0xffffff, nail: 0xffffff,
   };
-  const furCol = (x, y, z) => (n3(x, y, z, 3) < 0.16 ? K.furS : n3(x, y, z, 4) < 0.08 ? K.furB : K.fur);
+  const furCol = (x, y, z) => (n3(x, y, z, 3) < 0.12 ? K.furS : n3(x, y, z, 4) < 0.03 ? K.furB : K.fur);
   const crystal = (g, a, b, r, glowTip = true) => capsule(g, a, b, r, 0.35, (x, y, z, t) => (t > 0.7 ? K.iceL : t > 0.3 ? K.ice : K.iceD), {});
   const tuft = (g, x, y, z, dx, dy, dz, r = 1.2) => capsule(g, [x, y, z], [x + dx, y + dy, z + dz], r, 0.4, furCol);
 
@@ -269,7 +268,7 @@ function frostHybrid() {
 
   // ------------------------------------------------------------ body: shaggy hunched torso + ice shards
   const body = G();
-  blob(body, -0.5, 12, -1, 8, 6.6, 6.4, furCol, { p: 2.2 });
+  blob(body, -0.5, 11.5, -1, 7.8, 6.2, 6.2, furCol, { p: 2.2 });
   // fur fringe around the hips and belly patch of blue skin
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * Math.PI * 2;
@@ -277,7 +276,7 @@ function frostHybrid() {
   }
   body.forEach((x, y, z) => {
     const d = Math.hypot((x + 0.5) / 4.2, (y - 11.5) / 3.8);
-    if (z >= 2 && d <= 1) body.set(x, y, z, d < 0.75 ? K.skinL : K.skin);
+    if (z >= 2 && d <= 1) body.set(x, y, z, d < 0.8 ? 0xdcecff : K.furB);
   });
   // ice shards bursting from the back + shoulders
   for (const [x, z, h, lx] of [[-0.5, -5, 6, 0], [-4, -4, 5, -2], [3, -4, 5, 2], [-7, -1, 4, -3], [6, -1, 4, 3]]) {
@@ -291,37 +290,26 @@ function frostHybrid() {
   // ------------------------------------------------------------ head: shaggy dome, blue face, ice crown
   const HJ = [-0.5, 16, 1];
   const head = G();
-  blob(head, -0.5, 21.5, 1.5, 8, 6.8, 6.8, furCol, { p: 2.3 });
+  blob(head, -0.5, 22, 2, 9.2, 7.6, 7.4, furCol, { p: 2.3 });
   // blue face oval
   head.forEach((x, y, z) => {
-    const d = Math.hypot((x + 0.5) / 5.6, (y - 19.5) / 4.6);
-    if (z >= 4 && d <= 1) head.set(x, y, z, d < 0.85 ? K.skin : K.skinD);
+    const d = Math.hypot((x + 0.5) / 6.6, (y - 19.6) / 5.4);
+    if (z >= 4 && d <= 1) head.set(x, y, z, d < 0.86 ? K.skin : K.skinD);
   });
-  blob(head, -0.5, 17.6, 7, 4.6, 2.6, 2.4, K.skin, { p: 2.2 }); // muzzle
-  // mouth with tusks
-  const fz = {};
-  for (let x = -5; x <= 4; x++) for (let y = 15; y <= 18; y++) {
-    if (Math.abs(x + 0.5) > 4.4 - (18 - y) * 0.4) continue;
-    const z = frontZ(head, x, y, -20, 30);
-    if (z !== null) fz[x + ',' + y] = z;
-  }
-  for (const k in fz) { const [x, y] = k.split(',').map(Number); for (let d = 0; d < 3; d++) head.del(x, y, fz[k] - d); head.set(x, y, fz[k] - 3, MOUTH); }
-  for (const k in fz) {
-    const [x, y] = k.split(',').map(Number);
-    if (fz[x + ',' + (y + 1)] === undefined) { head.set(x, y, fz[k] - 1, TOOTH); if ((x + 40) % 2 === 0) head.set(x, y - 1, fz[k] - 1, TOOTH); }
-  }
-  // cheek fur tufts
+  // snarling mouth under the nose
+  mouthCut(head, (x, y) => y >= 15 && y <= 18 && Math.abs(x + 0.5) <= 5.2 - (18 - y) * 0.45, -7, 6, 15, 18, { depth: 3 });
+  // shaggy cheek tufts (swept back so the face stays clear)
   for (const s of [-1, 1]) {
-    tuft(head, s < 0 ? -6.5 : 5.5, 18, 5, s * 2.6, -2.6, 0.6, 1.6);
-    tuft(head, s < 0 ? -7.5 : 6.5, 21, 3.5, s * 2.6, -1.4, 0, 1.4);
+    tuft(head, s < 0 ? -8 : 7, 18, 3, s * 2.4, -2.6, -0.6, 1.6);
+    tuft(head, s < 0 ? -8.5 : 7.5, 21.5, 1.5, s * 2.4, -1.2, -0.6, 1.4);
   }
-  // glowing ice eyes + shaggy white brow overhang
-  for (const [cx, side] of [[-3.6, -1], [2.6, 1]]) {
-    const cz = (frontZ(head, Math.round(cx), 21) ?? 8) - 1;
-    eyeBall(head, cx, 21, cz, [2.3, 2.6, 1.8], side, { white: K.eye, glow: true, pw: 2, ph: 2, inward: 0.4, pupil: 0x0d2a6a, browCol: K.brow, browT: 2, browOut: 1, browHi: 1.1, browLo: 0.35 });
+  // glowing ice eyes under a heavy dark-blue brow
+  for (const [cx, side] of [[-4, -1], [3, 1]]) {
+    const cz = (frontZ(head, Math.round(cx), 22) ?? 8) - 1;
+    eyeBall(head, cx, 22, cz, [2.8, 3, 2], side, { white: K.eye, pw: 2, ph: 3, inward: 0.5, pupil: INK, pupilGlow: false, browCol: 0x163a8a, browT: 2, browOut: 1, browHi: 1.05, browLo: 0.3 });
   }
   // nose
-  blob(head, -0.5, 19.3, 9, 1.4, 0.9, 0.8, 0x1a3a7a);
+  blob(head, -0.5, 19.4, (frontZ(head, -1, 19) ?? 9) + 0.3, 1.5, 0.9, 0.9, 0x163a8a);
   // ice-crystal crown / horns
   for (const [x, z, h, lx, r] of [[-0.5, 3, 6, 0, 1.6], [-3.5, 2, 5, -2.4, 1.3], [2.5, 2, 5, 2.4, 1.3], [-6, 0, 4, -3.4, 1.1], [5, 0, 4, 3.4, 1.1]]) {
     let top = 27;
@@ -329,16 +317,23 @@ function frostHybrid() {
     crystal(head, [x, top - 1, z], [x + lx, top + h, z - 1.5], r);
   }
   glowWhere(head, (x, y, z, c) => c === K.iceL);
-  // magenta bolt war-paint under the eyes
-  stamp(head, ['.M', 'MM', 'M.'], { M: MAG }, { axis: 'z', x: -7, y: 19, mirror: true, zmin: 2 });
+  // magenta bolt war-paint on the cheeks
+  stamp(head, ['.M', 'MM', 'M.'], { M: MAG }, { axis: 'z', x: -8, y: 20, mirror: true, zmin: 2 });
 
   // ------------------------------------------------------------ jaw: lower lip with up-tusks
   const JJ = [-0.5, 15.5, 4];
   const jaw = G();
-  blob(jaw, -0.5, 14, 6.5, 4.6, 1.8, 2.8, K.skinD, { p: 2.3 });
-  blob(jaw, -0.5, 13.6, 4.5, 6, 2.2, 3, furCol, { p: 2.2 });
-  for (const x of [-4, 3]) { jaw.set(x, 15, 8, TOOTH); jaw.set(x, 16, 8, TOOTH); jaw.set(x, 17, 8, TOOTH); }
-  for (let x = -3; x <= 2; x++) if (jaw.has(x, 15, 7) || jaw.has(x, 14, 8)) jaw.set(x, 15, 7, (x + 40) % 2 ? TOOTH : TONGUE);
+  blob(jaw, -0.5, 14, 4.5, 4.8, 1.8, 3.4, K.skinD, { p: 2.3 });
+  jaw.carve((x, y) => y > 14);
+  jaw.carve((x, y, z) => z > (frontZ(head, x, 16) ?? 9));
+  for (let x = -5; x <= 4; x++) {
+    let fz = null;
+    for (let z = 12; z >= 0; z--) if (jaw.has(x, 14, z)) { fz = z; break; }
+    if (fz === null) continue;
+    for (let z = 3; z < fz; z++) if (jaw.has(x, 14, z)) jaw.set(x, 14, z, Math.abs(x + 0.5) <= 2 ? TONGUE : MOUTH);
+    jaw.set(x, 15, fz, TOOTH);
+    if (x === -4 || x === 3) { jaw.set(x, 16, fz, TOOTH); jaw.set(x, 17, fz, TOOTH); jaw.set(x, 18, fz, TOOTH); }
+  }
 
   // ------------------------------------------------------------ arms: long shaggy arms with giant ice claws
   const arm = G();
@@ -365,7 +360,149 @@ function frostHybrid() {
   };
 }
 
+// ===========================================================================
+// Stone Hybrid: a walking boulder golem siege tank. The whole lumpy boulder is
+// its head and body: deep-set glowing eyes under a jutting stone brow, a
+// cavernous mouth of blocky stone teeth, a mossy top sprouting fusion
+// crystals, magenta war-bolts on its flanks and two massive smashing fists.
+function stoneHybrid() {
+  const K = {
+    rock: 0x8d95a8, rockD: 0x6b7286, rockL: 0xb0b8c8, rockDD: 0x4e5466, moss: 0x5cc23a, mossD: 0x3f9a26, mossL: 0x8ae05a,
+    crystal: 0x5ff0e0, crystalL: 0xd8fff8, crystalD: 0x22b8b0, eye: 0x7ffcf0, tooth: 0xe8ecf2, mouth: 0x1c1a2a, flower: 0xff7ccc,
+  };
+  // boulder shading: chunky facets (3-voxel cells) of light/mid/dark stone
+  const rockCol = (x, y, z) => {
+    const v = n3(Math.floor((x + 40) / 3), Math.floor((y + 40) / 3), Math.floor((z + 40) / 3), 21);
+    return v < 0.22 ? K.rockD : v > 0.8 ? K.rockL : K.rock;
+  };
+  const crystal = (g, a, b, r) => capsule(g, a, b, r, 0.35, (x, y, z, t) => (t > 0.65 ? K.crystalL : t > 0.25 ? K.crystal : K.crystalD));
+  const mossify = (g, minY, p = 0.7) => {
+    const tops = [];
+    g.forEach((x, y, z, c) => { if (y >= minY && !g.has(x, y + 1, z) && (c === K.rock || c === K.rockD || c === K.rockL) && n3(x, 0, z, 5) < p) tops.push([x, y, z]); });
+    for (const [x, y, z] of tops) {
+      g.set(x, y, z, n3(x, y, z, 6) < 0.25 ? K.mossD : n3(x, y, z, 7) < 0.2 ? K.mossL : K.moss);
+      if (n3(x, y, z, 8) < 0.35 && g.has(x, y - 1, z)) g.set(x, y - 1, z, K.moss);
+    }
+  };
+
+  // ------------------------------------------------------------ legs: stubby stone pillars
+  const leg = G();
+  blob(leg, -5, 5, -0.5, 3.4, 4, 3.6, rockCol, { p: 2.3 });
+  rbox(leg, -9, 0, -4, -1, 2, 4, 1.5, K.rockD);
+  for (const dx of [-3, 0, 3]) blob(leg, -5 + dx, 1, 4.2, 1.2, 1, 1, K.rockDD);
+  const legR = flipX(leg);
+
+  // ------------------------------------------------------------ body: the lumpy boulder with the face
+  const body = G();
+  blob(body, -0.5, 16, -1, 11.4, 9.8, 9.6, rockCol, { p: 2.2 });
+  for (const [x, y, z, r] of [[-7, 21, -3, 5], [6, 20, -4, 5], [-0.5, 23, -4, 6], [-8, 12, 2, 4.5], [7, 12, 2, 4.5], [-0.5, 10, -7, 6]]) blob(body, x, y, z, r, r * 0.9, r, rockCol, { p: 2.2 });
+  body.carve((x, y) => y < 6);
+  // jutting stone brow ledge
+  rbox(body, -10, 20, 5, 9, 22, 10, 1.5, K.rockD, { clip: (x, y, z) => Math.abs(x + 0.5) > 9.5 - Math.max(0, 8 - z) * 0.3 });
+  body.forEach((x, y, z) => { if (y === 20 && z >= 6 && Math.abs(x + 0.5) < 8) { const v = (x + 40) % 5; if (v === 0) body.set(x, 21, z, K.rockDD); } });
+  // deep eye sockets with glowing eyes, slanted angry
+  for (const s of [-1, 1]) {
+    const ex = s < 0 ? -4.5 : 3.5;
+    const fz = frontZ(body, Math.round(ex), 17) ?? 9;
+    for (let x = Math.round(ex) - 2; x <= Math.round(ex) + 2; x++) for (let y = 15; y <= 19; y++) {
+      const inner = s < 0 ? x - (Math.round(ex) - 2) : Math.round(ex) + 2 - x; // 0 outer .. 4 inner
+      if (y > 19 - Math.floor(inner * 0.6)) continue; // slant: lower towards the nose
+      const z0 = frontZ(body, x, y) ?? fz;
+      body.del(x, y, z0); body.del(x, y, z0 - 1);
+      body.set(x, y, z0 - 2, K.mouth);
+    }
+    blob(body, ex, 16.6, fz - 2, 1.5, 1.4, 1, K.eye, { glow: true });
+    body.set(Math.round(ex) + (s < 0 ? 1 : -1), 17, fz - 1, 0xffffff, true);
+  }
+  // cavernous mouth with blocky stone teeth
+  const mz = {};
+  for (let x = -9; x <= 8; x++) for (let y = 7; y <= 13; y++) {
+    const t = (y - 7) / 6;
+    if (Math.abs(x + 0.5) > 7.6 * (0.55 + 0.45 * Math.sqrt(t))) continue;
+    const z = frontZ(body, x, y);
+    if (z !== null) mz[x + ',' + y] = z;
+  }
+  for (const k in mz) { const [x, y] = k.split(',').map(Number); for (let d = 0; d < 4; d++) body.del(x, y, mz[k] - d); body.set(x, y, mz[k] - 4, K.mouth); }
+  for (const k in mz) {
+    const [x, y] = k.split(',').map(Number);
+    if (mz[x + ',' + (y + 1)] !== undefined) continue;
+    const blockTooth = ((x + 40) % 3) !== 2;
+    body.set(x, y, mz[k] - 1, blockTooth ? K.tooth : K.mouth);
+    if (blockTooth && ((x + 40) % 3) === 0) { body.set(x, y - 1, mz[k] - 1, K.tooth); body.set(x + 1, y - 1, mz[k] - 1, K.tooth); }
+  }
+  for (let x = -6; x <= 5; x++) body.set(x, 9, (frontZ(body, x, 9, -30, 30) ?? 6), K.crystalD, true); // glowing throat
+  // glowing crystal cracks
+  const crack = (pts, side) => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [y0, z0] = pts[i], [y1, z1] = pts[i + 1];
+      const n = Math.max(Math.abs(y1 - y0), Math.abs(z1 - z0));
+      for (let k = 0; k <= n; k++) {
+        const y = Math.round(y0 + (y1 - y0) * k / n), z = Math.round(z0 + (z1 - z0) * k / n);
+        for (let i2 = 0; i2 < 14; i2++) { const x = side < 0 ? -14 + i2 : 13 - i2; if (body.has(x, y, z)) { body.set(x, y, z, K.crystal, true); break; } }
+      }
+    }
+  };
+  crack([[22, -6], [19, -3], [17, -5], [13, -2], [10, -4]], -1);
+  crack([[23, -2], [20, -5], [16, -3], [12, -6]], 1);
+  // magenta war-bolts on the flanks
+  const BOLT = ['..MMM', '.MMM.', 'MMM..', 'MMMMM', '..MM.', '.MM..', 'MM...'];
+  stamp(body, BOLT, { M: MAG }, { axis: '-x', y: 20, z: 4 });
+  stamp(body, rev(BOLT), { M: MAG }, { axis: 'x', y: 20, z: 0 });
+  // moss cap with a little pink flower, and fusion crystals sprouting out of the top
+  mossify(body, 21, 0.75);
+  for (const [x, z, h, lx, lz, r] of [[-2, -4, 7, -1, -2, 2], [2.5, -6, 5, 2, -1, 1.6], [-6, -6, 4, -2.5, -1, 1.3], [5.5, -2, 3.5, 2, 0, 1.1]]) {
+    let top = 24;
+    for (let y = 40; y > 6; y--) if (body.has(Math.round(x), y, Math.round(z))) { top = y; break; }
+    crystal(body, [x, top - 1, z], [x + lx, top + h, z + lz], r);
+  }
+  glowWhere(body, (x, y, z, c) => c === K.crystalL);
+  {
+    let fy = 24; for (let y = 40; y > 6; y--) if (body.has(5, y, 3)) { fy = y; break; }
+    body.set(5, fy + 1, 3, K.mossD); body.set(5, fy + 2, 3, K.flower); body.set(4, fy + 2, 3, K.flower); body.set(6, fy + 2, 3, K.flower); body.set(5, fy + 2, 4, K.flower); body.set(5, fy + 2, 2, K.flower); body.set(5, fy + 3, 3, 0xffd23f);
+  }
+  gradY(body, 6, 26, -0.12, 0.06, (x, y, z, c) => c === K.rock || c === K.rockD || c === K.rockL);
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ jaw: heavy lower-lip slab with up-teeth
+  const JJ = [-0.5, 8, 2];
+  const jaw = G();
+  blob(jaw, -0.5, 6.5, 6, 7.4, 2.4, 4.6, rockCol, { p: 2.6 });
+  jaw.carve((x, y) => y > 7);
+  for (let x = -7; x <= 6; x++) {
+    let fz = null;
+    for (let z = 14; z >= 0; z--) if (jaw.has(x, 7, z)) { fz = z; break; }
+    if (fz === null) continue;
+    for (let z = 2; z < fz; z++) if (jaw.has(x, 7, z)) jaw.set(x, 7, z, K.mouth);
+    if (((x + 40) % 3) !== 1) { jaw.set(x, 8, fz, K.tooth); if (((x + 40) % 3) === 2) jaw.set(x, 9, fz, K.tooth); }
+  }
+
+  // ------------------------------------------------------------ arms: boulder shoulders, huge smashing fists
+  const arm = G();
+  blob(arm, -11.5, 17, 0, 3.6, 3.4, 3.6, rockCol, { p: 2.2 });
+  blob(arm, -13.5, 12.5, 1.5, 3, 3.2, 3, rockCol, { p: 2.2 });
+  blob(arm, -14.5, 7, 3.5, 4.9, 4.5, 4.9, (x, y, z) => (n3(Math.floor((x + 40) / 3), Math.floor((y + 40) / 3), Math.floor((z + 40) / 3), 22) < 0.3 ? K.rock : K.rockL), { p: 2.5 });
+  for (const dy of [-2, 0.4, 2.8]) blob(arm, -14.5, 7 + dy, 8.2, 1.6, 0.8, 0.8, K.rockDD); // knuckle grooves
+  for (const dy of [-2, 0.4, 2.8]) arm.set(-15, Math.round(7 + dy), 9, K.crystal, true);
+  mossify(arm, 19, 0.6);
+  crystal(arm, [-12, 20, -1], [-14, 24, -3], 1.2);
+  glowWhere(arm, (x, y, z, c) => c === K.crystalL);
+  const armR = flipX(arm);
+
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    parts: [
+      jp('legL', leg, [-5, 8, -0.5]), jp('legR', legR, [4, 8, -0.5]),
+      jp('body', body, [-0.5, 0, 0]),
+      jp('jaw', jaw, JJ, [-0.5, 0, 0], { parent: 'body', rot: [0.12, 0, 0] }),
+      jp('armL', arm, [-11.5, 17, 0], [-0.5, 0, 0], { parent: 'body' }),
+      jp('armR', armR, [10.5, 17, 0], [-0.5, 0, 0], { parent: 'body' }),
+    ],
+    muzzle: [-0.5, 10, 12],
+  };
+}
+
 export const FUSION_MODELS = {
   blazeHybrid,
   frostHybrid,
+  stoneHybrid,
 };

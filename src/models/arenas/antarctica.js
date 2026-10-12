@@ -218,7 +218,7 @@ const iceCliffGrid = (seed, W, H, D) => () => {
       else if (y < 2) c = C.iceD;
       else {
         const band = vnoise(x * 0.45, y * 0.07, seed);
-        c = band > 0.6 ? C.iceL : band > 0.38 ? C.ice : 0x6fb8e6;
+        c = band > 0.62 ? 0xa8e2fa : band > 0.38 ? 0x6cc0ee : 0x4c9edc;
         if (hash3(x, 0, seed + 4) < 0.05 && y < hgt - 3) c = C.iceD;
       }
       g.set(x - (W >> 1), y, z, c);
@@ -335,6 +335,16 @@ const driftGrid = () => {
     const hgt = r < 0.35 && x < 4 ? 3 : r < 0.7 ? 2 : 1;
     for (let y = 0; y < hgt; y++) g.set(x, y, z, y === hgt - 1 ? (hash3(x, y, z) < 0.3 ? C.snowW : C.snow) : C.snow2);
   }
+  return g;
+};
+
+/** Low jumble of pressure-ridge ice slabs (<= 4 voxels tall). */
+const iceRubbleGrid = () => {
+  const g = new VoxGrid();
+  g.box(-5, 0, -3, 2, 1, 1, (x, y, z) => (y === 1 && hash3(x, y, z) < 0.5 ? C.snowW : (x + z) % 4 === 0 ? C.iceL : C.ice));
+  g.box(0, 0, 0, 5, 2, 3, (x, y, z) => (y === 2 ? (hash3(x, 2, z) < 0.6 ? C.snowW : C.iceL) : z === 3 ? C.iceD : C.ice));
+  g.box(-3, 2, -2, -1, 3, 0, (x, y) => (y === 3 ? C.snowW : C.iceL));
+  g.box(-7, 0, 1, -5, 0, 3, C.snow);
   return g;
 };
 
@@ -897,9 +907,9 @@ export function buildBattle(K) {
   for (let i = 0; i < 26; i++) {
     const x = K.rand(-44, 44), z = K.rand(LH + 1.6, 16);
     if (crevasse(x, z) < 2.5) continue;
-    drifts.push([x, 0, z, K.rand(-0.5, 0.5), [K.rand(0.09, 0.14), K.rand(0.06, 0.08), K.rand(0.09, 0.12)]]);
+    drifts.push([x, 0, z, K.rand(0, 6), K.rand(0.7, 1.25)]);
   }
-  K.inst('drift', driftGrid, { scale: 1 }, drifts);
+  K.inst('iceRubble', iceRubbleGrid, { scale: 0.1 }, drifts);
   const chunks = [];
   for (let i = 0; i < 22; i++) chunks.push([K.rand(-40, 40), 0, K.rand(LH + 1.2, 13), K.rand(0, 6), K.rand(0.6, 1.1)]);
   K.inst('iceChunk', () => { const g = new VoxGrid(); g.box(-1, 0, -1, 1, 1, 0, (x, y) => (y ? C.iceL : C.ice)); g.set(0, 2, -1, C.iceL); return g; }, { scale: 0.12 }, chunks);
@@ -915,7 +925,7 @@ export function buildBattle(K) {
     fog: { color: 0x2a5c84, near: 70, far: 230 },
     lights: { sky: 0xa4bcec, ground: 0x4a5a84, hemi: 1.0, sun: 1.7, sunColor: 0xd0dcff, dir: [-6, 14, 10], rim: 0.85, rimColor: 0x8affd0 },
     dust: 0xf2f8ff,
-    bloom: { strength: 0.75, threshold: 1.16, radius: 0.5 },
+    bloom: { strength: 0.8, threshold: 1.7, radius: 0.25 },
   };
 }
 

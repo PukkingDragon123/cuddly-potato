@@ -2,8 +2,8 @@
 // billboards (camera-facing instanced quads with dithered fade, also used for
 // the locked-zone cloud cover) and distant islands as flat pixel-art cards.
 import * as THREE from 'three';
-import { skyTexture, paintSun, paintClouds, paintGradient, disc, px, bayer, canvas as mkCanvas } from '../arenas/kit.js';
-import { mulberry32, clamp, mixHex, shade } from '../../core/util.js';
+import { skyTexture, paintSun, paintClouds, disc, px, bayer, canvas as mkCanvas } from '../arenas/kit.js';
+import { mulberry32, shade } from '../../core/util.js';
 import { vnoise } from '../props/common.js';
 
 export const HORIZON = 0xd4f2ff;
@@ -204,7 +204,7 @@ export function makeDistantIslands(n = 7, radius = 520) {
     paintIsland(ctx, 160, 56, 100 + k * 7, kind);
     // atmospheric haze
     ctx.globalCompositeOperation = 'source-atop';
-    px(ctx, 0, 0, 160, 56, HORIZON, 0.42 + (k % 3) * 0.06);
+    px(ctx, 0, 0, 160, 56, HORIZON, 0.3 + (k % 3) * 0.06);
     ctx.globalCompositeOperation = 'source-over';
     const tex = new THREE.CanvasTexture(ctx.canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -223,4 +223,3 @@ export function makeDistantIslands(n = 7, radius = 520) {
   return group;
 }
 
-export { clamp, mixHex, paintGradient };

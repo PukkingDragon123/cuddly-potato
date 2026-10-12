@@ -441,7 +441,6 @@ function reactorRex() {
     const cz = (frontZ(head, Math.round(cx), 28.5) ?? 9) - 1;
     eyeBall(head, cx, 28.5, cz, [2.6, 3, 2], side, { pw: 2, ph: 2, inward: 0.5, browCol: K.brow, browT: 2, browOut: 1, browHi: 1.05, browLo: 0.3, white: 0xfff3a0 });
   }
-  glowWhere(head, (x, y, z, c) => c === 0xfff3a0, 0xfff3a0);
   // magenta bolt marks on the cheeks + small glowing crown spikes
   stamp(head, ['..MM', '.MM.', 'MMMM', '.MM.', 'MM..'], { M: MAG }, { axis: '-x', y: 28, z: 6 });
   stamp(head, ['MM..', '.MM.', 'MMMM', '.MM.', '..MM'], { M: MAG }, { axis: 'x', y: 28, z: 3 });

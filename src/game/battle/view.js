@@ -141,7 +141,7 @@ const stripeTex = () => {
   const t = pixelTex('stripes', 16, (ctx, s) => {
     for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
       const on = ((x + y) & 7) < 3;
-      ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)';
+      ctx.fillStyle = on ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.5)';
       ctx.fillRect(x, y, 1, 1);
     }
   });
@@ -495,16 +495,20 @@ export class BattleView {
       return ch;
     });
     // deploy zone overlay + ghost preview
-    const zmat = new THREE.MeshBasicMaterial({ map: stripeTex(), color: TEAM_COLORS[0], transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, fog: false });
+    const zmat = new THREE.MeshBasicMaterial({ map: stripeTex(), color: 0x4ab4ff, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, fog: false });
     this.zone = new THREE.Mesh(PLANE, zmat);
     this.zone.visible = false;
     scene.add(this.zone);
     const nmat = zmat.clone();
     nmat.color = new THREE.Color(0xff3d55);
-    nmat.opacity = 0.22;
+    nmat.opacity = 0.4;
     this.noZone = new THREE.Mesh(PLANE, nmat);
     this.noZone.visible = false;
     scene.add(this.noZone);
+    // bright front edge of the deploy zone
+    this.zoneEdge = new THREE.Mesh(PLANE, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, fog: false }));
+    this.zoneEdge.visible = false;
+    scene.add(this.zoneEdge);
     this.ghostMat = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.55, depthWrite: false });
     this.ghostRing = new THREE.Mesh(PLANE, decalMat(ringTex(), TEAM_COLORS[0], 1));
     this.ghostRing.visible = false;
@@ -611,7 +615,7 @@ export class BattleView {
   showDeployZone(range) {
     if (!this.zone) return;
     if (!range) {
-      this.zone.visible = this.noZone.visible = false;
+      this.zone.visible = this.noZone.visible = this.zoneEdge.visible = false;
       return;
     }
     const [a, b] = range;
@@ -624,6 +628,9 @@ export class BattleView {
     this.noZone.visible = nx1 > nx0;
     this.noZone.scale.set(nx1 - nx0, 1, zw);
     this.noZone.position.set((nx0 + nx1) / 2, 0.034, 0);
+    this.zoneEdge.visible = true;
+    this.zoneEdge.scale.set(0.12, 1, zw);
+    this.zoneEdge.position.set(b, 0.04, 0);
   }
 
   /** Translucent preview of the troop at x (null to hide). */
@@ -733,6 +740,11 @@ export class BattleView {
     for (const z of this.zones) z.update(gdt);
     this.zones = this.zones.filter((z) => !z.done);
     if (this.aimRing) this.aimRing.children[0].material.opacity = 0.16 + Math.sin(this.t * 6) * 0.06;
+    if (this.zone?.visible) {
+      this.zone.material.opacity = 0.45 + Math.sin(this.t * 5) * 0.1;
+      this.zoneEdge.material.opacity = 0.6 + Math.sin(this.t * 8) * 0.35;
+      this.zone.material.map.offset.x = -this.t * 0.4;
+    }
     this.updateCamera(dt);
   }
 

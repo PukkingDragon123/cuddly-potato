@@ -127,7 +127,8 @@ const reactorGrid = () => {
   for (let x = -30; x <= 30; x += 6) if (Math.abs(x) > 8) { g.box(x, 6, 12, x + 3, 9, 12, C.metalDD); g.box(x, 7, 11, x + 3, 8, 11, null); g.box(x + 1, 7, 12, x + 2, 8, 12, C.toxicL, true); }
   // big glowing core viewport
   g.box(-8, 4, 12, 7, 13, 12, C.metalDD);
-  g.box(-7, 5, 12, 6, 12, 12, (x, y) => ((x + y) % 4 === 0 ? C.toxicL : C.toxic), true);
+  g.box(-7, 5, 12, 6, 12, 12, (x, y) => ((x + y) % 4 === 0 ? C.toxicL : 0x7ad82e));
+  for (const [x, y] of [[-5, 10], [-3, 6], [2, 11], [4, 7], [5, 10], [-6, 7]]) g.set(x, y, 12, C.toxicL, true);
   g.box(-1, 5, 13, 0, 12, 13, C.metalD);
   g.box(-7, 8, 13, 6, 8, 13, C.metalD);
   // dome
@@ -575,7 +576,7 @@ export function buildBattle(K) {
     const spots = [[-17, 5.2, 2.2, 1], [-5.5, 7.4, 1.6, 0.8], [7, 4.6, 2.6, 0.9], [18.5, 6.8, 1.8, 1.1], [-27, 8, 2.4, 1.2], [29, 4.8, 2, 0.9], [-36, 5, 2, 1], [38, 7.5, 2.6, 1.1]];
     for (const [cx, cz, rx, rz] of spots) for (let x = Math.floor((cx - rx - 1) * 4); x <= (cx + rx + 1) * 4; x++) for (let z = Math.floor((cz - rz - 1) * 4); z <= (cz + rz + 1) * 4; z++) {
       const d = ((x / 4 - cx) / rx) ** 2 + ((z / 4 - cz) / rz) ** 2 + (vnoise(x * 0.3, z * 0.3, cx) - 0.5) * 0.5;
-      if (d < 0.3) g.set(x, 0, z, hash3(x, 1, z) < 0.06 ? C.toxicL : C.toxic, true);
+      if (d < 0.3) g.set(x, 0, z, hash3(x, 1, z) < 0.5 ? C.toxicL : C.toxic, hash3(x, 1, z) < 0.5);
       else if (d < 0.6) g.set(x, 0, z, d < 0.45 ? 0x7ad82e : 0x58b024);
       else if (d < 1.05) g.set(x, 0, z, d < 0.9 ? C.sludge : C.sludgeD);
     }
@@ -636,7 +637,7 @@ export function buildBattle(K) {
     fog: { color: 0xc8b878, near: 70, far: 210 },
     lights: { sky: 0xe8ecd4, ground: 0x5e5648, hemi: 1.1, sun: 2.2, sunColor: 0xffcc90, dir: [-9, 11, 8], rim: 0.8, rimColor: 0xb8ff7a },
     dust: 0xb8b8a0,
-    bloom: { strength: 0.5, threshold: 1.18, radius: 0.4 },
+    bloom: { strength: 0.6, threshold: 1.7, radius: 0.25 },
   };
 }
 
@@ -656,16 +657,17 @@ export function buildZone(K) {
     return g;
   }, { scale: 0.25, pivot: [0, 1, 0] }, 0, 0, 0);
   K.mesh('reactor', reactorGrid, { scale: 0.08 }, -0.5, 0, -2.6, 0.2, 1, { shadow: true });
-  K.mesh('coolTower', coolingTowerGrid, { scale: 0.12 }, -4.2, 0, -3.4);
-  K.mesh('stack', stackGrid, { scale: 0.1 }, 4.4, 0, -3.8);
-  addPlumes(K, [{ x: -4.2, y: 46 * 0.12, z: -3.4, r: 0.6, rise: 4, drift: 2, size: 1.0, life: 6, c0: 0xf4f8ec, c1: 0xb8c49a }, { x: 4.4, y: 6.4, z: -3.8, r: 0.2, rise: 3, drift: 2, size: 0.5, life: 4, c0: 0x5a5a50, c1: 0x9a9a84 }], 10, { seed: 6 });
+  K.mesh('coolTower', coolingTowerGrid, { scale: 0.085 }, -4.2, 0, -3.6);
+  K.mesh('stack', stackGrid, { scale: 0.065 }, 4.6, 0, -4.0);
+  addPlumes(K, [{ x: -4.2, y: 46 * 0.085, z: -3.6, r: 0.5, rise: 3, drift: 1.5, size: 0.55, life: 6, c0: 0xf4f8ec, c1: 0xc8ccb4 }, { x: 4.6, y: 64 * 0.065, z: -4.0, r: 0.15, rise: 2.5, drift: 1.5, size: 0.35, life: 4, c0: 0x4a4a44, c1: 0x8a8a7a }], 12, { seed: 6, opacity: 0.8 });
   // toxic pool with bubbles
   K.mesh('poolRim', () => {
     const g = new VoxGrid();
     for (let x = -14; x <= 13; x++) for (let z = -9; z <= 8; z++) {
       const d = ((x + 0.5) / 13.5) ** 2 + ((z + 0.5) / 8.5) ** 2;
       if (d > 1) continue;
-      g.set(x, 0, z, d > 0.72 ? (d > 0.86 ? C.concD : C.sludgeD) : C.toxic, d <= 0.72);
+      const gl = d <= 0.72 && hash3(x, 2, z) < 0.12;
+      g.set(x, 0, z, d > 0.72 ? (d > 0.86 ? C.concD : C.sludgeD) : gl ? C.toxicL : d > 0.5 ? 0x6ac82a : 0x8ae83a, gl);
     }
     return g;
   }, { scale: 0.13, pivot: [0, 0, 0] }, 2.6, 0.001, 2.6, 0, [1, 0.3, 1]);
@@ -673,9 +675,9 @@ export function buildZone(K) {
   K.inst('hazBarrel', barrelGrid(C.yellow, false), { scale: 0.08, ao: true }, [[-2.6, 0, 3.6, 0.3], [-3.4, 0, 2.8, 1.2], [-1.9, 0, 4.6, 2.1], [5, 0, 0.6, 0.5]], { shadow: true });
   K.mesh('leakBarrel', barrelGrid(0x3a9a3a, true), { scale: 0.08, ao: true }, -4.6, 0, 1.2, 0.4, 1, { shadow: true });
   K.inst('hazmat', hazmatGrid, { scale: 0.09, ao: true }, [[4.6, 0, 3.4, 0.2], [5.4, 0, 2.2, -0.4]], { shadow: true });
-  K.inst('radSign', radSignGrid, { scale: 0.06, ao: true }, [[0.6, 0, 5.4, 0], [-5.4, 0, -0.6, 0.8]], { shadow: true });
-  K.inst('pipeRun', pipeRunGrid, { scale: 0.06 }, [[-3.6, 0, 0.2, 0]], { shadow: true });
-  addBeacons(K, [[1.2, 3.4, -2.6, 0, C.red], [-5.4, 1.6, -0.6, 1.4]]);
+  K.inst('radSign', radSignGrid, { scale: 0.06, ao: true }, [[0.6, 0, 5.4, 0], [4.2, 0, 4.6, -0.4]], { shadow: true });
+  K.inst('pipeRun', pipeRunGrid, { scale: 0.05 }, [[-5.9, 0, 0.6, Math.PI / 2]], { shadow: true });
+  addBeacons(K, [[1.2, 3.4, -2.6, 0, C.red], [-5.9, 0.95, -3.3, 1.4]]);
   const anchor = (name, x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); o.name = name; K.root.add(o); K.hotspots[name] = o; return o; };
   anchor('boss', -1.2, 0, 3.6);
   anchor('npc', 3.2, 0, 5.0);

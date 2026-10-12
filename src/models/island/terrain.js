@@ -97,7 +97,7 @@ export function buildTerrain(spec) {
   // river distance (for the valley + calmer hills along it)
   const riverPts = densify(spec.river, 0.25);
   const rDist = new Float32Array(N).fill(99);
-  stamp(riverPts, 16, (id, d) => { if (d < rDist[id]) rDist[id] = d; });
+  stamp(riverPts.filter((_, k) => k % 4 === 0), 16, (id, d) => { if (d < rDist[id]) rDist[id] = d; });
   // zone RBF base height + hills + peaks
   const sig2 = 2 * 20 * 20;
   for (let j = 0; j < NZ; j++) {
@@ -260,8 +260,9 @@ export function buildTerrain(spec) {
   // ---------------------------------------------------------------- materials (per column)
   const biomeAt = (x, z, jit = 0) => {
     let best = null, bw = 0;
+    const bn = (fbm(x * 0.08, z * 0.08, 2, 31) - 0.5) * 0.5 + jit;
     for (const B of spec.biomes) {
-      const w = 1 - Math.hypot(x - B.x, z - B.z) / B.r + (fbm(x * 0.08, z * 0.08, 2, 31) - 0.5) * 0.5 + jit;
+      const w = 1 - Math.hypot(x - B.x, z - B.z) / B.r + bn;
       if (w > bw) { bw = w; best = B; }
     }
     return best;
@@ -276,7 +277,8 @@ export function buildTerrain(spec) {
       const B = biomeAt(x, z);
       let m = B ? B.mat : MAT.GRASS;
       const y = hv[id] * VY;
-      const beach = y <= 1.0 + (fbm(x * 0.1, z * 0.1, 2, 2) - 0.5) && landF[id] < 0.2 && cliffF[id] < 0.6;
+      const bn = vnoise(x * 0.1, 2, z * 0.1) - 0.5;
+      const beach = (y <= 1.0 + bn && landF[id] < 0.2 && cliffF[id] < 0.6) || (y <= 1.5 + bn && landF[id] < 0.1 && cliffF[id] < 0.75);
       if (beach && m !== MAT.SNOW) m = MAT.SAND;
       for (const [px, pz, , pr] of spec.peaks) if (Math.hypot(x - px, z - pz) < pr * 1.25 && y > 9) m = m === MAT.SNOW ? m : MAT.ROCK;
       if (roadD[id] < RW) m = MAT.ROAD;
@@ -507,80 +509,94 @@ function paintColorMap(T, spec) {
     [MAT.PLAZA]: [0xece0c0, 0xe2d4b0, 0xf4ead0, 0xfff6e0, 0xc8b48a],
   };
   const put = (o, hex) => { d[o] = (hex >> 16) & 255; d[o + 1] = (hex >> 8) & 255; d[o + 2] = hex & 255; d[o + 3] = 255; };
+  const lcache = new Map();
   const lighten = (hex, k) => {
-    const [r, g, b] = rgbOf(hex);
-    const f = (v) => clamp(Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)), 0, 255);
-    return (f(r) << 16) | (f(g) << 8) | f(b);
+    const key = hex * 8 + (k > 0.1 ? 1 : k > 0 ? 2 : k > -0.1 ? 3 : 4);
+    let v = lcache.get(key);
+    if (v === undefined) {
+      const [r, g, b] = rgbOf(hex);
+      const f = (q) => clamp(Math.round(k > 0 ? q + (255 - q) * k : q * (1 + k)), 0, 255);
+      v = (f(r) << 16) | (f(g) << 8) | f(b);
+      lcache.set(key, v);
+    }
+    return v;
   };
-  for (let tj = 0; tj < TH; tj++) {
-    const j = tj >> 1;
-    const z = Z0 + (tj + 0.5) * (CS / TPC);
-    for (let ti = 0; ti < TW; ti++) {
-      const i = ti >> 1;
+  const nb = (i, j) => (i < 0 || j < 0 || i >= NX || j >= NZ ? -2 : hv[j * NX + i]);
+  const TS = CS / TPC;
+  for (let j = 0; j < NZ; j++) {
+    const zc = Z0 + (j + 0.5) * CS;
+    for (let i = 0; i < NX; i++) {
       const id = j * NX + i;
-      const o = (tj * TW + ti) * 4;
-      const m = mat[id];
-      const x = X0 + (ti + 0.5) * (CS / TPC);
-      if (hv[id] < 1 && m !== MAT.CHANNEL) { put(o, 0x2a9ad8); continue; }
-      let c;
-      const hs = hash3(ti, tj, 17);
-      if (m === MAT.ROAD) {
-        const rd = roadD[id];
-        const gx = ((ti % 4) + 4) % 4, gz = ((tj % 4) + 4) % 4;
-        if (rd > RW - 0.32) c = 0xc79a5a; // curb
-        else if (rd > RW - 0.6) c = 0xf6e2b0;
-        else if (gx === 0 || gz === 0) c = 0xe0cc9c;
-        else c = ((ti >> 2) + (tj >> 2)) & 1 ? 0xfff4d8 : 0xfbe9c0;
-        if (hs < 0.04 && rd < RW - 0.6 && gx && gz) c = lighten(c, -0.05);
-      } else if (m === MAT.PLAZA) {
-        const B = spec.biomeById[T.colBiome[id]];
-        const P = B?.plaza ?? pal[MAT.PLAZA];
-        const gx = ((ti % 3) + 3) % 3, gz = ((tj % 3) + 3) % 3;
-        c = gx === 0 || gz === 0 ? P[1] : (((Math.floor(ti / 3) + Math.floor(tj / 3)) & 1) ? P[0] : P[2]);
-      } else {
-        const P = pal[m] ?? pal[MAT.GRASS];
-        const n = vnoise(x * 0.12, 3.3, z * 0.12) + (bayer(ti, tj) - 0.5) * 0.12;
-        c = n > 0.62 ? P[2] : n < 0.36 ? P[1] : P[0];
-        if (hs < 0.05) c = P[3];
-        else if (hs > 0.955) c = P[4];
-        if (m === MAT.GRASS || m === MAT.LUSH || m === MAT.PASTEL) {
-          const fl = hash3(ti >> 1, tj >> 1, 5);
-          const fz = vnoise(x * 0.09, 8.1, z * 0.09);
-          if (fz > (m === MAT.LUSH || m === MAT.PASTEL ? 0.55 : 0.66) && fl < 0.05 && ((ti + tj) & 1) === 0) c = m === MAT.PASTEL ? [0xff9ec8, 0xffffff, 0xffc2dc][Math.floor(fl * 60) % 3] : FLOWERS[Math.floor(fl * 100) % FLOWERS.length];
-        } else if (m === MAT.DESERT) {
-          if (Math.sin(x * 1.3 + z * 0.45 + vnoise(x * 0.2, 1, z * 0.2) * 4) > 0.8) c = P[1];
-        } else if (m === MAT.ASH) {
-          const cr = vnoise(x * 0.5, 2, z * 0.5);
-          if (cr > 0.48 && cr < 0.5) c = 0xff7a2a;
-          const pool = vnoise(x * 0.16, 9, z * 0.16);
-          if (pool > 0.74) c = pool > 0.78 ? 0x9dff3a : 0x5fdc4a;
-        } else if (m === MAT.SAND) {
-          // wet sand next to the sea
-          let wet = false;
-          for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const q = (j + dj) * NX + i + di;
-            if (q >= 0 && q < hv.length && hv[q] < 1 && mat[q] !== MAT.CHANNEL) wet = true;
-          }
-          if (wet) c = hs < 0.1 ? 0xffffff : 0xe2c88a;
-          if (hash3(ti, tj, 77) < 0.006) c = [0xff9e9e, 0xffffff, 0xffb070][Math.floor(hs * 3)];
-        } else if (m === MAT.SNOW) {
-          if (hash3(ti >> 2, tj >> 2, 31) < 0.03) c = 0xbfe0f6;
+      const m = mat[id], h = hv[id];
+      const xc = X0 + (i + 0.5) * CS;
+      if (h < 1 && m !== MAT.CHANNEL) {
+        for (let lj = 0; lj < 2; lj++) for (let li = 0; li < 2; li++) put((((j * 2 + lj) * TW) + i * 2 + li) * 4, 0x2a9ad8);
+        continue;
+      }
+      // per-column values
+      const P = m === MAT.PLAZA ? (spec.biomeById[T.colBiome[id]]?.plaza ?? pal[MAT.PLAZA]) : (pal[m] ?? pal[MAT.GRASS]);
+      const natural = m !== MAT.ROAD && m !== MAT.PLAZA;
+      const n0 = natural ? vnoise(xc * 0.12, 3.3, zc * 0.12) : 0;
+      let flower = -1;
+      if (m === MAT.GRASS || m === MAT.LUSH || m === MAT.PASTEL) {
+        const fl = hash3(i, j, 5);
+        const fz = vnoise(xc * 0.09, 8.1, zc * 0.09);
+        if (fz > (m === MAT.LUSH || m === MAT.PASTEL ? 0.55 : 0.66) && fl < 0.05) flower = m === MAT.PASTEL ? [0xff9ec8, 0xffffff, 0xffc2dc][Math.floor(fl * 60) % 3] : FLOWERS[Math.floor(fl * 100) % FLOWERS.length];
+      }
+      const dn = m === MAT.DESERT ? vnoise(xc * 0.2, 1, zc * 0.2) * 4 : 0;
+      const pool = m === MAT.ASH ? vnoise(xc * 0.2, 9, zc * 0.2) : 0;
+      let wet = false;
+      if (m === MAT.SAND) {
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ii = i + di, jj = j + dj;
+          const inGrid = ii >= 0 && jj >= 0 && ii < NX && jj < NZ;
+          if (!inGrid || (hv[jj * NX + ii] < 1 && mat[jj * NX + ii] !== MAT.CHANNEL)) wet = true;
         }
       }
-      // crisp voxel edges: lit rim where the ground drops, contact shade where it rises
-      const h = hv[id];
-      const li = ti & 1, lj = tj & 1;
-      const nb = (di, dj) => {
-        const ii = i + di, jj = j + dj;
-        if (ii < 0 || jj < 0 || ii >= NX || jj >= NZ) return -2;
-        return hv[jj * NX + ii];
-      };
-      const edgeN = (lj === 0 && nb(0, -1) < h) || (li === 0 && nb(-1, 0) < h);
-      const edgeS = (lj === 1 && nb(0, 1) < h) || (li === 1 && nb(1, 0) < h);
-      const wallN = (lj === 0 && nb(0, -1) > h) || (li === 0 && nb(-1, 0) > h) || (lj === 1 && nb(0, 1) > h) || (li === 1 && nb(1, 0) > h);
-      if (edgeS || edgeN) c = lighten(c, 0.14);
-      else if (wallN) c = lighten(c, -0.16);
-      put(o, c);
+      const hN = nb(i, j - 1), hS = nb(i, j + 1), hW = nb(i - 1, j), hE = nb(i + 1, j);
+      for (let lj = 0; lj < 2; lj++) for (let li = 0; li < 2; li++) {
+        const ti = i * 2 + li, tj = j * 2 + lj;
+        const o = (tj * TW + ti) * 4;
+        const x = X0 + (ti + 0.5) * TS, z = Z0 + (tj + 0.5) * TS;
+        const hs = hash3(ti, tj, 17);
+        let c;
+        if (m === MAT.ROAD) {
+          const rd = roadD[id];
+          const gx = ti & 3, gz = tj & 3;
+          if (rd > RW - 0.32) c = 0xc79a5a; // curb
+          else if (rd > RW - 0.6) c = 0xf6e2b0;
+          else if (gx === 0 || gz === 0) c = 0xe0cc9c;
+          else c = ((ti >> 2) + (tj >> 2)) & 1 ? 0xfff4d8 : 0xfbe9c0;
+          if (hs < 0.04 && rd < RW - 0.6 && gx && gz) c = lighten(c, -0.05);
+        } else if (m === MAT.PLAZA) {
+          const gx = ti % 3, gz = tj % 3;
+          c = gx === 0 || gz === 0 ? P[1] : (((Math.floor(ti / 3) + Math.floor(tj / 3)) & 1) ? P[0] : P[2]);
+        } else {
+          const n = n0 + (bayer(ti, tj) - 0.5) * 0.12;
+          c = n > 0.62 ? P[2] : n < 0.36 ? P[1] : P[0];
+          if (hs < 0.05) c = P[3];
+          else if (hs > 0.955) c = P[4];
+          if (flower >= 0 && ((ti + tj) & 1) === 0) c = flower;
+          else if (m === MAT.DESERT) {
+            if (Math.sin(x * 1.3 + z * 0.45 + dn) > 0.8) c = P[1];
+          } else if (m === MAT.ASH) {
+            const cr = vnoise(x * 0.5, 2, z * 0.5);
+            if (cr > 0.48 && cr < 0.5) c = 0xff7a2a;
+            if (pool > 0.77) c = pool > 0.8 ? (hs < 0.12 ? 0xeaffb0 : 0x8cff2a) : 0x2a6a2a;
+          } else if (m === MAT.SAND) {
+            if (wet) c = hs < 0.1 ? 0xffffff : 0xe2c88a;
+            if (hash3(ti, tj, 77) < 0.006) c = [0xff9e9e, 0xffffff, 0xffb070][Math.floor(hs * 3)];
+          } else if (m === MAT.SNOW) {
+            if (hash3(ti >> 2, tj >> 2, 31) < 0.03) c = 0xbfe0f6;
+          }
+        }
+        // crisp voxel edges: lit rim where the ground drops, contact shade where it rises
+        const edge = (lj === 0 && hN < h) || (li === 0 && hW < h) || (lj === 1 && hS < h) || (li === 1 && hE < h);
+        const wall = (lj === 0 && hN > h) || (li === 0 && hW > h) || (lj === 1 && hS > h) || (li === 1 && hE > h);
+        if (edge) c = lighten(c, 0.14);
+        else if (wall) c = lighten(c, -0.16);
+        put(o, c);
+      }
     }
   }
   ctx.putImageData(img, 0, 0);

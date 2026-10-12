@@ -19,7 +19,7 @@ export class IslandViewScene {
   }
   async enter(params) {
     this.params = params;
-    const I = (this.I = await makeBeastIsland());
+    const I = (this.I = await makeBeastIsland({ log: params.log ?? true }));
     this.scene.add(I.root);
     this.tris = countTris(I.root);
     this.scene.background = I.sky;
@@ -68,6 +68,9 @@ export class IslandViewScene {
     this.camera.position.copy(c.pos);
     this.camera.lookAt(c.look);
     this.fitShadow(c.look, this.mode === 'overview' ? 105 : 34);
+    const F = this.I.fogFor(c.pos.distanceTo(c.look));
+    this.scene.fog.near = F.near;
+    this.scene.fog.far = F.far;
   }
   fitShadow(target, ext) {
     const s = this.sun;

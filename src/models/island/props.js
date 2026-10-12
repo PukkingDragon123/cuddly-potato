@@ -3,10 +3,9 @@
 // vegetation brushes. All grids are meshed with the greedy mesher (no AO).
 import * as THREE from 'three';
 import { VoxGrid, Mats } from '../../core/voxel.js';
-import { text, textW, PAL } from '../props/common.js';
-import { treeGrid, rockGrid } from '../arenas/kit.js';
+import { text, textW } from '../props/common.js';
 import { greedyGeometry } from '../props/greedy.js';
-import { hash3, shade, mixHex, clamp } from '../../core/util.js';
+import { hash3, shade, clamp } from '../../core/util.js';
 
 export const geo = (id, fn, scale, pivot = 'bottom', jitter = 0.04) => greedyGeometry('isl_' + id, fn, { scale, pivot, jitter });
 
@@ -47,9 +46,10 @@ export function plinthGrid(color, dirs) {
       const line = o > A - 3 && !rim;
       const tile = ((Math.floor(x / 4) + Math.floor(z / 4)) & 1) ? stone : stoneL;
       const grout = ((x % 4) + 4) % 4 === 0 || ((z % 4) + 4) % 4 === 0;
-      g.set(x, -1, z, rim ? color : line ? gold : grout ? stoneD : tile);
+      const inner = o < A - 6; // hidden under the diorama: keep it one flat colour
+      g.set(x, -1, z, rim ? color : line ? gold : inner ? stone : grout ? stoneD : tile);
       g.set(x, -2, z, o > A - 1 ? colD : stone);
-      for (let y = -4; y <= -3; y++) g.set(x, y, z, o > A - 1 ? ((((x + z) >> 2) + y) & 1 ? stoneD : stone) : stone);
+      for (let y = -4; y <= -3; y++) g.set(x, y, z, stone);
     }
     for (const [dx, dz] of dirs) {
       const along = px * dx + pz * dz, perp = Math.abs(-px * dz + pz * dx);
@@ -156,8 +156,8 @@ export function lighthouseGrid() {
     const d = Math.hypot(x + 0.5, z + 0.5);
     if (d > 3.8) continue;
     const mull = (x === -1 || x === 0) && (z === -4 || z === 3) || (z === -1 || z === 0) && (x === -4 || x === 3);
-    if (d > 2.6) g.set(x, y, z, mull ? dark : 0xfff2a0, !mull);
-    else g.set(x, y, z, 0xffe680, true);
+    if (d > 2.6) g.set(x, y, z, mull ? dark : 0xfff2a0);
+    else g.set(x, y, z, 0xffe680, y === 37 || y === 38);
   }
   for (let y = 40; y <= 43; y++) g.cylinder(-0.5, -0.5, y, y, 4.4 - (y - 40) * 1.2, y === 40 ? dark : 0xc8202a);
   g.box(-1, 44, -1, 0, 45, 0, dark);
@@ -397,7 +397,7 @@ export function pantherHeadGrid() {
   // moss + weathering on upward faces
   g.paint((x, y, z, c) => {
     if (c === 0xff2e88 || c === 0x2e2a3a || c === 0xffffff || c === 0xff8ab4) return undefined;
-    if (!g.has(x, y + 1, z) && !g.has(x, y + 2, z) && hash3(x >> 2, y >> 1, z >> 2) < 0.3 && y < 40) return hash3(x, y, z) < 0.3 ? 0x7ccc5a : 0x5cb84a;
+    if (!g.has(x, y + 1, z) && !g.has(x, y + 2, z) && (y < 8 || (y > 30 && y < 36)) && hash3(x >> 2, y >> 2, z >> 2) < 0.35) return hash3(x, y, z) < 0.3 ? 0x7ccc5a : 0x5cb84a;
     return undefined;
   });
   return g;
@@ -429,17 +429,6 @@ export function candyCaneGrid() {
   }
   return g;
 }
-export function cactusGrid() {
-  const g = new VoxGrid();
-  const c = (x, y) => ((x + y) & 1 ? 0x4aa84a : 0x3e963e);
-  g.box(-1, 0, -1, 1, 14, 1, c);
-  g.box(2, 5, 0, 4, 6, 0, c);
-  g.box(4, 6, 0, 4, 11, 0, c);
-  g.box(-4, 8, 0, -2, 9, 0, c);
-  g.box(-4, 9, 0, -4, 12, 0, c);
-  g.set(0, 15, 0, 0xff6fb8);
-  return g;
-}
 export function deadTreeGrid() {
   const g = new VoxGrid();
   const c = 0x3a3446, cl = 0x4a4256;
@@ -455,34 +444,10 @@ export function crystalGrid() {
   for (const [x, z, h] of [[0, 0, 9], [2, 1, 6], [-2, -1, 5], [1, -2, 4]]) {
     for (let y = 0; y < h; y++) {
       const w = y > h - 3 ? 0 : 1;
-      g.box(x, y, z, x + w, y, z + w, y > h - 4 ? 0xd4ff9a : 0x7cff3a, true);
+      g.box(x, y, z, x + w, y, z + w, y > h - 3 ? 0xd4ff9a : 0x4fc83a, y > h - 3);
     }
   }
   g.box(-3, 0, -3, 3, 0, 2, 0x3a3446);
-  return g;
-}
-export function bushGrid(leaf = 0x4fb441) {
-  const g = new VoxGrid();
-  g.ellipsoid(0, 2, 0, 4, 3, 3.5, (x, y, z) => (y >= 4 ? shade(leaf, 0.2) : hash3(x, y, z) < 0.3 ? shade(leaf, -0.18) : leaf));
-  g.ellipsoid(3, 1.5, 1, 2.5, 2, 2.5, (x, y, z) => (y >= 3 ? shade(leaf, 0.2) : leaf));
-  g.carve((x, y) => y < 0);
-  return g;
-}
-export function flowerPatchGrid(seed = 1) {
-  const g = new VoxGrid();
-  const cols = [0xff4a5a, 0xffd23f, 0xffffff, 0xff6fb8, 0xb88cff];
-  for (let i = 0; i < 9; i++) {
-    const x = Math.round((hash3(i, seed, 1) - 0.5) * 9), z = Math.round((hash3(i, seed, 2) - 0.5) * 9);
-    const h = 1 + Math.floor(hash3(i, seed, 3) * 3);
-    g.box(x, 0, z, x, h - 1, z, 0x3f9e3a);
-    const c = cols[Math.floor(hash3(i, seed, 4) * cols.length)];
-    g.set(x, h, z, c).set(x + 1, h, z, c).set(x - 1, h, z, c).set(x, h, z + 1, c).set(x, h, z - 1, c).set(x, h + 1, z, 0xffe680);
-  }
-  return g;
-}
-export function tuftGrid(c = 0x4fb441) {
-  const g = new VoxGrid();
-  for (const [x, z, h] of [[0, 0, 3], [1, 1, 2], [-1, 0, 2], [0, -1, 2], [2, -1, 1]]) for (let y = 0; y < h; y++) g.set(x, y, z, y === h - 1 ? shade(c, 0.25) : c);
   return g;
 }
 export function lampGrid() {
@@ -520,25 +485,6 @@ export function icebergGrid(seed = 1) {
   }
   return g;
 }
-export function rockBrush(color, r = 3) {
-  return () => rockGrid({ color, r });
-}
-export function tree(kind, o = {}) {
-  return () => {
-    if (kind === 'palm') {
-      const g = treeGrid('palm', { leaf: o.leaf ?? 0x4cba3a, trunk: 0x9a6a3a, seed: o.seed ?? 1 });
-      // coconuts
-      g.set(2, 16, 1, 0x6e4224).set(1, 16, -1, 0x6e4224).set(3, 16, -1, 0x6e4224);
-      return g;
-    }
-    if (kind === 'round') return treeGrid('round', { leaf: o.leaf ?? 0x4cba3a, seed: o.seed ?? 1 });
-    if (kind === 'pine') return treeGrid('pine', { leaf: o.leaf ?? 0x3fae4a, snow: !!o.snow, seed: o.seed ?? 1 });
-    return treeGrid(kind, o);
-  };
-}
-
-export { PAL, mixHex };
-
 // ---------------------------------------------------------------------------
 // Low-triangle vegetation for the island scatter (chunky voxels, colour bands
 // per layer so the greedy mesher merges whole faces). ~30-200 tris each.

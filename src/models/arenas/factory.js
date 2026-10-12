@@ -219,7 +219,7 @@ const factoryGrid = () => {
     if (Math.abs(x + 1) < 9) continue;
     for (const y0 of [3, 11]) {
       g.box(x - 1, y0 - 1, D, x + 3, y0 + 5, D, C.cream);
-      g.box(x, y0, D, x + 2, y0 + 4, D, (xx, yy) => (yy === y0 + 2 ? 0xffb860 : 0xffd890), true);
+      g.box(x, y0, D, x + 2, y0 + 4, D, (xx, yy) => (yy === y0 + 2 ? 0xb07a40 : 0xc49a5c), true);
       g.box(x + 1, y0, D + 1, x + 1, y0 + 4, D + 1, C.cream);
     }
   }
@@ -682,7 +682,7 @@ export function buildBattle(K) {
     for (let y = 0; y < 5; y++) g.box(0, y, 0, 1, y, 1, ((y + 0) >> 0) & 1 ? C.red : C.cream);
     g.box(0, 5, 0, 1, 5, 2, C.red).box(0, 4, 2, 1, 4, 2, C.cream);
     return g;
-  }, { scale: 0.09, ao: true }, stubs, { shadow: true });
+  }, { scale: 0.08, ao: true }, stubs, { shadow: true });
   const sweets = [];
   for (let i = 0; i < 26; i++) sweets.push([K.rand(-26, 26), 0, K.rand(LH + 1, 11), K.rand(0, 6), K.rand(0.8, 1.2)]);
   for (let v = 0; v < 3; v++) K.inst('sweet' + v, () => {

@@ -338,7 +338,7 @@ const towerGrid = () => {
   g.box(-9, H + 2, 0, 8, H + 3, 1, C.black);
   for (const x of [-8, -2, 4]) {
     g.box(x, H + 4, -1, x + 3, H + 8, 2, 0x2b2a36);
-    g.box(x, H + 4, 3, x + 3, H + 8, 3, 0xc8c0a0, true);
+    g.box(x, H + 4, 3, x + 3, H + 8, 3, 0xe8dcb0, true);
   }
   g.box(-1, H + 9, 0, 0, H + 11, 0, C.metalD);
   g.set(-1, H + 12, 0, C.red, true);
@@ -865,7 +865,7 @@ export function buildBattle(K) {
   }, { scale: 0.115, pivot: [60, 0, 0] }, [[-16.2, 0, -27.5], [0, 0, -28.9], [16.2, 0, -27.5]]);
 
   // ---- the LAST TO LEAVE billboard, a fence and trees far behind
-  K.mesh('billboard', () => signGrid('LAST TO LEAVE', { textScale: 3, pad: 3, legH: 36, bg: C.red, frame: 0xffd23f, color: 0xc4c0b8, leg: 0x6b7386 }), { scale: 0.16 }, 0, 0, -38);
+  K.mesh('billboard', () => signGrid('LAST TO LEAVE', { textScale: 3, pad: 3, legH: 36, bg: C.red, frame: 0xffd23f, color: 0xffffff, leg: 0x6b7386 }), { scale: 0.16 }, 0, 0, -38);
   K.inst('fence', () => {
     const g = new VoxGrid();
     for (let x = 0; x < 30; x++) {
@@ -965,7 +965,7 @@ export function buildZone(K) {
   K.onUpdate((dt, t) => { const k = (t * 0.15) % 1; dm.rotation.y = -(k < 0.15 ? Math.sin((k / 0.15) * Math.PI) : 0) * 1.5; });
   K.inst('tripodZ', tripodGrid, { scale: 0.08, ao: true }, [[3.7, 0, 3.1, -0.7], [-1.7, 0, -2.4, 0.5]], { shadow: true, receive: false });
   K.mesh('towerZ', towerGrid, { scale: 0.07, ao: true }, -5.0, 0, -2.6, 0.6, 1, { shadow: true });
-  K.mesh('zoneBillboard', () => signGrid('LAST TO LEAVE', { textScale: 1, pad: 2, legH: 16, bg: C.red, frame: 0xffd23f, color: 0xc4c0b8 }), { scale: 0.13 }, 3.6, 0, -5.4, -0.35);
+  K.mesh('zoneBillboard', () => signGrid('LAST TO LEAVE', { textScale: 1, pad: 2, legH: 16, bg: C.red, frame: 0xffd23f, color: 0xffffff }), { scale: 0.13 }, 3.6, 0, -5.4, -0.35);
   // trees around the rim
   K.inst('zoneTree', () => treeGrid('round', { seed: 3, leaf: 0x62b444 }), { scale: 1 }, [[-5.7, 0, -2.0, 0.3, 0.17], [6.0, 0, -0.2, 1, 0.14], [-5.4, 0, 3.4, 2, 0.14]], { shadow: true });
   K.inst('zoneStake', () => {

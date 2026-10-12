@@ -25,7 +25,7 @@ export function finishMaterials(finish = 'toy') {
   let pair;
   if (finish === 'gloss') pair = Mats.toyGlossPair;
   else if (finish === 'metal') {
-    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.65, envMapIntensity: 1.4 });
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.65, envMapIntensity: 2.8 }); // env map is dimmed engine-side
     m.envMap = Mats.toy.envMap;
     pair = [m, Mats.glow];
   } else if (finish === 'translucent') {

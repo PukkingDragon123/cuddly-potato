@@ -4,11 +4,24 @@
 // plateau + octagonal plinth - up to Beast Island Paradise on the summit.
 //
 //   const I = await makeBeastIsland();
-//   scene.add(I.root); scene.background = I.sky; scene.fog = new THREE.Fog(I.fog.color, I.fog.near, I.fog.far);
-//   addLights(scene, I.lights); ... I.update(dt, t) every frame.
-//   I.zones[k].camPos / camLook frame zone k (3/4 top-down, fov ~35, landscape;
-//   push the camera back along camPos - camLook for portrait).
-//   I.setLocked('reactor', true); I.setLocked('reactor', false, { animate: true });
+//   scene.add(I.root); scene.background = I.sky;
+//   scene.fog = new THREE.Fog(I.fog.color, I.fog.near, I.fog.far);   // or I.fogFor(cameraDistance)
+//   addLights(scene, I.lights);   // then aim the sun's shadow box at the camera target (extent ~34 per zone)
+//   every frame: I.update(dt, t)
+//
+// API
+//   root           THREE.Group (terrain, ocean, river + waterfalls, road, bridges, plinths, dioramas, props, life)
+//   zones[k]       { id, index, name, trophies, color, group, center, camPos, camLook, hotspots, radius,
+//                    roadIndex (into roadPoints), focus (world), diorama }
+//                  camPos/camLook: 3/4 top-down framing for fov ~35 in landscape; for portrait push the
+//                  camera back along (camPos - camLook) by ~1/aspect (see src/dev/islandView.js).
+//   roadPoints     Vector3[] trophy-road polyline (1 unit spacing, y = walkable surface incl. bridges + plinth tops)
+//   setLocked(id, locked, { animate })  cloud cover + padlock + chains + greyed signpost; animate the unlock
+//   isLocked(id), heightAt(x, z), overview { camPos, camLook }, sky, fog, fogFor(dist), lights, dispose()
+//
+// Layout (x east, z south / toward the default camera): beach + dock + lighthouse in the south, the road
+// zig-zags north through the zones (heights 1 -> 23), the river runs from the summit lagoon over a tall
+// waterfall down to the south beach (two bridges), peaks + the giant panther monument guard the summit.
 import * as THREE from 'three';
 import { makeArenaZone } from '../arenas/index.js';
 import { Mats } from '../../core/voxel.js';
@@ -57,7 +70,7 @@ const CLOUDS_PER_ZONE = 22;
 const PAD_Y = 7.4, PAD_S = 0.22;
 
 /**
- * Build Beast Island. opts: { decor (default true), dioramas (default true) }
+ * Build Beast Island. opts: { decor (default true), dioramas (default true), seed, log (true | 'verbose') }
  */
 export async function makeBeastIsland(opts = {}) {
   const t0 = performance.now();
@@ -74,9 +87,9 @@ export async function makeBeastIsland(opts = {}) {
     lagoon: LAGOON, riverStartY: LAGOON[3] - 0.35, basins: BASINS,
     riverWidth: (u) => 1.05 + u * 1.25,
     roadHalf: 1.5,
-    log: opts.log !== false,
+    log: opts.log === 'verbose',
   });
-  const lap = (l) => { if (opts.log !== false) console.log(`[beastIsland] ${l} ${Math.round(performance.now() - t0)}ms`); };
+  const lap = (l) => { if (opts.log === 'verbose') console.log(`[beastIsland] ${l} ${Math.round(performance.now() - t0)}ms`); };
   lap('terrain');
   const terrainMats = [
     new THREE.MeshLambertMaterial({ map: T.colorTex }),
@@ -126,10 +139,10 @@ export async function makeBeastIsland(opts = {}) {
   });
   // bridges
   for (const B of bridges) {
-    const lenV = Math.round(B.len / 0.125);
+    const lenV = Math.round(Math.hypot(B.len, B.len * Math.tan(B.pitch)) / 0.125);
     const m = P.mesh(P.geo('bridge' + lenV, () => P.bridgeGrid(lenV, 3), 0.125, [0, 0, 0]), { receive: true });
     m.position.set(B.x0, B.y, B.z0);
-    m.rotation.y = B.ry;
+    m.rotation.set(-B.pitch, B.ry, 0, 'YXZ');
     m.name = 'bridge';
     root.add(m);
   }
@@ -169,6 +182,7 @@ export async function makeBeastIsland(opts = {}) {
     const localDirs = dirs.map((d) => [cs * d.x - sn * d.y, sn * d.x + cs * d.y]);
     const plinth = P.mesh(P.geo('plinth_' + Z.id, () => P.plinthGrid(Z.color, localDirs), 0.25, [0, 0, 0]), { receive: true, shadow: false });
     plinth.name = 'plinth';
+    plinth.position.y = -0.03; // dioramas put their ground at y = 0: avoid coplanar z-fighting
     group.add(plinth);
     const dio = dioramas[k];
     if (dio) group.add(dio.root);
@@ -309,24 +323,28 @@ export async function makeBeastIsland(opts = {}) {
         st.pad.position.y = PAD_Y + Math.sin(t * 1.1 + st.k) * 0.12;
       }
     }
-    zones.forEach((Z, k) => {
-      const st = lockState[Z.id];
-      if (Z.diorama && !st.locked) Z.diorama.update(dt, t);
-    });
+    for (const Z of zones) {
+      if (!Z.diorama || lockState[Z.id].locked || Z._broken) continue;
+      try {
+        Z.diorama.update(dt, t);
+      } catch (e) {
+        Z._broken = true; // keep the island animating if one diorama throws
+        console.error('island diorama update failed', Z.id, e);
+      }
+    }
   });
 
   // ------------------------------------------------------------------ sky clouds + distant islands
+  // sky clouds orbit over the open sea (never between a zone camera and its arena)
   const skyClouds = [];
   for (let i = 0; i < 16; i++) {
-    const a = R() * Math.PI * 2, r = 70 + R() * 150;
-    skyClouds.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, y: 36 + R() * 16, w: 26 + R() * 18, f: i % 4, flip: R() < 0.5 });
+    skyClouds.push({ a: (i / 16) * Math.PI * 2 + R() * 0.3, r: 112 + R() * 95, y: 26 + R() * 22, w: 26 + R() * 20, f: i % 4, flip: R() < 0.5, sp: 0.004 + R() * 0.004 });
   }
-  updaters.push((dt) => {
+  updaters.push((dt, t) => {
     for (let i = 0; i < skyClouds.length; i++) {
       const C = skyClouds[i];
-      C.x += dt * 1.6;
-      if (C.x > 230) C.x -= 460;
-      billboards.set(i, C.x, C.y, C.z, C.w, C.w * 0.5, C.f, 1, C.flip);
+      const a = C.a + t * C.sp;
+      billboards.set(i, Math.cos(a) * C.r, C.y, Math.sin(a) * C.r, C.w, C.w * 0.5, C.f, 1, C.flip);
     }
     billboards.commit();
   });
@@ -343,7 +361,7 @@ export async function makeBeastIsland(opts = {}) {
   addLife({ T, root, updaters, R });
 
   root.updateMatrixWorld(true);
-  if (opts.log !== false) console.log(`[beastIsland] built in ${Math.round(performance.now() - t0)}ms`);
+  if (opts.log) console.log(`[beastIsland] built in ${Math.round(performance.now() - t0)}ms`);
 
   return {
     root,
@@ -354,10 +372,24 @@ export async function makeBeastIsland(opts = {}) {
     update(dt, t) { for (const u of updaters) u(dt, t); },
     sky: makeSky(),
     fog: { color: HORIZON, near: 260, far: 900 },
+    /** Fog range that keeps the island crisp for a camera this far from its target. */
+    fogFor: (camDist) => ({ color: HORIZON, near: Math.max(260, camDist * 1.25), far: Math.max(900, camDist * 3.6) }),
     lights: { sky: 0xd8f0ff, ground: 0x8a7a5a, hemi: 1.15, sun: 2.5, sunColor: 0xfff0d6, dir: [34, 62, 44], rim: 0.7, rimColor: 0xa8dcff, shadowExtent: 34 },
     overview: { camPos: V(2, 172, 150), camLook: V(2, 2, 5) },
     heightAt: (x, z) => T.heightAt(x, z),
     terrain: T,
+    dispose() {
+      root.removeFromParent();
+      T.mesh.dispose();
+      T.colorTex.dispose();
+      T.distTex.dispose();
+      for (const m of terrainMats) m.dispose();
+      ocean.mesh.geometry.dispose();
+      ocean.mesh.material.dispose();
+      river.group.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.dispose(); } });
+      lagoon.geometry.dispose();
+      lagTex.dispose();
+    },
   };
 }
 
@@ -404,16 +436,17 @@ function findBridges(T) {
     if ((!w || k === road.length - 1) && k0 >= 0) {
       const a = Math.max(0, k0 - 6), b = Math.min(road.length - 1, k + 5);
       const A = road[a], B = road[b];
-      const ya = T.heightAt(A.x, A.z), yb = T.heightAt(B.x, B.z);
-      const y = Math.max(ya, yb) + 0.02;
+      const ya = T.heightAt(A.x, A.z) + 0.02, yb = T.heightAt(B.x, B.z) + 0.02;
       const len = Math.hypot(B.x - A.x, B.z - A.z);
-      const lenV = Math.round(len / 0.125);
       const ry = Math.atan2(B.x - A.x, B.z - A.z);
+      const pitch = Math.atan2(yb - ya, len);
       out.push({
-        k0: a, k1: b, x0: A.x, z0: A.z, y, len, ry,
-        deckAt: (kk) => y + Math.round(Math.sin(clamp((kk - a) / Math.max(1, b - a), 0, 1) * Math.PI) * 3) * 0.125,
+        k0: a, k1: b, x0: A.x, z0: A.z, y: ya, len, ry, pitch,
+        deckAt: (kk) => {
+          const u = clamp((kk - a) / Math.max(1, b - a), 0, 1);
+          return ya + (yb - ya) * u + Math.round(Math.sin(u * Math.PI) * 3) * 0.125;
+        },
       });
-      void lenV;
       k0 = -1;
     }
   }
@@ -489,8 +522,8 @@ function addLandmarks({ T, root, updaters, exclude }) {
   // --- giant panther head monument behind the summit arena, facing its camera
   const S8 = ZONES[8], sd = summitDir();
   const hx = S8.x - sd.x * 14, hz = S8.z - sd.y * 14;
-  const head = P.mesh(P.geo('pantherHead', P.pantherHeadGrid, 0.28, 'bottom'), { receive: true });
-  head.position.set(hx, T.minHeight(hx, hz, 3) - 0.8, hz);
+  const head = P.mesh(P.geo('pantherHead', P.pantherHeadGrid, 0.25, 'bottom'), { receive: true });
+  head.position.set(hx, T.minHeight(hx, hz, 3) - 1.2, hz);
   head.rotation.y = Math.atan2(sd.x, sd.y);
   head.name = 'pantherMonument';
   root.add(head);
@@ -572,9 +605,9 @@ function addDecor({ T, root, exclude, R }) {
     tuft: { fn: () => LP.tuft(0x4fb441), s: 0.12, items: [] },
   };
   const table = {
-    [MAT.GRASS]: [['round', 0.11], ['round2', 0.09], ['palm', 0.05], ['bush', 0.09], ['rock', 0.04], ['flowers', 0.05], ['flowers2', 0.04], ['tuft', 0.14]],
-    [MAT.LUSH]: [['palm', 0.14], ['palm2', 0.12], ['round2', 0.1], ['bush', 0.12], ['flowers', 0.12], ['flowers2', 0.1], ['tuft', 0.1]],
-    [MAT.PASTEL]: [['sakura', 0.2], ['pinkbush', 0.1], ['flowers2', 0.1], ['tuft', 0.12], ['round2', 0.05]],
+    [MAT.GRASS]: [['round', 0.095], ['round2', 0.08], ['palm', 0.05], ['bush', 0.06], ['rock', 0.04], ['flowers', 0.03], ['flowers2', 0.025], ['tuft', 0.06]],
+    [MAT.LUSH]: [['palm', 0.14], ['palm2', 0.12], ['round2', 0.08], ['bush', 0.08], ['flowers', 0.08], ['flowers2', 0.07], ['tuft', 0.05]],
+    [MAT.PASTEL]: [['sakura', 0.2], ['pinkbush', 0.08], ['flowers2', 0.07], ['tuft', 0.06], ['round2', 0.05]],
     [MAT.SAND]: [['palm', 0.08], ['palm2', 0.07], ['rock', 0.02]],
     [MAT.SNOW]: [['snowpine', 0.28], ['icerock', 0.06]],
     [MAT.DESERT]: [['cactus', 0.08], ['sandrock', 0.07], ['palm2', 0.02]],

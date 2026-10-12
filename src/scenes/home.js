@@ -1,0 +1,748 @@
+// Home lobby: the living 3D Beast Island (every arena is a diorama on the
+// trophy road) with the Clash Royale home UI on top — profile + currencies,
+// free / crown vials, the arena banner (swipe or arrows to browse the island),
+// the BATTLE button, boss challenges, 4 vial slots and the bottom nav whose
+// tabs (Shop, Cards, Lab, Pass) slide over the island.
+// Also plays the arena-unlock cinematic when the player reaches a new arena.
+import * as THREE from 'three';
+import './home.css';
+import { engine, addLights } from '../core/engine.js';
+import { audio } from '../core/audio.js';
+import { fx } from '../core/particles.js';
+import { h, icon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
+import { charPortrait } from '../ui/thumbs.js';
+import { cardEl } from '../ui/cards.js';
+import { makeBeastIsland } from '../models/island/beastIsland.js';
+import { createSwarm } from '../models/swarmModels.js';
+import { Chibi } from '../core/chibi.js';
+import { CHARACTERS } from '../data/characters.js';
+import { ARENAS, currentArena, bossOfArena, QUEST_NPC_ZONE, SECRETS } from '../data/arenas.js';
+import { VIALS, skipPrice } from '../data/vials.js';
+import { cardsOfArena, isSpell } from '../data/cards.js';
+import { SWARMS } from '../data/swarms.js';
+import {
+  state, labXpInfo, vialTimeLeft, isUnlocking, startUnlock, vialReady, skipVial, takeVial, freeVialStatus, claimFreeVial,
+  crownStatus, claimCrownVial, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
+} from '../game/state.js';
+import { game } from '../game/game.js';
+
+const TABS = [
+  { id: 'shop', label: 'SHOP', icon: 'shop' },
+  { id: 'cards', label: 'CARDS', icon: 'cards' },
+  { id: 'battle', label: 'BATTLE', icon: 'swords' },
+  { id: 'lab', label: 'LAB', icon: 'lab' },
+  { id: 'pass', label: 'PASS', icon: 'calorie' },
+];
+const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
+const fmtTime = (sec) => {
+  sec = Math.max(0, Math.ceil(sec));
+  if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
+  if (sec >= 60) return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+  return `${sec}s`;
+};
+const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const NPC_OF_ZONE = Object.fromEntries(Object.entries(QUEST_NPC_ZONE).map(([npc, z]) => [z, npc]));
+const ZONE_EXTRAS = { circle: 'fan', factory: 'labTech', redlight: 'guard', antarctica: 'labTech', reactor: 'labTech', pyramid: 'fan', island: 'fan' };
+
+// vial thumbnails come from the vial module (rendered 3D); fall back to the pixel icon
+// (optional modules are resolved with import.meta.glob so a missing file never breaks the build)
+const OPTIONAL = import.meta.glob(['../ui/vialThumb.js', '../ui/home/*.js']);
+const loadOpt = (path) => (OPTIONAL[path] ? OPTIONAL[path]() : Promise.reject(new Error('missing ' + path)));
+let vialThumbFn = null;
+loadOpt('../ui/vialThumb.js').then((m) => (vialThumbFn = m.vialThumb)).catch(() => {});
+function vialImg(type, cls = 'vt') {
+  if (vialThumbFn) {
+    try { return h('img', { class: cls, src: vialThumbFn(type, 160), draggable: 'false' }); } catch (e) { /* fall through */ }
+  }
+  return h('img', { class: cls + ' pi', src: iconURL('vial'), draggable: 'false' });
+}
+
+export class HomeScene {
+  constructor() {
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(35, engine.aspect, 0.5, 3000);
+    this.t = 0;
+    this.tab = 'battle';
+    this.cam = { pos: new THREE.Vector3(0, 80, 120), look: new THREE.Vector3() };
+    this.fly = null;
+    this.actors = [];
+    this.pickables = [];
+    this.tags = [];
+  }
+
+  // -------------------------------------------------------------------------
+  async enter(params = {}) {
+    this.params = params;
+    const p = state.p;
+    if (p.tutorial !== 'done' && p.tutorial !== 'home') {
+      // the first-time flow lives in the title scene
+      setTimeout(() => game.go('title', {}), 0);
+      return;
+    }
+    const I = (this.I = await makeBeastIsland({ log: false }));
+    this.scene.add(I.root);
+    this.scene.background = I.sky;
+    this.scene.fog = new THREE.Fog(I.fog.color, I.fog.near, I.fog.far);
+    const L = I.lights;
+    const { sun } = addLights(this.scene, { sky: L.sky, ground: L.ground, hemi: L.hemi, sun: L.sun, sunColor: L.sunColor, dir: L.dir, rimIntensity: L.rim, rimColor: L.rimColor, shadowExtent: 30, shadowFar: 400 });
+    this.sun = sun;
+    this.sunDir = new THREE.Vector3(...L.dir).normalize();
+    // arenas above the player's best are locked behind padlocks
+    const best = currentArena(p.bestTrophies).index;
+    if (params.skipUnlock) markArenaSeen(best); // dev: ?scene=home&skipUnlock=1
+    const pending = pendingArenaUnlock();
+    this.unlockTarget = pending ? pending.index : -1;
+    for (const z of I.zones) if (z.index > best || (pending && z.index >= pending.index)) I.setLocked(z.id, true);
+    this.zoneIdx = pending ? Math.max(0, pending.index - 1) : Math.min(best, params.zone ?? best);
+    this.placeZone(this.zoneIdx, true);
+    this.populate();
+
+    this.buildUI();
+    this.offState = state.on(() => this.refresh());
+    this.bindInput();
+    audio.music('map');
+    if (params.dev) window.__home = this;
+    if (pending) setTimeout(() => this.unlockCinematic(pending), 600);
+    else this.afterEnter();
+  }
+
+  async afterEnter() {
+    const p = state.p;
+    if (p.tutorial === 'home') {
+      p.tutorial = 'done';
+      state.save();
+      await wait(0.6);
+      const J = { name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) };
+      await say(J, 'Welcome to *BEAST ISLAND*! Every arena on this island is from one of my videos. Win battles to earn *trophies* and climb the road to the top!');
+      await say(J, 'Battles also win you *vials* full of Swarms. Upgrade your cards in the *CARDS* tab and build your best deck. Now go get some trophies!');
+      const off = pointAt(this.battleBtn, 'Battle!');
+      this.tutPtr = off;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 3D: camera framing, actors, hotspots
+
+  zoneCam(k) {
+    const Z = this.I.zones[k];
+    const off = Z.camPos.clone().sub(Z.camLook);
+    const a = this.camera.aspect;
+    off.multiplyScalar(a < 1 ? Math.min(2.1, 0.98 / a) : a < 1.4 ? 1.2 : 1);
+    const look = Z.camLook.clone();
+    // keep the diorama above the bottom dock in portrait
+    if (a < 1) look.y -= off.length() * 0.06;
+    return { pos: Z.camLook.clone().add(off), look };
+  }
+  placeZone(k, snap = false, dur = 1.6) {
+    const c = this.zoneCam(k);
+    this.zoneIdx = k;
+    if (snap) {
+      this.cam.pos.copy(c.pos);
+      this.cam.look.copy(c.look);
+      this.fly = null;
+    } else {
+      if (this.fly?.done) this.fly.done();
+      let done;
+      this.flyDone = new Promise((r) => (done = r));
+      this.fly = { from: { pos: this.cam.pos.clone(), look: this.cam.look.clone() }, to: c, t: 0, dur, done };
+      audio.play('whoosh', { pitch: 0.8 });
+    }
+    this.fitShadow(c.look);
+  }
+  fitShadow(target) {
+    const s = this.sun;
+    s.target.position.copy(target);
+    s.position.copy(target).addScaledVector(this.sunDir, 160);
+    const sc = s.shadow.camera;
+    const ext = 34;
+    sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext;
+    sc.near = 1; sc.far = 400;
+    sc.updateProjectionMatrix();
+    s.target.updateMatrixWorld();
+  }
+  hotspotPos(Z, name) {
+    const o = Z.hotspots?.[name];
+    if (!o) return null;
+    o.updateWorldMatrix(true, false);
+    return new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+  }
+
+  /** NPCs, boss gates, secret sparkles and your deck's Swarms roaming the zones. */
+  populate() {
+    const p = state.p;
+    const best = currentArena(p.bestTrophies).index;
+    for (const Z of this.I.zones) {
+      if (Z.index > best) continue;
+      const ground = (v) => v.setY(Math.max(v.y, this.I.heightAt(v.x, v.z)));
+      // quest NPC or a crowd extra
+      const npcId = NPC_OF_ZONE[Z.id] ?? ZONE_EXTRAS[Z.id];
+      const np = this.hotspotPos(Z, 'npc');
+      if (npcId && CHARACTERS[npcId] && np) {
+        const c = new Chibi(CHARACTERS[npcId], { scale: 1.6 });
+        c.root.position.copy(np);
+        c.root.lookAt(Z.camPos.x, np.y, Z.camPos.z);
+        c.play('idle');
+        this.scene.add(c.root);
+        const quest = !!NPC_OF_ZONE[Z.id] && npcId !== 'jimmy' ? npcId : null;
+        this.actors.push({ kind: 'npc', obj: c, update: (dt) => c.update(dt), zone: Z });
+        this.addPick(c.root, () => this.talkNpc(npcId, c, quest), { label: CHARACTERS[npcId].name ?? npcId, cls: quest ? 'quest' : '', iconName: quest ? 'quest' : 'smile', h: 3.2, zone: Z });
+      }
+      // boss gate
+      const boss = bossOfArena(Z.id);
+      const bp = this.hotspotPos(Z, 'boss');
+      if (boss && bp && boss.boss) {
+        const rig = createSwarm(boss.boss, { model: boss.bossModel, scale: 1.7 });
+        rig.root.position.copy(bp);
+        rig.root.lookAt(Z.camPos.x, bp.y, Z.camPos.z);
+        rig.setState('idle');
+        this.scene.add(rig.root);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.5, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff2e88, transparent: true, opacity: 0.7, depthWrite: false }));
+        ring.position.copy(bp).setY(bp.y + 0.06);
+        this.scene.add(ring);
+        this.actors.push({ kind: 'boss', obj: rig, update: (dt) => { rig.update(dt); ring.rotation.y += dt; ring.material.opacity = 0.5 + Math.sin(this.t * 3) * 0.25; }, zone: Z });
+        const defeated = !!p.bosses?.[boss.id];
+        this.addPick(rig.root, () => this.openBoss(boss.id), { label: defeated ? `${boss.name} ✓` : boss.name, cls: 'boss', iconName: 'skull', h: rig.height + 0.6, zone: Z });
+      }
+      // secrets hidden in this zone (sparkle until found)
+      for (const [sid, s] of Object.entries(SECRETS)) {
+        if (s.zone !== Z.id || p.secrets?.[sid]) continue;
+        const sp = this.hotspotPos(Z, sid);
+        if (!sp) continue;
+        const o = new THREE.Object3D();
+        o.position.copy(sp);
+        this.scene.add(o);
+        const st = { found: false };
+        this.actors.push({ kind: 'secret', obj: o, update: () => { if (!st.found && Math.random() < 0.08) fx.sparkle(sp, { count: 1, colors: [0xffd84a, 0xffffff], speed: 0.6, radius: 0.6 }); }, zone: Z });
+        this.addPick(o, () => { if (!st.found) { st.found = true; this.secretFound(sid, sp); } }, { label: '?', cls: 'secret', iconName: 'star', h: 0.6, zone: Z, radius: 1.6 });
+      }
+      // deck Swarms hanging out on your current arena
+      if (Z.index === best) this.spawnSquad(Z);
+    }
+  }
+
+  spawnSquad(Z) {
+    const ids = currentDeck().filter((id) => !isSpell(id)).slice(0, 4);
+    const center = Z.focus.clone();
+    const toCam = Z.camPos.clone().sub(Z.camLook).setY(0).normalize();
+    const side = new THREE.Vector3(-toCam.z, 0, toCam.x);
+    ids.forEach((id, i) => {
+      const d = deployInfo(id);
+      const rig = createSwarm(d.unit ?? id, { variant: d.variant, skin: d.skin, scale: 2.2 * (SWARMS[d.unit ?? id]?.size ?? 1) });
+      const home = center.clone().addScaledVector(toCam, 4.5 + (i % 2) * 1.2).addScaledVector(side, (i - (ids.length - 1) / 2) * 2.6);
+      home.y = Math.max(Z.center.y, this.I.heightAt(home.x, home.z));
+      rig.root.position.copy(home);
+      this.scene.add(rig.root);
+      const a = { kind: 'swarm', obj: rig, home, target: home.clone(), wait: Math.random() * 3, zone: Z, id };
+      a.update = (dt) => {
+        const pos = rig.root.position;
+        a.wait -= dt;
+        if (a.wait <= 0) {
+          a.wait = 2.5 + Math.random() * 4;
+          if (Math.random() < 0.3) { rig.attack(0.5); a.target.copy(pos); }
+          else a.target.copy(a.home).addScaledVector(side, (Math.random() - 0.5) * 3).addScaledVector(toCam, (Math.random() - 0.5) * 2);
+        }
+        const dx = a.target.x - pos.x, dz = a.target.z - pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 0.1) {
+          const sp = Math.min(dist, dt * 1.6);
+          pos.x += (dx / dist) * sp;
+          pos.z += (dz / dist) * sp;
+          const yaw = Math.atan2(dx, dz);
+          rig.root.rotation.y += ((yaw - rig.root.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(1, dt * 6);
+          rig.setState('walk');
+        } else {
+          rig.setState('idle');
+          const yaw = Math.atan2(toCam.x, toCam.z);
+          rig.root.rotation.y += ((yaw - rig.root.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(1, dt * 3);
+        }
+        rig.update(dt);
+      };
+      this.actors.push(a);
+      this.addPick(rig.root, () => {
+        rig.attack(0.5);
+        rig.boing(0.5);
+        audio.play(pickSound(id), { pitch: 0.9 + Math.random() * 0.3 });
+        fx.sparkle(rig.root.position.clone().setY(rig.root.position.y + rig.height * 0.8), { count: 8, speed: 2 });
+      }, { zone: Z, radius: 1.6 * (SWARMS[id]?.size ?? 1) });
+    });
+  }
+
+  addPick(obj, fn, o = {}) {
+    const pk = { obj, fn, zone: o.zone, radius: o.radius ?? 2, tag: null };
+    if (o.label) {
+      pk.tag = h('div', { class: `hm-tag ${o.cls ?? ''}` }, o.iconName ? icon(o.iconName) : null, o.label === '?' ? null : o.label);
+      pk.tagH = o.h ?? 2;
+    }
+    this.pickables.push(pk);
+  }
+
+  // -------------------------------------------------------------------------
+  // UI
+
+  buildUI() {
+    const p = state.p;
+    const root = (this.root = h('div', { class: 'home' }));
+    // top bar
+    this.lvlEl = h('div', { class: 'hm-lvl' }, '1');
+    this.nameEl = h('div', { class: 'nm' }, p.name);
+    this.xpBar = bar(0, 'blue', '');
+    const prof = h('div', { class: 'hm-prof hit', onclick: () => this.openModal('profile', 'openProfile') }, this.lvlEl, h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
+    this.coinPill = pill('coin', p.coins, { plus: () => this.setTab('shop') });
+    this.buckPill = pill('bucks', p.bucks, { plus: () => this.setTab('shop') });
+    root.appendChild(h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill));
+    // side buttons
+    this.freeEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => this.openFree() }, vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
+    this.crownEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => this.openCrown() }, icon('crown'), h('div', { class: 't' }, 'CROWNS'), bar(0, 'gold', '0/10'));
+    root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.crownEl));
+    root.appendChild(h('div', { class: 'hm-side right' },
+      button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only', { icon: 'gear' }),
+      button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only', { icon: 'friends' }),
+      button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only', { icon: 'road' })));
+    // tags over the island
+    this.tagLayer = h('div', { class: 'hm-tags' });
+    for (const pk of this.pickables) if (pk.tag) this.tagLayer.appendChild(pk.tag);
+    root.appendChild(this.tagLayer);
+    // dock: arena banner, battle row, vial slots, nav
+    this.prevBtn = button('', () => this.browse(-1), 'blue icon-only arr', { icon: 'arrowL' });
+    this.nextBtn = button('', () => this.browse(1), 'blue icon-only arr', { icon: 'arrowR' });
+    this.zArena = h('div', { class: 'an' }, 'ARENA 1');
+    this.zRibbon = ribbon('BEAST LAB', 'blue');
+    this.zTro = h('div', { class: 'zt' }, icon('trophy'), h('span', {}, String(p.trophies)));
+    this.zBox = h('div', { class: 'hm-zbox', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, this.zTro);
+    const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
+    this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Ranked - win trophies & vials', sound: 'go' });
+    this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
+    this.practiceBtn = button('TRAIN', () => game.go('battle', { mode: 'practice' }), 'gray lg hm-side-play', { icon: 'sword' });
+    const play = h('div', { class: 'hm-play' }, this.practiceBtn, this.battleBtn, this.bossBtn);
+    this.slotEls = [0, 1, 2, 3].map((i) => {
+      const el = h('div', { class: 'hm-slot sk-slot', onclick: () => this.tapSlot(i) });
+      return { el, key: null };
+    });
+    const slots = h('div', { class: 'hm-slots' }, this.slotEls.map((s) => s.el));
+    this.navBtns = TABS.map((t) => {
+      const b = h('button', { class: 'hm-tabbtn', type: 'button', onclick: () => { audio.play('tap'); this.setTab(t.id); } }, icon(t.icon), h('span', { class: 'tl' }, t.label));
+      b.dataset.tab = t.id;
+      return b;
+    });
+    this.nav = h('div', { class: 'hm-nav' }, this.navBtns);
+    this.dock = h('div', { class: 'hm-dock' }, zone, h('div', { class: 'hm-mid' }, play, slots), this.nav);
+    root.appendChild(this.dock);
+    $ui().appendChild(root);
+    this.setTab('battle', true);
+    this.refresh();
+  }
+
+  refresh() {
+    if (!this.root) return;
+    const p = state.p;
+    const xp = labXpInfo();
+    this.lvlEl.textContent = String(xp.level);
+    this.nameEl.textContent = p.name;
+    const xf = xp.max ? 1 : xp.xp / Math.max(1, xp.need);
+    this.xpBar.set(xf, xp.max ? 'MAX' : `${xp.xp}/${xp.need}`);
+    this.setPill(this.coinPill, p.coins);
+    this.setPill(this.buckPill, p.bucks);
+    this.updateZoneBanner();
+    this.updateSlots(true);
+    this.updateMinis();
+    this.updateBadges();
+    this.currentTab?.refresh?.();
+  }
+  setPill(el, v) {
+    const val = el.querySelector('.val');
+    const s = v.toLocaleString('en-US');
+    if (val.textContent !== s) {
+      val.textContent = s;
+      bump(el);
+    }
+  }
+
+  updateZoneBanner() {
+    const p = state.p;
+    const k = this.zoneIdx;
+    const A = ARENAS[k];
+    const best = currentArena(p.bestTrophies).index;
+    const locked = k > best || this.unlockTarget === k;
+    this.zArena.textContent = A.legendary ? 'LEGENDARY ARENA' : `ARENA ${k + 1}`;
+    this.zRibbon.querySelector('span').textContent = A.name.toUpperCase();
+    this.zRibbon.className = `ribbon sk-ribbon-${k % 3 === 0 ? 'blue' : k % 3 === 1 ? 'pink' : 'purple'}`;
+    this.zBox.classList.toggle('locked', locked);
+    this.zTro.innerHTML = '';
+    if (locked) this.zTro.append(icon('lock'), h('span', { class: 'lockt' }, `Unlocks at ${A.trophies}`), icon('trophy'));
+    else this.zTro.append(icon('trophy'), h('span', {}, p.trophies.toLocaleString('en-US')));
+    this.prevBtn.classList.toggle('off', k <= 0);
+    this.nextBtn.classList.toggle('off', k >= ARENAS.length - 1);
+    const boss = bossOfArena(A.id);
+    this.bossBtn.style.display = boss && !locked && p.trophies >= (boss.minTrophies ?? 0) ? '' : 'none';
+    this.practiceBtn.style.display = boss && !locked && p.trophies >= (boss.minTrophies ?? 0) ? 'none' : '';
+  }
+
+  updateMinis() {
+    const fs = freeVialStatus();
+    this.freeEl.classList.toggle('ready', fs.ready);
+    this.freeEl.querySelector('.t').textContent = fs.ready ? `FREE${fs.count > 1 ? ' x' + fs.count : ''}` : fmtTime(fs.nextIn);
+    const cs = crownStatus();
+    this.crownEl.classList.toggle('ready', cs.ready);
+    this.crownEl.querySelector('.bar').set(cs.crowns / cs.goal, cs.claimed ? 'DONE' : `${cs.crowns}/${cs.goal}`);
+    this.crownEl.querySelector('.t').textContent = cs.ready ? 'OPEN!' : 'CROWNS';
+  }
+
+  updateSlots(force = false) {
+    const v = state.p.vials;
+    const unlocking = isUnlocking();
+    this.slotEls.forEach((s, i) => {
+      const e = v.slots[i];
+      const ready = e && vialReady(i);
+      const left = e ? vialTimeLeft(i) : 0;
+      const mode = !e ? 'empty' : ready ? 'ready' : e.unlockStart ? 'unlocking' : 'locked';
+      const key = `${mode}|${e?.type}|${mode === 'unlocking' ? Math.ceil(left) : ''}|${mode === 'locked' ? unlocking : ''}`;
+      if (!force && key === s.key) return;
+      const rebuild = !s.key || s.key.split('|').slice(0, 2).join('|') !== key.split('|').slice(0, 2).join('|');
+      s.key = key;
+      if (rebuild) {
+        s.el.innerHTML = '';
+        s.el.className = `hm-slot sk-slot ${mode}`;
+        if (e) s.el.appendChild(vialImg(e.type));
+        s.st = h('div', { class: 'st' });
+        s.sn = h('div', { class: 'sn' });
+        s.el.append(s.st, s.sn);
+      }
+      if (mode === 'empty') { s.st.textContent = 'Vial slot'; s.sn.textContent = 'Win battles!'; }
+      else if (mode === 'ready') { s.st.textContent = 'OPEN'; s.sn.textContent = VIALS[e.type].name; }
+      else if (mode === 'unlocking') {
+        s.st.textContent = fmtTime(left);
+        s.sn.innerHTML = '';
+        s.sn.appendChild(h('span', { class: 'skip' }, icon('bucks'), String(skipPrice(left))));
+      } else {
+        s.st.textContent = unlocking ? fmtTime(VIALS[e.type].time) : 'Tap to unlock';
+        s.sn.textContent = unlocking ? VIALS[e.type].name : fmtTime(VIALS[e.type].time);
+      }
+    });
+  }
+
+  async updateBadges() {
+    try {
+      const m = await loadOpt('../ui/home/badges.js');
+      const b = m.badges();
+      for (const btn of this.navBtns) {
+        btn.querySelector('.badge')?.remove();
+        const n = b[btn.dataset.tab] ?? 0;
+        if (n > 0) btn.appendChild(h('div', { class: 'badge' }, n > 9 ? '9+' : String(n)));
+      }
+    } catch (e) { /* screens not available yet */ }
+  }
+
+  // -------------------------------------------------------------------------
+  // Tabs and modals
+
+  ctx() {
+    return {
+      refresh: () => this.refresh(),
+      openTab: (n) => this.setTab(n),
+      openVial: (o) => this.openVial(o.type, o.slot, o.source),
+      battle: (params) => game.go('battle', params),
+      focusArena: (id) => {
+        document.querySelectorAll('.modal-back').forEach((m) => m.remove());
+        this.setTab('battle');
+        const k = ARENAS.findIndex((a) => a.id === id);
+        if (k >= 0) { this.placeZone(k); this.updateZoneBanner(); }
+      },
+      toast,
+    };
+  }
+
+  async setTab(id, instant = false) {
+    const prevIdx = TABS.findIndex((t) => t.id === this.tab);
+    const idx = TABS.findIndex((t) => t.id === id);
+    this.tab = id;
+    this.navBtns.forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
+    if (this.currentTab) { try { this.currentTab.dispose?.(); } catch (e) { console.error(e); } this.currentTab = null; }
+    this.tabEl?.remove();
+    this.tabEl = null;
+    this.root.classList.toggle('tabbed', id !== 'battle');
+    if (id === 'battle') return;
+    const el = (this.tabEl = h('div', { class: `hm-tab ${idx < prevIdx ? 'from-left' : ''}` }));
+    this.layoutTab();
+    this.root.insertBefore(el, this.dock);
+    if (instant) el.style.animation = 'none';
+    try {
+      const mod = await loadOpt(`../ui/home/${id}.js`);
+      if (this.tab !== id || this.tabEl !== el) return;
+      this.currentTab = mod.mount(el, this.ctx());
+    } catch (e) {
+      console.warn('tab unavailable', id, e);
+      el.appendChild(h('div', { class: 'hm-soon' }, icon(TABS[idx].icon, 'xl'), h('div', { class: 't-d outline t-xl' }, TABS[idx].label), h('div', { class: 'c-muted' }, 'Coming soon!')));
+    }
+  }
+  layoutTab() {
+    if (!this.tabEl) return;
+    const top = this.root.querySelector('.hm-top').getBoundingClientRect().bottom;
+    const bottom = this.nav.getBoundingClientRect().top;
+    this.tabEl.style.top = top + 'px';
+    this.tabEl.style.height = Math.max(100, bottom - top) + 'px';
+  }
+
+  async openModal(file, fn, ...args) {
+    try {
+      const mod = await loadOpt(`../ui/home/${file}.js`);
+      return mod[fn](...args, this.ctx());
+    } catch (e) {
+      console.warn('screen unavailable', file, e);
+      toast('Coming soon!', { icon: 'clock' });
+    }
+  }
+  openBoss(bossId) {
+    if (!bossId) return;
+    this.openModal('boss', 'openBoss', bossId);
+  }
+
+  // -------------------------------------------------------------------------
+  // Vials
+
+  openVial(type, slot = null, source = 'slot') {
+    if (slot !== null && slot !== undefined) takeVial(slot);
+    state.save();
+    game.go('vialopen', { type, slot, source, back: 'home' });
+  }
+  tapSlot(i) {
+    const e = state.p.vials.slots[i];
+    if (!e) { toast('Win battles to earn *vials*!', { icon: 'vial' }); return; }
+    if (vialReady(i)) { audio.play('pop'); this.openVial(e.type, i, 'slot'); return; }
+    const V = VIALS[e.type];
+    const left = vialTimeLeft(i);
+    const unlocking = e.unlockStart && left > 0;
+    const price = skipPrice(left);
+    const info = h('div', { class: 'col center' },
+      vialImg(e.type, 'vt-big'),
+      h('div', { class: 'c-muted center-t t-sm' }, V.desc ?? ''),
+      h('div', { class: 'row center wrap' },
+        h('span', { class: 'row', style: { gap: '0.2em' } }, icon('cards'), `x${V.cards} cards`),
+        h('span', { class: 'row', style: { gap: '0.2em' } }, icon('coin'), `${V.coins[0]}-${V.coins[1]}`),
+        V.bucks ? h('span', { class: 'row', style: { gap: '0.2em' } }, icon('bucks'), `${V.bucks}`) : null),
+      h('div', { class: 't-d outline t-lg' }, unlocking ? `${fmtTime(left)} left` : `Unlock time: ${fmtTime(V.time)}`));
+    const big = info.querySelector('.vt-big');
+    if (big) Object.assign(big.style, { width: 'calc(var(--u) * 30)', height: 'calc(var(--u) * 30)' });
+    const foot = [];
+    if (!unlocking && !isUnlocking()) foot.push(button('START UNLOCK', () => { startUnlock(i); m.close(); audio.play('tick'); this.refresh(); }, 'green lg', { icon: 'clock' }));
+    foot.push(button('OPEN NOW', () => {
+      if (!skipVial(i, price)) { toast('Not enough *Beast Bucks*!', { icon: 'bucks' }); return; }
+      m.close();
+      this.openVial(e.type, i, 'slot');
+    }, 'purple lg', { price: { cur: 'bucks', amount: price } }));
+    const m = modal({ title: V.name.toUpperCase(), color: 'blue', size: 'narrow', body: info, foot });
+  }
+  openFree() {
+    const fs = freeVialStatus();
+    if (!fs.ready) { toast(`Next free vial in *${fmtTime(fs.nextIn)}*`, { icon: 'clock' }); return; }
+    claimFreeVial();
+    this.openVial('free', null, 'free');
+  }
+  openCrown() {
+    const cs = crownStatus();
+    if (cs.ready) { claimCrownVial(); this.openVial('crown', null, 'crown'); return; }
+    toast(cs.claimed ? 'Crown Case opened today - come back tomorrow!' : `Earn *${cs.goal - cs.crowns}* more crowns to open the Crown Case!`, { icon: 'crown' });
+  }
+
+  // -------------------------------------------------------------------------
+  // Island interactions
+
+  browse(d) {
+    const k = Math.max(0, Math.min(ARENAS.length - 1, this.zoneIdx + d));
+    if (k === this.zoneIdx) return;
+    this.placeZone(k);
+    this.updateZoneBanner();
+  }
+  battle() {
+    if (this.tutPtr) { this.tutPtr(); this.tutPtr = null; }
+    const best = currentArena(state.p.bestTrophies).index;
+    // ranked battles always happen in your current arena (like Clash Royale)
+    game.go('battle', { mode: 'ranked', arena: ARENAS[Math.min(best, currentArena(state.p.trophies).index)].id });
+  }
+
+  async talkNpc(npcId, chibi, questNpc) {
+    const ch = CHARACTERS[npcId];
+    const who = { name: ch.name ?? npcId, color: '#ff8a1f', portrait: charPortrait(npcId, { eyes: 'happy', mouth: 'grin' }), chibi };
+    chibi.play('wave', { restart: true, dur: 1.2, then: 'idle' });
+    audio.play('pop');
+    if (!questNpc) {
+      const lines = ['This island is AMAZING. Jimmy built all of it!', 'Have you seen the Beast Tiger? It does NOT like being tapped.', 'Rumour says there are secrets hidden on every arena...', 'Win 3-crown victories to fill your Crown Case faster!'];
+      speech(chibi, lines[Math.floor(Math.random() * lines.length)], 3);
+      return;
+    }
+    const st = questState(questNpc);
+    if (!st) return;
+    if (st.finished) { await say(who, "You've done everything I asked. You're a legend!"); return; }
+    if (!st.accepted) {
+      const r = await say(who, `*${st.quest.title}*: ${st.text}`, { choices: [{ label: 'Accept', cls: 'green' }, { label: 'Later', cls: 'gray' }] });
+      if (r === 0) { acceptQuest(questNpc); toast('Quest accepted!', { icon: 'quest' }); this.refresh(); }
+      return;
+    }
+    if (st.done) {
+      const rewards = completeQuest(questNpc);
+      audio.play('levelUp');
+      fx.confetti(chibi.root.position.clone().setY(chibi.root.position.y + 3), { count: 50 });
+      await say(who, `You did it! Here's your reward: ${(rewards || []).map((x) => x.label ?? '').filter(Boolean).join(', ') || 'thanks!'}`);
+      this.refresh();
+      return;
+    }
+    await say(who, `${st.text} (${st.prog}/${st.need}) - keep going!`);
+  }
+
+  secretFound(id, pos) {
+    const r = findSecret(id);
+    if (!r) return;
+    audio.play('levelUp');
+    fx.sparkle(pos, { count: 40, colors: [0xffd84a, 0xffffff, 0xff7ac0], speed: 4, radius: 1 });
+    fx.confetti(pos.clone().setY(pos.y + 2), { count: 40 });
+    bigBanner('SECRET FOUND!', r.secret.name, { dur: 2, color: '#ffd84a' });
+    state.save();
+    this.refresh();
+  }
+
+  // -------------------------------------------------------------------------
+  // Arena unlock cinematic: fly up the trophy road, padlock bursts, banner
+
+  async unlockCinematic(A) {
+    const k = A.index;
+    this.root.style.visibility = 'hidden';
+    await wait(0.4);
+    this.placeZone(k, false, 2.6);
+    await this.flyDone;
+    await wait(0.2);
+    const I = this.I;
+    I.setLocked(A.id, false, { animate: true });
+    audio.play('shatter');
+    await wait(1.0);
+    engine.shake(0.4);
+    audio.play('levelUp');
+    audio.play('cheer');
+    const Z = I.zones[k];
+    fx.confetti(Z.focus.clone().setY(Z.focus.y + 8), { count: 140, spread: 4 });
+    const cards = cardsOfArena(A.id).slice(0, 6);
+    const ov = h('div', { class: 'hm-unlock' },
+      h('div', { class: 'new' }, 'NEW ARENA UNLOCKED!'),
+      h('div', { class: 'nm' }, A.name.toUpperCase()),
+      h('div', { class: 'vid' }, `Inspired by "${A.video}"`),
+      cards.length ? h('div', { class: 'cards' }, cards.map((c, i) => { const el = cardEl(c.id, { locked: false, owned: { level: 1 }, noLevel: true }); el.style.animationDelay = `${0.8 + i * 0.12}s`; return el; })) : null,
+      button('AWESOME!', () => close(), 'yellow lg', { icon: 'star' }));
+    $overlay().appendChild(ov);
+    let done;
+    const close = () => { ov.remove(); done(); };
+    await new Promise((r) => (done = r));
+    markArenaSeen(k);
+    this.unlockTarget = -1;
+    state.save();
+    // more than one arena behind? play the next one too
+    const next = pendingArenaUnlock();
+    if (next) {
+      this.unlockTarget = next.index;
+      return this.unlockCinematic(next);
+    }
+    this.root.style.visibility = '';
+    for (const a of this.actors) if (a.kind === 'swarm') this.scene.remove(a.obj.root);
+    this.actors = this.actors.filter((a) => a.kind !== 'swarm');
+    this.pickables = this.pickables.filter((pk) => pk.zone?.index !== -1);
+    this.spawnSquad(I.zones[k]);
+    this.refresh();
+    this.afterEnter();
+  }
+
+  // -------------------------------------------------------------------------
+  // Input: swipe to browse arenas, tap actors / NPCs / bosses / secrets
+
+  bindInput() {
+    const c = engine.canvas;
+    this.onDown = (e) => {
+      if (this.tab !== 'battle') return;
+      this.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+    };
+    this.onUp = (e) => {
+      const p = this.ptr;
+      if (!p || p.id !== e.pointerId) return;
+      this.ptr = null;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) { this.browse(dx < 0 ? 1 : -1); return; }
+      if (Math.hypot(dx, dy) < 12) this.tapWorld(e.clientX, e.clientY);
+    };
+    c.addEventListener('pointerdown', this.onDown);
+    window.addEventListener('pointerup', this.onUp);
+  }
+  tapWorld(x, y) {
+    let best = null, bd = Infinity;
+    const v = new THREE.Vector3();
+    for (const pk of this.pickables) {
+      pk.obj.getWorldPosition(v);
+      const s = engine.toScreen(v.clone().setY(v.y + (pk.tagH ?? 1) * 0.4), this.camera);
+      if (!s.visible) continue;
+      const d = Math.hypot(s.x - x, s.y - y);
+      const scaled = 26 + pk.radius * 18;
+      if (d < scaled && d < bd) { bd = d; best = pk; }
+    }
+    if (best) best.fn();
+  }
+
+  // -------------------------------------------------------------------------
+
+  resize(w, hh) {
+    this.camera.aspect = w / hh;
+    this.camera.updateProjectionMatrix();
+    if (this.I && !this.fly) this.placeZone(this.zoneIdx, true);
+    this.layoutTab();
+  }
+
+  update(dt) {
+    if (!this.I) return;
+    this.t += dt;
+    this.I.update(dt, this.t);
+    // camera: fly between zones, then gently sway
+    if (this.fly) {
+      const f = this.fly;
+      f.t += dt / f.dur;
+      const k = ease(Math.min(1, f.t));
+      this.cam.pos.lerpVectors(f.from.pos, f.to.pos, k);
+      this.cam.pos.y += Math.sin(k * Math.PI) * f.from.pos.distanceTo(f.to.pos) * 0.18;
+      this.cam.look.lerpVectors(f.from.look, f.to.look, k);
+      if (f.t >= 1) { this.fly = null; f.done?.(); }
+    }
+    const sway = 0.035;
+    const off = this.cam.pos.clone().sub(this.cam.look);
+    off.applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(this.t * 0.13) * sway);
+    this.camera.position.copy(this.cam.look).add(off);
+    this.camera.position.y += Math.sin(this.t * 0.4) * 0.15;
+    this.camera.lookAt(this.cam.look);
+    for (const a of this.actors) a.update?.(dt);
+    // world tags
+    const v = new THREE.Vector3();
+    for (const pk of this.pickables) {
+      if (!pk.tag) continue;
+      pk.obj.getWorldPosition(v);
+      v.y += pk.tagH;
+      const s = engine.toScreen(v, this.camera);
+      const near = this.camera.position.distanceTo(v) < 140;
+      if (!s.visible || !near || this.tab !== 'battle') { pk.tag.style.display = 'none'; continue; }
+      pk.tag.style.display = '';
+      pk.tag.style.transform = `translate(${Math.round(s.x)}px, ${Math.round(s.y)}px)`;
+    }
+    // timers
+    this.tickT = (this.tickT ?? 0) - dt;
+    if (this.tickT <= 0) {
+      this.tickT = 1;
+      this.updateSlots();
+      this.updateMinis();
+    }
+  }
+
+  exit() {
+    const c = engine.canvas;
+    c.removeEventListener('pointerdown', this.onDown);
+    window.removeEventListener('pointerup', this.onUp);
+    this.offState && this.offState();
+    try { this.currentTab?.dispose?.(); } catch (e) { /* ignore */ }
+    if (this.tutPtr) this.tutPtr();
+  }
+}
+
+function pickSound(id) {
+  const role = SWARMS[id]?.role;
+  return role === 'tank' ? 'growl' : role === 'ranged' ? 'zap' : 'bite';
+}
