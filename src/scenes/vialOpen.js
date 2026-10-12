@@ -20,7 +20,7 @@ import { fx } from '../core/particles.js';
 import { animate } from '../core/tween.js';
 import { damp, rand, pick, fmt } from '../core/util.js';
 import { Mats, makeMesh } from '../core/voxel.js';
-import { G, rbox, cyl, capsule, stamp, shade, n3, BOLT_SMALL } from '../models/kit.js';
+import { G, rbox, cyl, capsule, stamp, shade, n3 } from '../models/kit.js';
 import { makeVial, LAB_BADGE } from '../models/props/vials.js';
 import { makeBeaker, makeMoneyBag, makeSodaRocket, makeFood } from '../models/props/abilities.js';
 import { createSwarm } from '../models/swarmModels.js';
@@ -43,6 +43,7 @@ const SHINY_COLORS = {
 };
 const RIBBON = { common: 'blue', rare: 'pink', epic: 'purple', legendary: 'gold', mythic: 'pink' };
 const css = (hex) => '#' + hex.toString(16).padStart(6, '0');
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 
 // ---------------------------------------------------------------------------
 // Textures & stage pieces (built once)
@@ -129,7 +130,7 @@ function stageGeos() {
   const p = G();
   cyl(p, 'y', -0.5, -0.5, 0, 1, 14, 14, INK);
   cyl(p, 'y', -0.5, -0.5, 2, 3, 13.4, 13.4, (x, y, z) => (y === 2 ? BLUE_D : (Math.floor(Math.atan2(z + 0.5, x + 0.5) * 6) & 1 ? BLUE : 0x2a8cff)));
-  cyl(p, 'y', -0.5, -0.5, 4, 4, 12.6, 12.6, (x, y, z) => (Math.hypot(x + 0.5, z + 0.5) > 11.3 ? 0xc8d4ee : n3(x, y, z) < 0.05 ? 0xe2e8f6 : 0xf0f4fc));
+  cyl(p, 'y', -0.5, -0.5, 4, 4, 12.6, 12.6, (x, y, z) => (Math.hypot(x + 0.5, z + 0.5) > 11.3 ? 0xb4c2e2 : n3(x, y, z) < 0.05 ? 0xcfd8ec : 0xdce4f4));
   stamp(p, LAB_BADGE, { W: BLUE_L, B: BLUE, M: PINK }, { axis: 'y', x: -6, z: -6 });
   // test-tube rack prop (0.04)
   const r = G();
@@ -246,7 +247,7 @@ export class VialOpenScene {
     const gs = stageGeos();
     // ---- lights
     this.hemi = new THREE.HemisphereLight(0x8a9cff, 0x1a0f2a, 0.7);
-    const spot = (this.spot = new THREE.SpotLight(0xfff0dc, 26, 18, 0.42, 0.55, 1));
+    const spot = (this.spot = new THREE.SpotLight(0xfff0dc, 21, 18, 0.42, 0.55, 1));
     spot.position.set(0.5, 6.6, 2.8);
     spot.target.position.set(0, 0.6, 0);
     spot.castShadow = true;
@@ -280,7 +281,7 @@ export class VialOpenScene {
     const sign = makeMesh(gs.sign, Mats.pair);
     sign.position.set(2.9, 3.8, -4.5);
     s.add(sign);
-    for (const [x, y] of [[-3.1, 1.7], [3.1, 1.7], [-3.1, 2.9], [3.1, 2.9]]) {
+    for (const [x, y] of [[-3.1, 1.9], [3.1, 1.9]]) {
       const sh = makeMesh(gs.shelf, Mats.pair);
       sh.position.set(x, y, -4.32);
       s.add(sh);
@@ -295,7 +296,8 @@ export class VialOpenScene {
     // big specimen tank (back right) with a sleeping silhouette
     const tank = new THREE.Group();
     tank.add(makeMesh(gs.tank, Mats.toyPair));
-    const tankLiq = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 2.05, 24, 1, true), new THREE.MeshStandardMaterial({ color: 0x2bd96a, emissive: 0x1fbf55, emissiveIntensity: 0.55, transparent: true, opacity: 0.55, roughness: 0.1, depthWrite: false, side: THREE.DoubleSide }));
+    this.tankMat = new THREE.MeshStandardMaterial({ color: 0x2bd96a, emissive: 0x1fbf55, emissiveIntensity: 0.5, transparent: true, opacity: 0.55, roughness: 0.1, depthWrite: false, side: THREE.DoubleSide });
+    const tankLiq = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 2.05, 24, 1, true), this.tankMat);
     tankLiq.position.y = 0.24 + 1.025;
     const tankSil = makeMesh(gs.tankSil, Mats.toyPair);
     tankSil.position.set(0, 0.55, 0);
@@ -451,8 +453,12 @@ export class VialOpenScene {
 
     this.buildUI();
     this.onKey = (e) => {
+      if (this.summaryShown) {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); this.finish(); }
+        return;
+      }
       if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.onTap(); }
-      if (e.key === 'Escape') { if (this.summaryShown) this.finish(); else this.skip(); }
+      if (e.key === 'Escape') this.skip();
     };
     window.addEventListener('keydown', this.onKey);
     audio.music && audio.trackName == null && audio.music('lab');
@@ -465,6 +471,7 @@ export class VialOpenScene {
 
   exit() {
     this.dead = true;
+    this.spot.dispose(); // frees the shadow map
     window.removeEventListener('keydown', this.onKey);
     if (this.unpoint) { this.unpoint(); this.unpoint = null; }
     this.hurry();
@@ -576,7 +583,7 @@ export class VialOpenScene {
     const v = this.viewT;
     if (kind === 'vial' || kind === 'drop') {
       const vh = this.vial?.height ?? 1.9, vw = Math.max(this.vial?.width ?? 1, (this.vial?.depth ?? 1) * 0.7);
-      v.hv = Math.max(vh * (portrait ? 2.65 : 2.15), (vw * (portrait ? 1.8 : 2.8)) / asp, 3.2);
+      v.hv = Math.max(vh * (portrait ? 2.65 : 1.95), (vw * (portrait ? 1.8 : 2.8)) / asp, 3.2);
       v.look.set(0, vh * 0.5, 0);
       v.ax = 0.5;
       v.ay = portrait ? 0.47 : 0.52;
@@ -683,7 +690,7 @@ export class VialOpenScene {
       audio.play('slosh', { pitch: 0.8 + i * 0.25 });
       const f0 = v.foamK;
       animate(0.45, (e) => v.setFoam(f0 + (k * 0.9 - f0) * e), { ease: 'outBack' });
-      fx.bubbles(new THREE.Vector3(0, 1.25, 0), { count: 6 + i * 4, color: this.def.liquid, radius: 0.18, size: 0.05, speed: 0.8 });
+      fx.bubbles(new THREE.Vector3(0, v.surfaceY() + 0.05, 0), { count: 6 + i * 4, color: this.def.liquid, radius: 0.14, size: 0.045, speed: 0.8 });
       this.fizzT = Math.max(this.fizzT, 1.2);
       for (let b = 0; b < 3; b++) setTimeout(() => !this.dead && audio.play('bubble', { pitch: 0.9 + Math.random() * 0.6 }), b * 70);
     } else {
@@ -757,7 +764,7 @@ export class VialOpenScene {
     }).promise;
     if (this.dead) return;
     this.stream.visible = false;
-    fx.bubbles(new THREE.Vector3(0, 0.9, 0), { count: 10, color: 0xbfefff, radius: 0.18, size: 0.05 });
+    fx.bubbles(new THREE.Vector3(0, v.surfaceY(), 0), { count: 10, color: 0xbfefff, radius: 0.14, size: 0.045 });
     // jug goes home, cap screws back on
     animate(0.42, (e) => {
       jug.rotation.z = TILT * (1 - e);
@@ -867,6 +874,11 @@ export class VialOpenScene {
     }, { ease: 'inOutCubic' });
     this.ped.visible = true;
     animate(0.5, (e) => this.ped.scale.setScalar(Math.max(0.001, e)), { ease: 'outBack', delay: 0.2 });
+    // the water jug makes room for the pedestal
+    if (this.jug.visible) {
+      const j0 = this.jug.position.clone();
+      animate(0.5, (e) => this.jug.position.set(j0.x + e * 1.5, j0.y, j0.z - e * 0.9), { ease: 'inOutCubic' });
+    }
     v.setGlow(0.3);
     if (this.totalCards) this.counterEl.classList.remove('vo-hide');
     await this.beat(0.55);
@@ -1390,8 +1402,12 @@ export class VialOpenScene {
     this.lightK = damp(this.lightK, this.lightTarget, this.lightTarget < this.lightK ? 3.5 : 5, dt);
     this.flareK = Math.max(0, this.flareK - dt * 1.6);
     for (const [l, base, min] of this.lightBase) l.intensity = base * (min + (1 - min) * this.lightK);
-    this.spot.intensity = 26 * this.lightK * (1 + this.flareK * 1.4);
-    const sTarget = this.phase === 'reveal' ? new THREE.Vector3(0, PED_TOP + 0.4, PED_Z) : this.phase === 'summary' ? new THREE.Vector3(0, 0.6, 0) : this.vial ? new THREE.Vector3(this.vial.root.position.x, 0.6, this.vial.root.position.z) : new THREE.Vector3();
+    this.spot.intensity = 21 * this.lightK * (1 + this.flareK * 1.1);
+    this.tankMat.emissiveIntensity = 0.5 * (0.15 + 0.85 * this.lightK);
+    const sTarget = _v1;
+    if (this.phase === 'reveal') sTarget.set(0, PED_TOP + 0.4, PED_Z);
+    else if (this.phase === 'summary') sTarget.set(0, 0.6, 0);
+    else if (this.vial) sTarget.set(this.vial.root.position.x, 0.6, this.vial.root.position.z);
     this.spot.target.position.lerp(sTarget, k);
     this.updateCone();
     this.coneMat.opacity = 0.06 * this.lightK * (1 + this.flareK * 0.8);
@@ -1400,7 +1416,7 @@ export class VialOpenScene {
     this.rays.visible = this.rayK > 0.01;
     this.rayMat.opacity = this.rayK * 0.55;
     this.rays.rotation.z -= dt * this.raySpin;
-    if (this.phase === 'summary') this.rays.position.lerp(new THREE.Vector3(0, 1.0, -0.6), k);
+    if (this.phase === 'summary') this.rays.position.lerp(_v1.set(0, 1.0, -0.6), k);
     // pedestal bounce + ring pulse
     if (this.pedBounce > 0) {
       this.pedBounce = Math.max(0, this.pedBounce - dt * 3);
@@ -1419,7 +1435,7 @@ export class VialOpenScene {
     }
     // the jug stream follows the spout
     if (this.stream.visible) {
-      const sp = this.spout.getWorldPosition(new THREE.Vector3());
+      const sp = this.spout.getWorldPosition(_v2);
       const surf = this.vial.surfaceY();
       this.stream.position.copy(sp);
       this.stream.position.x += Math.sin(t * 30) * 0.008;
@@ -1444,6 +1460,16 @@ export class VialOpenScene {
     if (Math.random() < dt * 2.2) fx.bubbles(this.flaskTop, { count: 2, color: 0x9dff6a, radius: 0.08, size: 0.05, speed: 0.6 });
     if (Math.random() < dt * 3) fx.bubbles(new THREE.Vector3(this.tankPos.x + rand(-0.35, 0.35), 0.4 + Math.random() * 1.6, this.tankPos.z + rand(-0.3, 0.3)), { count: 1, color: 0xa8ffc0, radius: 0.05, size: 0.06, speed: 0.8, life: 1.4 });
     if (this.tankSil) this.tankSil.position.y = 0.55 + Math.sin(t * 0.7) * 0.06;
+    // waiting for a tap: a little hop every few seconds (like a chest begging to be opened)
+    if (this.tapResolve && this.vial && !this.vial.opened && this.phase === 'drop') {
+      this.jiggleT = (this.jiggleT ?? 2.5) - dt;
+      if (this.jiggleT <= 0) {
+        this.jiggleT = 2.2 + Math.random() * 1.2;
+        this.vial.shake(0.22);
+        this.vial.squash(-0.6);
+        audio.play('rattle', { pitch: 1.4, vol: 0.5 });
+      }
+    }
     if (this.idleSparkle && this.vial && Math.random() < dt * (2 + Math.max(0, this.best) * 2.5)) {
       const vp = this.vial.root.position;
       const a = Math.random() * Math.PI * 2, r = Math.max(this.vial.width, this.vial.depth) * 0.6;
@@ -1453,11 +1479,11 @@ export class VialOpenScene {
 
   updateCone() {
     const a = this.spot.position, b = this.spot.target.position;
-    const dir = new THREE.Vector3().subVectors(a, b);
+    const dir = _v1.subVectors(a, b);
     const len = dir.length();
     this.cone.position.copy(b).addScaledVector(dir, 0.5);
     this.cone.scale.set(Math.tan(this.spot.angle) * len * 0.75, len, Math.tan(this.spot.angle) * len * 0.75);
-    this.cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    this.cone.quaternion.setFromUnitVectors(UP, dir.normalize());
   }
 }
 

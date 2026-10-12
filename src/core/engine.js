@@ -67,16 +67,7 @@ class Engine {
     r.setClearColor(0x0b1230, 1);
 
     // Environment map: glossy toy plastic + chrome / silver / gold variants.
-    // RoomEnvironment is authored to light a scene on its own; our scenes already
-    // have sun + sky lights, so it is dimmed (ENV_GAIN) or toy plastic ends up
-    // ~4x brighter than the scenery (washed out, and blooming).
-    const pmrem = new THREE.PMREMGenerator(r);
-    const room = new RoomEnvironment();
-    room.traverse((o) => {
-      if (o.isLight) o.intensity *= ENV_GAIN;
-      if (o.material && o.material.emissiveIntensity !== undefined && o.material.emissive?.getHex()) o.material.emissiveIntensity *= ENV_GAIN;
-    });
-    this.envMap = pmrem.fromScene(room, 0.04).texture;
+    this.envMap = makeEnvMap(r);
     for (const k of ['chrome', 'silver', 'gold']) variantMaterials(k);
     for (const m of [...allVariantMaterials(), Mats.toy, Mats.toyGloss]) {
       m.envMap = this.envMap;
@@ -318,6 +309,7 @@ class Engine {
       fill.position.set(-4, -1, 5);
       sc.add(key, rim, fill);
       this.thumbCam = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
+      this.thumbEnv = makeEnvMap(tr);
     }
     const r = this.thumbRenderer;
     r.setPixelRatio(1);
@@ -342,11 +334,41 @@ class Engine {
     const pitch = opts.pitch ?? 0.28;
     this.thumbCam.position.set(c.x, c.y + Math.sin(pitch) * dist, c.z + Math.cos(pitch) * dist);
     this.thumbCam.lookAt(c);
-    r.render(this.thumbScene, this.thumbCam);
+    // the main context's env map can't be sampled here: swap in this renderer's own
+    const swapped = [];
+    holder.traverse((o) => {
+      for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
+        if (m.envMap === this.envMap) { m.envMap = this.thumbEnv; swapped.push(m); }
+      }
+    });
+    try {
+      r.render(this.thumbScene, this.thumbCam);
+    } finally {
+      for (const m of swapped) m.envMap = this.envMap;
+    }
     const url = r.domElement.toDataURL('image/png');
     this.thumbScene.remove(holder);
     return url;
   }
+}
+
+/**
+ * Studio reflections for toy plastic + metal finishes. RoomEnvironment is
+ * authored to light a scene on its own; our scenes already have sun + sky
+ * lights, so it is dimmed (ENV_GAIN) or toy plastic ends up ~4x brighter than
+ * the scenery (washed out, and blooming). Built per renderer: a PMREM texture
+ * lives in its creator's WebGL context.
+ */
+function makeEnvMap(renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  room.traverse((o) => {
+    if (o.isLight) o.intensity *= ENV_GAIN;
+    if (o.material && o.material.emissiveIntensity !== undefined && o.material.emissive?.getHex()) o.material.emissiveIntensity *= ENV_GAIN;
+  });
+  const tex = pmrem.fromScene(room, 0.04).texture;
+  pmrem.dispose();
+  return tex;
 }
 
 const _proj = new THREE.Vector3();

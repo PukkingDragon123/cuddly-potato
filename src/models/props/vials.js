@@ -225,9 +225,13 @@ function miniTube(g, cx, cz, y0, y1, r, liq, capC) {
   cyl(g, 'y', cx, cz, y1 + 1, y1 + 2, r + 0.3, r + 0.3, (x, y) => (y === y1 + 2 ? shade(capC, 0.12) : capC));
 }
 
-/** Paint the underside of a lid (its bottom row inside the cavity footprint) with a foam lining. */
+/** Paint the underside of a lid (seen when it swings open, facing the light): dark foam lining + darkened rim. */
 function lidLining(lid, y, cav) {
-  lid.paint((x, yy, z, c) => (yy === y && x >= cav.x0 && x <= cav.x1 && z >= cav.z0 && z <= cav.z1 ? FOAM_IN : undefined));
+  lid.paint((x, yy, z, c) => {
+    if (yy !== y) return undefined;
+    if (x >= cav.x0 && x <= cav.x1 && z >= cav.z0 && z <= cav.z1) return ((x + z) & 3) === 0 ? 0x181c44 : 0x10132e;
+    return shade(c, -0.55);
+  });
 }
 
 function labPackGrids(def) {
@@ -416,10 +420,10 @@ function geos(type) {
 
 // ---------------------------------------------------------------------------
 
-/** Taps needed to open a vial in the opening scene (latches + 1 for boxes). */
+/** Taps needed to open a vial in the opening scene: tubes = add water + 3 shakes (the last pops it), boxes = 2 latches + lid. */
 export function vialTapCount(type) {
   const p = VIALS[vialId(type)]?.product ?? 'testTube';
-  return p === 'testTube' ? 3 : 3;
+  return p === 'testTube' ? 4 : 3;
 }
 
 /**
@@ -542,8 +546,8 @@ class VialModel {
     this.body.add(this.capGroup);
     // inner glow light
     if (!this.opts.thumb) {
-      this.light = new THREE.PointLight(this.glowColor, 0, 2.6, 2);
-      this.light.position.y = 1.0;
+      this.light = new THREE.PointLight(this.glowColor, 0, 2.4, 1);
+      this.light.position.set(0, 1.0, 0.45);
       this.body.add(this.light);
     }
     this.capOff = 0;
@@ -626,6 +630,7 @@ class VialModel {
     const lidMesh = makeMesh(g.lid, shellMats);
     lidMesh.receiveShadow = true;
     this.lid.add(lidMesh);
+    this.lidMesh = lidMesh;
     this.body.add(this.lid);
     this.latches = d.latches.map(([x, y, z]) => {
       const m = makeMesh(g.latch, Mats.toyGlossPair);
@@ -678,8 +683,8 @@ class VialModel {
     }
     this.mouthLocal = new THREE.Vector3(((c.x0 + c.x1 + 1) / 2) * V, (c.top + 1) * V, ((c.z0 + c.z1 + 1) / 2) * V);
     if (!this.opts.thumb) {
-      this.light = new THREE.PointLight(this.glowColor, 0, 3.2, 2);
-      this.light.position.set(0, (c.top + 4) * V, 0);
+      this.light = new THREE.PointLight(this.glowColor, 0, 3, 1);
+      this.light.position.set(0, (c.top + 9) * V, (c.z1 + 6) * V);
       this.body.add(this.light);
     }
     this.lidOpen = 0;
@@ -690,6 +695,7 @@ class VialModel {
     const l = this.latches?.[i];
     if (!l || l.userData.open) return Promise.resolve();
     l.userData.open = true;
+    l.children[0].material = Mats.pair; // flipped up it would mirror the key light: matte
     return animate(0.28, (e) => (l.rotation.x = 1.35 * e), { ease: 'outBack' }).promise;
   }
 
@@ -718,7 +724,7 @@ class VialModel {
     const k = this.glow;
     if (this.light) {
       this.light.color.copy(this.glowColor);
-      this.light.intensity = Math.min(1.4, k) * (this.product === 'testTube' ? 3.2 : 6);
+      this.light.intensity = Math.min(1.4, k) * (this.product === 'testTube' ? 1.6 : 2.4);
     }
     if (this.liqMat) this.liqMat.emissiveIntensity = 0.22 + k * 0.9;
     if (this.glowMat) {
@@ -770,6 +776,8 @@ class VialModel {
     const pending = this.latches.filter((l) => !l.userData.open).map((l, i) => new Promise((r) => setTimeout(() => this.unlatch(this.latches.indexOf(l)).then(r), i * 60)));
     return Promise.all(pending).then(() => new Promise((resolve) => {
       const target = this.product === 'cashCase' ? 1.85 : 1.95;
+      // the open lid's flat underside would mirror the key light straight into the camera: go matte
+      this.lidMesh.material = Mats.pair;
       animate(0.5, (e) => {
         this.lid.rotation.x = -target * e;
         this.lidOpen = Math.min(1, e);
@@ -785,7 +793,8 @@ class VialModel {
     this.shakeK = Math.max(0, this.shakeK - dt * 2.4);
     const s = Math.min(1.8, this.shakeK + this.rumble * 0.55);
     const tall = this.product === 'testTube' ? 1 : 0.55;
-    this.body.rotation.z = (Math.sin(t * 47) * 0.09 + Math.sin(t * 23 + 1) * 0.04) * s * tall;
+    const idle = this.opts.thumb || this.opened ? 0 : 1; // gentle breathing sway while waiting
+    this.body.rotation.z = (Math.sin(t * 47) * 0.09 + Math.sin(t * 23 + 1) * 0.04) * s * tall + Math.sin(t * 1.7) * 0.018 * tall * idle;
     this.body.rotation.x = Math.sin(t * 39 + 1) * 0.045 * s * tall;
     this.body.position.x = Math.sin(t * 53 + 2) * 0.03 * s;
     this.body.position.z = Math.sin(t * 29 + 3) * 0.015 * s;
