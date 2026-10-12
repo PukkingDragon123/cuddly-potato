@@ -19,7 +19,7 @@ import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { makeTurret } from '../../models/props/turret.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
-import { battleCamera } from '../../models/arenas/kit.js';
+import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech } from '../../ui/ui.js';
 import { FIELD } from './field.js';
 import { LAB_X, LAB_HALF, TURRET_X } from './sim.js';
@@ -434,7 +434,7 @@ export class BattleView {
       rimIntensity: L.rim, rimColor: L.rimColor, shadowExtent: 16, shadowFar: 70,
     });
     this.sun = sun;
-    if (A.sky?.isTexture) scene.background = A.sky;
+    if (A.sky?.isTexture) { scene.background = A.sky; coverFit(A.sky, this.camera.aspect); }
     else scene.background = new THREE.Color(A.sky ?? 0x8fd3ff);
     if (A.fog) scene.fog = new THREE.Fog(A.fog.color, A.fog.near, A.fog.far);
     this.bloom = A.bloom ?? null;
@@ -525,6 +525,7 @@ export class BattleView {
   resize(w, hh) {
     this.camera.aspect = w / hh;
     this.camera.updateProjectionMatrix();
+    if (this.scene.background?.isTexture) coverFit(this.scene.background, this.camera.aspect);
     this.updateCamera(0, true);
   }
 

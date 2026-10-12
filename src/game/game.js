@@ -7,7 +7,6 @@ import { state } from './state.js';
 const loaders = {
   title: () => import('../scenes/title.js').then((m) => m.TitleScene),
   home: () => import('../scenes/home.js').then((m) => m.HomeScene),
-  lab: () => import('../scenes/lab.js').then((m) => m.LabScene),
   battle: () => import('../scenes/battle.js').then((m) => m.BattleScene),
   preview: () => import('../dev/preview.js').then((m) => m.PreviewScene),
   modellab: () => import('../dev/modelLab.js').then((m) => m.ModelLabScene),
@@ -15,6 +14,7 @@ const loaders = {
   islandview: () => import('../dev/islandView.js').then((m) => m.IslandViewScene),
   uibench: () => import('../dev/uiBench.js').then((m) => m.UiBenchScene),
   screenbench: () => import('../dev/screenBench.js').then((m) => m.ScreenBenchScene),
+  vialopen: () => import('../scenes/vialOpen.js').then((m) => m.VialOpenScene),
 };
 
 let transitioning = false;

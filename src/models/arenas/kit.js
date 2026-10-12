@@ -373,6 +373,18 @@ export const parallaxWidth = (z, margin = 1.25) => Math.round((2 * (FIELD.VIEW_X
  * gradient with optional extras (sun, stars, aurora...).
  * paint(ctx, w, h) runs after the gradient.
  */
+/**
+ * "Cover"-fit a screen-space background texture to a viewport aspect so its
+ * pixels stay square (crops the sides in portrait instead of stretching).
+ */
+export function coverFit(tex, aspect) {
+  const img = tex?.image;
+  if (!img?.width) return;
+  const ta = img.width / img.height;
+  if (aspect < ta) { tex.repeat.set(aspect / ta, 1); tex.offset.set((1 - aspect / ta) / 2, 0); }
+  else { tex.repeat.set(1, ta / aspect); tex.offset.set(0, 1 - ta / aspect); }
+}
+
 export function skyTexture(id, stops, paint, o = {}) {
   return canvasTex('sky_' + id, o.w ?? 160, o.h ?? 90, (ctx, w, h) => {
     paintGradient(ctx, 0, 0, w, h, stops, { bands: o.bands ?? 12 });

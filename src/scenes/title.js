@@ -13,7 +13,7 @@ import { Chibi } from '../core/chibi.js';
 import { CHARACTERS } from '../data/characters.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { makeArenaZone } from '../models/arenas/index.js';
-import { skyTexture, paintClouds, paintSun, paintRidge } from '../models/arenas/kit.js';
+import { skyTexture, paintClouds, paintSun, paintRidge, coverFit } from '../models/arenas/kit.js';
 import { h, $ui, say, icon, closeDialogue } from '../ui/ui.js';
 import { charPortrait } from '../ui/thumbs.js';
 import { state, rollVial, applyVial, setDeck } from '../game/state.js';
@@ -58,6 +58,7 @@ export class TitleScene {
       paintClouds(ctx, w, h, { n: 6, y0: 6, y1: h * 0.4, size: 6, seed: 7 });
       paintRidge(ctx, w, h, { base: 0.7, amp: 8, freq: 0.06, seed: 3, color: 0x6aa4d8, rim: 0xb8d8f8, dark: 0x5a86c0, snow: 0xf2f8ff, peaks: true });
     }, { w: 120, h: 160 });
+    coverFit(s.background, this.camera.aspect);
     s.fog = new THREE.Fog(0xbfe8ff, 30, 90);
     addLights(s, { sky: 0xdff0ff, ground: 0x7a8a6a, hemi: 1.2, sun: 2.3, dir: [-8, 16, 12], shadowExtent: 14, rim: 1.0 });
     // ground disc so the diorama isn't floating
@@ -123,7 +124,7 @@ export class TitleScene {
     if (this.camMode === 'jimmy') {
       const j = this.jimmy.root.position;
       look = new THREE.Vector3(j.x, j.y + (a < 1 ? 1.2 : 1.7), j.z);
-      pos = look.clone().add(new THREE.Vector3(0.9, 0.9, 6.5).multiplyScalar(a < 1 ? 1.45 : 1));
+      pos = look.clone().add(new THREE.Vector3(0.9, 0.9, 6.5).multiplyScalar(a < 1 ? 1.95 : 1.1));
     } else {
       look = this.focus.clone().add(new THREE.Vector3(0, a < 1 ? 2.6 : 3.4, 2.5));
       const d = a < 1 ? 26 : 21;
@@ -190,6 +191,7 @@ export class TitleScene {
   resize(w, hh) {
     this.camera.aspect = w / hh;
     this.camera.updateProjectionMatrix();
+    if (this.scene.background?.isTexture) coverFit(this.scene.background, this.camera.aspect);
     this.placeCam(true);
   }
 
