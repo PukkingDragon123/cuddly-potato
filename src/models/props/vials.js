@@ -122,7 +122,7 @@ function glowMaterial(color) {
 
 /** Iridescent hyperchrome colour for a surface angle. */
 const HYPER = [0xffc4ee, 0xbff6ff, 0xfff2b8, 0xd8c8ff];
-const hyper = (a, y) => mixHex(0xe4eaf4, HYPER[(Math.floor((a / Math.PI) * 3 + y * 0.35) % 4 + 4) % 4], 0.45);
+const hyper = (a, y) => mixHex(0xe4eaf4, HYPER[(Math.floor((a / Math.PI) * 3 + y * 0.35) % 4 + 4) % 4], 0.7);
 
 // ---------------------------------------------------------------------------
 // Test tube
@@ -225,6 +225,11 @@ function miniTube(g, cx, cz, y0, y1, r, liq, capC) {
   cyl(g, 'y', cx, cz, y1 + 1, y1 + 2, r + 0.3, r + 0.3, (x, y) => (y === y1 + 2 ? shade(capC, 0.12) : capC));
 }
 
+/** Paint the underside of a lid (its bottom row inside the cavity footprint) with a foam lining. */
+function lidLining(lid, y, cav) {
+  lid.paint((x, yy, z, c) => (yy === y && x >= cav.x0 && x <= cav.x1 && z >= cav.z0 && z <= cav.z1 ? FOAM_IN : undefined));
+}
+
 function labPackGrids(def) {
   const W0 = -16, W1 = 15, D0 = -9, D1 = 8, TOP = 19, LTOP = 27;
   const main = def.label, trim = def.cap, liq = def.liquid;
@@ -262,6 +267,7 @@ function labPackGrids(def) {
   capsule(lid, [6, LTOP, -0.5], [6, LTOP + 4, -0.5], 1.1, 1.1, INK);
   capsule(lid, [-7, LTOP + 4, -0.5], [6, LTOP + 4, -0.5], 1.3, 1.3, (x, y) => (y > LTOP + 4 ? 0x3a3550 : INK));
   stamp(lid, ['MMM.', '.MMM', 'MMM.'], { M: onColor(trim) === INK ? INK : WHITE }, { axis: 'y', x: -2, z: -6 });
+  lidLining(lid, TOP + 1, { x0: W0 + 2, x1: W1 - 2, z0: D0 + 2, z1: D1 - 2 });
   return {
     body, lid, latch: latchGrid(METAL, 7),
     dims: { W0, W1, D0, D1, TOP, LTOP, cav, hingeY: TOP + 1, hingeZ: D0, latches: [[-13, TOP - 3, D1 + 1], [12, TOP - 3, D1 + 1]], window: [-11, 10, 6, 15, 9] },
@@ -327,6 +333,7 @@ function megaLabGrids(def) {
   capsule(lid, [10, LTOP, 6], [10, LTOP + 4, 6], 1.2, 1.2, INK);
   capsule(lid, [-11, LTOP + 4, 6], [10, LTOP + 4, 6], 1.4, 1.4, (x, y) => (y > LTOP + 4 ? 0x3a3550 : INK));
   for (const [rx, rz] of [[-19, -9], [18, -9], [-19, 8], [18, 8]]) lid.set(rx, LTOP + 1, rz, METAL);
+  lidLining(lid, TOP + 1, { x0: W0 + 3, x1: W1 - 3, z0: D0 + 3, z1: D1 - 3 });
   return {
     body, lid, latch: latchGrid(METAL, 7),
     dims: { W0, W1, D0, D1, TOP, LTOP, cav, hingeY: TOP + 1, hingeZ: D0, latches: [[-19, TOP - 3, D1 + 1], [18, TOP - 3, D1 + 1]], window: [-14, 13, 7, 19, 12] },
@@ -372,6 +379,7 @@ function cashCaseGrids(def, type) {
   stamp(lid, em, { R: { c: WHITE, raise: 1 }, F: { c: gold ? PINK : trim === INK ? PINK : trim, raise: 1 }, S: { c: gold ? YEL : WHITE, raise: 1 }, J: { c: BLUE, raise: 1 } }, { axis: 'y', x: -7, z: -7 });
   stamp(lid, BOLT_SMALL, { M: { c: PINK, raise: 1 } }, { axis: 'y', x: -17, z: 3 });
   stamp(lid, BOLT_SMALL.map((r) => [...r].reverse().join('')), { M: { c: PINK, raise: 1 } }, { axis: 'y', x: 12, z: 3 });
+  lidLining(lid, TOP + 1, cav);
   return {
     body, lid, latch: latchGrid(METAL, 6),
     dims: { W0, W1, D0, D1, TOP, LTOP, cav, hingeY: TOP + 1, hingeZ: D0, latches: [[-13, TOP - 2, D1 + 1], [12, TOP - 2, D1 + 1]] },
@@ -528,7 +536,8 @@ class VialModel {
     // cap (group so it can unscrew + fly)
     this.capGroup = new THREE.Group();
     this.capGroup.position.y = TUBE.capY;
-    this.capMesh = makeMesh(g.cap, chrome ? variantMaterials('chrome') : Mats.toyGlossPair);
+    // metals need the engine's env map, which the thumbnail renderer can't use: thumbs get gloss plastic
+    this.capMesh = makeMesh(g.cap, chrome && !this.opts.thumb ? variantMaterials('chrome') : Mats.toyGlossPair);
     this.capGroup.add(this.capMesh);
     this.body.add(this.capGroup);
     // inner glow light
@@ -537,6 +546,7 @@ class VialModel {
       this.light.position.y = 1.0;
       this.body.add(this.light);
     }
+    this.capOff = 0;
     this.fill = 0;
     this.fillMix = 1;
     this.foamK = 0;
@@ -574,12 +584,22 @@ class VialModel {
     this.foam.scale.set(1, Math.max(0.05, h / (7 * V)), 1);
     this.foam.position.y = surface - 0.02;
   }
+  /** Tube: world-space height of the liquid surface. */
+  surfaceY() {
+    return this.root.position.y + TUBE.liqBottom + (TUBE.liqTop - TUBE.liqBottom) * (this.fill ?? 0);
+  }
   /** Tube: grow the foam dome out of the open tube (0..1). */
   overflow(k) {
     if (!this.overflowMesh) return;
     this.overK = k;
     this.overflowMesh.visible = k > 0.02;
     this.overflowMesh.scale.set(0.6 + k * 0.5, Math.max(0.05, k), 0.6 + k * 0.5);
+  }
+  /** Tube: unscrew the cap and hold it aside (k = 1) so water can go in; k = 0 screws it back on. */
+  capAside(k, dur = 0.45) {
+    if (!this.capGroup) return Promise.resolve();
+    const k0 = this.capOff;
+    return animate(dur, (e) => (this.capOff = k0 + (k - k0) * e), { ease: 'inOutCubic' }).promise;
   }
   /** Tube: the paper bag dissolves, mystery silhouettes appear. */
   dissolve(dur = 0.9) {
@@ -597,7 +617,7 @@ class VialModel {
     const d = g.dims;
     this.dims = d;
     const gold = this.product === 'cashCase';
-    const shellMats = gold ? variantMaterials('gold') : Mats.toyGlossPair;
+    const shellMats = gold && !this.opts.thumb ? variantMaterials('gold') : Mats.toyGlossPair;
     const body = makeMesh(g.body, shellMats);
     body.receiveShadow = true;
     this.body.add(body);
@@ -698,16 +718,16 @@ class VialModel {
     const k = this.glow;
     if (this.light) {
       this.light.color.copy(this.glowColor);
-      this.light.intensity = k * (this.product === 'testTube' ? 5 : 9);
+      this.light.intensity = Math.min(1.4, k) * (this.product === 'testTube' ? 3.2 : 6);
     }
     if (this.liqMat) this.liqMat.emissiveIntensity = 0.22 + k * 0.9;
     if (this.glowMat) {
-      this.glowMat.color.copy(this.glowColor).multiplyScalar(1.4 + k * 1.2);
-      this.glowMat.opacity = Math.min(1, k * (0.35 + this.lidOpen * 0.65));
+      this.glowMat.color.copy(this.glowColor).multiplyScalar(1.0 + Math.min(1, k) * 0.4);
+      this.glowMat.opacity = Math.min(0.75, k * (0.25 + this.lidOpen * 0.4));
     }
     if (this.seamMat) {
-      this.seamMat.color.copy(this.glowColor).multiplyScalar(2.2);
-      this.seamMat.opacity = this.lidOpen > 0.05 ? 0 : Math.min(1, k * 1.2);
+      this.seamMat.color.copy(this.glowColor).multiplyScalar(1.6);
+      this.seamMat.opacity = this.lidOpen > 0.05 ? 0 : Math.min(1, k * 0.9);
     }
   }
 
@@ -796,8 +816,10 @@ class VialModel {
         m.rotation.y = -a;
       });
       if (!this.opened) {
-        this.capGroup.position.y = TUBE.capY + Math.abs(Math.sin(t * 41)) * 0.025 * Math.min(1, s);
-        this.capGroup.rotation.y = Math.sin(t * 33) * 0.08 * s;
+        const c = this.capOff, lift = Math.min(1, c * 2.5);
+        this.capGroup.position.set(-0.52 * c, TUBE.capY + Math.abs(Math.sin(t * 41)) * 0.025 * Math.min(1, s) + 0.3 * lift - 0.12 * c * c, 0.05 * c);
+        this.capGroup.rotation.y = Math.sin(t * 33) * 0.08 * s - lift * Math.PI * 2.5;
+        this.capGroup.rotation.z = c * 0.5 + (c > 0.99 ? Math.sin(t * 3) * 0.05 : 0);
       }
     } else if (this.lidOpen === 0) {
       this.lid.rotation.x = -Math.abs(Math.sin(t * 37)) * 0.05 * Math.min(1, s);

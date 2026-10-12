@@ -110,7 +110,7 @@ function stageGeos() {
   if (STAGE_GEO) return STAGE_GEO;
   // lab bench (0.1 voxels): dark epoxy tiles, metal edge, branded front
   const t = G();
-  const X0 = -45, X1 = 44, Z0 = -26, Z1 = 17;
+  const X0 = -45, X1 = 44, Z0 = -26, Z1 = 52;
   rbox(t, X0, -6, Z0, X1, -1, Z1, 1, (x, y, z) => {
     if (y === -1) {
       if (z >= Z1 - 1 || x <= X0 + 1 || x >= X1 - 1) return 0x8e9ab8;
@@ -226,7 +226,7 @@ export class VialOpenScene {
     s.background = new THREE.Color(0x070918);
     s.fog = new THREE.Fog(0x070918, 9, 24);
     this.camera = new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 60);
-    this.bloom = { strength: 0.75, radius: 0.18, threshold: 1.7 };
+    this.bloom = { strength: 0.55, radius: 0.16, threshold: 1.7 };
     this.shakeScale = 0.55;
     this.t = 0;
     this.lightK = 1;
@@ -262,7 +262,7 @@ export class VialOpenScene {
     this.fill = new THREE.DirectionalLight(0xb0c4ff, 0.6);
     this.fill.position.set(-1, 2.5, 6);
     s.add(this.hemi, spot, spot.target, this.rimL, this.rimR, this.fill);
-    this.lightBase = [[this.hemi, 0.7, 0.12], [this.rimL, 1.6, 0.35], [this.rimR, 1.4, 0.35], [this.fill, 0.6, 0.05]];
+    this.lightBase = [[this.hemi, 0.7, 0.08], [this.rimL, 1.6, 0.15], [this.rimR, 1.4, 0.15], [this.fill, 0.6, 0.03]];
     // visible light cone
     const coneMat = new THREE.MeshBasicMaterial({ map: tex('cone'), color: 0xfff0d0, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
     this.coneMat = coneMat;
@@ -278,7 +278,7 @@ export class VialOpenScene {
     wall.position.set(0, 2.6, -4.6);
     s.add(wall);
     const sign = makeMesh(gs.sign, Mats.pair);
-    sign.position.set(0, 3.55, -4.5);
+    sign.position.set(2.9, 3.8, -4.5);
     s.add(sign);
     for (const [x, y] of [[-3.1, 1.7], [3.1, 1.7], [-3.1, 2.9], [3.1, 2.9]]) {
       const sh = makeMesh(gs.shelf, Mats.pair);
@@ -310,10 +310,10 @@ export class VialOpenScene {
     rack.rotation.y = 0.25;
     s.add(rack);
     const flask = makeBeaker(0x7cff3a);
-    flask.scale.setScalar(2.4);
-    flask.position.set(2.05, 0, -1.0);
+    flask.scale.setScalar(1.7);
+    flask.position.set(2.35, 0, -1.5);
     s.add(flask);
-    this.flaskTop = new THREE.Vector3(2.05, 0.9, -1.0);
+    this.flaskTop = new THREE.Vector3(2.35, 0.62, -1.5);
     this.buildJug();
     // ---- reveal pieces: pedestal + rarity ring, rays, light beam
     this.ped = new THREE.Group();
@@ -580,13 +580,13 @@ export class VialOpenScene {
       v.look.set(0, vh * 0.5, 0);
       v.ax = 0.5;
       v.ay = portrait ? 0.47 : 0.52;
-      v.pitch = this.product === 'cashCase' ? 0.42 : this.product === 'testTube' ? 0.16 : 0.24;
+      v.pitch = this.product === 'cashCase' ? 0.5 : this.product === 'testTube' ? 0.24 : 0.32;
     } else if (kind === 'reveal') {
       v.hv = portrait ? Math.max(4.4, 2.3 / asp) : 3.0;
       v.look.set(0, PED_TOP + TOY_H * 0.55, PED_Z);
       v.ax = portrait ? 0.5 : 0.3;
       v.ay = portrait ? 0.32 : 0.5;
-      v.pitch = 0.16;
+      v.pitch = 0.22;
     } else if (kind === 'summary') {
       v.hv = portrait ? Math.max(5.2, 2.6 / asp) : 3.6;
       v.look.set(0, 0.9, 0);
@@ -604,10 +604,13 @@ export class VialOpenScene {
     }
   }
 
+  /** Where the opened vial waits during the card reveal (behind / beside the pedestal) and its scale. */
   vialRevealPos() {
     const portrait = engine.height > engine.width;
-    const flat = this.product === 'cashCase';
-    return portrait ? new THREE.Vector3(0, 0, flat ? -0.75 : -1.05) : new THREE.Vector3(-1.45, 0, flat ? -0.5 : -0.75);
+    return portrait ? new THREE.Vector3(0, 0, -1.55) : new THREE.Vector3(-1.2, 0, -1.3);
+  }
+  vialRevealScale() {
+    return { testTube: 0.7, labPack: 0.66, megaLab: 0.54, cashCase: 0.62 }[this.product] ?? 0.7;
   }
 
   // ===================================================================== main flow
@@ -729,7 +732,11 @@ export class VialOpenScene {
     const v = this.vial;
     const jug = this.jug;
     const rest = this.jugRest.clone();
-    const pourPos = new THREE.Vector3(0.66, 1.72, 0.05);
+    const pourPos = new THREE.Vector3(0.76, 2.24, 0.05);
+    const TILT = 1.2;
+    // unscrew the cap and hold it aside while the jug swings over
+    audio.play('squeak', { pitch: 0.8 });
+    v.capAside(1, 0.5);
     audio.play('whoosh', { pitch: 1.2 });
     const r0 = jug.rotation.y;
     await animate(0.42, (e) => {
@@ -739,7 +746,7 @@ export class VialOpenScene {
       jug.rotation.z = e * 0.5;
     }, { ease: 'outCubic' }).promise;
     if (this.dead) return;
-    await animate(0.2, (e) => (jug.rotation.z = 0.5 + e * 1.15), { ease: 'inOutQuad' }).promise;
+    await animate(0.2, (e) => (jug.rotation.z = 0.5 + e * (TILT - 0.5)), { ease: 'inOutQuad' }).promise;
     if (this.dead) return;
     this.stream.visible = true;
     audio.play('pour');
@@ -751,11 +758,16 @@ export class VialOpenScene {
     if (this.dead) return;
     this.stream.visible = false;
     fx.bubbles(new THREE.Vector3(0, 0.9, 0), { count: 10, color: 0xbfefff, radius: 0.18, size: 0.05 });
-    await animate(0.42, (e) => {
-      jug.rotation.z = 1.65 * (1 - e);
+    // jug goes home, cap screws back on
+    animate(0.42, (e) => {
+      jug.rotation.z = TILT * (1 - e);
       jug.position.lerpVectors(pourPos, rest, e);
       jug.rotation.y = r0 * e;
-    }, { ease: 'inOutCubic' }).promise;
+    }, { ease: 'inOutCubic' });
+    await v.capAside(0, 0.45);
+    if (this.dead) return;
+    audio.play('latch', { pitch: 1.3 });
+    v.shake(0.25);
   }
 
   async boxInteract() {
@@ -832,10 +844,10 @@ export class VialOpenScene {
     b.position.copy(m);
     b.position.y -= 0.05;
     b.visible = true;
-    this.beamMat.color.set(color).multiplyScalar(1.6);
+    this.beamMat.color.set(color).multiplyScalar(1.2);
     animate(dur, (e, k) => {
-      b.scale.set(0.6 + k * 0.6, 0.2 + Math.min(1, k * 3) * 3.4, 0.6 + k * 0.6);
-      this.beamMat.opacity = 0.75 * (1 - k);
+      b.scale.set(0.45 + k * 0.4, 0.2 + Math.min(1, k * 3) * 3.4, 0.45 + k * 0.4);
+      this.beamMat.opacity = 0.42 * (1 - k) * (1 - k);
     }, { onComplete: () => (b.visible = false) });
   }
 
@@ -846,15 +858,16 @@ export class VialOpenScene {
     const v = this.vial;
     const from = v.root.position.clone();
     const to = this.vialRevealPos();
+    const sc = this.vialRevealScale();
     this.vialHome = to;
     audio.play('whoosh', { pitch: 0.9 });
     animate(0.6, (e) => {
       v.root.position.lerpVectors(from, to, e);
-      v.root.scale.setScalar(1 - e * 0.12);
+      v.root.scale.setScalar(1 - e * (1 - sc));
     }, { ease: 'inOutCubic' });
     this.ped.visible = true;
     animate(0.5, (e) => this.ped.scale.setScalar(Math.max(0.001, e)), { ease: 'outBack', delay: 0.2 });
-    v.setGlow(0.55);
+    v.setGlow(0.3);
     if (this.totalCards) this.counterEl.classList.remove('vo-hide');
     await this.beat(0.55);
   }
@@ -1171,7 +1184,7 @@ export class VialOpenScene {
       cheerLater(this);
     }
     v.setGlowColor(rc);
-    v.setGlow(0.5);
+    v.setGlow(0.15);
     void toy;
   }
 
@@ -1190,7 +1203,7 @@ export class VialOpenScene {
     toy.boing(0.5);
     this.panel?.classList.add('vo-shiny', 'sh-' + st.variant);
     const tag = h('div', { class: `vo-shiny-tag sh-${st.variant}` }, `${vd.name.toUpperCase()}!`);
-    this.panel?.querySelector('.vo-info')?.prepend(tag);
+    this.panel?.querySelector('.vo-tags')?.appendChild(tag);
     if (this.panel) sparkle(this.panel.querySelector('.vo-card-wrap') ?? this.panel, { count: 22, colors: cols.map(css), spread: 90 });
     await this.beat(0.6);
   }
@@ -1211,7 +1224,7 @@ export class VialOpenScene {
       prog = bar(f0, 'blue', `${st.beforeCopies}/${need}`, { cls: 'vo-prog' });
     }
     const info = h('div', { class: 'vo-info' },
-      h('div', { class: `vo-rar r-${st.rarity}` }, r.name.toUpperCase()),
+      h('div', { class: 'vo-tags' }, h('div', { class: `vo-rar r-${st.rarity}` }, r.name.toUpperCase())),
       h('div', { class: 'vo-name' }, d.name),
       series ? h('div', { class: 'vo-series' }, series) : null,
       count,
@@ -1299,10 +1312,10 @@ export class VialOpenScene {
     this.ped.visible = false;
     this.framing('summary');
     const v = this.vial;
-    const p0 = v.root.position.clone(), s0 = v.root.scale.x;
+    const p0 = v.root.position.clone(), s0 = v.root.scale.x, s1 = Math.min(1, this.vialRevealScale() * 1.25);
     animate(0.5, (e) => {
-      v.root.position.lerpVectors(p0, new THREE.Vector3(0, 0, 0), e);
-      v.root.scale.setScalar(s0 + (1 - s0) * e);
+      v.root.position.lerpVectors(p0, new THREE.Vector3(0, 0, -0.4), e);
+      v.root.scale.setScalar(s0 + (s1 - s0) * e);
     }, { ease: 'inOutCubic' });
     v.setGlowColor(this.rareColor);
     v.setGlow(0.6);
@@ -1381,7 +1394,7 @@ export class VialOpenScene {
     const sTarget = this.phase === 'reveal' ? new THREE.Vector3(0, PED_TOP + 0.4, PED_Z) : this.phase === 'summary' ? new THREE.Vector3(0, 0.6, 0) : this.vial ? new THREE.Vector3(this.vial.root.position.x, 0.6, this.vial.root.position.z) : new THREE.Vector3();
     this.spot.target.position.lerp(sTarget, k);
     this.updateCone();
-    this.coneMat.opacity = 0.085 * this.lightK * (1 + this.flareK * 0.8);
+    this.coneMat.opacity = 0.06 * this.lightK * (1 + this.flareK * 0.8);
     // rays
     this.rayK = damp(this.rayK, this.rayTarget, 4, dt);
     this.rays.visible = this.rayK > 0.01;
@@ -1407,7 +1420,7 @@ export class VialOpenScene {
     // the jug stream follows the spout
     if (this.stream.visible) {
       const sp = this.spout.getWorldPosition(new THREE.Vector3());
-      const surf = 0.34 + 1.1 * (this.vial?.fill ?? 0);
+      const surf = this.vial.surfaceY();
       this.stream.position.copy(sp);
       this.stream.position.x += Math.sin(t * 30) * 0.008;
       this.stream.scale.set(1 + Math.sin(t * 40) * 0.15, Math.max(0.05, sp.y - surf), 1);

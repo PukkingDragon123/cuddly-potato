@@ -10,7 +10,7 @@ import { audio } from '../../core/audio.js';
 import { state, upgradeInfo, currentDeck, setDeckCard, selectDeck } from '../../game/state.js';
 import { ALL_CARDS, cardDef, DECK_SIZE, DECK_PRESETS, avgElixir, RARITIES } from '../../data/cards.js';
 import { arenaById } from '../../data/arenas.js';
-import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmt } from './common.js';
+import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmtN } from './common.js';
 import { openCardInfo } from './cardInfo.js';
 
 const SORTS = [
@@ -34,9 +34,9 @@ export function mount(el, ctx) {
   let pop = null; // open context pop element
   let justPlaced = -1;
 
-  const shell = screenShell(el, { cls: 'hm-cards', render });
+  const shell = screenShell(el, { cls: 'mn-cards', render });
   shell.root.addEventListener('pointerdown', (e) => {
-    if (pop && !pop.contains(e.target) && !e.target.closest('.hm-cc.picked')) closePop();
+    if (pop && !pop.contains(e.target) && !e.target.closest('.mn-cc.picked')) closePop();
   }, true);
 
   function closePop() {
@@ -61,8 +61,8 @@ export function mount(el, ctx) {
       button('INFO', () => { closePop(); openCardInfo(id, ctx); }, 'blue sm', { icon: 'info' }),
     ];
     if (where === 'coll') btns.push(button('USE', () => { closePop(); startSwap(id); }, 'green sm', { icon: 'swords' }));
-    if (canUp) btns.push(button('UPGRADE', () => { closePop(); openCardInfo(id, ctx, { autoUpgrade: true }); }, 'yellow sm', { sub: `${fmt(up.coins)} coins` }));
-    const p = h('div', { class: 'hm-cpop' }, h('div', { class: 'hm-cpop-arrow' }), ...btns);
+    if (canUp) btns.push(button('UPGRADE', () => { closePop(); openCardInfo(id, ctx, { autoUpgrade: true }); }, 'yellow sm', { sub: `${fmtN(up.coins)} coins` }));
+    const p = h('div', { class: 'mn-cpop' }, h('div', { class: 'mn-cpop-arrow' }), ...btns);
     p.cardId = id;
     p.where = where;
     p.cell = cell;
@@ -76,7 +76,7 @@ export function mount(el, ctx) {
     const left = Math.max(4, Math.min(hr.width - pw - 4, cx - pw / 2));
     p.style.left = left + 'px';
     p.style.top = cr.bottom - hr.top + cell.querySelector('.gcard').offsetWidth * 0.3 + 'px';
-    p.querySelector('.hm-cpop-arrow').style.left = cx - left + 'px';
+    p.querySelector('.mn-cpop-arrow').style.left = cx - left + 'px';
     pop = p;
     requestAnimationFrame(() => {
       const sr = shell.scroll.getBoundingClientRect(), pr = p.getBoundingClientRect();
@@ -109,10 +109,10 @@ export function mount(el, ctx) {
   function deckSection() {
     const p = state.p;
     const deck = currentDeck();
-    const tabs = h('div', { class: 'hm-dtabs' },
-      h('span', { class: 't-d outline hm-dtabs-l' }, 'DECK'),
+    const tabs = h('div', { class: 'mn-dtabs' },
+      h('span', { class: 't-d outline mn-dtabs-l' }, 'DECK'),
       ...Array.from({ length: DECK_PRESETS }, (_, i) => {
-        const b = h('button', { class: `hm-dtab ${i === p.deckIdx ? 'on sk-btn-yellow' : 'sk-btn-blue'}`, type: 'button' }, h('span', {}, String(i + 1)));
+        const b = h('button', { class: `mn-dtab ${i === p.deckIdx ? 'on sk-btn-yellow' : 'sk-btn-blue'}`, type: 'button' }, h('span', {}, String(i + 1)));
         b.addEventListener('click', () => {
           if (i === p.deckIdx) return;
           audio.play('tap');
@@ -124,16 +124,16 @@ export function mount(el, ctx) {
         });
         return b;
       }));
-    const grid = h('div', { class: `hm-deck ${swapId ? 'swapping' : ''}` });
+    const grid = h('div', { class: `mn-deck ${swapId ? 'swapping' : ''}` });
     for (let i = 0; i < DECK_SIZE; i++) {
       const id = deck[i];
-      const cell = h('div', { class: `hm-cc ${i === justPlaced ? 'placed' : ''}`, style: { '--i': i } });
+      const cell = h('div', { class: `mn-cc ${i === justPlaced ? 'placed' : ''}`, style: { '--i': i } });
       if (id) {
         const up = upgradeInfo(id);
         cell.appendChild(cardEl(id, { progress: true, priority: true }));
         if (up && !up.max && up.ok) cell.classList.add('can-up');
       } else {
-        cell.appendChild(h('div', { class: 'gcard hm-empty' }, h('div', { class: 'hm-empty-in sk-slot' }, h('span', { class: 't-d' }, '+'))));
+        cell.appendChild(h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot' }, h('span', { class: 't-d' }, '+'))));
       }
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -149,19 +149,19 @@ export function mount(el, ctx) {
       justPlaced = -1;
     }
     const avg = avgElixir(deck);
-    const foot = h('div', { class: 'hm-deck-foot' },
-      h('div', { class: 'hm-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average Energy'), h('b', { class: 't-d outline t-lg' }, avg ? avg.toFixed(1) : '-'))),
+    const foot = h('div', { class: 'mn-deck-foot' },
+      h('div', { class: 'mn-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average Energy'), h('b', { class: 't-d outline t-lg' }, avg ? avg.toFixed(1) : '-'))),
       h('span', { class: 'spacer' }),
       chip([icon('cards', 's'), h('b', {}, `${deck.length}/${DECK_SIZE}`)], deck.length < DECK_SIZE ? 'warn' : ''));
-    const box = h('div', { class: 'panel sk-panel hm-deckbox' }, tabs, grid, foot);
+    const box = h('div', { class: 'panel sk-panel mn-deckbox' }, tabs, grid, foot);
     const parts = [secHead('BATTLE DECK', 'blue'), box];
     if (swapId) {
       const d = cardDef(swapId);
-      parts.push(h('div', { class: 'hm-swapbar panel sk-panel-gold' },
-        h('div', { class: 'hm-swapcard' }, cardEl(swapId, { priority: true })),
+      parts.push(h('div', { class: 'mn-swapbar panel sk-panel-gold' },
+        h('div', { class: 'mn-swapcard' }, cardEl(swapId, { priority: true })),
         h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)' } },
           h('b', { class: 't-d outline t-lg c-gold' }, d.name),
-          h('span', { class: 'hm-swap-tip' }, deck.length < DECK_SIZE ? 'Tap an empty slot or a card in your deck to swap it in!' : 'Tap a card in your deck to swap it out!'),
+          h('span', { class: 'mn-swap-tip' }, deck.length < DECK_SIZE ? 'Tap an empty slot or a card in your deck to swap it in!' : 'Tap a card in your deck to swap it out!'),
           button('CANCEL', cancelSwap, 'red sm', { icon: 'x' }))));
     }
     return parts;
@@ -178,13 +178,13 @@ export function mount(el, ctx) {
       sortMode = SORTS[(i + 1) % SORTS.length].id;
       shell.render();
     }, 'purple sm', { icon: SORTS.find((s) => s.id === sortMode).icon, sound: 'tap' });
-    const found = h('div', { class: 'hm-found' },
+    const found = h('div', { class: 'mn-found' },
       h('span', { class: 't-xs c-muted' }, 'Found'),
       h('b', { class: 't-d outline' }, `${foundAll.length}/${ALL_CARDS.length}`));
-    const grid = h('div', { class: 'hm-cgrid' });
+    const grid = h('div', { class: 'mn-cgrid' });
     coll.forEach((c, i) => {
       const up = upgradeInfo(c.id);
-      const cell = h('div', { class: `hm-cc ${up && !up.max && up.ok ? 'can-up' : ''}`, style: { '--i': Math.min(i, 20) } },
+      const cell = h('div', { class: `mn-cc ${up && !up.max && up.ok ? 'can-up' : ''}`, style: { '--i': Math.min(i, 20) } },
         cardEl(c.id, { progress: true, isNew: isCardNew(c.id) }));
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -193,16 +193,16 @@ export function mount(el, ctx) {
       grid.appendChild(cell);
     });
     const out = [
-      h('div', { class: 'hm-sec-row' }, secHead('COLLECTION', 'pink'), h('div', { class: 'hm-coll-tools' }, found, sortBtn)),
+      h('div', { class: 'mn-sec-row' }, secHead('COLLECTION', 'pink'), h('div', { class: 'mn-coll-tools' }, found, sortBtn)),
     ];
     if (coll.length) out.push(grid);
-    else out.push(h('div', { class: 'hm-empty-note' }, 'All your cards are in your deck! Open vials to find more Swarms.'));
+    else out.push(h('div', { class: 'mn-empty-note' }, 'All your cards are in your deck! Open vials to find more Swarms.'));
     if (missing.length) {
-      const mg = h('div', { class: 'hm-cgrid locked' });
+      const mg = h('div', { class: 'mn-cgrid locked' });
       missing.forEach((c) => {
         const ar = arenaById(c.arena);
-        const cell = h('div', { class: 'hm-cc lockd' }, cardEl(c.id, { locked: true }),
-          h('div', { class: 'hm-cc-arena' }, ar ? `Arena ${ar.index + 1}` : '???'));
+        const cell = h('div', { class: 'mn-cc lockd' }, cardEl(c.id, { locked: true }),
+          h('div', { class: 'mn-cc-arena' }, ar ? `Arena ${ar.index + 1}` : '???'));
         cell.addEventListener('click', (e) => {
           e.stopPropagation();
           audio.play('tap');
@@ -210,21 +210,21 @@ export function mount(el, ctx) {
         });
         mg.appendChild(cell);
       });
-      out.push(h('div', { class: 'hm-divider' }, h('span', { class: 't-d outline' }, 'NOT FOUND YET'), h('span', { class: 't-xs c-muted' }, 'Unlock arenas on Beast Island to find them in vials')), mg);
+      out.push(h('div', { class: 'mn-divider' }, h('span', { class: 't-d outline' }, 'NOT FOUND YET'), h('span', { class: 't-xs c-muted' }, 'Unlock arenas on Beast Island to find them in vials')), mg);
     }
     return out;
   }
 
   function render() {
     pop = null;
-    const inner = h('div', { class: `hm-inner ${swapId ? 'is-swapping' : ''}` },
-      h('div', { class: 'hm-deckcol' }, ...deckSection()),
-      h('div', { class: 'hm-collcol' }, ...collectionSection()));
+    const inner = h('div', { class: `mn-inner ${swapId ? 'is-swapping' : ''}` },
+      h('div', { class: 'mn-deckcol' }, ...deckSection()),
+      h('div', { class: 'mn-collcol' }, ...collectionSection()));
     return inner;
   }
 
   shell.render();
-  return { dispose: () => shell.dispose(), refresh: () => shell.render() };
+  return { dispose: () => shell.dispose(), refresh: () => shell.schedule(40) };
 }
 
 /** Number of things to look at in the Cards tab (upgradable + new cards). */

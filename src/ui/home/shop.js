@@ -16,7 +16,7 @@ import { BANNERS, SWARM_SKINS, CMD_SKINS } from '../../data/season.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import {
   screenShell, secHead, timerChip, midnightMs, vialArt, rewardArt, rewardLabel, showRewards, confirmBox, deny,
-  refreshCtx, fmt, bannerEl, swarmImg, cmdImg, cmdSkinOwned,
+  refreshCtx, fmt, fmtN, bannerEl, swarmImg, cmdFullImg, cmdSkinOwned,
 } from './common.js';
 
 // Featured cosmetics rotate daily (3 a day) from this pool.
@@ -59,7 +59,7 @@ const COIN_ART = { coinPile: 'coin', coinBag: 'bag', coinVault: 'chest' };
 export function mount(el, ctx) {
   let day = todayKey();
   const shell = screenShell(el, {
-    cls: 'hm-shop', render,
+    cls: 'mn-shop', render,
     tick() {
       if (todayKey() !== day) {
         day = todayKey();
@@ -78,7 +78,7 @@ export function mount(el, ctx) {
   function soldFx(tile) {
     if (!tile?.isConnected) return;
     tile.classList.add('sold', 'just');
-    tile.appendChild(h('div', { class: 'hm-stamp t-d' }, 'SOLD'));
+    tile.appendChild(h('div', { class: 'mn-stamp t-d' }, 'SOLD'));
     sparkle(tile, { count: 18 });
   }
 
@@ -101,7 +101,7 @@ export function mount(el, ctx) {
   // ------------------------------------------------------------------ tiles
 
   function priceButton(cur, price, sold, onClick, label = null) {
-    if (sold) return h('div', { class: 'hm-soldtag t-d outline' }, icon('check', 's'), 'SOLD OUT');
+    if (sold) return h('div', { class: 'mn-soldtag t-d outline' }, icon('check', 's'), 'SOLD OUT');
     const b = button(label, onClick, 'green sm', { price: { cur, amount: price }, sound: 'tap' });
     if (have(cur) < price) b.classList.add('poor');
     return b;
@@ -111,14 +111,14 @@ export function mount(el, ctx) {
     const p = state.p;
     const done = p.shop.freeClaimed || shopBought('free');
     const r = off.free;
-    const tile = h('div', { class: `hm-gift panel sk-panel-gold ${done ? 'sold' : ''}` },
-      h('div', { class: 'hm-gift-rays' }),
-      h('div', { class: 'hm-gift-art' }, rewardArt(r)),
+    const tile = h('div', { class: `mn-gift panel sk-panel-gold ${done ? 'sold' : ''}` },
+      h('div', { class: 'mn-gift-rays' }),
+      h('div', { class: 'mn-gift-art' }, rewardArt(r)),
       h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)', zIndex: 1 } },
         h('span', { class: 't-d outline t-lg c-gold' }, 'DAILY GIFT'),
-        h('b', { class: 'hm-gift-n' }, rewardLabel(r)),
+        h('b', { class: 'mn-gift-n' }, rewardLabel(r)),
         h('span', { class: 't-xs c-muted' }, 'A free goodie from the Lab, every day!')),
-      done ? h('div', { class: 'hm-soldtag t-d outline' }, icon('check', 's'), 'CLAIMED') : button('FREE!', () => {
+      done ? h('div', { class: 'mn-soldtag t-d outline' }, icon('check', 's'), 'CLAIMED') : button('FREE!', () => {
         if (state.p.shop.freeClaimed || shopBought('free')) return;
         state.p.shop.freeClaimed = true;
         markBought('free');
@@ -137,10 +137,10 @@ export function mount(el, ctx) {
     const key = 'card:' + o.id;
     const sold = shopBought(key);
     const isNew = !state.p.cards[o.id];
-    const tile = h('div', { class: `hm-offer hm-r-${d.rarity} ${sold ? 'sold' : ''}` },
-      h('div', { class: 'hm-offer-top' }, h('span', { class: 'hm-qty t-d outline' }, 'x' + o.copies), isNew ? h('span', { class: 'hm-newcard t-d' }, 'NEW') : null),
-      h('div', { class: 'hm-offer-art' }, cardEl(o.id, { size: 'mini', noLevel: true, locked: false, owned: state.p.cards[o.id] ?? { level: 1 } })),
-      h('div', { class: 'hm-offer-n' }, d.name),
+    const tile = h('div', { class: `mn-offer mn-r-${d.rarity} ${sold ? 'sold' : ''}` },
+      h('div', { class: 'mn-offer-top' }, h('span', { class: 'mn-qty t-d outline' }, 'x' + o.copies), isNew ? h('span', { class: 'mn-newcard t-d' }, 'NEW') : null),
+      h('div', { class: 'mn-offer-art' }, cardEl(o.id, { size: 'mini', noLevel: true, locked: false, owned: state.p.cards[o.id] ?? { level: 1 } })),
+      h('div', { class: 'mn-offer-n' }, d.name),
       priceButton(o.cur, o.price, sold, () => buy({
         key, cur: o.cur, price: o.price, tile,
         title: 'BUY CARDS', art: cardEl(o.id, { noLevel: true, locked: false, owned: state.p.cards[o.id] ?? { level: 1 } }),
@@ -166,20 +166,20 @@ export function mount(el, ctx) {
       sub = `Swarm skin for ${cardDef(sk.swarm)?.name ?? sk.swarm}`;
     } else if (o.type === 'cmdSkin') {
       const sk = CMD_SKINS[o.id];
-      art = cmdImg(sk.commander, o.id, { size: 160 });
+      art = cmdFullImg(sk.commander, o.id, { w: 160, h: 200, priority: false });
       name = sk.name;
       sub = `Outfit for ${COMMANDERS[sk.commander]?.name ?? 'Commanders'}`;
     } else {
-      art = bannerEl(o.id, 'hm-feat-ban', h('span', { class: 't-d outline' }, BANNERS[o.id].name));
+      art = bannerEl(o.id, 'mn-feat-ban', h('span', { class: 't-d outline' }, BANNERS[o.id].name));
       name = BANNERS[o.id].name;
       sub = BANNERS[o.id].animated ? 'Animated profile banner' : 'Profile banner';
     }
-    const tile = h('div', { class: `hm-feat panel sk-panel-pink ${owned ? 'sold owned' : ''} k-${o.type}` },
-      h('div', { class: 'hm-feat-tag t-d' }, o.type === 'skin' ? 'SKIN' : o.type === 'cmdSkin' ? 'OUTFIT' : 'BANNER'),
-      h('div', { class: 'hm-feat-art' }, art),
-      h('div', { class: 'hm-feat-n t-d outline' }, name),
-      h('div', { class: 'hm-feat-s' }, sub),
-      owned ? h('div', { class: 'hm-soldtag t-d outline' }, icon('check', 's'), 'OWNED') : priceButton('bucks', o.price, false, () => buy({
+    const tile = h('div', { class: `mn-feat panel sk-panel-pink ${owned ? 'sold owned' : ''} k-${o.type}` },
+      h('div', { class: 'mn-feat-tag t-d' }, o.type === 'skin' ? 'SKIN' : o.type === 'cmdSkin' ? 'OUTFIT' : 'BANNER'),
+      h('div', { class: 'mn-feat-art' }, art),
+      h('div', { class: 'mn-feat-n t-d outline' }, name),
+      h('div', { class: 'mn-feat-s' }, sub),
+      owned ? h('div', { class: 'mn-soldtag t-d outline' }, icon('check', 's'), 'OWNED') : priceButton('bucks', o.price, false, () => buy({
         key, cur: 'bucks', price: o.price, tile,
         title: 'FEATURED', art: rewardArt({ type: o.type, id: o.id }), text: `Get <b>${name}</b>?`, sub: h('div', { class: 'center-t t-sm c-muted' }, sub),
         async onPaid() {
@@ -194,14 +194,14 @@ export function mount(el, ctx) {
     const v = VIALS[o.id];
     const key = 'vial:' + o.id;
     const sold = shopBought(key);
-    const tile = h('div', { class: `hm-vtile vr-${v.rarity} ${sold ? 'sold' : ''}` },
-      h('div', { class: 'hm-vtile-glow' }),
-      h('div', { class: 'hm-vtile-art' }, vialArt(o.id)),
-      h('div', { class: 'hm-vtile-n t-d outline' }, v.name),
-      h('div', { class: 'hm-vtile-s' }, VIAL_BLURB[o.id] ?? v.desc),
+    const tile = h('div', { class: `mn-vtile vr-${v.rarity} ${sold ? 'sold' : ''}` },
+      h('div', { class: 'mn-vtile-glow' }),
+      h('div', { class: 'mn-vtile-art' }, vialArt(o.id)),
+      h('div', { class: 'mn-vtile-n t-d outline' }, v.name),
+      h('div', { class: 'mn-vtile-s' }, VIAL_BLURB[o.id] ?? v.desc),
       priceButton('bucks', o.price, sold, () => buy({
         key, cur: 'bucks', price: o.price, tile,
-        title: v.name.toUpperCase(), art: vialArt(o.id, 'hm-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens instantly - no waiting!'),
+        title: v.name.toUpperCase(), art: vialArt(o.id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens instantly - no waiting!'),
         async onPaid() {
           ctx.openVial?.({ type: o.id, source: 'shop' });
         },
@@ -213,12 +213,12 @@ export function mount(el, ctx) {
     const key = 'deal:' + o.id;
     const sold = shopBought(key);
     const ic = COIN_ART[o.id] ?? 'coin';
-    const tile = h('div', { class: `hm-ctile ${sold ? 'sold' : ''}` },
-      h('div', { class: 'hm-ctile-art' }, icon(ic, 'hm-ctile-ic'), o.coins >= 5000 ? icon('coin', 'hm-ctile-c1') : null, o.coins >= 25000 ? icon('coin', 'hm-ctile-c2') : null),
-      h('div', { class: 'hm-ctile-amt t-d outline c-gold' }, fmt(o.coins)),
-      h('div', { class: 'hm-ctile-n' }, o.label),
+    const tile = h('div', { class: `mn-ctile ${sold ? 'sold' : ''}` },
+      h('div', { class: 'mn-ctile-art' }, icon(ic, 'mn-ctile-ic'), o.coins >= 5000 ? icon('coin', 'mn-ctile-c1') : null, o.coins >= 25000 ? icon('coin', 'mn-ctile-c2') : null),
+      h('div', { class: 'mn-ctile-amt t-d outline c-gold' }, fmtN(o.coins)),
+      h('div', { class: 'mn-ctile-n' }, o.label),
       priceButton('bucks', o.price, sold, () => buy({
-        key, cur: 'bucks', price: o.price, tile, title: o.label.toUpperCase(), art: icon(ic, 'hm-confirm-ic'), text: `Get <b>${fmt(o.coins)} Beast Coins</b>?`,
+        key, cur: 'bucks', price: o.price, tile, title: o.label.toUpperCase(), art: icon(ic, 'mn-confirm-ic'), text: `Get <b>${fmtN(o.coins)} Beast Coins</b>?`,
         async onPaid() {
           addCoins(o.coins);
           audio.play('coin');
@@ -233,29 +233,29 @@ export function mount(el, ctx) {
   function render() {
     refreshDaily();
     const off = shopOffers();
-    const inner = h('div', { class: 'hm-inner' });
+    const inner = h('div', { class: 'mn-inner' });
     // hero header
-    inner.appendChild(h('div', { class: 'hm-shophead' },
-      h('div', { class: 'hm-shophead-ic' }, icon('shop')),
-      h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-d outline hm-shophead-t' }, 'BEAST SHOP'), h('span', { class: 't-xs c-muted' }, 'Fresh deals from the Lab every day')),
+    inner.appendChild(h('div', { class: 'mn-shophead' },
+      h('div', { class: 'mn-shophead-ic' }, icon('shop')),
+      h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-d outline mn-shophead-t' }, 'BEAST SHOP'), h('span', { class: 't-xs c-muted' }, 'Fresh deals from the Lab every day')),
       h('span', { class: 'spacer' }),
       timerChip(midnightMs(), 'New in')));
     // daily deals
-    inner.appendChild(h('div', { class: 'hm-shopsec' }, secHead('DAILY DEALS', 'gold'), giftTile(off),
-      h('div', { class: 'hm-offers' }, ...off.cards.map(cardTile))));
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('DAILY DEALS', 'gold'), giftTile(off),
+      h('div', { class: 'mn-offers' }, ...off.cards.map(cardTile))));
     // featured
     const feat = featuredOffers();
-    if (feat.length) inner.appendChild(h('div', { class: 'hm-shopsec' }, secHead('FEATURED', 'pink'), h('div', { class: 'hm-feats' }, ...feat.map(featuredTile))));
+    if (feat.length) inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('FEATURED', 'pink'), h('div', { class: 'mn-feats' }, ...feat.map(featuredTile))));
     // vials
-    inner.appendChild(h('div', { class: 'hm-shopsec' }, secHead('VIALS', 'blue'), h('div', { class: 'hm-vials' }, ...off.vials.map(vialTile))));
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('VIALS', 'blue'), h('div', { class: 'mn-vials' }, ...off.vials.map(vialTile))));
     // coins
-    inner.appendChild(h('div', { class: 'hm-shopsec' }, secHead('BEAST COINS', 'green'), h('div', { class: 'hm-coins' }, ...off.deals.map(coinTile))));
-    inner.appendChild(h('div', { class: 'hm-shopnote' }, icon('bucks', 's'), h('span', {}, 'Earn Beast Bucks from the Trophy Road, Lab Levels, the Food Pass, bosses and secrets on Beast Island.')));
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('BEAST COINS', 'green'), h('div', { class: 'mn-coins' }, ...off.deals.map(coinTile))));
+    inner.appendChild(h('div', { class: 'mn-shopnote' }, icon('bucks', 's'), h('span', {}, 'Earn Beast Bucks from the Trophy Road, Lab Levels, the Food Pass, bosses and secrets on Beast Island.')));
     return inner;
   }
 
   shell.render();
-  return { dispose: () => shell.dispose(), refresh: () => shell.render() };
+  return { dispose: () => shell.dispose(), refresh: () => shell.schedule(40) };
 }
 
 /** Shop notification count (free gift waiting). */

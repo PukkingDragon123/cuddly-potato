@@ -45,9 +45,22 @@ const NPC_OF_ZONE = Object.fromEntries(Object.entries(QUEST_NPC_ZONE).map(([npc,
 const ZONE_EXTRAS = { circle: 'fan', factory: 'labTech', redlight: 'guard', antarctica: 'labTech', reactor: 'labTech', pyramid: 'fan', island: 'fan' };
 
 // vial thumbnails come from the vial module (rendered 3D); fall back to the pixel icon
-// (optional modules are resolved with import.meta.glob so a missing file never breaks the build)
-const OPTIONAL = import.meta.glob(['../ui/vialThumb.js', '../ui/home/*.js']);
-const loadOpt = (path) => (OPTIONAL[path] ? OPTIONAL[path]() : Promise.reject(new Error('missing ' + path)));
+// screens are code-split: each tab / modal loads on first use
+const MODULES = {
+  '../ui/vialThumb.js': () => import('../ui/vialThumb.js'),
+  '../ui/home/badges.js': () => import('../ui/home/badges.js'),
+  '../ui/home/shop.js': () => import('../ui/home/shop.js'),
+  '../ui/home/cards.js': () => import('../ui/home/cards.js'),
+  '../ui/home/lab.js': () => import('../ui/home/lab.js'),
+  '../ui/home/pass.js': () => import('../ui/home/pass.js'),
+  '../ui/home/cardInfo.js': () => import('../ui/home/cardInfo.js'),
+  '../ui/home/trophyRoad.js': () => import('../ui/home/trophyRoad.js'),
+  '../ui/home/profile.js': () => import('../ui/home/profile.js'),
+  '../ui/home/settings.js': () => import('../ui/home/settings.js'),
+  '../ui/home/friend.js': () => import('../ui/home/friend.js'),
+  '../ui/home/boss.js': () => import('../ui/home/boss.js'),
+};
+const loadOpt = (path) => (MODULES[path] ? MODULES[path]() : Promise.reject(new Error('missing ' + path)));
 let vialThumbFn = null;
 loadOpt('../ui/vialThumb.js').then((m) => (vialThumbFn = m.vialThumb)).catch(() => {});
 function vialImg(type, cls = 'vt') {
@@ -297,7 +310,7 @@ export class HomeScene {
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only', { icon: 'gear' }),
       button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only', { icon: 'friends' }),
-      button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only', { icon: 'road' })));
+      this.roadBtn = button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only', { icon: 'road' })));
     // tags over the island
     this.tagLayer = h('div', { class: 'hm-tags' });
     for (const pk of this.pickables) if (pk.tag) this.tagLayer.appendChild(pk.tag);
@@ -429,6 +442,8 @@ export class HomeScene {
         const n = b[btn.dataset.tab] ?? 0;
         if (n > 0) btn.appendChild(h('div', { class: 'badge' }, n > 9 ? '9+' : String(n)));
       }
+      this.roadBtn.querySelector('.badge')?.remove();
+      if (b.road > 0) this.roadBtn.appendChild(h('div', { class: 'badge' }, b.road > 9 ? '9+' : String(b.road)));
     } catch (e) { /* screens not available yet */ }
   }
 

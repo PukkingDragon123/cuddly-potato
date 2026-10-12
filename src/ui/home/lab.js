@@ -40,7 +40,8 @@ const rich = (t) => String(t).replace(/\*(.+?)\*/g, '<b>$1</b>');
 let viewId = null; // which Commander the showcase shows (persists between mounts)
 
 export function mount(el, ctx) {
-  const shell = screenShell(el, { cls: 'hm-lab', render });
+  viewId = null; // always open on the equipped Commander
+  const shell = screenShell(el, { cls: 'mn-lab', render });
 
   function view() {
     const own = state.p.commanders.owned;
@@ -55,16 +56,16 @@ export function mount(el, ctx) {
     const lvl = cs?.level ?? 1;
     const need = cmdXpForLevel(lvl);
     const max = lvl >= CMD_MAX_LEVEL;
-    const port = h('div', { class: 'hm-cmd-stage' },
-      h('div', { class: 'hm-cmd-spot' }),
-      h('div', { class: 'hm-cmd-ped' }),
-      cmdFullImg(id, cs?.skin ?? null, { w: 200, h: 250, pose: cs ? 'idle' : null }, `hm-cmd-full ${cs ? '' : 'locked'}`));
+    const port = h('div', { class: 'mn-cmd-stage' },
+      h('div', { class: 'mn-cmd-spot' }),
+      h('div', { class: 'mn-cmd-ped' }),
+      cmdFullImg(id, cs?.skin ?? null, { w: 200, h: 250, pose: cs ? 'idle' : null }, `mn-cmd-full ${cs ? '' : 'locked'}`));
     let action;
     if (!cs) {
       const u = unlockInfo(def, ctx);
-      action = h('div', { class: 'hm-cmd-lock' }, icon('lock'), h('span', { html: rich(u.text) }), u.action ? button(u.action.label, u.action.fn, 'blue sm', { icon: u.action.icon }) : null);
+      action = h('div', { class: 'mn-cmd-lock' }, icon('lock'), h('span', { html: rich(u.text) }), u.action ? button(u.action.label, u.action.fn, 'blue sm', { icon: u.action.icon }) : null);
     } else if (equipped) {
-      action = h('div', { class: 'hm-cmd-eq t-d outline' }, icon('check', 's'), 'EQUIPPED');
+      action = h('div', { class: 'mn-cmd-eq t-d outline' }, icon('check', 's'), 'EQUIPPED');
     } else {
       action = button('EQUIP', () => {
         equipCommander(id);
@@ -72,20 +73,20 @@ export function mount(el, ctx) {
         shell.lock(400);
         shell.render();
         refreshCtx(ctx);
-        const st = shell.scroll.querySelector('.hm-cmd-stage');
+        const st = shell.scroll.querySelector('.mn-cmd-stage');
         if (st) { sparkle(st, { count: 24 }); bump(st); }
         notify(ctx, `*${def.name}* is now your Commander!`, { icon: 'crown' });
       }, 'green lg shine', { icon: 'crown' });
     }
-    const info = h('div', { class: 'hm-cmd-info' },
-      h('div', { class: 'hm-cmd-name t-d outline' }, def.name),
-      cs ? h('div', { class: 'hm-cmd-lvrow' },
-        h('div', { class: 'hm-cmd-lv t-d outline' }, h('small', {}, 'LV'), h('span', {}, String(lvl))),
-        bar(max ? 1 : Math.min(1, cs.xp / need), 'purple', max ? 'MAX LEVEL' : `${fmtN(cs.xp)} / ${fmtN(need)} XP`, { cls: 'hm-cmd-xp' })) : null,
-      h('div', { class: 'hm-cmd-desc' }, def.desc),
+    const info = h('div', { class: 'mn-cmd-info' },
+      h('div', { class: 'mn-cmd-name t-d outline' }, def.name),
+      cs ? h('div', { class: 'mn-cmd-lvrow' },
+        h('div', { class: 'mn-cmd-lv t-d outline' }, h('small', {}, 'LV'), h('span', {}, String(lvl))),
+        bar(max ? 1 : Math.min(1, cs.xp / need), 'purple', max ? 'MAX LEVEL' : `${fmtN(cs.xp)} / ${fmtN(need)} XP`, { cls: 'mn-cmd-xp' })) : null,
+      h('div', { class: 'mn-cmd-desc' }, def.desc),
       cs ? h('div', { class: 'row wrap gap-s' }, chip([icon('magic', 's'), `Ability power +${Math.round((cmdPower(lvl) - 1) * 100)}%`]), chip([icon('star', 's'), `${perkSlotsForLevel(lvl)} perk slot${perkSlotsForLevel(lvl) > 1 ? 's' : ''}`])) : null,
       action);
-    return h('div', { class: `panel sk-panel hm-cmd ${cs ? '' : 'is-locked'}` }, port, info);
+    return h('div', { class: `panel sk-panel mn-cmd ${cs ? '' : 'is-locked'}` }, port, info);
   }
 
   // ---------------------------------------------------------------- abilities
@@ -93,21 +94,21 @@ export function mount(el, ctx) {
     const { def, cs } = view();
     const lvl = cs?.level ?? 0;
     const sig = def.signature;
-    const rows = [h('div', { class: 'hm-abil sig' },
-      h('div', { class: 'hm-abil-ic' }, icon(sig.icon ?? 'star')),
-      h('div', { class: 'hm-abil-t' },
-        h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline hm-abil-n' }, sig.name), chip('SIGNATURE', 'sigchip')),
-        h('span', { class: 'hm-abil-d' }, sig.desc),
-        h('span', { class: 'hm-abil-m' }, icon('clock', 's'), `Charges up in ${sig.charge}s during battle`)))];
+    const rows = [h('div', { class: 'mn-abil sig' },
+      h('div', { class: 'mn-abil-ic' }, icon(sig.icon ?? 'star')),
+      h('div', { class: 'mn-abil-t' },
+        h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline mn-abil-n' }, sig.name), chip('SIGNATURE', 'sigchip')),
+        h('span', { class: 'mn-abil-d' }, sig.desc),
+        h('span', { class: 'mn-abil-m' }, icon('clock', 's'), `Charges up in ${sig.charge}s during battle`)))];
     for (const sk of def.skills) {
       const open = lvl >= sk.level;
-      rows.push(h('div', { class: `hm-abil ${open ? '' : 'lock'}` },
-        h('div', { class: 'hm-abil-ic' }, icon(sk.icon ?? 'star'), open ? null : h('div', { class: 'hm-abil-lk' }, icon('lock'))),
-        h('div', { class: 'hm-abil-t' },
-          h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline hm-abil-n' }, sk.name), open ? chip([icon('clock', 's'), sk.cd + 's']) : chip(`Unlocks at LV ${sk.level}`, 'lockchip')),
-          h('span', { class: 'hm-abil-d' }, sk.desc))));
+      rows.push(h('div', { class: `mn-abil ${open ? '' : 'lock'}` },
+        h('div', { class: 'mn-abil-ic' }, icon(sk.icon ?? 'star'), open ? null : h('div', { class: 'mn-abil-lk' }, icon('lock'))),
+        h('div', { class: 'mn-abil-t' },
+          h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline mn-abil-n' }, sk.name), open ? chip([icon('clock', 's'), sk.cd + 's']) : chip(`Unlocks at LV ${sk.level}`, 'lockchip')),
+          h('span', { class: 'mn-abil-d' }, sk.desc))));
     }
-    return h('div', { class: 'hm-box' }, subHead('ABILITIES'), ...rows);
+    return h('div', { class: 'mn-box' }, subHead('ABILITIES'), ...rows);
   }
 
   // ---------------------------------------------------------------- perks
@@ -118,20 +119,20 @@ export function mount(el, ctx) {
     const slots = [0, 1, 2].map((i) => {
       const pk = cs.perks[i];
       if (i >= unlocked) {
-        return h('div', { class: 'hm-perk lock' }, h('div', { class: 'hm-perk-ic' }, icon('lock')), h('div', { class: 'hm-perk-t' }, h('b', { class: 't-d outline' }, `SLOT ${i + 1}`), h('span', { class: 't-xs c-muted' }, `Unlocks at Commander LV ${SLOT_LEVEL[i]}`)));
+        return h('div', { class: 'mn-perk lock' }, h('div', { class: 'mn-perk-ic' }, icon('lock')), h('div', { class: 'mn-perk-t' }, h('b', { class: 't-d outline' }, `SLOT ${i + 1}`), h('span', { class: 't-xs c-muted' }, `Unlocks at Commander LV ${SLOT_LEVEL[i]}`)));
       }
       const roll = button(pk ? 'REROLL' : 'ROLL', (e) => doRoll(id, i, e.currentTarget), pk ? 'blue sm' : 'green sm', { price: { cur: 'coins', amount: PERK_ROLL_COST }, sound: 'tap' });
       if (state.p.coins < PERK_ROLL_COST) roll.classList.add('poor');
       if (!pk) {
-        return h('div', { class: 'hm-perk empty' }, h('div', { class: 'hm-perk-ic' }, h('span', { class: 't-d' }, '?')), h('div', { class: 'hm-perk-t' }, h('b', { class: 't-d outline' }, 'EMPTY SLOT'), h('span', { class: 't-xs c-muted' }, 'Roll a random perk!')), roll);
+        return h('div', { class: 'mn-perk empty' }, h('div', { class: 'mn-perk-ic' }, h('span', { class: 't-d' }, '?')), h('div', { class: 'mn-perk-t' }, h('b', { class: 't-d outline' }, 'EMPTY SLOT'), h('span', { class: 't-xs c-muted' }, 'Roll a random perk!')), roll);
       }
       const P = PERKS[pk.id];
-      return h('div', { class: `hm-perk t-${pk.tier}`, style: { '--tc': TIER_COLOR[pk.tier] } },
-        h('div', { class: 'hm-perk-ic' }, icon(P.icon)),
-        h('div', { class: 'hm-perk-t' }, h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline' }, P.name), chip(tierName(pk.tier), 'tierchip')), h('span', { class: 'hm-perk-d' }, perkText(pk))),
+      return h('div', { class: `mn-perk t-${pk.tier}`, style: { '--tc': TIER_COLOR[pk.tier] } },
+        h('div', { class: 'mn-perk-ic' }, icon(P.icon)),
+        h('div', { class: 'mn-perk-t' }, h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline' }, P.name), chip(tierName(pk.tier), 'tierchip')), h('span', { class: 'mn-perk-d' }, perkText(pk))),
         roll);
     });
-    return h('div', { class: 'hm-box' }, subHead('PERKS', h('span', { class: 't-xs c-muted' }, 'Bonuses for every battle')), ...slots);
+    return h('div', { class: 'mn-box' }, subHead('PERKS', h('span', { class: 't-xs c-muted' }, 'Bonuses for every battle')), ...slots);
   }
 
   async function doRoll(cmdId, slot, btnEl) {
@@ -149,27 +150,27 @@ export function mount(el, ctx) {
       audio.play('upgrade');
     } else audio.play('tap');
     shell.render();
-    const el = shell.scroll.querySelectorAll('.hm-perk')[slot];
+    const el = shell.scroll.querySelectorAll('.mn-perk')[slot];
     if (el && choice === 'new') { sparkle(el, { count: 18, colors: [TIER_COLOR[perk.tier], '#ffffff', '#ffd84a'] }); bump(el); }
   }
 
   /** Slot-machine perk reveal; resolves 'new' | 'old'. */
   function perkRollModal(perk, old) {
     return new Promise((resolve) => {
-      const reel = h('div', { class: 'hm-reel' });
+      const reel = h('div', { class: 'mn-reel' });
       const ids = Object.keys(PERKS);
       const card = (pk, cls = '') => {
         const P = PERKS[pk.id];
-        return h('div', { class: `hm-pcard ${cls}`, style: { '--tc': TIER_COLOR[pk.tier] } },
-          h('div', { class: 'hm-pcard-tier t-d' }, tierName(pk.tier).toUpperCase()),
-          h('div', { class: 'hm-pcard-ic' }, icon(P.icon)),
-          h('b', { class: 't-d outline hm-pcard-n' }, P.name),
-          h('span', { class: 'hm-pcard-d' }, perkText(pk)));
+        return h('div', { class: `mn-pcard ${cls}`, style: { '--tc': TIER_COLOR[pk.tier] } },
+          h('div', { class: 'mn-pcard-tier t-d' }, tierName(pk.tier).toUpperCase()),
+          h('div', { class: 'mn-pcard-ic' }, icon(P.icon)),
+          h('b', { class: 't-d outline mn-pcard-n' }, P.name),
+          h('span', { class: 'mn-pcard-d' }, perkText(pk)));
       };
       const foot = h('div', { class: 'row center', style: { gap: 'calc(var(--u)*2)' } });
       let done = false;
       const finish = (v) => { if (done) return; done = true; m.close(); resolve(v); };
-      const m = modal({ title: 'PERK ROLL', color: 'purple', size: 'narrow', cls: 'hm-rollm', body: h('div', { class: 'col center' }, reel), foot, closable: false });
+      const m = modal({ title: 'PERK ROLL', color: 'purple', size: 'narrow', cls: 'mn-rollm', body: h('div', { class: 'col center' }, reel), foot, closable: false });
       let n = 0;
       const spin = () => {
         if (m.closed) return;
@@ -189,7 +190,7 @@ export function mount(el, ctx) {
         if (perk.tier === 'legendary') audio.jingle('rare');
         setTimeout(() => sparkle(c, { count: perk.tier === 'legendary' ? 40 : 20, colors: [TIER_COLOR[perk.tier], '#ffffff', '#ffd84a'] }), 30);
         if (old) {
-          reel.appendChild(h('div', { class: 'hm-reel-vs' }, h('span', { class: 't-xs c-muted' }, 'Current perk:'), h('span', { class: 'hm-reel-old' }, `${PERKS[old.id].name} (${tierName(old.tier)}): ${perkText(old)}`)));
+          reel.appendChild(h('div', { class: 'mn-reel-vs' }, h('span', { class: 't-xs c-muted' }, 'Current perk:'), h('span', { class: 'mn-reel-old' }, `${PERKS[old.id].name} (${tierName(old.tier)}): ${perkText(old)}`)));
           foot.append(button('KEEP OLD', () => finish('old'), 'gray'), button('TAKE NEW', () => finish('new'), 'green', { icon: 'check' }));
         } else foot.append(button('EQUIP PERK', () => finish('new'), 'green lg', { icon: 'check' }));
       };
@@ -202,16 +203,16 @@ export function mount(el, ctx) {
     const { id, cs } = view();
     if (!cs) return null;
     const opts = [null, ...cmdSkinsFor(id)];
-    const row = h('div', { class: 'hm-outfits' });
+    const row = h('div', { class: 'mn-outfits' });
     for (const sk of opts) {
       const have = sk === null || cmdSkinOwned(id, sk);
       const sel = (cs.skin ?? null) === sk;
       const name = sk ? CMD_SKINS[sk].name : 'Classic';
-      const t = h('div', { class: `hm-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'}` },
-        h('div', { class: 'hm-pk-art' }, cmdImg(id, sk, { size: 128 }), have ? null : icon('lock', 'hm-pk-lock')),
-        h('div', { class: 'hm-pk-n' }, name),
-        h('div', { class: 'hm-pk-s' }, have ? (sel ? 'Wearing' : 'Owned') : unlockHint('cmdSkin', sk)),
-        sel ? h('div', { class: 'hm-pk-tick' }, icon('check', 's')) : null);
+      const t = h('div', { class: `mn-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'}` },
+        h('div', { class: 'mn-pk-art' }, cmdImg(id, sk, { size: 128 }), have ? null : icon('lock', 'mn-pk-lock')),
+        h('div', { class: 'mn-pk-n' }, name),
+        h('div', { class: 'mn-pk-s' }, have ? (sel ? 'Wearing' : 'Owned') : unlockHint('cmdSkin', sk)),
+        sel ? h('div', { class: 'mn-pk-tick' }, icon('check', 's')) : null);
       t.addEventListener('click', () => {
         if (!have) { audio.play('deny'); return notify(ctx, `${name}: ${unlockHint('cmdSkin', sk)}`, { icon: 'paint' }); }
         if (sel) return;
@@ -220,34 +221,34 @@ export function mount(el, ctx) {
         shell.lock(300);
         shell.render();
         refreshCtx(ctx);
-        const st = shell.scroll.querySelector('.hm-cmd-stage');
+        const st = shell.scroll.querySelector('.mn-cmd-stage');
         if (st) sparkle(st, { count: 20 });
       });
       row.appendChild(t);
     }
-    return h('div', { class: 'hm-box' }, subHead('OUTFITS'), row);
+    return h('div', { class: 'mn-box' }, subHead('OUTFITS'), row);
   }
 
   // ---------------------------------------------------------------- level road
   function levelRoad() {
     const { cs } = view();
     if (!cs) return null;
-    const row = h('div', { class: 'hm-lvroad scroll-x' });
+    const row = h('div', { class: 'mn-lvroad scroll-x' });
     for (let L = 2; L <= CMD_MAX_LEVEL; L++) {
       const r = CMD_LEVEL_REWARDS[L];
       if (!r) continue;
       const got = cs.level >= L;
       const ic = r.skill !== undefined ? 'magic' : r.banner ? 'flag' : r.skin ? 'paint' : r.bucks ? 'bucks' : r.coins ? 'coin' : 'star';
-      row.appendChild(h('div', { class: `hm-lvn ${got ? 'got' : ''} ${cs.level + 1 === L ? 'next' : ''}` },
-        h('div', { class: 'hm-lvn-l t-d outline' }, 'LV ' + L),
-        h('div', { class: 'hm-lvn-ic' }, icon(ic), got ? h('div', { class: 'hm-lvn-ck' }, icon('check', 's')) : null),
-        h('div', { class: 'hm-lvn-t' }, r.text)));
+      row.appendChild(h('div', { class: `mn-lvn ${got ? 'got' : ''} ${cs.level + 1 === L ? 'next' : ''}` },
+        h('div', { class: 'mn-lvn-l t-d outline' }, 'LV ' + L),
+        h('div', { class: 'mn-lvn-ic' }, icon(ic), got ? h('div', { class: 'mn-lvn-ck' }, icon('check', 's')) : null),
+        h('div', { class: 'mn-lvn-t' }, r.text)));
     }
     setTimeout(() => {
       const nx = row.querySelector('.next');
       if (nx) row.scrollLeft = nx.offsetLeft - row.clientWidth / 2 + nx.offsetWidth / 2;
     }, 0);
-    return h('div', { class: 'hm-box' }, subHead('COMMANDER LEVELS', h('span', { class: 't-xs c-muted' }, 'Earn XP in every battle')), row);
+    return h('div', { class: 'mn-box' }, subHead('COMMANDER LEVELS', h('span', { class: 't-xs c-muted' }, 'Earn XP in every battle')), row);
   }
 
   // ---------------------------------------------------------------- roster
@@ -255,14 +256,14 @@ export function mount(el, ctx) {
     const own = state.p.commanders.owned;
     const eq = state.p.commanders.equipped;
     const { id: vid } = view();
-    const grid = h('div', { class: 'hm-roster' });
+    const grid = h('div', { class: 'mn-roster' });
     for (const [id, c] of Object.entries(COMMANDERS)) {
       const cs = own[id];
-      const t = h('div', { class: `hm-rost ${cs ? '' : 'lock'} ${vid === id ? 'view' : ''} ${eq === id ? 'eq' : ''}` },
-        h('div', { class: 'hm-rost-art' }, cmdImg(id, cs?.skin ?? null, { size: 128 })),
-        h('div', { class: 'hm-rost-n t-d outline' }, c.name),
-        cs ? h('div', { class: 'hm-rost-lv t-d' }, 'LV ' + cs.level) : h('div', { class: 'hm-rost-lk' }, icon('lock', 's')),
-        eq === id ? h('div', { class: 'hm-rost-eq' }, icon('crown', 's')) : null);
+      const t = h('div', { class: `mn-rost ${cs ? '' : 'lock'} ${vid === id ? 'view' : ''} ${eq === id ? 'eq' : ''}` },
+        h('div', { class: 'mn-rost-art' }, cmdImg(id, cs?.skin ?? null, { size: 128 })),
+        h('div', { class: 'mn-rost-n t-d outline' }, c.name),
+        cs ? h('div', { class: 'mn-rost-lv t-d' }, 'LV ' + cs.level) : h('div', { class: 'mn-rost-lk' }, icon('lock', 's')),
+        eq === id ? h('div', { class: 'mn-rost-eq' }, icon('crown', 's')) : null);
       t.addEventListener('click', () => {
         if (vid === id) return;
         viewId = id;
@@ -272,7 +273,7 @@ export function mount(el, ctx) {
       });
       grid.appendChild(t);
     }
-    return h('div', { class: 'hm-box' }, subHead('COMMANDERS', h('span', { class: 't-xs c-muted' }, `${Object.keys(own).length}/${Object.keys(COMMANDERS).length} recruited`)), grid);
+    return h('div', { class: 'mn-box' }, subHead('COMMANDERS', h('span', { class: 't-xs c-muted' }, `${Object.keys(own).length}/${Object.keys(COMMANDERS).length} recruited`)), grid);
   }
 
   // ---------------------------------------------------------------- Lab Level
@@ -280,54 +281,54 @@ export function mount(el, ctx) {
     const info = labXpInfo();
     const L = info.level;
     const pw = labPower(L), pn = labPower(Math.min(LAB_MAX_LEVEL, L + 1));
-    const stat = (ic, label, base, cur, nxt) => h('div', { class: 'hm-labst' }, icon(ic, 'hm-st-ic'),
-      h('div', { class: 'hm-st-txt' }, h('span', { class: 'hm-st-l' }, label), h('span', { class: 'row', style: { gap: '0.3em' } },
-        h('b', { class: 'hm-st-v t-d outline' }, fmtN(Math.round(base * cur))),
-        !info.max ? h('span', { class: 'hm-st-plus t-d' }, '+' + fmtN(Math.round(base * nxt) - Math.round(base * cur))) : null)));
-    const head = h('div', { class: 'hm-labhead' },
+    const stat = (ic, label, base, cur, nxt) => h('div', { class: 'mn-labst' }, icon(ic, 'mn-st-ic'),
+      h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, label), h('span', { class: 'row', style: { gap: '0.3em' } },
+        h('b', { class: 'mn-st-v t-d outline' }, fmtN(Math.round(base * cur))),
+        !info.max ? h('span', { class: 'mn-st-plus t-d' }, '+' + fmtN(Math.round(base * nxt) - Math.round(base * cur))) : null)));
+    const head = h('div', { class: 'mn-labhead' },
       labBadge(L, 'big'),
       h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.8)' } },
-        h('span', { class: 't-d outline hm-labhead-t' }, `LAB LEVEL ${L}`),
-        bar(info.max ? 1 : info.xp / Math.max(1, info.need), 'blue', info.max ? 'MAX LEVEL' : `${fmtN(info.xp)} / ${fmtN(info.need)} XP`, { cls: 'hm-labxp' }),
+        h('span', { class: 't-d outline mn-labhead-t' }, `LAB LEVEL ${L}`),
+        bar(info.max ? 1 : info.xp / Math.max(1, info.need), 'blue', info.max ? 'MAX LEVEL' : `${fmtN(info.xp)} / ${fmtN(info.need)} XP`, { cls: 'mn-labxp' }),
         h('span', { class: 't-xs c-muted' }, 'Earn Lab XP by upgrading cards and winning battles.')));
-    const stats = h('div', { class: 'hm-labstats' },
+    const stats = h('div', { class: 'mn-labstats' },
       stat('hp', 'Lab Hitpoints', TOWERS.lab.hp, pw, pn),
       stat('sword', 'Lab Damage', TOWERS.lab.dmg, pw, pn),
       stat('tower', 'Turret Hitpoints', TOWERS.turret.hp, pw, pn),
       stat('sword', 'Turret Damage', TOWERS.turret.dmg, pw, pn));
-    const road = h('div', { class: 'hm-labroad scroll-x' });
+    const road = h('div', { class: 'mn-labroad scroll-x' });
     for (let lv = 2; lv <= LAB_MAX_LEVEL; lv++) {
       const r = LAB_LEVEL_REWARDS(lv);
       const got = L >= lv;
-      road.appendChild(h('div', { class: `hm-labn ${got ? 'got' : ''} ${lv === L + 1 ? 'next' : ''}` },
+      road.appendChild(h('div', { class: `mn-labn ${got ? 'got' : ''} ${lv === L + 1 ? 'next' : ''}` },
         labBadge(lv, 'sm'),
-        h('div', { class: 'hm-labn-r' }, h('span', {}, icon('coin', 's'), fmtN(r.coins)), h('span', {}, icon('bucks', 's'), String(r.bucks))),
-        h('div', { class: 'hm-labn-xp' }, got ? icon('check', 's') : `${fmtN(LAB_XP[lv - 1])} XP`)));
+        h('div', { class: 'mn-labn-r' }, h('span', {}, icon('coin', 's'), fmtN(r.coins)), h('span', {}, icon('bucks', 's'), String(r.bucks))),
+        h('div', { class: 'mn-labn-xp' }, got ? icon('check', 's') : `${fmtN(LAB_XP[lv - 1])} XP`)));
     }
     setTimeout(() => {
       const nx = road.querySelector('.next');
       if (nx) road.scrollLeft = nx.offsetLeft - road.clientWidth / 2 + nx.offsetWidth / 2;
     }, 0);
-    const how = h('div', { class: 'hm-labhow' },
+    const how = h('div', { class: 'mn-labhow' },
       h('div', {}, icon('up', 's'), h('span', {}, 'Each Lab Level: *+7%* Lab & turret HP and damage')),
       h('div', {}, icon('cards', 's'), h('span', {}, 'Upgrade cards: big Lab XP')),
       h('div', {}, icon('swords', 's'), h('span', {}, 'Win battles: +6 Lab XP')));
     how.querySelectorAll('span').forEach((s) => (s.innerHTML = rich(s.textContent)));
     const go = button('UPGRADE CARDS', () => ctx.openTab?.('cards'), 'blue sm', { icon: 'cards' });
-    return h('div', { class: 'panel sk-panel hm-labpanel' }, head, stats, subHead('LEVEL REWARDS'), road, h('div', { class: 'row wrap between gap-s' }, how, go));
+    return h('div', { class: 'panel sk-panel mn-labpanel' }, head, stats, subHead('LEVEL REWARDS'), road, h('div', { class: 'row wrap between gap-s' }, how, go));
   }
 
   function render() {
     const { cs } = view();
-    const inner = h('div', { class: 'hm-inner' },
-      h('div', { class: 'hm-labcol' }, secHead('COMMANDER', 'purple'), showcase(), abilities(), perks(), outfits(), levelRoad(), roster()),
-      h('div', { class: 'hm-labcol' }, secHead('LAB LEVEL', 'blue'), labLevelPanel()));
+    const inner = h('div', { class: 'mn-inner' },
+      h('div', { class: 'mn-labcol' }, secHead('COMMANDER', 'purple'), showcase(), abilities(), perks(), outfits(), levelRoad(), roster()),
+      h('div', { class: 'mn-labcol' }, secHead('LAB LEVEL', 'blue'), labLevelPanel()));
     if (!cs) inner.classList.add('viewing-locked');
     return inner;
   }
 
   shell.render();
-  return { dispose: () => shell.dispose(), refresh: () => shell.render() };
+  return { dispose: () => shell.dispose(), refresh: () => shell.schedule(40) };
 }
 
 /** Lab tab notification count: empty perk slots you can afford to roll. */

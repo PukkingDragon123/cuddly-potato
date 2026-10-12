@@ -27,7 +27,11 @@ export { fmt, fmtTime };
 export function meta() {
   const p = state.p;
   if (!p.hub || typeof p.hub !== 'object') p.hub = {};
-  p.hub.seenCards ??= {};
+  if (!p.hub.seenCards) {
+    // first run of these menus (or a migrated save): what you already own isn't "new"
+    p.hub.seenCards = {};
+    for (const id of Object.keys(p.cards)) p.hub.seenCards[id] = 1;
+  }
   return p.hub;
 }
 export const isCardNew = (id) => !!state.p.cards[id] && !meta().seenCards[id];
@@ -60,14 +64,14 @@ export const refreshCtx = (ctx) => { try { ctx?.refresh?.(); } catch (e) { conso
 export function flyText(el, text, cls = '') {
   if (!el?.isConnected) return;
   const r = el.getBoundingClientRect();
-  const t = h('div', { class: 'hm-fly t-d outline ' + cls, style: { left: r.left + r.width / 2 + 'px', top: r.top + r.height * 0.35 + 'px' } }, text);
+  const t = h('div', { class: 'mn-fly t-d outline ' + cls, style: { left: r.left + r.width / 2 + 'px', top: r.top + r.height * 0.35 + 'px' } }, text);
   $overlay().appendChild(t);
   setTimeout(() => t.remove(), 1300);
 }
 
 /** Big slam text over an element ("LEVEL UP!"). */
 export function slam(parent, text, cls = '') {
-  const t = h('div', { class: 'hm-slam t-d outline ' + cls }, text);
+  const t = h('div', { class: 'mn-slam t-d outline ' + cls }, text);
   parent.appendChild(t);
   setTimeout(() => t.remove(), 1500);
   return t;
@@ -96,8 +100,8 @@ export const midnightMs = () => Date.now() + secsToMidnight() * 1000;
 // back while an animation is running), timers, scroll preservation.
 
 export function screenShell(el, o) {
-  const root = h('div', { class: `hm-screen hm-intro ${o.cls ?? ''}` });
-  const scroll = h('div', { class: 'hm-scroll scroll-y' });
+  const root = h('div', { class: `mn-screen mn-intro ${o.cls ?? ''}` });
+  const scroll = h('div', { class: 'mn-scroll scroll-y' });
   root.appendChild(scroll);
   el.appendChild(root);
   let lockUntil = 0, dirty = false, timer = 0, disposed = false, first = true;
@@ -144,7 +148,7 @@ export function screenShell(el, o) {
     tickTimers(root);
     o.tick?.(api);
   }, 1000);
-  setTimeout(() => root.classList.remove('hm-intro'), 1200);
+  setTimeout(() => root.classList.remove('mn-intro'), 1200);
   return api; // the caller does the first api.render() once its closures exist
 }
 
@@ -153,19 +157,19 @@ export function screenShell(el, o) {
 
 /** Section header: ribbon + optional right-hand info. */
 export function secHead(text, color = 'blue', right = null, cls = '') {
-  return h('div', { class: 'hm-sec ' + cls },
-    h('div', { class: `ribbon sk-ribbon-${color} hm-sec-rb` }, h('span', {}, text)),
-    right ? h('div', { class: 'hm-sec-right' }, right) : null);
+  return h('div', { class: 'mn-sec ' + cls },
+    h('div', { class: `ribbon sk-ribbon-${color} mn-sec-rb` }, h('span', {}, text)),
+    right ? h('div', { class: 'mn-sec-right' }, right) : null);
 }
 /** Small label bar (subsection). */
 export function subHead(text, right = null, cls = '') {
-  return h('div', { class: 'hm-sub ' + cls }, h('span', { class: 't-d outline' }, text), h('span', { class: 'spacer' }), right);
+  return h('div', { class: 'mn-sub ' + cls }, h('span', { class: 't-d outline' }, text), h('span', { class: 'spacer' }), right);
 }
 export function chip(content, cls = '') {
-  return h('span', { class: 'hm-chip ' + cls }, content);
+  return h('span', { class: 'mn-chip ' + cls }, content);
 }
 export function timerChip(endMs, label = 'New in') {
-  return chip([icon('clock', 's'), h('span', { class: 'c-muted' }, label + ' '), countdown(endMs, 'c-gold')], 'hm-chip-timer');
+  return chip([icon('clock', 's'), h('span', { class: 'c-muted' }, label + ' '), countdown(endMs, 'c-gold')], 'mn-chip-timer');
 }
 export function badgeEl(n, cls = '') {
   if (!n) return null;
@@ -174,9 +178,9 @@ export function badgeEl(n, cls = '') {
 
 /** Segmented tab strip. items: [{id,label,icon,badge}] */
 export function segTabs(items, sel, onSel, cls = '') {
-  const wrap = h('div', { class: 'hm-seg ' + cls });
+  const wrap = h('div', { class: 'mn-seg ' + cls });
   for (const it of items) {
-    const b = h('button', { class: `hm-seg-b ${it.id === sel ? 'on sk-btn-yellow' : 'sk-btn-blue'}`, type: 'button' },
+    const b = h('button', { class: `mn-seg-b ${it.id === sel ? 'on sk-btn-yellow' : 'sk-btn-blue'}`, type: 'button' },
       h('span', { class: 'row gap-s' }, it.icon ? icon(it.icon) : null, h('span', {}, it.label)),
       badgeEl(it.badge));
     b.addEventListener('click', (e) => {
@@ -352,9 +356,17 @@ export function vialURL(type) {
   if (!vialCache.has(type)) vialCache.set(type, vialPix(type).url());
   return vialCache.get(type);
 }
-export function vialArt(type, cls = '') {
+// 3D toy-model vial thumbnails (src/ui/vialThumb.js) when available, pixel art otherwise.
+const OPTIONAL = import.meta.glob(['../vialThumb.js']);
+const vial3d = () => (OPTIONAL['../vialThumb.js'] ? OPTIONAL['../vialThumb.js']() : Promise.reject(new Error('no vialThumb')));
+export function vialArt(type, cls = '', opts = {}) {
   const v = VIALS[type] ?? VIALS.testTube;
-  return h('img', { class: `hm-vial p-${v.product ?? 'testTube'} r-${v.rarity ?? 'common'} ${cls}`, src: vialURL(type), alt: v.name, draggable: 'false' });
+  const base = `mn-vial p-${v.product ?? 'testTube'} r-${v.rarity ?? 'common'} ${cls}`;
+  if (opts.pixel || !OPTIONAL['../vialThumb.js']) return h('img', { class: base, src: vialURL(type), alt: v.name, draggable: 'false' });
+  const size = opts.size ?? 192;
+  const img = lazyImg(`mnv|${type}|${size}`, () => vial3d().then((m) => m.vialThumb(type, size)).catch(() => vialURL(type)), `${base} v3d smooth`, { priority: true });
+  img.alt = v.name;
+  return img;
 }
 
 // ---------------------------------------------------------------------------
@@ -362,10 +374,10 @@ export function vialArt(type, cls = '') {
 
 export function bannerEl(id, cls = '', ...children) {
   const b = BANNERS[id] || BANNERS.default;
-  const el = h('div', { class: `hm-banner ${b.animated ? 'anim anim-' + b.animated : ''} ${cls}` });
-  el.appendChild(h('div', { class: 'hm-ban-bg', style: { background: b.css } }));
-  el.appendChild(h('div', { class: 'hm-ban-sheen' }));
-  if (children.length) el.appendChild(h('div', { class: 'hm-ban-c' }, ...children));
+  const el = h('div', { class: `mn-banner ${b.animated ? 'anim anim-' + b.animated : ''} ${cls}` });
+  el.appendChild(h('div', { class: 'mn-ban-bg', style: { background: b.css } }));
+  el.appendChild(h('div', { class: 'mn-ban-sheen' }));
+  if (children.length) el.appendChild(h('div', { class: 'mn-ban-c' }, ...children));
   return el;
 }
 
@@ -491,27 +503,27 @@ export function rewardAmount(r) {
 /** Visual for a reward (square-ish). */
 export function rewardArt(r, opts = {}) {
   r = rewardDef(r);
-  const wrap = (cls, ...kids) => h('div', { class: 'hm-ra ' + cls }, ...kids);
+  const wrap = (cls, ...kids) => h('div', { class: 'mn-ra ' + cls }, ...kids);
   switch (r.type) {
-    case 'coins': return wrap('cur coins', icon(r.amount >= 1000 ? 'bag' : 'coin', 'hm-ra-ic'), r.amount >= 1000 ? icon('coin', 'hm-ra-ic2') : null);
-    case 'bucks': return wrap('cur bucks', icon('bucks', 'hm-ra-ic'));
-    case 'calories': return wrap('cur cal', icon('calorie', 'hm-ra-ic'));
+    case 'coins': return wrap('cur coins', icon(r.amount >= 1000 ? 'bag' : 'coin', 'mn-ra-ic'), r.amount >= 1000 ? icon('coin', 'mn-ra-ic2') : null);
+    case 'bucks': return wrap('cur bucks', icon('bucks', 'mn-ra-ic'));
+    case 'calories': return wrap('cur cal', icon('calorie', 'mn-ra-ic'));
     case 'vial': return wrap('vial', vialArt(r.id));
     case 'card': case 'swarm': case 'spell': return wrap('card', cardEl(r.id, { size: 'mini', noLevel: true, locked: false, owned: state.p.cards[r.id] ?? { level: 1 }, artSize: 128 }));
     case 'commander': return wrap('cmd', cmdImg(r.id, null, { size: 128 }));
     case 'skin': {
       const sk = SWARM_SKINS[r.id];
-      return wrap('skin', swarmImg(sk?.swarm ?? 'panther', 'base', r.id, 128), h('div', { class: 'hm-ra-corner' }, icon('paint')));
+      return wrap('skin', swarmImg(sk?.swarm ?? 'panther', 'base', r.id, 128), h('div', { class: 'mn-ra-corner' }, icon('paint')));
     }
-    case 'labSkin': return wrap('labskin', icon('lab', 'hm-ra-ic'), h('div', { class: 'hm-ra-corner' }, icon('paint')));
+    case 'labSkin': return wrap('labskin', icon('lab', 'mn-ra-ic'), h('div', { class: 'mn-ra-corner' }, icon('paint')));
     case 'cmdSkin': {
       const sk = CMD_SKINS[r.id];
       const cmd = sk?.commander && sk.commander !== '*' ? sk.commander : r.commander ?? state.p.commanders.equipped;
-      return wrap('cmd', cmdImg(cmd, r.id, { size: 128 }), h('div', { class: 'hm-ra-corner' }, icon('crown')));
+      return wrap('cmd', cmdImg(cmd, r.id, { size: 128 }), h('div', { class: 'mn-ra-corner' }, icon('crown')));
     }
-    case 'banner': return wrap('banner', bannerEl(r.id, 'mini'), h('div', { class: 'hm-ra-corner' }, icon('flag')));
-    case 'serum': return wrap('serum', swarmImg(r.id, 'base', null, 128), h('div', { class: 'hm-ra-corner' }, icon('mega')));
-    default: return wrap('', icon('star', 'hm-ra-ic'));
+    case 'banner': return wrap('banner', bannerEl(r.id, 'mini'), h('div', { class: 'mn-ra-corner' }, icon('flag')));
+    case 'serum': return wrap('serum', swarmImg(r.id, 'base', null, 128), h('div', { class: 'mn-ra-corner' }, icon('mega')));
+    default: return wrap('', icon('star', 'mn-ra-ic'));
   }
 }
 
@@ -519,10 +531,10 @@ export function rewardArt(r, opts = {}) {
 export function rewardTile(r, opts = {}) {
   const d = rewardDef(r);
   const amt = rewardAmount(d);
-  return h('div', { class: `hm-rw k-${d.type} ${opts.cls ?? ''}` },
+  return h('div', { class: `mn-rw k-${d.type} ${opts.cls ?? ''}` },
     rewardArt(d, opts),
-    amt ? h('div', { class: 'hm-rw-amt t-d outline' }, amt) : null,
-    opts.label ? h('div', { class: 'hm-rw-lbl' }, rewardLabel(d)) : null,
+    amt ? h('div', { class: 'mn-rw-amt t-d outline' }, amt) : null,
+    opts.label ? h('div', { class: 'mn-rw-lbl' }, rewardLabel(d)) : null,
     d.isNew ? h('div', { class: 'new-tag', style: { right: '-6%', top: '-6%' } }, 'NEW!') : null);
 }
 
@@ -530,23 +542,23 @@ export function rewardTile(r, opts = {}) {
 export function showRewards(list, opts = {}) {
   return new Promise((resolve) => {
     if (!list || !list.length) return resolve();
-    const row = h('div', { class: 'hm-rwrow' });
+    const row = h('div', { class: 'mn-rwrow' + (list.length > 4 ? ' many' : '') });
     const m = modal({
-      title: opts.title ?? 'REWARDS!', color: opts.color ?? 'gold', size: 'narrow', cls: 'hm-rwmodal',
-      body: h('div', { class: 'col center hm-rwbody' }, h('div', { class: 'hm-rays' }), row,
+      title: opts.title ?? 'REWARDS!', color: opts.color ?? 'gold', size: 'narrow', cls: 'mn-rwmodal',
+      body: h('div', { class: 'col center mn-rwbody' }, h('div', { class: 'mn-rays' }), opts.hero ?? null, row,
         opts.note ? h('div', { class: 'center-t t-sm c-muted' }, opts.note) : null),
       foot: button('COLLECT', () => m.close(), 'green lg'),
       onClose: resolve,
     });
     list.forEach((d, i) => {
       const def = rewardDef(d);
-      const tile = h('div', { class: 'hm-rwpop', style: { animationDelay: 0.12 + i * 0.16 + 's' } }, rewardTile(def), h('div', { class: 'hm-rwpop-lbl' }, rewardLabel(def)), h('div', { class: 'hm-rwpop-kind' }, rewardKind(def)));
+      const tile = h('div', { class: 'mn-rwpop', style: { animationDelay: 0.12 + Math.min(i, 12) * 0.16 + 's' } }, rewardTile(def), h('div', { class: 'mn-rwpop-lbl' }, rewardLabel(def)), h('div', { class: 'mn-rwpop-kind' }, rewardKind(def)));
       row.appendChild(tile);
       setTimeout(() => {
         if (m.closed) return;
         audio.play(def.type === 'coins' ? 'coin' : 'pop', { pitch: 1 + i * 0.08 });
-        sparkle(tile, { count: 12 });
-      }, 220 + i * 160);
+        if (tile.getBoundingClientRect().bottom < innerHeight) sparkle(tile, { count: 12 });
+      }, 220 + Math.min(i, 12) * 160);
     });
     audio.play('chaching');
     if (opts.jingle !== false) setTimeout(() => audio.jingle(opts.jingle ?? 'unlock'), 100);
@@ -564,9 +576,9 @@ export function confirmBox({ title = 'ARE YOU SURE?', text = '', art = null, yes
       resolve(v);
     };
     const m = modal({
-      title, color, size: 'narrow', cls: 'hm-confirm',
-      body: h('div', { class: 'col center' }, art ? h('div', { class: 'hm-confirm-art' }, art) : null,
-        text ? h('div', { class: 'center-t hm-confirm-t', html: text }) : null, sub),
+      title, color, size: 'narrow', cls: 'mn-confirm',
+      body: h('div', { class: 'col center' }, art ? h('div', { class: 'mn-confirm-art' }, art) : null,
+        text ? h('div', { class: 'center-t mn-confirm-t', html: text }) : null, sub),
       foot: [button(no, () => done(false), 'gray'), button(yes, () => done(true), yesCls, price ? { price } : {})],
       onClose: () => { if (!answered) { answered = true; resolve(false); } },
     });
@@ -584,7 +596,7 @@ export const RARITY_BTN = { common: 'blue', rare: 'orange', epic: 'purple', lege
 
 /** Hexagonal Lab Level badge. */
 export function labBadge(level, cls = '') {
-  return h('div', { class: 'hm-labbadge ' + cls }, h('div', { class: 'hm-labbadge-in' }, h('b', { class: 't-d outline' }, String(level))));
+  return h('div', { class: 'mn-labbadge ' + cls }, h('div', { class: 'mn-labbadge-in' }, h('b', { class: 't-d outline' }, String(level))));
 }
 
 /** Big pretty number (full digits below 100k). */

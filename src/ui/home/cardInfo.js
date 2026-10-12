@@ -14,7 +14,7 @@ import { spellPower } from '../../data/spells.js';
 import { SWARM_SKINS } from '../../data/season.js';
 import { arenaById } from '../../data/arenas.js';
 import {
-  RARITY_RIBBON, chip, deny, flyText, slam, swarmImg, unlockHint, refreshCtx, showRewards, markCardSeen, notify,
+  RARITY_RIBBON, chip, deny, flyText, slam, swarmImg, unlockHint, refreshCtx, showRewards, markCardSeen, notify, labBadge, fmtN,
 } from './common.js';
 
 // ---------------------------------------------------------------------------
@@ -54,12 +54,12 @@ export function cardStats(id, level = 1, variant = 'base') {
 
 function statTile(r, next, showPlus) {
   const isNum = typeof r.v === 'number';
-  const val = h('b', { class: 'hm-st-v t-d outline' }, isNum ? fmt(r.v) : r.v);
+  const val = h('b', { class: 'mn-st-v t-d outline' }, isNum ? fmt(r.v) : r.v);
   const delta = isNum && next && typeof next.v === 'number' ? next.v - r.v : 0;
-  const plus = delta > 0 && showPlus ? h('span', { class: 'hm-st-plus t-d' }, '+' + fmt(delta) + (r.suffix ?? '')) : null;
-  const t = h('div', { class: 'hm-st', 'data-k': r.key },
-    icon(r.icon, 'hm-st-ic'),
-    h('div', { class: 'hm-st-txt' }, h('span', { class: 'hm-st-l' }, r.label), h('span', { class: 'row', style: { gap: '0.3em' } }, val, r.suffix && isNum ? h('span', { class: 'hm-st-sfx t-d' }, r.suffix) : null, plus)));
+  const plus = delta > 0 && showPlus ? h('span', { class: 'mn-st-plus t-d' }, '+' + fmt(delta) + (r.suffix ?? '')) : null;
+  const t = h('div', { class: 'mn-st', 'data-k': r.key },
+    icon(r.icon, 'mn-st-ic'),
+    h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, r.label), h('span', { class: 'row', style: { gap: '0.3em' } }, val, r.suffix && isNum ? h('span', { class: 'mn-st-sfx t-d' }, r.suffix) : null, plus)));
   t.val = val;
   t.row = r;
   t.plus = plus;
@@ -75,11 +75,11 @@ export function openCardInfo(id, ctx, opts = {}) {
   if (!def) return null;
   markCardSeen(id);
   const spell = isSpell(id);
-  const body = h('div', { class: 'hm-ci' });
-  const foot = h('div', { class: 'hm-ci-foot' });
+  const body = h('div', { class: 'mn-ci' });
+  const foot = h('div', { class: 'mn-ci-foot' });
   let busy = false;
   const m = modal({
-    title: def.name.toUpperCase(), color: RARITY_RIBBON[def.rarity] ?? 'blue', size: 'wide', cls: 'hm-cimodal hm-r-' + def.rarity,
+    title: def.name.toUpperCase(), color: RARITY_RIBBON[def.rarity] ?? 'blue', size: 'wide', cls: 'mn-cimodal mn-r-' + def.rarity,
     body, foot, onClose: () => refreshCtx(ctx),
   });
 
@@ -95,30 +95,32 @@ export function openCardInfo(id, ctx, opts = {}) {
     const ar = arenaById(def.arena);
 
     // --- top: big card + identity
-    cardWrap = h('div', { class: 'hm-ci-card' }, cardEl(id, { size: 'big', progress: !!own, artSize: 256, locked: false, owned: own ?? { level: 1, variant: 'base' }, priority: true, noLevel: !own }));
-    if (own?.mega && def.mega && megaUnlocked(def.mega)) cardWrap.appendChild(h('div', { class: 'hm-ci-mega t-d outline' }, icon('mega', 's'), 'MEGA'));
+    cardWrap = h('div', { class: 'mn-ci-card' }, cardEl(id, { size: 'big', progress: !!own, artSize: 256, locked: false, owned: own ?? { level: 1, variant: 'base' }, priority: true, noLevel: !own }));
+    if (own?.mega && def.mega && megaUnlocked(def.mega)) cardWrap.appendChild(h('div', { class: 'mn-ci-mega t-d outline' }, icon('mega', 's'), 'MEGA'));
     const series = SERIES[def.series];
     const role = ROLE_INFO[def.role];
-    const info = h('div', { class: 'hm-ci-info' },
+    const info = h('div', { class: 'mn-ci-info' },
       h('div', { class: 'row wrap gap-s' },
         chip(rar?.name ?? def.rarity, 'rar r-' + def.rarity),
         chip([icon(spell ? 'magic' : role?.icon ?? 'swarm', 's'), spell ? 'Spell' : 'Troop'], ''),
         series ? chip(series.name, 'ser') : null),
-      h('div', { class: 'hm-ci-desc' }, def.desc ?? ''),
-      h('div', { class: 'hm-ci-where' }, icon('island', 's'), h('span', {}, ar ? `Found in ${ar.name} vials (Arena ${ar.index + 1})` : 'Special event')),
-      !own ? h('div', { class: 'hm-ci-nf t-d outline' }, icon('lock', 's'), ' NOT FOUND YET') : null,
-      own && (own.variant !== 'base') ? h('div', { class: 'hm-ci-shiny' }, icon('chrome', 's'), `${VARIANTS[own.variant].name} finish: +${Math.round(VARIANTS[own.variant].bonus * 100)}% HP & damage`) : null);
-    body.appendChild(h('div', { class: 'hm-ci-top' }, cardWrap, info));
+      h('div', { class: 'mn-ci-desc' }, def.desc ?? ''),
+      h('div', { class: 'mn-ci-where' }, icon('island', 's'), h('span', {}, ar ? `Found in ${ar.name} vials (Arena ${ar.index + 1})` : 'Special event')),
+      !own ? h('div', { class: 'mn-ci-nf t-d outline' }, icon('lock', 's'), ' NOT FOUND YET') : null,
+      own && (own.variant !== 'base') ? h('div', { class: 'mn-ci-shiny' }, icon('chrome', 's'), `${VARIANTS[own.variant].name} finish: +${Math.round(VARIANTS[own.variant].bonus * 100)}% HP & damage`) : null);
+    body.appendChild(h('div', { class: 'mn-ci-top' }, cardWrap, info));
 
-    // --- stats
+    // --- stats (beside the card on wide screens, below it on portrait)
+    const wide = window.innerWidth > window.innerHeight * 1.25;
+    const statHost = wide ? info : body;
     const cur = cardStats(id, level, variant);
     const nxt = own && level < MAX_LEVEL ? cardStats(id, level + 1, variant) : null;
     const showPlus = !!(own && up && !up.max);
     statTiles = cur.map((r) => statTile(r, nxt?.find((x) => x.key === r.key), showPlus));
-    body.appendChild(h('div', { class: 'hm-ci-stats' }, ...statTiles));
+    statHost.appendChild(h('div', { class: 'mn-ci-stats' }, ...statTiles));
     if (!spell) {
       const tr = traitText(def);
-      if (tr.length) body.appendChild(h('div', { class: 'row wrap gap-s hm-ci-traits' }, ...tr.map((t) => chip([icon('star', 's'), t], 'trait'))));
+      if (tr.length) statHost.appendChild(h('div', { class: 'row wrap gap-s mn-ci-traits' }, ...tr.map((t) => chip([icon('star', 's'), t], 'trait'))));
     }
 
     // --- finishes / skins / mega (troops you own)
@@ -137,21 +139,21 @@ export function openCardInfo(id, ctx, opts = {}) {
     const up = upgradeInfo(id);
     if (!own) {
       const ar = arenaById(def.arena);
-      foot.appendChild(h('div', { class: 'hm-ci-lockfoot' }, icon('vial'), h('span', { html: rich(ar ? `Reach *${ar.name}* (${fmt(ar.trophies)} trophies) and open vials to find this card.` : 'Not available yet.') })));
+      foot.appendChild(h('div', { class: 'mn-ci-lockfoot' }, icon('vial'), h('span', { html: rich(ar ? `Reach *${ar.name}* (${fmt(ar.trophies)} trophies) and open vials to find this card.` : 'Not available yet.') })));
       return;
     }
     if (up.max) {
-      foot.appendChild(h('div', { class: 'hm-ci-max t-d outline' }, icon('crown', 'l'), 'MAX LEVEL'));
+      foot.appendChild(h('div', { class: 'mn-ci-max t-d outline' }, icon('crown', 'l'), 'MAX LEVEL'));
       return;
     }
-    const copies = bar(Math.min(1, up.haveCopies / up.copies), up.enoughCopies ? 'green' : 'blue', `${up.haveCopies}/${up.copies}`, { cls: 'hm-ci-copies', icon: 'cards' });
+    const copies = bar(Math.min(1, up.haveCopies / up.copies), up.enoughCopies ? 'green' : 'blue', `${up.haveCopies}/${up.copies}`, { cls: 'mn-ci-copies', icon: 'cards' });
     const lab = labXpInfo();
     const xpNote = h('span', { class: 't-xs c-blue' }, `+${up.xp} Lab XP`);
-    const btn = button(h('span', { class: 'col', style: { gap: 0, alignItems: 'center' } }, h('span', {}, `UPGRADE TO LV ${own.level + 1}`)), () => doUpgrade(btn), up.ok ? 'green lg' : up.enoughCopies ? 'green lg' : 'gray lg', { price: { cur: 'coins', amount: up.coins }, sound: 'tap' });
-    btn.classList.add('hm-ci-upbtn');
+    const btn = button(h('span', { class: 'col', style: { gap: 0, alignItems: 'center' } }, h('span', {}, `UPGRADE TO LV ${own.level + 1}`)), () => doUpgrade(btn), up.ok ? 'green lg' : up.enoughCopies ? 'green lg' : 'gray lg', { price: { cur: 'coins', amount: fmtN(up.coins) }, sound: 'tap' });
+    btn.classList.add('mn-ci-upbtn');
     if (!up.ok) btn.classList.add('disabled-look');
     if (up.ok) btn.classList.add('shine');
-    foot.appendChild(h('div', { class: 'hm-ci-upl' }, h('span', { class: 't-xs c-muted' }, up.enoughCopies ? 'Ready to upgrade!' : `Collect ${up.copies - up.haveCopies} more`), copies, xpNote));
+    foot.appendChild(h('div', { class: 'mn-ci-upl' }, h('span', { class: 't-xs c-muted' }, up.enoughCopies ? 'Ready to upgrade!' : `Collect ${up.copies - up.haveCopies} more`), copies, xpNote));
     foot.appendChild(btn);
     if (lab.level) foot.dataset.lab = lab.level;
   }
@@ -202,28 +204,28 @@ export function openCardInfo(id, ctx, opts = {}) {
         render();
         if (res.labUps?.length) {
           const lu = res.labUps[res.labUps.length - 1];
+          const coins = res.labUps.reduce((a, u) => a + (u.reward.coins ?? 0), 0);
+          const bucks = res.labUps.reduce((a, u) => a + (u.reward.bucks ?? 0), 0);
           const list = [];
-          for (const u of res.labUps) {
-            if (u.reward.coins) list.push({ type: 'coins', amount: u.reward.coins });
-            if (u.reward.bucks) list.push({ type: 'bucks', amount: u.reward.bucks });
-          }
-          showRewards(list, { title: `LAB LEVEL ${lu.level}!`, color: 'blue', note: 'Your Lab and turret got tougher: more HP and damage!', jingle: 'victory' });
+          if (coins) list.push({ type: 'coins', amount: coins });
+          if (bucks) list.push({ type: 'bucks', amount: bucks });
+          showRewards(list, { title: `LAB LEVEL ${lu.level}!`, color: 'blue', hero: labBadge(lu.level, 'big mn-rw-hero'), note: 'Your Lab and turret got tougher: +7% HP and damage per level!', jingle: 'victory' });
         }
       }, 1300);
     }, 520);
   }
 
   function variantPicker(own) {
-    const row = h('div', { class: 'hm-pick' });
+    const row = h('div', { class: 'mn-pick' });
     for (const k of VAR_ORDER) {
       const v = VARIANTS[k];
       const have = !!own.variants?.[k];
       const sel = (own.variant ?? 'base') === k;
-      const t = h('div', { class: `hm-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'} v-${k}` },
-        h('div', { class: 'hm-pk-art' }, swarmImg(id, k, own.skin ?? null, 112), !have ? icon('lock', 'hm-pk-lock') : null),
-        h('div', { class: 'hm-pk-n' }, v.name),
-        h('div', { class: 'hm-pk-s' }, k === 'base' ? 'Standard' : `+${Math.round(v.bonus * 100)}% stats`),
-        sel ? h('div', { class: 'hm-pk-tick' }, icon('check', 's')) : null);
+      const t = h('div', { class: `mn-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'} v-${k}` },
+        h('div', { class: 'mn-pk-art' }, swarmImg(id, k, own.skin ?? null, 112), !have ? icon('lock', 'mn-pk-lock') : null),
+        h('div', { class: 'mn-pk-n' }, v.name),
+        h('div', { class: 'mn-pk-s' }, k === 'base' ? 'Standard' : `+${Math.round(v.bonus * 100)}% stats`),
+        sel ? h('div', { class: 'mn-pk-tick' }, icon('check', 's')) : null);
       t.addEventListener('click', () => {
         if (!have) {
           audio.play('deny');
@@ -234,24 +236,24 @@ export function openCardInfo(id, ctx, opts = {}) {
         setVariant(id, k);
         audio.play('magic');
         render();
-        sparkle(body.querySelector('.hm-ci-card'), { count: 14 });
+        sparkle(body.querySelector('.mn-ci-card'), { count: 14 });
       });
       row.appendChild(t);
     }
-    return h('div', { class: 'hm-ci-sec' }, h('div', { class: 'hm-ci-sh t-d outline' }, icon('chrome', 's'), ' SHINY FINISHES'), row);
+    return h('div', { class: 'mn-ci-sec' }, h('div', { class: 'mn-ci-sh t-d outline' }, icon('chrome', 's'), ' SHINY FINISHES'), row);
   }
 
   function skinPicker(own, skins) {
-    const row = h('div', { class: 'hm-pick' });
+    const row = h('div', { class: 'mn-pick' });
     const opts = [[null, { name: 'Classic' }], ...skins];
     for (const [k, s] of opts) {
       const have = k === null || !!state.p.cosmetics.swarmSkins?.[k];
       const sel = (own.skin ?? null) === k;
-      const t = h('div', { class: `hm-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'}` },
-        h('div', { class: 'hm-pk-art' }, swarmImg(id, own.variant ?? 'base', k, 112), !have ? icon('lock', 'hm-pk-lock') : null),
-        h('div', { class: 'hm-pk-n' }, s.name),
-        h('div', { class: 'hm-pk-s' }, have ? (sel ? 'Equipped' : 'Owned') : unlockHint('skin', k)),
-        sel ? h('div', { class: 'hm-pk-tick' }, icon('check', 's')) : null);
+      const t = h('div', { class: `mn-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'}` },
+        h('div', { class: 'mn-pk-art' }, swarmImg(id, own.variant ?? 'base', k, 112), !have ? icon('lock', 'mn-pk-lock') : null),
+        h('div', { class: 'mn-pk-n' }, s.name),
+        h('div', { class: 'mn-pk-s' }, have ? (sel ? 'Equipped' : 'Owned') : unlockHint('skin', k)),
+        sel ? h('div', { class: 'mn-pk-tick' }, icon('check', 's')) : null);
       t.addEventListener('click', () => {
         if (!have) {
           audio.play('deny');
@@ -262,11 +264,11 @@ export function openCardInfo(id, ctx, opts = {}) {
         setSwarmSkin(id, k);
         audio.play('magic');
         render();
-        sparkle(body.querySelector('.hm-ci-card'), { count: 14 });
+        sparkle(body.querySelector('.mn-ci-card'), { count: 14 });
       });
       row.appendChild(t);
     }
-    return h('div', { class: 'hm-ci-sec' }, h('div', { class: 'hm-ci-sh t-d outline' }, icon('paint', 's'), ' SKINS'), row);
+    return h('div', { class: 'mn-ci-sec' }, h('div', { class: 'mn-ci-sh t-d outline' }, icon('paint', 's'), ' SKINS'), row);
   }
 
   function megaPanel(own) {
@@ -274,7 +276,7 @@ export function openCardInfo(id, ctx, opts = {}) {
     const mg = SWARMS[megaId];
     const unlocked = megaUnlocked(megaId);
     const on = !!own.mega && unlocked;
-    const art = h('div', { class: 'hm-mega-art' }, swarmImg(megaId, 'base', on ? own.megaSkin ?? null : null, 160), !unlocked ? icon('lock', 'hm-pk-lock') : null);
+    const art = h('div', { class: 'mn-mega-art' }, swarmImg(megaId, 'base', on ? own.megaSkin ?? null : null, 160), !unlocked ? icon('lock', 'mn-pk-lock') : null);
     const st = swarmStats(megaId, own.level);
     const txt = h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.8)' } },
       h('b', { class: 't-d outline t-lg c-pink' }, mg.name),
@@ -282,14 +284,14 @@ export function openCardInfo(id, ctx, opts = {}) {
       h('span', { class: 'row wrap gap-s' }, chip([icon('hp', 's'), fmt(st.hp)]), chip([icon('sword', 's'), fmt(st.dmg)]), chip([icon('energy', 's'), String(mg.elixir ?? def.elixir)])));
     let ctrl;
     if (!unlocked) {
-      ctrl = h('div', { class: 'hm-mega-lock' }, icon('mega', 's'), h('span', {}, `Unlock with a Mega Serum: ${unlockHint('serum', megaId)}`));
+      ctrl = h('div', { class: 'mn-mega-lock' }, icon('mega', 's'), h('span', {}, `Unlock with a Mega Serum: ${unlockHint('serum', megaId)}`));
     } else {
-      const sw = h('button', { class: `hm-switch ${on ? 'on' : ''}`, type: 'button' }, h('i'), h('span', { class: 't-d' }, on ? 'ON' : 'OFF'));
+      const sw = h('button', { class: `mn-switch ${on ? 'on' : ''}`, type: 'button' }, h('i'), h('span', { class: 't-d' }, on ? 'ON' : 'OFF'));
       sw.addEventListener('click', () => {
         setMega(id, !on);
         audio.play(on ? 'tap' : 'roar');
         render();
-        if (!on) sparkle(body.querySelector('.hm-mega'), { count: 24, colors: ['#ff2e88', '#ffd84a', '#ffffff'] });
+        if (!on) sparkle(body.querySelector('.mn-mega'), { count: 24, colors: ['#ff2e88', '#ffd84a', '#ffffff'] });
       });
       ctrl = h('div', { class: 'row gap-s' }, h('span', { class: 't-d outline' }, 'DEPLOY MEGA FORM'), sw);
     }
@@ -309,12 +311,12 @@ export function openCardInfo(id, ctx, opts = {}) {
         return b;
       }));
     }
-    return h('div', { class: `hm-ci-sec hm-mega ${on ? 'on' : ''} ${unlocked ? '' : 'lock'}` },
-      h('div', { class: 'hm-ci-sh t-d outline' }, icon('mega', 's'), ' MEGA FORM'),
+    return h('div', { class: `mn-ci-sec mn-mega ${on ? 'on' : ''} ${unlocked ? '' : 'lock'}` },
+      h('div', { class: 'mn-ci-sh t-d outline' }, icon('mega', 's'), ' MEGA FORM'),
       h('div', { class: 'row', style: { alignItems: 'center' } }, art, txt), ctrl, skinRow);
   }
 
   render();
-  if (opts.autoUpgrade) setTimeout(() => doUpgrade(foot.querySelector('.hm-ci-upbtn')), 380);
+  if (opts.autoUpgrade) setTimeout(() => doUpgrade(foot.querySelector('.mn-ci-upbtn')), 380);
   return m;
 }
