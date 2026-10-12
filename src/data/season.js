@@ -10,31 +10,31 @@ export const SEASON = {
 
 // reward types: coins, bucks, vial, swarm, spell, commander, skin (swarm skin), labSkin, cmdSkin, banner, serum (mega form unlock)
 export const PASS_TIERS = [
-  { free: { type: 'coins', amount: 200 }, premium: { type: 'vial', id: 'food' } },
-  { free: { type: 'swarm', id: 'fryFiend' }, premium: { type: 'bucks', amount: 30 } },
-  { free: { type: 'vial', id: 'lab' }, premium: { type: 'swarm', id: 'pizzaSlicer', copies: 3 } },
+  { free: { type: 'coins', amount: 200 }, premium: { type: 'vial', id: 'snackPack' } },
+  { free: { type: 'card', id: 'fryFiend' }, premium: { type: 'bucks', amount: 30 } },
+  { free: { type: 'vial', id: 'testTube' }, premium: { type: 'card', id: 'pizzaSlicer', copies: 3 } },
   { free: { type: 'commander', id: 'juan' }, premium: { type: 'cmdSkin', id: 'juanChef', commander: 'juan' } },
   { free: { type: 'coins', amount: 300 }, premium: { type: 'banner', id: 'feastBanner' } },
-  { free: { type: 'swarm', id: 'pizzaSlicer' }, premium: { type: 'skin', id: 'wrapperPanther', swarm: 'panther' } },
-  { free: { type: 'vial', id: 'food' }, premium: { type: 'coins', amount: 800 } },
-  { free: { type: 'bucks', amount: 25 }, premium: { type: 'swarm', id: 'sodaSurge' } },
-  { free: { type: 'swarm', id: 'donutDasher' }, premium: { type: 'vial', id: 'mega' } },
+  { free: { type: 'card', id: 'pizzaSlicer' }, premium: { type: 'skin', id: 'wrapperPanther', swarm: 'panther' } },
+  { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'coins', amount: 800 } },
+  { free: { type: 'bucks', amount: 25 }, premium: { type: 'card', id: 'sodaSurge' } },
+  { free: { type: 'card', id: 'donutDasher' }, premium: { type: 'vial', id: 'megaLab' } },
   { free: { type: 'spell', id: 'sodaRocket' }, premium: { type: 'labSkin', id: 'martLab' } },
   { free: { type: 'coins', amount: 500 }, premium: { type: 'skin', id: 'ketchupClog', swarm: 'cloggedToilet' } },
-  { free: { type: 'vial', id: 'food' }, premium: { type: 'bucks', amount: 60 } },
-  { free: { type: 'swarm', id: 'burgerBrute' }, premium: { type: 'banner', id: 'animDrip' } },
-  { free: { type: 'coins', amount: 600 }, premium: { type: 'swarm', id: 'chocoChomper' } },
+  { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'bucks', amount: 60 } },
+  { free: { type: 'card', id: 'burgerBrute' }, premium: { type: 'banner', id: 'animDrip' } },
+  { free: { type: 'coins', amount: 600 }, premium: { type: 'card', id: 'chocoChomper' } },
   { free: { type: 'serum', id: 'feastablesPanther' }, premium: { type: 'cmdSkin', id: 'juanGold', commander: 'juan' } },
-  { free: { type: 'vial', id: 'lab' }, premium: { type: 'vial', id: 'chrome' } },
-  { free: { type: 'swarm', id: 'sodaSurge' }, premium: { type: 'skin', id: 'cartCan', swarm: 'trashedCan' } },
+  { free: { type: 'vial', id: 'testTube' }, premium: { type: 'vial', id: 'hyperchrome' } },
+  { free: { type: 'card', id: 'sodaSurge' }, premium: { type: 'skin', id: 'cartCan', swarm: 'trashedCan' } },
   { free: { type: 'bucks', amount: 40 }, premium: { type: 'coins', amount: 1500 } },
-  { free: { type: 'vial', id: 'food' }, premium: { type: 'swarm', id: 'melonMauler' } },
-  { free: { type: 'swarm', id: 'chocoChomper' }, premium: { type: 'labSkin', id: 'chocoLab' } },
+  { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'card', id: 'melonMauler' } },
+  { free: { type: 'card', id: 'chocoChomper' }, premium: { type: 'labSkin', id: 'chocoLab' } },
   { free: { type: 'coins', amount: 900 }, premium: { type: 'banner', id: 'animFeast' } },
-  { free: { type: 'vial', id: 'mega' }, premium: { type: 'bucks', amount: 100 } },
-  { free: { type: 'swarm', id: 'melonMauler' }, premium: { type: 'skin', id: 'goldenWrapperPanther', swarm: 'feastablesPanther' } },
-  { free: { type: 'coins', amount: 1200 }, premium: { type: 'vial', id: 'gold' } },
-  { free: { type: 'vial', id: 'gold' }, premium: { type: 'banner', id: 'animGoldenTicket' } },
+  { free: { type: 'vial', id: 'megaLab' }, premium: { type: 'bucks', amount: 100 } },
+  { free: { type: 'card', id: 'melonMauler' }, premium: { type: 'skin', id: 'goldenWrapperPanther', swarm: 'feastablesPanther' } },
+  { free: { type: 'coins', amount: 1200 }, premium: { type: 'vial', id: 'cashCase' } },
+  { free: { type: 'vial', id: 'cashCase' }, premium: { type: 'banner', id: 'animGoldenTicket' } },
 ];
 
 export function tierForCalories(cal) {
@@ -44,14 +44,16 @@ export function tierForCalories(cal) {
 // Season challenges reset daily (seeded) - progress tracked in profile.quests.season
 export const SEASON_CHALLENGES = [
   { id: 'winBattles', text: 'Win {n} battles', n: 3, cal: 150, stat: 'wins' },
-  { id: 'deployFood', text: 'Deploy {n} Food Fighters', n: 15, cal: 120, stat: 'deployFood' },
+  { id: 'deployFood', text: 'Deploy {n} Snack Squad troops', n: 15, cal: 120, stat: 'deployFood' },
   { id: 'useFoodThrow', text: 'Use Food Throw {n} times', n: 4, cal: 100, stat: 'castfoodThrow' },
   { id: 'martBattles', text: 'Battle {n} times at Beast Mart', n: 2, cal: 120, stat: 'martBattles' },
   { id: 'openVials', text: 'Open {n} vials', n: 2, cal: 100, stat: 'vialsOpened' },
   { id: 'destroyLabs', text: 'Destroy {n} enemy Labs', n: 2, cal: 130, stat: 'wins' },
   { id: 'useSignature', text: 'Use your Commander signature {n} times', n: 4, cal: 110, stat: 'signatures' },
-  { id: 'deployTroops', text: 'Deploy {n} troops', n: 60, cal: 110, stat: 'deployed' },
+  { id: 'deployTroops', text: 'Deploy {n} troops', n: 40, cal: 110, stat: 'deployed' },
   { id: 'smashCarts', text: 'Smash {n} shopping carts', n: 6, cal: 90, stat: 'cartsSmashed' },
+  { id: 'crowns', text: 'Earn {n} crowns', n: 6, cal: 120, stat: 'crowns' },
+  { id: 'threeCrown', text: 'Win {n} battle with 3 crowns', n: 1, cal: 150, stat: 'threeCrowns' },
 ];
 
 export const BANNERS = {

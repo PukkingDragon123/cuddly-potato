@@ -1,17 +1,27 @@
 // Player profile, persistence and every economy operation.
-import { SWARMS, COLLECTABLE, RARITIES, VARIANTS, UPGRADE, MAX_LEVEL } from '../data/swarms.js';
-import { SPELLS, SPELL_UPGRADE_COINS } from '../data/spells.js';
+// Profile v2: Clash Royale-style loop (cards with levels/copies, 8-card decks,
+// Lab Level XP, vial slots + cycle + free/crown vials, trophy road, arenas).
+import { SWARMS, VARIANTS, MAX_LEVEL } from '../data/swarms.js';
+import { SPELLS } from '../data/spells.js';
+import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, UPGRADE, UPGRADE_XP } from '../data/cards.js';
 import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS, rollPerk, PERK_ROLL_COST, perkSlotsForLevel } from '../data/commanders.js';
-import { VIALS, VIAL_SLOTS, skipPrice } from '../data/vials.js';
-import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS } from '../data/season.js';
-import { unlockedSeries, deckSlots, spellSlots, TROPHY_ROAD, QUESTS, QUEST_CHAINS, SECRETS, BOSSES, currentArena, ARENAS } from '../data/arena.js';
-import { mulberry32, hashString, todayKey, weightedPick, randInt } from '../core/util.js';
+import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId } from '../data/vials.js';
+import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
+import {
+  ARENAS, arenaById, currentArena, cardPool, trophyFloor, TROPHY_ROAD, QUESTS, QUEST_CHAINS, SECRETS, BOSSES,
+} from '../data/arenas.js';
+import { labLevelFor, LAB_XP, LAB_MAX_LEVEL, LAB_LEVEL_REWARDS } from '../data/labs.js';
+import { mulberry32, hashString, todayKey, randInt } from '../core/util.js';
 
 const KEY = 'mbswarmers.save.v1';
 
+function newCard() {
+  return { level: 1, copies: 0, variants: { base: true }, variant: 'base', skin: null, mega: false, found: Date.now() };
+}
+
 function defaultProfile() {
   return {
-    v: 1,
+    v: 2,
     created: Date.now(),
     name: 'Recruit',
     tutorial: 'start',
@@ -20,23 +30,28 @@ function defaultProfile() {
     trophies: 0,
     bestTrophies: 0,
     calories: 0,
-    swarms: {},
-    deck: [],
-    spells: { owned: {}, equipped: [] },
+    labXp: 0,
+    cards: {},
+    decks: [[], [], []],
+    deckIdx: 0,
     commanders: { owned: { recruit: { level: 1, xp: 0, perks: [null, null, null], skin: null } }, equipped: 'recruit' },
     megaUnlocked: {},
-    vials: { slots: Array(VIAL_SLOTS).fill(null), storage: [] },
+    vials: { slots: Array(VIAL_SLOTS).fill(null), storage: [], cycle: 0, freeNext: 0, freeStock: 1, crowns: 0, crownDay: '', crownClaimed: false },
     shop: { day: '', bought: {}, freeClaimed: false },
     pass: { premium: false, free: {}, premium_: {} },
     challenges: { day: '', ids: [], base: {}, claimed: {} },
     quests: { nolan: { idx: 0, base: null, done: false }, juan: { idx: 0, base: null, done: false } },
     trophyRoad: {},
+    arenaSeen: 0,
     bosses: {},
     secrets: {},
     cosmetics: { banners: ['default'], banner: 'default', labSkins: ['default'], labSkin: 'default', swarmSkins: {}, cmdSkins: {} },
-    arena: { pos: null, visited: {} },
-    stats: { wins: 0, losses: 0, battles: 0, deployed: 0, vialsOpened: 0, signatures: 0, deployFood: 0, martBattles: 0, cartsSmashed: 0 },
-    settings: { sfx: 0.8, music: 0.45, pixel: 'retro', shake: true, muted: false },
+    stats: {
+      wins: 0, losses: 0, draws: 0, battles: 0, deployed: 0, vialsOpened: 0, signatures: 0, deployFood: 0, martBattles: 0, cartsSmashed: 0,
+      crowns: 0, threeCrowns: 0, cardsFound: 0, winStreak: 0, bestStreak: 0,
+    },
+    settings: { sfx: 0.8, music: 0.45, pixel: 'off', graphics: null, shake: true, muted: false },
+    hub: {},
     lastDay: '',
   };
 }
@@ -49,8 +64,9 @@ export const state = {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
-        const data = JSON.parse(raw);
+        const data = migrate(JSON.parse(raw));
         this.p = deepMerge(defaultProfile(), data);
+        sanitize(this.p);
       }
     } catch (e) {
       console.warn('Save load failed', e);
@@ -88,6 +104,56 @@ function deepMerge(base, data) {
   return out;
 }
 
+/** v1 (Battle Cats lineup) -> v2 (Clash Royale cards & decks). */
+function migrate(d) {
+  if (!d || (d.v ?? 1) >= 2) return d;
+  const out = { ...d, v: 2 };
+  out.cards = {};
+  for (const [id, e] of Object.entries(d.swarms || {})) {
+    if (!SWARMS[id] || SWARMS[id].hidden || SWARMS[id].isMega) continue;
+    out.cards[id] = { ...newCard(), ...e, level: Math.min(MAX_LEVEL, e.level ?? 1), copies: e.copies ?? 0 };
+  }
+  for (const [id, e] of Object.entries(d.spells?.owned || {})) if (SPELLS[id]) out.cards[id] = { ...newCard(), level: Math.min(MAX_LEVEL, e.level ?? 1) };
+  const ids = [...(d.deck || []), ...(d.spells?.equipped || [])].filter((id) => out.cards[id]);
+  for (const id of Object.keys(out.cards)) if (ids.length < DECK_SIZE && !ids.includes(id)) ids.push(id);
+  out.decks = [ids.slice(0, DECK_SIZE), [], []];
+  out.deckIdx = 0;
+  const v = d.vials || {};
+  out.vials = {
+    slots: (v.slots || []).slice(0, VIAL_SLOTS).map((s) => (s ? { ...s, type: vialId(s.type) } : null)),
+    storage: (v.storage || []).map(vialId),
+    cycle: 0, freeNext: 0, freeStock: 1, crowns: 0, crownDay: '', crownClaimed: false,
+  };
+  while (out.vials.slots.length < VIAL_SLOTS) out.vials.slots.push(null);
+  out.trophyRoad = {};
+  out.arenaSeen = currentArena(d.bestTrophies ?? 0).index;
+  out.labXp = Object.values(out.cards).reduce((a, c) => a + (c.level - 1) * 12, 0);
+  if (out.settings) out.settings.pixel = 'off';
+  if (d.tutorial === 'arena') out.tutorial = 'done';
+  delete out.swarms;
+  delete out.spells;
+  delete out.deck;
+  delete out.arena;
+  return out;
+}
+
+/** Repair anything inconsistent (unknown cards, short decks after the tutorial...). */
+function sanitize(p) {
+  for (const id of Object.keys(p.cards)) if (!CARDS[id]) delete p.cards[id];
+  if (!Array.isArray(p.decks) || !p.decks.length) p.decks = [[], [], []];
+  while (p.decks.length < DECK_PRESETS) p.decks.push([]);
+  p.decks = p.decks.map((d) => (Array.isArray(d) ? d.filter((id, i) => p.cards[id] && d.indexOf(id) === i).slice(0, DECK_SIZE) : []));
+  p.deckIdx = Math.max(0, Math.min(DECK_PRESETS - 1, p.deckIdx | 0));
+  p.vials.slots = p.vials.slots.map((s) => (s && VIALS[vialId(s.type)] ? { ...s, type: vialId(s.type) } : null));
+  p.vials.storage = p.vials.storage.map(vialId);
+  if (p.tutorial === 'done' || p.tutorial === 'home') {
+    for (const id of STARTER_DECK) if (!p.cards[id]) p.cards[id] = newCard();
+  }
+  // fill empty preset slots from the collection
+  const d = p.decks[p.deckIdx];
+  for (const id of Object.keys(p.cards)) if (d.length < DECK_SIZE && !d.includes(id)) d.push(id);
+}
+
 const P = () => state.p;
 
 // ---------------------------------------------------------------------------
@@ -114,9 +180,13 @@ export function addCalories(n) {
   state.emit('calories');
   return after - before;
 }
+/** Trophies never drop below the gate of the best arena reached. */
 export function addTrophies(n) {
   const p = P();
-  p.trophies = Math.max(0, p.trophies + n);
+  const floor = trophyFloor(p.bestTrophies);
+  let t = p.trophies + n;
+  if (n < 0) t = Math.max(t, Math.min(p.trophies, floor));
+  p.trophies = Math.max(0, t);
   p.bestTrophies = Math.max(p.bestTrophies, p.trophies);
   state.emit('trophies');
 }
@@ -126,64 +196,124 @@ export function stat(key, inc = 1) {
 }
 
 // ---------------------------------------------------------------------------
-// Swarms
+// Lab Level (king level)
 
-export const owned = (id) => P().swarms[id] || null;
-export const deckSlotCount = () => deckSlots(P().bestTrophies);
-export const spellSlotCount = () => spellSlots(P().bestTrophies) + (P().extraSpellSlot ? 0 : 0);
-
-export function grantSwarm(id, copies = 1, variant = 'base') {
+export const labLevel = () => labLevelFor(P().labXp);
+export function labXpInfo() {
+  const lv = labLevel();
+  const cur = LAB_XP[lv - 1] ?? 0, next = LAB_XP[lv] ?? null;
+  return { level: lv, xp: P().labXp - cur, need: next === null ? 0 : next - cur, max: lv >= LAB_MAX_LEVEL };
+}
+/** Returns an array of {level, reward} for each level gained. */
+export function addLabXp(n) {
   const p = P();
-  let e = p.swarms[id];
+  const before = labLevel();
+  p.labXp += Math.round(n);
+  const after = labLevel();
+  const ups = [];
+  for (let lv = before + 1; lv <= after; lv++) {
+    const r = LAB_LEVEL_REWARDS(lv);
+    p.coins += r.coins;
+    p.bucks += r.bucks;
+    ups.push({ level: lv, reward: r });
+  }
+  state.emit('labXp');
+  return ups;
+}
+
+// ---------------------------------------------------------------------------
+// Cards (troops + spells)
+
+export const owned = (id) => P().cards[id] || null;
+export const cardLevel = (id) => P().cards[id]?.level ?? 1;
+export const currentDeck = () => P().decks[P().deckIdx];
+export const deckSlotCount = () => DECK_SIZE;
+
+export function grantCard(id, copies = 1, variant = 'base') {
+  const p = P();
+  if (!CARDS[id]) return { isNew: false, newVariant: false };
+  let e = p.cards[id];
   const isNew = !e;
-  if (!e) e = p.swarms[id] = { level: 1, copies: 0, variants: { base: true }, variant: 'base', skin: null, mega: false, found: Date.now() };
-  else e.copies += copies;
-  if (isNew && copies > 1) e.copies += copies - 1;
+  if (!e) {
+    e = p.cards[id] = newCard();
+    e.copies = Math.max(0, copies - 1);
+    p.stats.cardsFound = (p.stats.cardsFound ?? 0) + 1;
+  } else e.copies += copies;
   let newVariant = false;
   if (variant !== 'base' && !e.variants[variant]) {
     e.variants[variant] = true;
     newVariant = true;
     e.variant = variant; // auto-equip the shiny!
   }
-  // auto-add to deck if there's room
-  if (isNew && p.deck.length < deckSlotCount() && !p.deck.includes(id)) p.deck.push(id);
-  state.emit('swarms');
+  const d = currentDeck();
+  if (isNew && d.length < DECK_SIZE && !d.includes(id)) d.push(id);
+  state.emit('cards');
   return { isNew, newVariant };
 }
+// legacy names
+export const grantSwarm = grantCard;
+export function grantSpell(id) { return grantCard(id, 1).isNew; }
 
 export function upgradeInfo(id) {
   const e = owned(id);
   if (!e) return null;
-  const s = SWARMS[id];
-  if (e.level >= MAX_LEVEL) return { max: true };
-  const t = UPGRADE[s.rarity];
+  const d = cardDef(id);
+  if (e.level >= MAX_LEVEL) return { max: true, haveCopies: e.copies };
+  const t = UPGRADE[d.rarity];
   const copies = t.copies[e.level - 1];
   const coins = t.coins[e.level - 1];
-  return { copies, coins, haveCopies: e.copies, ok: e.copies >= copies && P().coins >= coins, enoughCopies: e.copies >= copies };
+  return {
+    copies, coins, haveCopies: e.copies, xp: UPGRADE_XP[d.rarity][e.level - 1],
+    ok: e.copies >= copies && P().coins >= coins, enoughCopies: e.copies >= copies,
+  };
 }
-export function upgradeSwarm(id) {
+/** Upgrade a card; returns { ok, labUps } */
+export function upgradeCard(id) {
   const info = upgradeInfo(id);
-  if (!info || info.max || !info.ok) return false;
+  if (!info || info.max || !info.ok) return { ok: false };
   const e = owned(id);
   P().coins -= info.coins;
   e.copies -= info.copies;
   e.level++;
-  state.emit('swarms');
-  return true;
+  const labUps = addLabXp(info.xp);
+  state.emit('cards');
+  return { ok: true, labUps, xp: info.xp };
 }
-export function setDeck(deck) {
-  P().deck = deck.slice(0, deckSlotCount());
+export const upgradeSwarm = (id) => upgradeCard(id).ok;
+
+/** Replace the card in deck slot i (swaps if the card is already in the deck). */
+export function setDeckCard(slot, id) {
+  const d = currentDeck();
+  if (!owned(id)) return;
+  const at = d.indexOf(id);
+  if (at >= 0) {
+    if (slot < d.length) [d[at], d[slot]] = [d[slot], d[at]];
+  } else if (slot < d.length) d[slot] = id;
+  else if (d.length < DECK_SIZE) d.push(id);
   state.emit('deck');
 }
+export function setDeck(ids) {
+  P().decks[P().deckIdx] = ids.filter((id) => owned(id)).slice(0, DECK_SIZE);
+  state.emit('deck');
+}
+export function selectDeck(i) {
+  const p = P();
+  p.deckIdx = Math.max(0, Math.min(DECK_PRESETS - 1, i));
+  const d = currentDeck();
+  if (!d.length) for (const id of p.decks.find((x) => x.length) ?? []) d.push(id);
+  state.emit('deck');
+}
+export const deckReady = () => currentDeck().length >= 1;
+
 export function setVariant(id, v) {
   const e = owned(id);
-  if (e && e.variants[v]) { e.variant = v; state.emit('swarms'); }
+  if (e && e.variants[v]) { e.variant = v; state.emit('cards'); }
 }
 export function setSwarmSkin(id, skin) {
   const e = owned(id);
   if (!e) return;
   e.skin = skin;
-  state.emit('swarms');
+  state.emit('cards');
 }
 export function megaUnlocked(megaId) { return !!P().megaUnlocked[megaId]; }
 export function unlockMega(megaId) {
@@ -194,44 +324,16 @@ export function setMega(baseId, on) {
   const e = owned(baseId);
   if (!e) return;
   e.mega = on;
-  state.emit('swarms');
+  state.emit('cards');
 }
 /** Resolve which unit actually deploys for a deck entry (mega form, variant, skin). */
 export function deployInfo(id) {
   const e = owned(id);
-  const base = SWARMS[id];
+  const base = cardDef(id);
   let unit = id;
-  if (e?.mega && base.mega && megaUnlocked(base.mega)) unit = base.mega;
-  const skinOwner = owned(unit) || e;
-  return { unit, level: e?.level ?? 1, variant: e?.variant ?? 'base', skin: unit === id ? e?.skin : P().cosmetics.swarmSkins[unit] ?? null };
-}
-
-// ---------------------------------------------------------------------------
-// Spells
-
-export function grantSpell(id) {
-  const sp = P().spells;
-  const isNew = !sp.owned[id];
-  if (isNew) sp.owned[id] = { level: 1 };
-  if (isNew && sp.equipped.length < spellSlotCount()) sp.equipped.push(id);
-  state.emit('spells');
-  return isNew;
-}
-export function equipSpells(list) {
-  P().spells.equipped = list.slice(0, spellSlotCount());
-  state.emit('spells');
-}
-export function spellUpgradeCost(id) {
-  const s = P().spells.owned[id];
-  if (!s || s.level >= 10) return null;
-  return SPELL_UPGRADE_COINS[s.level - 1];
-}
-export function upgradeSpell(id) {
-  const c = spellUpgradeCost(id);
-  if (c === null || !spendCoins(c)) return false;
-  P().spells.owned[id].level++;
-  state.emit('spells');
-  return true;
+  if (e?.mega && base?.mega && megaUnlocked(base.mega)) unit = base.mega;
+  const megaSkin = unit !== id ? Object.keys(SWARM_SKINS).find((k) => SWARM_SKINS[k].swarm === unit && P().cosmetics.swarmSkins[k] && e?.megaSkin === k) ?? null : null;
+  return { unit, level: e?.level ?? 1, variant: e?.variant ?? 'base', spell: isSpell(id), skin: unit === id ? e?.skin ?? null : megaSkin };
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +371,6 @@ export function addCmdXp(id, xp) {
   state.emit('commanders');
   return ups;
 }
-/** Roll a perk (costs coins). Returns the perk or null. Caller decides to keep it via setPerk. */
 export function rollCommanderPerk() {
   if (!spendCoins(PERK_ROLL_COST)) return null;
   return rollPerk();
@@ -286,7 +387,6 @@ export function setCmdSkin(cmdId, skinId) {
   c.skin = skinId;
   state.emit('commanders');
 }
-/** Aggregate perk bonuses for the equipped commander. */
 export function perkBonuses(cmdId = P().commanders.equipped) {
   const c = P().commanders.owned[cmdId];
   const b = {};
@@ -300,8 +400,10 @@ export function perkBonuses(cmdId = P().commanders.equipped) {
 // ---------------------------------------------------------------------------
 // Vials
 
+/** Put a vial in the first free slot (else storage). Returns slot index or -1. */
 export function addVial(type) {
   const v = P().vials;
+  type = vialId(type);
   const i = v.slots.findIndex((s) => !s);
   const entry = { type, added: Date.now(), unlockStart: null };
   if (i >= 0) v.slots[i] = entry;
@@ -309,6 +411,7 @@ export function addVial(type) {
   state.emit('vials');
   return i;
 }
+export const hasFreeSlot = () => P().vials.slots.some((s) => !s);
 export function vialTimeLeft(slot) {
   const e = P().vials.slots[slot];
   if (!e) return 0;
@@ -318,7 +421,7 @@ export function vialTimeLeft(slot) {
   return Math.max(0, total - (Date.now() - e.unlockStart) / 1000);
 }
 export function isUnlocking() {
-  return P().vials.slots.some((s, i) => s && s.unlockStart && vialTimeLeft(i) > 0);
+  return P().vials.slots.some((s, i) => s && s.unlockStart && !s.skipped && vialTimeLeft(i) > 0);
 }
 export function startUnlock(slot) {
   const e = P().vials.slots[slot];
@@ -339,7 +442,7 @@ export function skipVial(slot, price = null) {
   state.emit('vials');
   return true;
 }
-/** Remove vial from slot (when opened) and pull from storage. */
+/** Remove vial from slot (when opened) and pull the next from storage. */
 export function takeVial(slot) {
   const v = P().vials;
   const e = v.slots[slot];
@@ -348,64 +451,135 @@ export function takeVial(slot) {
   state.emit('vials');
   return e;
 }
+/** Next vial type in the win cycle (advances it). */
+export function nextCycleVial() {
+  const v = P().vials;
+  const t = VIAL_CYCLE[v.cycle % VIAL_CYCLE.length];
+  v.cycle = (v.cycle + 1) % VIAL_CYCLE.length;
+  return t;
+}
+export const upcomingVials = (n = 8) => Array.from({ length: n }, (_, i) => VIAL_CYCLE[(P().vials.cycle + i) % VIAL_CYCLE.length]);
+
+/** Free vial: one every 4h, stacks up to 2. */
+export function freeVialStatus() {
+  const v = P().vials;
+  const now = Date.now();
+  if (v.freeStock < FREE_VIAL_MAX && v.freeNext && now >= v.freeNext) {
+    const gained = Math.min(FREE_VIAL_MAX - v.freeStock, 1 + Math.floor((now - v.freeNext) / (FREE_VIAL_EVERY * 1000)));
+    v.freeStock += gained;
+    v.freeNext = v.freeStock < FREE_VIAL_MAX ? v.freeNext + gained * FREE_VIAL_EVERY * 1000 : 0;
+  }
+  if (v.freeStock < FREE_VIAL_MAX && !v.freeNext) v.freeNext = now + FREE_VIAL_EVERY * 1000;
+  return { count: v.freeStock, ready: v.freeStock > 0, nextIn: v.freeNext ? Math.max(0, (v.freeNext - now) / 1000) : 0 };
+}
+export function claimFreeVial() {
+  const st = freeVialStatus();
+  if (!st.ready) return false;
+  const v = P().vials;
+  v.freeStock--;
+  if (!v.freeNext) v.freeNext = Date.now() + FREE_VIAL_EVERY * 1000;
+  state.emit('vials');
+  return true;
+}
+/** Crown case: 10 crowns per day. */
+export function crownStatus() {
+  const v = P().vials;
+  const day = todayKey();
+  if (v.crownDay !== day) { v.crownDay = day; v.crowns = 0; v.crownClaimed = false; }
+  return { crowns: Math.min(CROWN_GOAL, v.crowns), goal: CROWN_GOAL, ready: v.crowns >= CROWN_GOAL && !v.crownClaimed, claimed: v.crownClaimed };
+}
+export function addCrowns(n) {
+  crownStatus();
+  if (!P().vials.crownClaimed) P().vials.crowns = Math.min(CROWN_GOAL, P().vials.crowns + n);
+}
+export function claimCrownVial() {
+  if (!crownStatus().ready) return false;
+  P().vials.crownClaimed = true;
+  state.emit('vials');
+  return true;
+}
 
 const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 
-/** Roll vial contents (does NOT apply). */
+/** Roll vial contents (does NOT apply). Card stacks are ordered like Clash Royale: commons first, best last. */
 export function rollVial(type, opts = {}) {
+  type = vialId(type);
   const vial = VIALS[type];
   const p = P();
   const rng = opts.rng ?? Math.random;
-  const arenaIdx = Math.max(0, ARENAS.indexOf(currentArena(p.bestTrophies)));
-  const coins = Math.round(randInt(vial.coins[0], vial.coins[1]) * (1 + arenaIdx * 0.15));
-  const result = { type, coins, bucks: 0, cards: [], spells: [] };
+  const arenaIdx = currentArena(p.bestTrophies).index;
+  const coins = Math.round(randInt(vial.coins[0], vial.coins[1]) * (1 + arenaIdx * 0.25));
+  const result = { type, coins, bucks: vial.bucks ?? 0, cards: [] };
   if (opts.fixed) return { ...result, ...opts.fixed };
-  const series = vial.series ? [vial.series] : unlockedSeries(p.bestTrophies);
-  const pool = COLLECTABLE.filter((s) => series.includes(s.series));
-  const counts = {};
-  const minIdx = RARITY_ORDER.indexOf(vial.minRarity ?? 'common');
-  let gotMin = false;
-  for (let i = 0; i < vial.cards; i++) {
-    let r = weightedPick(Object.values(RARITIES), (x) => x.weight, rng).id;
-    if (i === vial.cards - 1 && !gotMin && minIdx > 0) r = RARITY_ORDER[Math.max(minIdx, RARITY_ORDER.indexOf(r))];
-    let ri = RARITY_ORDER.indexOf(r);
-    let cand = pool.filter((s) => s.rarity === r);
-    // nothing of that rarity in this series: look down first, then up
-    for (let d = 1; !cand.length && d < RARITY_ORDER.length; d++) {
-      for (const k of [ri - d, ri + d]) {
-        if (k < 0 || k >= RARITY_ORDER.length || RARITY_ORDER[k] === 'mythic') continue;
-        cand = pool.filter((s) => s.rarity === RARITY_ORDER[k]);
-        if (cand.length) { ri = k; break; }
-      }
-    }
-    if (!cand.length) continue;
-    if (ri >= minIdx) gotMin = true;
-    const s = cand[Math.floor(rng() * cand.length)];
-    counts[s.id] = (counts[s.id] ?? 0) + 1;
+  if (!vial.cards) return result;
+  const N = Math.round(vial.cards * (1 + arenaIdx * 0.2));
+  const g = vial.guarantee ?? {};
+  let legendary = g.legendary ?? (rng() < N * 0.0009 ? 1 : 0);
+  let epic = (g.epic ?? 0) + (rng() < N * 0.012 ? 1 : 0);
+  let rare = Math.max(g.rare ?? 0, Math.round(N * 0.13 * (0.75 + rng() * 0.5)));
+  let common = Math.max(0, N - rare - epic - legendary);
+  const pool = cardPool(p.bestTrophies, { series: vial.series });
+  const byR = (r) => pool.filter((c) => c.rarity === r);
+  // demote rarities that aren't unlocked yet (a guaranteed Legendary falls back to any Legendary)
+  if (legendary && !byR('legendary').length) {
+    if (g.legendary) { /* premium guarantee: allow any legendary */ } else { epic += legendary; legendary = 0; }
   }
+  if (epic && !byR('epic').length) { rare += epic * 4; epic = 0; }
+  if (rare && !byR('rare').length) { common += rare; rare = 0; }
+  const counts = {};
+  const split = (r, n, maxStacks) => {
+    if (n <= 0) return;
+    let cands = byR(r);
+    if (!cands.length && r === 'legendary') cands = Object.values(CARDS).filter((c) => c.rarity === 'legendary');
+    if (!cands.length) cands = byR('common').length ? byR('common') : pool;
+    if (!cands.length) return;
+    const stacks = Math.max(1, Math.min(maxStacks, cands.length, n));
+    const chosen = [];
+    while (chosen.length < stacks) {
+      const c = cands[Math.floor(rng() * cands.length)];
+      if (!chosen.includes(c.id)) chosen.push(c.id);
+      if (chosen.length >= cands.length) break;
+    }
+    let left = n;
+    chosen.forEach((id, i) => {
+      const k = i === chosen.length - 1 ? left : Math.max(1, Math.round((n / chosen.length) * (0.7 + rng() * 0.6)));
+      const take = Math.min(left - (chosen.length - 1 - i), k);
+      counts[id] = (counts[id] ?? 0) + Math.max(1, take);
+      left -= Math.max(1, take);
+    });
+  };
+  split('common', common, N >= 30 ? 4 : N >= 12 ? 3 : 2);
+  split('rare', rare, N >= 30 ? 3 : 2);
+  split('epic', epic, 2);
+  split('legendary', legendary, 1);
   const boost = vial.shinyBoost ?? 1;
   for (const id in counts) {
     let variant = 'base';
     const roll = rng();
-    if (roll < VARIANTS.chrome.chance * boost) variant = 'chrome';
-    else if (roll < (VARIANTS.chrome.chance + VARIANTS.gold.chance) * boost) variant = 'gold';
-    else if (roll < (VARIANTS.chrome.chance + VARIANTS.gold.chance + VARIANTS.silver.chance) * boost) variant = 'silver';
+    if (!isSpell(id)) {
+      if (roll < VARIANTS.chrome.chance * boost) variant = 'chrome';
+      else if (roll < (VARIANTS.chrome.chance + VARIANTS.gold.chance) * boost) variant = 'gold';
+      else if (roll < (VARIANTS.chrome.chance + VARIANTS.gold.chance + VARIANTS.silver.chance) * boost) variant = 'silver';
+    }
     result.cards.push({ id, copies: counts[id], variant });
   }
-  result.cards.sort((a, b) => RARITY_ORDER.indexOf(SWARMS[a.id].rarity) - RARITY_ORDER.indexOf(SWARMS[b.id].rarity));
-  if (type === 'gold' || type === 'mega') result.bucks = type === 'gold' ? 20 : 5;
+  result.cards.sort((a, b) => RARITY_ORDER.indexOf(cardDef(a.id).rarity) - RARITY_ORDER.indexOf(cardDef(b.id).rarity) || a.copies - b.copies);
   return result;
 }
-/** Apply rolled contents; annotates cards with isNew/newVariant. */
+/** Apply rolled contents; annotates cards with isNew / newVariant / canUpgrade. */
 export function applyVial(res) {
-  if (res.coins) P().coins += res.coins;
-  if (res.bucks) P().bucks += res.bucks;
+  const p = P();
+  if (res.coins) p.coins += res.coins;
+  if (res.bucks) p.bucks += res.bucks;
   for (const c of res.cards) {
-    const r = grantSwarm(c.id, c.copies, c.variant);
+    const r = grantCard(c.id, c.copies, c.variant);
     c.isNew = r.isNew;
     c.newVariant = r.newVariant;
+    const up = upgradeInfo(c.id);
+    c.after = { level: owned(c.id).level, copies: owned(c.id).copies, need: up && !up.max ? up.copies : null };
+    c.canUpgrade = !!(up && !up.max && up.enoughCopies);
   }
-  for (const s of res.spells || []) grantSpell(s);
+  for (const s of res.spells || []) grantCard(s, 1);
   stat('vialsOpened');
   state.emit('vials');
   return res;
@@ -413,7 +587,7 @@ export function applyVial(res) {
 
 // ---------------------------------------------------------------------------
 // Generic reward grant (pass, trophy road, quests, bosses, secrets).
-// Returns a display object {icon, label, kind, id}.
+// Returns display objects [{icon, label, kind, id}].
 
 export function grantReward(r) {
   const p = P();
@@ -421,26 +595,27 @@ export function grantReward(r) {
   if (!r) return out;
   const push = (o) => out.push(o);
   switch (r.type) {
-    case 'coins': p.coins += r.amount; push({ icon: 'coin', label: `${r.amount} Beast Coins` }); break;
-    case 'bucks': p.bucks += r.amount; push({ icon: 'bucks', label: `${r.amount} Beast Bucks` }); break;
-    case 'calories': addCalories(r.amount); push({ icon: 'calorie', label: `${r.amount} Calories` }); break;
-    case 'vial': addVial(r.id); push({ icon: 'vial', label: VIALS[r.id].name, kind: 'vial', id: r.id }); break;
-    case 'swarm': { const g = grantSwarm(r.id, r.copies ?? 1); push({ icon: 'swarm', label: `${SWARMS[r.id].name}${r.copies > 1 ? ' x' + r.copies : ''}`, kind: 'swarm', id: r.id, isNew: g.isNew }); break; }
-    case 'spell': grantSpell(r.id); push({ icon: 'magic', label: `Spell: ${SPELLS[r.id].name}`, kind: 'spell', id: r.id }); break;
+    case 'coins': p.coins += r.amount; push({ icon: 'coin', label: `${r.amount.toLocaleString('en-US')} Beast Coins`, kind: 'coins', amount: r.amount }); break;
+    case 'bucks': p.bucks += r.amount; push({ icon: 'bucks', label: `${r.amount} Beast Bucks`, kind: 'bucks', amount: r.amount }); break;
+    case 'calories': addCalories(r.amount); push({ icon: 'calorie', label: `${r.amount} Calories`, kind: 'calories', amount: r.amount }); break;
+    case 'vial': { const id = vialId(r.id); addVial(id); push({ icon: 'vial', label: VIALS[id].name, kind: 'vial', id }); break; }
+    case 'swarm': case 'card': case 'spell': {
+      const g = grantCard(r.id, r.copies ?? 1);
+      const d = cardDef(r.id);
+      push({ icon: d?.kind === 'spell' ? 'magic' : 'swarm', label: `${d?.name ?? r.id}${(r.copies ?? 1) > 1 ? ' x' + r.copies : ''}`, kind: 'card', id: r.id, copies: r.copies ?? 1, isNew: g.isNew });
+      break;
+    }
     case 'commander': grantCommander(r.id); push({ icon: 'crown', label: `Commander: ${COMMANDERS[r.id].name}`, kind: 'commander', id: r.id }); break;
     case 'skin': p.cosmetics.swarmSkins[r.id] = true; push({ icon: 'paint', label: 'Swarm Skin', kind: 'skin', id: r.id }); break;
     case 'labSkin': if (!p.cosmetics.labSkins.includes(r.id)) p.cosmetics.labSkins.push(r.id); push({ icon: 'flask', label: 'Lab Skin', kind: 'labSkin', id: r.id }); break;
     case 'cmdSkin': p.cosmetics.cmdSkins[r.id] = true; push({ icon: 'crown', label: 'Commander Outfit', kind: 'cmdSkin', id: r.id }); break;
     case 'banner': if (!p.cosmetics.banners.includes(r.id)) p.cosmetics.banners.push(r.id); push({ icon: 'flag', label: `Banner: ${BANNERS[r.id]?.name ?? r.id}`, kind: 'banner', id: r.id }); break;
     case 'serum': unlockMega(r.id); push({ icon: 'mega', label: `Mega Serum: ${SWARMS[r.id].name}`, kind: 'serum', id: r.id }); break;
-    case 'deckSlot': push({ icon: 'swarm', label: '+1 Deck Slot' }); break;
-    case 'spellSlot': push({ icon: 'magic', label: '+1 Spell Slot' }); break;
     default: break;
   }
   state.emit('reward');
   return out;
 }
-/** Shorthand reward bundles {coins, bucks, vial, swarm, commander, calories, banner}. */
 export function grantBundle(b) {
   const out = [];
   if (!b) return out;
@@ -448,24 +623,34 @@ export function grantBundle(b) {
   if (b.bucks) out.push(...grantReward({ type: 'bucks', amount: b.bucks }));
   if (b.calories) out.push(...grantReward({ type: 'calories', amount: b.calories }));
   if (b.vial) out.push(...grantReward({ type: 'vial', id: b.vial }));
-  if (b.swarm) out.push(...grantReward({ type: 'swarm', id: b.swarm }));
+  if (b.swarm || b.card) out.push(...grantReward({ type: 'card', id: b.swarm ?? b.card, copies: b.copies ?? 1 }));
   if (b.commander) out.push(...grantReward({ type: 'commander', id: b.commander }));
   if (b.banner) out.push(...grantReward({ type: 'banner', id: b.banner }));
   return out;
 }
 
 // ---------------------------------------------------------------------------
-// Trophy road
+// Trophy road + arena unlocks
 
 export function trophyRoadClaimable() {
   const p = P();
-  return TROPHY_ROAD.filter((t) => p.bestTrophies >= t.trophies && !p.trophyRoad[t.trophies]);
+  return TROPHY_ROAD.filter((m) => p.bestTrophies >= m.t && !p.trophyRoad[m.key]);
 }
-export function claimTrophyRoad(t) {
+export function claimTrophyRoad(m) {
   const p = P();
-  if (p.trophyRoad[t.trophies] || p.bestTrophies < t.trophies) return [];
-  p.trophyRoad[t.trophies] = true;
-  return grantReward(t.reward);
+  if (p.trophyRoad[m.key] || p.bestTrophies < m.t) return [];
+  p.trophyRoad[m.key] = true;
+  return grantReward(m.reward);
+}
+/** The arena whose unlock cinematic hasn't been shown yet (or null). */
+export function pendingArenaUnlock() {
+  const p = P();
+  const idx = currentArena(p.bestTrophies).index;
+  return idx > (p.arenaSeen ?? 0) ? ARENAS[(p.arenaSeen ?? 0) + 1] : null;
+}
+export function markArenaSeen(index) {
+  P().arenaSeen = Math.max(P().arenaSeen ?? 0, index);
+  state.emit('arena');
 }
 
 // ---------------------------------------------------------------------------
@@ -494,7 +679,7 @@ export function buyPremiumPass() {
 }
 
 // ---------------------------------------------------------------------------
-// Daily season challenges
+// Daily season challenges + shop day roll
 
 export function refreshDaily() {
   const p = P();
@@ -509,15 +694,18 @@ export function refreshDaily() {
     }
   }
   if (p.shop.day !== day) p.shop = { day, bought: {}, freeClaimed: false };
+  crownStatus();
+  freeVialStatus();
   state.save();
 }
 export function challengeList() {
   const p = P();
   return p.challenges.ids.map((id) => {
     const c = SEASON_CHALLENGES.find((x) => x.id === id);
+    if (!c) return null;
     const prog = Math.min(c.n, (p.stats[c.stat] ?? 0) - (p.challenges.base[id] ?? 0));
     return { ...c, text: c.text.replace('{n}', c.n), prog, done: prog >= c.n, claimed: !!p.challenges.claimed[id] };
-  });
+  }).filter(Boolean);
 }
 export function claimChallenge(id) {
   const c = challengeList().find((x) => x.id === id);
@@ -549,7 +737,7 @@ export function questState(npc) {
     done = !!p.bosses[q.boss];
     prog = done ? 1 : 0;
   }
-  return { quest: q, accepted: qs.base !== null, prog, need, done, text: q.text.replace('{n}', q.n ?? '') };
+  return { quest: q, accepted: qs.base !== null, prog, need, done, text: q.text.replace('{n}', q.n ?? ''), step: qs.idx, steps: chain.length };
 }
 export function acceptQuest(npc) {
   const p = P();
@@ -573,7 +761,7 @@ export function completeQuest(npc) {
 
 export function findSecret(id) {
   const p = P();
-  if (p.secrets[id]) return null;
+  if (p.secrets[id] || !SECRETS[id]) return null;
   p.secrets[id] = Date.now();
   const s = SECRETS[id];
   const r = grantBundle(s.reward);
@@ -593,37 +781,36 @@ export function bossDefeated(id) {
 // ---------------------------------------------------------------------------
 // Daily shop
 
-const VIAL_PRICES = { lab: 30, homeHorrors: 80, technoTerrors: 90, atomic: 90, hybrids: 100, food: 80, mega: 220, chrome: 260, gold: 480 };
-const COPY_PRICE = { common: 15, rare: 140, epic: 1100, legendary: 9000 };
+const VIAL_PRICES = { testTube: 20, labPack: 60, snackPack: 55, megaLab: 250, hyperchrome: 180, cashCase: 500 };
+const COPY_PRICE = { common: 10, rare: 100, epic: 1000, legendary: 40000 };
 
 export function shopOffers() {
   const p = P();
   const day = todayKey();
   const rng = mulberry32(hashString('shop' + day));
-  const vialIds = Object.keys(VIAL_PRICES).filter((v) => v !== 'lab');
-  const vials = [];
-  vials.push('lab');
-  while (vials.length < 4) {
-    const v = vialIds[Math.floor(rng() * vialIds.length)];
-    if (!vials.includes(v)) vials.push(v);
-  }
-  const series = unlockedSeries(p.bestTrophies);
-  const pool = COLLECTABLE.filter((s) => series.includes(s.series) && s.rarity !== 'mythic');
-  const swarms = [];
+  const vials = ['labPack', 'megaLab', 'hyperchrome', 'cashCase'];
+  const pool = cardPool(p.bestTrophies);
+  const cards = [];
   let guard = 0;
-  while (swarms.length < 3 && guard++ < 100) {
-    const s = pool[Math.floor(rng() * pool.length)];
-    if (!s || swarms.find((x) => x.id === s.id)) continue;
-    const copies = { common: 20, rare: 4, epic: 1, legendary: 1 }[s.rarity];
-    swarms.push({ id: s.id, copies, price: COPY_PRICE[s.rarity] * copies, cur: 'coins' });
+  const want = ['common', 'common', 'rare', 'rare', 'epic', pool.some((c) => c.rarity === 'legendary') ? 'legendary' : 'rare'];
+  while (cards.length < want.length && guard++ < 300) {
+    const r = want[cards.length];
+    const cands = pool.filter((c) => c.rarity === r && !cards.find((x) => x.id === c.id));
+    if (!cands.length) { want[cards.length] = 'common'; continue; }
+    const c = cands[Math.floor(rng() * cands.length)];
+    const copies = { common: 40, rare: 8, epic: 2, legendary: 1 }[c.rarity];
+    const legendaryInBucks = c.rarity === 'legendary';
+    cards.push({ id: c.id, copies, price: legendaryInBucks ? 600 : COPY_PRICE[c.rarity] * copies, cur: legendaryInBucks ? 'bucks' : 'coins' });
   }
+  const freeIsCoins = rng() < 0.5;
   return {
-    free: rng() < 0.5 ? { type: 'coins', amount: 120 } : { type: 'bucks', amount: 8 },
+    free: freeIsCoins ? { type: 'coins', amount: 150 } : { type: 'card', id: (pool.find((c) => c.rarity === 'common') ?? pool[0])?.id, copies: 10 },
     vials: vials.map((v) => ({ id: v, price: VIAL_PRICES[v], cur: 'bucks' })),
-    swarms,
+    cards,
     deals: [
       { id: 'coinPile', label: 'Pile of Coins', coins: 1000, price: 60, cur: 'bucks' },
-      { id: 'coinVault', label: 'Coin Vault', coins: 6000, price: 300, cur: 'bucks' },
+      { id: 'coinBag', label: 'Bag of Coins', coins: 5000, price: 250, cur: 'bucks' },
+      { id: 'coinVault', label: 'Coin Vault', coins: 25000, price: 1100, cur: 'bucks' },
     ],
   };
 }
@@ -633,40 +820,67 @@ export function markBought(key) { P().shop.bought[key] = true; state.emit('shop'
 // ---------------------------------------------------------------------------
 // Battle results
 
-export function battleRewards({ win, arenaId, mode = 'ranked', opponentTrophies = 0, bossId = null }) {
+/**
+ * Apply the result of a battle.
+ * result: 'win' | 'loss' | 'draw'; crowns: crowns you earned (0-3); enemyCrowns.
+ */
+export function battleRewards({ result, crowns = 0, enemyCrowns = 0, arenaId, mode = 'ranked', opponentTrophies = 0, bossId = null }) {
   const p = P();
+  const win = result === 'win';
   const arenaIdx = Math.max(0, ARENAS.findIndex((a) => a.id === arenaId));
-  const res = { coins: 0, trophies: 0, calories: 0, vial: null, cmdXp: 0, levelUps: [], bossResult: null, passTiers: 0 };
+  const res = {
+    result, crowns, coins: 0, trophies: 0, calories: 0, vial: null, vialSlot: -1, cmdXp: 0, labXp: 0,
+    levelUps: [], labUps: [], bossResult: null, passTiers: 0, slotsFull: false, crownProgress: null,
+  };
   const coinMag = 1 + (perkBonuses().coinMagnet ?? 0) / 100;
+  const ranked = mode === 'ranked';
   p.stats.battles++;
   if (arenaId === 'mart') p.stats.martBattles++;
+  if (crowns) {
+    stat('crowns', crowns);
+    if (crowns >= 3) stat('threeCrowns');
+    if (ranked || mode === 'boss') addCrowns(crowns);
+  }
   if (win) {
     p.stats.wins++;
-    res.coins = Math.round((40 + arenaIdx * 14) * coinMag);
-    if (mode === 'ranked') res.trophies = Math.max(18, Math.min(42, 30 + Math.round((opponentTrophies - p.trophies) / 20)));
+    p.stats.winStreak = (p.stats.winStreak ?? 0) + 1;
+    p.stats.bestStreak = Math.max(p.stats.bestStreak ?? 0, p.stats.winStreak);
+    res.coins = Math.round((18 + arenaIdx * 6) * (1 + crowns * 0.2) * coinMag);
+    if (ranked) res.trophies = Math.max(24, Math.min(36, 30 + Math.round((opponentTrophies - p.trophies) / 25)));
     res.calories = arenaId === 'mart' ? 160 : 100;
     res.cmdXp = 70;
-    if (p.vials.slots.some((s) => !s)) {
-      const series = ARENAS.find((a) => a.id === arenaId)?.series?.[0];
-      const r = Math.random();
-      res.vial = r < 0.02 ? 'gold' : r < 0.1 ? 'mega' : r < 0.42 && series && VIALS[series] ? series : arenaId === 'mart' && r < 0.6 ? 'food' : 'lab';
-      addVial(res.vial);
+    res.labXp = 6;
+    if (ranked || mode === 'boss') {
+      if (hasFreeSlot()) {
+        res.vial = nextCycleVial();
+        res.vialSlot = addVial(res.vial);
+      } else res.slotsFull = true;
     }
+  } else if (result === 'draw') {
+    p.stats.draws = (p.stats.draws ?? 0) + 1;
+    res.coins = Math.round(8 * coinMag);
+    res.calories = 50;
+    res.cmdXp = 35;
   } else {
     p.stats.losses++;
-    res.coins = Math.round(12 * coinMag);
-    if (mode === 'ranked') res.trophies = -Math.max(8, Math.min(20, 15 - Math.round((opponentTrophies - p.trophies) / 30)));
+    p.stats.winStreak = 0;
+    res.coins = Math.round(5 * coinMag);
+    if (ranked) res.trophies = -Math.max(12, Math.min(22, 18 - Math.round((opponentTrophies - p.trophies) / 30)));
     res.calories = 35;
     res.cmdXp = 25;
   }
   if (mode === 'boss' && win && bossId) res.bossResult = bossDefeated(bossId);
-  if (mode === 'boss' && !win) res.trophies = 0;
+  if (mode !== 'ranked') res.trophies = 0;
   p.coins += res.coins;
+  const before = p.trophies;
   if (res.trophies) addTrophies(res.trophies);
+  res.trophies = p.trophies - before;
   res.passTiers = addCalories(res.calories);
   res.levelUps = addCmdXp(p.commanders.equipped, res.cmdXp);
+  if (res.labXp) res.labUps = addLabXp(res.labXp);
+  res.crownProgress = crownStatus();
   state.emit('battle');
   return res;
 }
 
-export { skipPrice };
+export { skipPrice, VIALS };

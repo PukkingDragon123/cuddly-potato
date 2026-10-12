@@ -1,6 +1,7 @@
 import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/700.css';
 import '@fontsource/press-start-2p/400.css';
+import '@fontsource/jersey-10/400.css';
 import './ui/ui.css';
 import { engine } from './core/engine.js';
 import { audio } from './core/audio.js';
@@ -16,11 +17,13 @@ async function boot() {
   setBoot(0.35);
   state.load();
   refreshDaily();
+  const qp = new URLSearchParams(location.search).get('q');
+  if (qp) state.p.settings.graphics = qp;
   game.settings();
   setBoot(0.6);
   try {
     await Promise.race([
-      Promise.all([document.fonts.load('16px "Pixelify Sans"'), document.fonts.load('16px "Press Start 2P"')]),
+      Promise.all([document.fonts.load('16px "Pixelify Sans"'), document.fonts.load('16px "Press Start 2P"'), document.fonts.load('16px "Jersey 10"')]),
       new Promise((r) => setTimeout(r, 1500)),
     ]);
   } catch (e) { /* fonts optional */ }
@@ -38,6 +41,8 @@ async function boot() {
   if (dev === 'reset') state.reset();
   if (params.get('seed')) (await import('./dev/seed.js')).seedProfile(params.get('seed'));
   if (dev === 'models' || dev === 'chars' || dev === 'props') await game.go('preview', { mode: dev, id: params.get('id'), instant: true });
+  else if (dev === 'modellab') await game.go('modellab', { ...Object.fromEntries(params), instant: true });
+  else if (dev === 'arena') await game.go('arenaview', { ...Object.fromEntries(params), instant: true });
   else if (params.get('scene')) await game.go(params.get('scene'), { instant: true, dev: true, ...Object.fromEntries(params) });
   else await game.go('title', { instant: true });
   const b = document.getElementById('boot');

@@ -17,6 +17,35 @@ import { damp } from '../core/util.js';
 
 const geoCache = new Map();
 
+// Toy finishes seen on the real figures: glossy PVC (default), metallic,
+// translucent ("stealth") and glow-in-the-dark.
+const finishCache = {};
+export function finishMaterials(finish = 'toy') {
+  if (finishCache[finish]) return finishCache[finish];
+  let pair;
+  if (finish === 'gloss') pair = Mats.toyGlossPair;
+  else if (finish === 'metal') {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.65, envMapIntensity: 1.4 });
+    m.envMap = Mats.toy.envMap;
+    pair = [m, Mats.glow];
+  } else if (finish === 'translucent') {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.15, metalness: 0.0, transparent: true, opacity: 0.78, envMapIntensity: 1.3 });
+    m.envMap = Mats.toy.envMap;
+    pair = [m, Mats.glow];
+  } else if (finish === 'glow') {
+    // glow-in-the-dark: the figure's own colours feed its emissive term
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.0, envMapIntensity: 0.8 });
+    m.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance += vColor.rgb * 0.42;');
+    };
+    m.customProgramCacheKey = () => 'toyGlowInDark';
+    m.envMap = Mats.toy.envMap;
+    pair = [m, Mats.glow];
+  } else pair = Mats.toyPair;
+  finishCache[finish] = pair;
+  return pair;
+}
+
 export class SwarmRig {
   /**
    * @param {object} def model definition
@@ -34,7 +63,7 @@ export class SwarmRig {
     this.inner.scale.setScalar(this.baseScale);
     this.parts = {};
     this.meshes = [];
-    const mats = this.variant !== 'base' ? variantMaterials(this.variant) : Mats.pair;
+    const mats = this.variant !== 'base' ? variantMaterials(this.variant) : finishMaterials(def.finish);
     this.mats = mats;
     const pending = [];
     for (const p of def.parts) {
@@ -47,7 +76,7 @@ export class SwarmRig {
           const kind = this.variant;
           grid.paint((x, y, z, c) => variantColor(kind, c));
         }
-        geo = grid.build({ pivot: p.pivot ?? [0, 0, 0], scale: V });
+        geo = grid.build({ pivot: p.pivot ?? [0, 0, 0], scale: V, jitter: def.jitter ?? 0.025, maxSamples: 420 });
         if (key) geoCache.set(key, geo);
       }
       const g = new THREE.Group();

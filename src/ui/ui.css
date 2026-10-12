@@ -46,7 +46,8 @@ html, body {
   overscroll-behavior: none;
 }
 #app { position: fixed; inset: 0; overflow: hidden; }
-#gl { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+body.retro #gl { image-rendering: pixelated; image-rendering: crisp-edges; }
 #world-ui, #ui, #overlay { position: absolute; inset: 0; pointer-events: none; }
 #world-ui { overflow: hidden; }
 :where(#ui, #overlay) > * { pointer-events: auto; }

@@ -8,7 +8,7 @@ export const COMMANDERS = {
     signature: {
       id: 'beakerBarrage', name: 'Beaker Barrage', charge: 26, icon: 'flask',
       desc: 'Hurls 5 bubbling beakers at the front line. Each splashes acid for area damage.',
-      dmg: 70, count: 5, radius: 1.6,
+      dmg: 210, count: 5, radius: 1.6,
     },
     skills: [
       { id: 'labRally', level: 3, name: 'Lab Coat Rally', cd: 22, icon: 'speed', desc: 'Your troops gain +30% speed and attack speed for 6s.', amt: 0.3, dur: 6 },
@@ -21,12 +21,12 @@ export const COMMANDERS = {
     desc: 'The Beast himself. Defeat him in his Mansion rematch to recruit him.',
     signature: {
       id: 'megaGiveaway', name: 'Mega Giveaway', charge: 32, icon: 'bag',
-      desc: 'Cash rains over the whole battlefield! Enemies get distracted (stunned 1.6s), take damage, and you gain +150 energy.',
-      dmg: 110, stun: 1.6, energy: 150,
+      desc: 'Cash rains over the whole battlefield! Enemies get distracted (stunned 1.6s), take damage, and you gain +3 energy.',
+      dmg: 260, stun: 1.6, energy: 3,
     },
     skills: [
       { id: 'lastToLeave', level: 3, name: 'Last To Leave', cd: 35, icon: 'shield', desc: 'For 4s your troops cannot drop below 1 HP.', dur: 4 },
-      { id: 'subscribeSmash', level: 5, name: 'Subscribe Smash', cd: 30, icon: 'play', desc: 'A giant red SUBSCRIBE button slams down for massive area damage.', dmg: 380, radius: 2.4 },
+      { id: 'subscribeSmash', level: 5, name: 'Subscribe Smash', cd: 30, icon: 'play', desc: 'A giant red SUBSCRIBE button slams down for massive area damage.', dmg: 720, radius: 2.4 },
     ],
     unlock: 'boss:jimmyRematch',
   },
@@ -36,7 +36,7 @@ export const COMMANDERS = {
     signature: {
       id: 'bellyFlop', name: 'Belly Flop', charge: 28, icon: 'energy',
       desc: 'Nolan cannonballs off the Lab onto the front line: shockwave damage + 2s stun.',
-      dmg: 240, stun: 2, radius: 2.4,
+      dmg: 560, stun: 2, radius: 2.4,
     },
     skills: [
       { id: 'complain', level: 3, name: 'Complain Loudly', cd: 24, icon: 'quest', desc: 'Enemies near the front are annoyed: -45% speed for 5s.', slow: 0.45, dur: 5 },
@@ -50,10 +50,10 @@ export const COMMANDERS = {
     signature: {
       id: 'juansTruck', name: "Juan's Truck", charge: 30, icon: 'truck',
       desc: "Juan's truck rampages across the battlefield, damaging and knocking back everything it hits, then crashes into the enemy Lab.",
-      dmg: 200, labDmg: 260,
+      dmg: 460, labDmg: 420,
     },
     skills: [
-      { id: 'footballKick', level: 3, name: 'Football Kick', cd: 20, icon: 'ball', desc: 'Juan kicks a ball straight through ALL enemies in a line for heavy damage.', dmg: 300 },
+      { id: 'footballKick', level: 3, name: 'Football Kick', cd: 20, icon: 'ball', desc: 'Juan kicks a ball straight through ALL enemies in a line for heavy damage.', dmg: 620 },
       { id: 'juanDance', level: 5, name: 'Juan Dance', cd: 45, icon: 'music', desc: 'A parade begins! Troops join the dance: army gets +50% damage, +35% speed & attack speed and heals 25% for 8s.', dmg: 0.5, speed: 0.35, heal: 0.25, dur: 8 },
     ],
     unlock: 'season:juan',
@@ -83,14 +83,14 @@ export const CMD_LEVEL_REWARDS = {
 export const PERKS = {
   energySurge: { name: 'Energy Surge', desc: '+{v}% energy regen', range: [5, 18], icon: 'energy' },
   thickWalls: { name: 'Thick Walls', desc: '+{v}% Lab HP', range: [8, 28], icon: 'shield' },
-  quickHands: { name: 'Quick Hands', desc: '-{v}% troop cooldowns', range: [5, 16], icon: 'clock' },
+  quickHands: { name: 'Turret Boost', desc: 'Guard turret deals +{v}% damage', range: [6, 20], icon: 'tower' },
   hypeMan: { name: 'Hype Man', desc: 'Signature charges {v}% faster', range: [10, 32], icon: 'star' },
-  bargain: { name: 'Bargain Hunter', desc: 'Troops cost {v}% less', range: [3, 10], icon: 'coin' },
+  bargain: { name: 'Bargain Hunter', desc: '{v}% chance a deploy refunds 1 energy', range: [5, 20], icon: 'energy' },
   armorUp: { name: 'Lab Coat Armor', desc: 'Troops take {v}% less damage', range: [3, 11], icon: 'shield' },
   sharpTeeth: { name: 'Sharp Teeth', desc: 'Troops deal +{v}% damage', range: [4, 13], icon: 'sword' },
   spellSlinger: { name: 'Spell Slinger', desc: 'Spell cooldowns -{v}%', range: [8, 22], icon: 'magic' },
   coinMagnet: { name: 'Coin Magnet', desc: '+{v}% coins from battles', range: [10, 35], icon: 'coin' },
-  headStart: { name: 'Head Start', desc: 'Start battles with +{v} energy', range: [30, 120], icon: 'energy' },
+  headStart: { name: 'Head Start', desc: 'Start battles with +{v} energy', range: [1, 3], icon: 'energy' },
 };
 for (const [id, p] of Object.entries(PERKS)) p.id = id;
 

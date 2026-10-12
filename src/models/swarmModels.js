@@ -7,6 +7,14 @@ import { SwarmRig } from './swarmRig.js';
 import { C, eye, eyes, teeth, mouth, noise, legs4, feet2, arms2 } from './helpers.js';
 import { SWARMS } from '../data/swarms.js';
 import { EXTRA_MODELS } from './swarmModelsExtra.js';
+import { PANTHER_MODELS } from './swarms/panthers.js';
+import { HOME_HORROR_MODELS } from './swarms/homeHorrors.js';
+import { CRITTER_MODELS } from './swarms/critters.js';
+import { TECHNO_MODELS } from './swarms/techno.js';
+import { TOXIC_MODELS } from './swarms/toxic.js';
+import { FUSION_MODELS } from './swarms/fusion.js';
+import { SNACK_MODELS } from './swarms/snacks.js';
+import { BOSS_MODELS } from './swarms/bosses.js';
 
 // ---------------------------------------------------------------------------
 // Core models (more in swarmModelsExtra.js)
@@ -226,7 +234,11 @@ const MODELS = {
   },
 };
 
-const ALL_MODELS = { ...MODELS, ...EXTRA_MODELS };
+// New high-resolution toy models override the legacy ones as they land.
+const ALL_MODELS = {
+  ...MODELS, ...EXTRA_MODELS,
+  ...PANTHER_MODELS, ...HOME_HORROR_MODELS, ...CRITTER_MODELS, ...TECHNO_MODELS, ...TOXIC_MODELS, ...FUSION_MODELS, ...SNACK_MODELS, ...BOSS_MODELS,
+};
 
 export function hasModel(id) {
   return !!ALL_MODELS[id];

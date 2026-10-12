@@ -10,6 +10,8 @@ const loaders = {
   battle: () => import('../scenes/battle.js').then((m) => m.BattleScene),
   arena: () => import('../scenes/arena.js').then((m) => m.ArenaScene),
   preview: () => import('../dev/preview.js').then((m) => m.PreviewScene),
+  modellab: () => import('../dev/modelLab.js').then((m) => m.ModelLabScene),
+  arenaview: () => import('../dev/arenaView.js').then((m) => m.ArenaViewScene),
 };
 
 let transitioning = false;
@@ -55,7 +57,8 @@ export const game = {
     const s = state.p.settings;
     audio.setVolumes(s.sfx, s.music);
     audio.setMuted(!!s.muted);
-    engine.setPixelMode(s.pixel);
+    if (!s.graphics) s.graphics = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 'medium' : 'high';
+    engine.setQuality(s.graphics, s.pixel === 'retro' || s.pixel === 'chunky');
     engine.shakeEnabled = s.shake !== false;
   },
 };

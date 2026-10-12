@@ -280,10 +280,17 @@ export class VoxGrid {
 export const Mats = {
   solid: new THREE.MeshLambertMaterial({ vertexColors: true }),
   glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+  // Glossy PVC toy plastic for Swarms (envMap assigned by the engine).
+  toy: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.0, envMapIntensity: 0.85 }),
+  toyGloss: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.08, envMapIntensity: 1.1 }),
   flash: new THREE.MeshBasicMaterial({ color: 0xffffff }),
   flashRed: new THREE.MeshBasicMaterial({ color: 0xff5050 }),
 };
+// Glow voxels render as HDR (> 1.0) so bloom picks up only emissive bits, not lit surfaces.
+Mats.glow.color.setScalar(2.1);
 Mats.pair = [Mats.solid, Mats.glow];
+Mats.toyPair = [Mats.toy, Mats.glow];
+Mats.toyGlossPair = [Mats.toyGloss, Mats.glow];
 Mats.flashPair = [Mats.flash, Mats.flash];
 Mats.flashRedPair = [Mats.flashRed, Mats.flashRed];
 
@@ -292,11 +299,11 @@ const variantMats = {};
 export function variantMaterials(kind) {
   if (variantMats[kind]) return variantMats[kind];
   const params = {
-    chrome: { metalness: 0.95, roughness: 0.12 },
-    silver: { metalness: 0.85, roughness: 0.28 },
-    gold: { metalness: 0.9, roughness: 0.22 },
+    chrome: { metalness: 0.95, roughness: 0.1 },
+    silver: { metalness: 0.85, roughness: 0.24 },
+    gold: { metalness: 0.92, roughness: 0.2 },
   }[kind] || { metalness: 0.5, roughness: 0.4 };
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, ...params, envMapIntensity: 1.4 });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, ...params, envMapIntensity: 1.6 });
   variantMats[kind] = [m, Mats.glow];
   return variantMats[kind];
 }

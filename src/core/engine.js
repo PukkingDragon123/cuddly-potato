@@ -1,13 +1,31 @@
-// Engine: owns the WebGL renderer, main loop, current scene, camera shake,
-// hit-stop, render scale ("pixel look") and helpers for picking/projection.
+// Engine: owns the WebGL renderer, post-processing (bloom), main loop, current
+// scene, camera shake, hit-stop, quality presets and helpers for
+// picking/projection and rendering 3D thumbnails for the UI.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { updateTweens } from './tween.js';
 import { particles } from './particles.js';
-import { allVariantMaterials, variantMaterials } from './voxel.js';
+import { allVariantMaterials, variantMaterials, Mats } from './voxel.js';
 import { clamp } from './util.js';
 
-const PIXEL_TARGETS = { chunky: 260, retro: 400, crisp: 620, hd: 0 };
+/**
+ * Quality presets.
+ *  high:   MSAA + bloom + soft shadows, up to 2x device pixels
+ *  medium: MSAA, soft shadows, up to 1.5x
+ *  low:    no AA, basic shadows, 1x
+ * The optional "retro" pixel filter renders at a low internal resolution.
+ */
+const QUALITY = {
+  high: { dpr: 2, bloom: true, shadow: THREE.PCFShadowMap, shadowRes: 2048, aa: true },
+  medium: { dpr: 1.5, bloom: false, shadow: THREE.PCFShadowMap, shadowRes: 1024, aa: true },
+  low: { dpr: 1, bloom: false, shadow: THREE.BasicShadowMap, shadowRes: 1024, aa: false },
+};
+const RETRO_TARGET = 360;
+const DEFAULT_BLOOM = { strength: 0.7, radius: 0.4, threshold: 1.12 };
 
 class Engine {
   constructor() {
@@ -17,35 +35,41 @@ class Engine {
     this.hitstopT = 0;
     this.trauma = 0;
     this.shakeOffset = new THREE.Vector3();
-    this.pixelMode = 'retro';
+    this.quality = 'high';
+    this.retro = false;
     this.width = 1;
     this.height = 1;
     this.frameListeners = new Set();
     this.raycaster = new THREE.Raycaster();
     this.fps = 60;
+    this.slowFrames = 0;
   }
 
   init() {
     this.canvas = document.getElementById('gl');
     const r = (this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: false,
+      antialias: true,
       powerPreference: 'high-performance',
+      stencil: false,
     }));
     r.outputColorSpace = THREE.SRGBColorSpace;
+    r.toneMapping = THREE.NeutralToneMapping;
+    r.toneMappingExposure = 1.0;
     r.shadowMap.enabled = true;
-    r.shadowMap.type = THREE.BasicShadowMap;
+    r.shadowMap.type = THREE.PCFShadowMap;
     r.setClearColor(0x0b1230, 1);
 
-    // Environment map for chrome/gold/silver variants.
+    // Environment map: glossy toy plastic + chrome / silver / gold variants.
     const pmrem = new THREE.PMREMGenerator(r);
     this.envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     for (const k of ['chrome', 'silver', 'gold']) variantMaterials(k);
-    for (const m of allVariantMaterials()) {
+    for (const m of [...allVariantMaterials(), Mats.toy, Mats.toyGloss]) {
       m.envMap = this.envMap;
       m.needsUpdate = true;
     }
 
+    this.buildComposer();
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 200));
     this.resize();
@@ -57,24 +81,71 @@ class Engine {
     requestAnimationFrame(loop);
   }
 
-  setPixelMode(mode) {
-    this.pixelMode = PIXEL_TARGETS[mode] !== undefined ? mode : 'retro';
+  buildComposer() {
+    const r = this.renderer;
+    const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+    this.composer = new EffectComposer(r, rt);
+    this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(4, 4), DEFAULT_BLOOM.strength, DEFAULT_BLOOM.radius, DEFAULT_BLOOM.threshold);
+    this.outputPass = new OutputPass();
+    this.composer.addPass(this.renderPass);
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(this.outputPass);
+  }
+
+  /** Per-scene bloom tuning (scenes may also set `bloom` = {strength, radius, threshold}). */
+  setBloom(o = {}) {
+    const b = { ...DEFAULT_BLOOM, ...o };
+    this.bloomPass.strength = b.strength;
+    this.bloomPass.radius = b.radius;
+    this.bloomPass.threshold = b.threshold;
+  }
+
+  setQuality(q = 'high', retro = false) {
+    this.quality = QUALITY[q] ? q : 'high';
+    this.retro = !!retro;
+    const Q = QUALITY[this.quality];
+    const r = this.renderer;
+    if (r.shadowMap.type !== Q.shadow) {
+      r.shadowMap.type = Q.shadow;
+      r.shadowMap.needsUpdate = true;
+      // shadow maps must be rebuilt for a new filter type
+      this.current?.scene?.traverse((o) => {
+        if (o.isLight && o.shadow?.map) { o.shadow.map.dispose(); o.shadow.map = null; }
+      });
+    }
+    this.shadowRes = Q.shadowRes;
+    document.body.classList.toggle('retro', this.retro);
     this.resize();
+  }
+  /** Back-compat with the old setting name. */
+  setPixelMode(mode) {
+    this.setQuality(this.quality, mode === 'retro' || mode === 'chunky');
+  }
+
+  get useComposer() {
+    return QUALITY[this.quality].bloom && !this.retro && this.current?.bloom !== false;
   }
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.width = w;
     this.height = h;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const target = PIXEL_TARGETS[this.pixelMode];
-    const ratio = target ? clamp(target / Math.min(w, h * 1.25), 0.25, dpr) : dpr;
+    const dpr = window.devicePixelRatio || 1;
+    const Q = QUALITY[this.quality];
+    const ratio = this.retro ? clamp(RETRO_TARGET / Math.min(w, h * 1.25), 0.25, dpr) : Math.min(dpr, Q.dpr);
+    this.pixelRatio = ratio;
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
+    this.composer.setPixelRatio(ratio);
+    this.composer.setSize(w, h);
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
-    document.documentElement.style.setProperty('--vw', w + 'px');
-    document.documentElement.style.setProperty('--vh', h + 'px');
+    const de = document.documentElement.style;
+    de.setProperty('--vw', w + 'px');
+    de.setProperty('--vh', h + 'px');
+    document.body.classList.toggle('portrait', h > w);
+    document.body.classList.toggle('landscape', h <= w);
     if (this.current && this.current.resize) this.current.resize(w, h);
     else if (this.current && this.current.camera && this.current.camera.isPerspectiveCamera) {
       this.current.camera.aspect = w / h;
@@ -84,6 +155,9 @@ class Engine {
 
   get aspect() {
     return this.width / this.height;
+  }
+  get portrait() {
+    return this.height > this.width;
   }
 
   async setScene(sceneObj, params) {
@@ -96,6 +170,11 @@ class Engine {
     particles.attach(sceneObj.scene);
     particles.clear();
     if (sceneObj.enter) await sceneObj.enter(params);
+    this.setBloom(sceneObj.bloom || {});
+    // apply the current shadow resolution to every shadow-casting light
+    sceneObj.scene?.traverse((o) => {
+      if (o.isDirectionalLight && o.castShadow) o.shadow.mapSize.set(this.shadowRes ?? 2048, this.shadowRes ?? 2048);
+    });
     this.resize();
   }
 
@@ -144,21 +223,31 @@ class Engine {
 
     const cam = cur.camera;
     if (!cam) return;
-    // camera shake
+    // camera shake (screen-space offset along the camera's right/up axes)
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const s = this.trauma * this.trauma * (cur.shakeScale ?? 1);
+    let shaken = false;
     if (s > 0.0001) {
       const t = this.time * 38;
-      this.shakeOffset.set(
-        (Math.sin(t * 1.1) + Math.sin(t * 2.3 + 1)) * 0.5 * s * 0.6,
-        (Math.sin(t * 1.7 + 2) + Math.sin(t * 2.9)) * 0.5 * s * 0.6,
-        0,
-      );
+      const ox = (Math.sin(t * 1.1) + Math.sin(t * 2.3 + 1)) * 0.5 * s * 0.6;
+      const oy = (Math.sin(t * 1.7 + 2) + Math.sin(t * 2.9)) * 0.5 * s * 0.6;
+      _right.setFromMatrixColumn(cam.matrixWorld, 0);
+      _up.setFromMatrixColumn(cam.matrixWorld, 1);
+      this.shakeOffset.copy(_right).multiplyScalar(ox).addScaledVector(_up, oy);
       cam.position.add(this.shakeOffset);
-      this.renderer.render(cur.scene, cam);
-      cam.position.sub(this.shakeOffset);
+      shaken = true;
+    }
+    this.render(cur.scene, cam);
+    if (shaken) cam.position.sub(this.shakeOffset);
+  }
+
+  render(scene, cam) {
+    if (this.useComposer) {
+      this.renderPass.scene = scene;
+      this.renderPass.camera = cam;
+      this.composer.render();
     } else {
-      this.renderer.render(cur.scene, cam);
+      this.renderer.render(scene, cam);
     }
   }
 
@@ -176,6 +265,14 @@ class Engine {
     const out = new THREE.Vector3();
     return this.raycaster.ray.intersectPlane(plane, out) ? out : null;
   }
+  /** Ray hitting the vertical plane z = z0 (side-view battle lanes). */
+  rayToZPlane(clientX, clientY, z0 = 0, camera = this.current?.camera) {
+    const ndc = new THREE.Vector2((clientX / this.width) * 2 - 1, -(clientY / this.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z0);
+    const out = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(plane, out) ? out : null;
+  }
 
   /** Project a world position to CSS pixels. Returns {x,y,visible}. */
   toScreen(v, camera = this.current?.camera) {
@@ -184,24 +281,34 @@ class Engine {
   }
 
   // ---------------------------------------------------------------------
-  // Thumbnails: rendered with a tiny dedicated renderer, cached as data URLs.
+  // Thumbnails: rendered with a small dedicated renderer (3-point studio
+  // lighting, same tone mapping), returned as data URLs and cached by callers.
   renderThumb(obj, opts = {}) {
-    const size = opts.size ?? 96;
+    const size = opts.size ?? 128;
     if (!this.thumbRenderer) {
       const c = document.createElement('canvas');
-      this.thumbRenderer = new THREE.WebGLRenderer({ canvas: c, antialias: false, alpha: true, preserveDrawingBuffer: true });
-      this.thumbRenderer.outputColorSpace = THREE.SRGBColorSpace;
-      this.thumbScene = new THREE.Scene();
-      this.thumbScene.add(new THREE.HemisphereLight(0xdfefff, 0x6a5040, 1.6));
-      const d = new THREE.DirectionalLight(0xffffff, 2.2);
-      d.position.set(2, 4, 5);
-      this.thumbScene.add(d);
-      this.thumbCam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+      const tr = (this.thumbRenderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }));
+      tr.outputColorSpace = THREE.SRGBColorSpace;
+      tr.toneMapping = THREE.NeutralToneMapping;
+      tr.toneMappingExposure = 1.12;
+      const sc = (this.thumbScene = new THREE.Scene());
+      sc.add(new THREE.HemisphereLight(0xe8f4ff, 0x5a4a6a, 1.5));
+      const key = new THREE.DirectionalLight(0xfff4e6, 2.6);
+      key.position.set(3, 5, 6);
+      const rim = new THREE.DirectionalLight(0x9fe6ff, 2.2);
+      rim.position.set(-5, 3, -4);
+      const fill = new THREE.DirectionalLight(0xffc8ec, 0.8);
+      fill.position.set(-4, -1, 5);
+      sc.add(key, rim, fill);
+      this.thumbCam = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
     }
     const r = this.thumbRenderer;
     r.setPixelRatio(1);
-    r.setSize(size, size, false);
+    const w = opts.w ?? size, hgt = opts.h ?? size;
+    r.setSize(w, hgt, false);
     r.setClearColor(0x000000, 0);
+    this.thumbCam.aspect = w / hgt;
+    this.thumbCam.updateProjectionMatrix();
     const holder = new THREE.Group();
     holder.add(obj);
     holder.rotation.y = opts.yaw ?? -0.5;
@@ -211,8 +318,10 @@ class Engine {
     const c = box.getCenter(new THREE.Vector3());
     const sz = box.getSize(new THREE.Vector3());
     if (opts.focusHead) c.y = box.max.y - sz.y * 0.3;
-    const rad = Math.max(sz.x, sz.y, sz.z) * 0.62 * (opts.zoom ?? 1);
-    const dist = rad / Math.tan(THREE.MathUtils.degToRad(15));
+    if (opts.lift) c.y += sz.y * opts.lift;
+    const fitH = Math.max(sz.y, sz.x * hgt / w, sz.z * 0.8 * hgt / w);
+    const rad = fitH * 0.6 * (opts.zoom ?? 1);
+    const dist = rad / Math.tan(THREE.MathUtils.degToRad(13));
     const pitch = opts.pitch ?? 0.28;
     this.thumbCam.position.set(c.x, c.y + Math.sin(pitch) * dist, c.z + Math.cos(pitch) * dist);
     this.thumbCam.lookAt(c);
@@ -224,13 +333,19 @@ class Engine {
 }
 
 const _proj = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
 export const engine = new Engine();
 
-/** Standard light rig helper used by most scenes. */
+/**
+ * Standard light rig used by most scenes: sky/ground hemisphere, a warm key
+ * sun with soft shadows and a cool rim light from behind for that toy-shelf
+ * "pop".
+ */
 export function addLights(scene, opts = {}) {
-  const hemi = new THREE.HemisphereLight(opts.sky ?? 0xcfe6ff, opts.ground ?? 0x6b5a4a, opts.hemi ?? 1.25);
+  const hemi = new THREE.HemisphereLight(opts.sky ?? 0xd6ecff, opts.ground ?? 0x6b5a6a, opts.hemi ?? 1.35);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(opts.sunColor ?? 0xfff3dd, opts.sun ?? 2.1);
+  const sun = new THREE.DirectionalLight(opts.sunColor ?? 0xfff1dc, opts.sun ?? 2.4);
   const dir = opts.dir ?? [6, 12, 8];
   sun.position.set(...dir);
   sun.castShadow = opts.shadows !== false;
@@ -240,10 +355,20 @@ export function addLights(scene, opts = {}) {
   sun.shadow.camera.top = ext;
   sun.shadow.camera.bottom = -ext;
   sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 80;
-  sun.shadow.mapSize.set(opts.shadowRes ?? 1024, opts.shadowRes ?? 1024);
-  sun.shadow.bias = -0.0008;
+  sun.shadow.camera.far = opts.shadowFar ?? 80;
+  const res = opts.shadowRes ?? engine.shadowRes ?? 2048;
+  sun.shadow.mapSize.set(res, res);
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.02;
+  sun.shadow.radius = 3;
   scene.add(sun);
   scene.add(sun.target);
-  return { hemi, sun };
+  let rim = null;
+  if (opts.rim !== false) {
+    rim = new THREE.DirectionalLight(opts.rimColor ?? 0x9fd8ff, opts.rimIntensity ?? 1.1);
+    const rd = opts.rimDir ?? [-dir[0] * 0.6, dir[1] * 0.5, -Math.abs(dir[2])];
+    rim.position.set(...rd);
+    scene.add(rim);
+  }
+  return { hemi, sun, rim };
 }
