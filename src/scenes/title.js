@@ -103,8 +103,9 @@ export class TitleScene {
     audio.music('title');
     // where in the first-time flow are we?
     const p = state.p;
-    if (params.tutorial === 'starterDone' || (params.from === 'vial' && p.tutorial === 'briefcase')) return this.starterDone();
-    if (params.tutorial === 'briefcase' || p.tutorial === 'briefcase') return this.briefcase();
+    // (story steps start after the scene transition finishes - never await them inside enter())
+    if (params.tutorial === 'starterDone' || (params.from === 'vial' && p.tutorial === 'briefcase')) { this.ui.style.display = 'none'; this.camMode = 'jimmy'; setTimeout(() => this.starterDone(), 450); return; }
+    if (params.tutorial === 'briefcase' || p.tutorial === 'briefcase') { this.ui.style.display = 'none'; this.camMode = 'jimmy'; setTimeout(() => this.briefcase(), 450); return; }
     this.onTap = (e) => {
       e.preventDefault();
       engine.canvas.removeEventListener('pointerdown', this.onTap);
