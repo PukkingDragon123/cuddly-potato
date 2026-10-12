@@ -1,4 +1,4 @@
-// Props & buildings: battle labs, backdrops, ability props, lab interior,
+// Props & buildings: battle labs, ability props, lab interior,
 // grocery and environment pieces. Implementation lives in ./props/*.
 // Every factory builds its voxel geometry once (module caches) and reuses it.
 import { makeLabBuilding } from './props/lab.js';
@@ -17,7 +17,6 @@ import {
   makeReactor, makeFactory, makeGoldenStatue, makePortal, makeTrophyPodium, makeCrate, makeBarrel, makeCone, makeBench,
   makeSignpost, makeBossGate,
 } from './props/environment.js';
-import { makeBattleBackdrop, BACKDROP_THEMES } from './props/backdrops.js';
 
 export { makeLabBuilding, LEVEL_COLORS } from './props/lab.js';
 export {
@@ -35,7 +34,6 @@ export {
   makeReactor, makeFactory, makeGoldenStatue, makePortal, makeTrophyPodium, makeCrate, makeBarrel, makeCone, makeBench,
   makeSignpost, makeBossGate,
 } from './props/environment.js';
-export { makeBattleBackdrop, BACKDROP_THEMES } from './props/backdrops.js';
 
 // Attach an animation hook so previews can tick animated props.
 const withUpdate = (o) => {
@@ -122,6 +120,4 @@ export const PROPS = {
   bench: () => makeBench(),
   signpost: () => makeSignpost(0xff2e88),
   bossGate: () => withUpdate(makeBossGate(0xb05cff)),
-  // battle backdrops (big!)
-  ...Object.fromEntries(BACKDROP_THEMES.map((t) => ['backdrop_' + t, () => withUpdate(makeBattleBackdrop(t))])),
 };

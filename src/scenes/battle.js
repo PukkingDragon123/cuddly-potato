@@ -322,6 +322,7 @@ export class BattleScene {
   }
 
   onSimEvent(ev) {
+    if (ev.type === 'end') this.endReason = ev.reason;
     this.hud.onEvent(ev);
     if (!this.ai || this.ended) return;
     // the AI rival reacts with emotes now and then
@@ -626,7 +627,12 @@ export class BattleScene {
     const labFell = !sim.sides[0].lab.alive || !sim.sides[1].lab.alive;
     if (labFell) await wait(2.4);
     else {
-      bigBanner(sim.draw ? "TIME'S UP!" : 'TIME!', sim.draw ? 'Too close to call!' : 'Most crowns wins!', { dur: 1.6, color: '#ffd84a' });
+      const why = {
+        tiebreak: ['TIEBREAKER!', 'The most damaged tower loses'],
+        surrender: ['SURRENDER', win ? 'Your rival gave up!' : 'You gave up...'],
+        forfeit: ['FORFEIT', 'Your rival left the battle'],
+      }[this.endReason] ?? (sim.draw ? ["TIME'S UP!", 'Too close to call!'] : ['TIME!', 'Most crowns wins!']);
+      bigBanner(why[0], why[1], { dur: 1.6, color: '#ffd84a' });
       audio.play('bell');
       await wait(1.6);
     }

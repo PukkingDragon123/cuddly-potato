@@ -134,7 +134,7 @@
 .hm-unlock .cards .gcard { width: calc(var(--u) * 15); animation: popIn 0.4s cubic-bezier(.2, 1.4, .4, 1) both; }
 
 /* landscape: compact dock — slots and battle side by side, banner on top */
-body.landscape .hm-dock { gap: calc(var(--u) * 0.8); }
+body.landscape .hm-dock { gap: calc(var(--u) * 0.8); z-index: 7; }
 body.landscape .hm-zone { position: fixed; left: 50%; translate: -50% 0; top: calc(var(--safe-t) + var(--u) * 1.2); z-index: 7; }
 body.landscape .hm-zbox .ribbon { font-size: 1.05em; min-width: calc(var(--u) * 44); }
 body.landscape .hm-zbox .an { display: none; }
