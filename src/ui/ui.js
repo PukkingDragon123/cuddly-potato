@@ -1,13 +1,39 @@
-// DOM UI toolkit: hyperscript helper, pixel icons, buttons, modals, toasts,
-// dialogue with typewriter text, world-anchored speech bubbles & floating text,
-// and tutorial pointers.
+// DOM UI toolkit: hyperscript helper, pixel icons, skinned buttons, panels,
+// pills, bars, ribbons, modals, toasts, slam banners, typewriter dialogue,
+// world-anchored speech bubbles & floating combat text, tutorial pointers,
+// DOM sparkles and number roll-ups. Pixel scale adapts to the screen.
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
+import { iconURL as pixIconURL } from './icons.js';
+import { injectSkins } from './skin.js';
+import { fmt } from '../core/util.js';
 
 export const $ui = () => document.getElementById('ui');
 export const $overlay = () => document.getElementById('overlay');
 export const $world = () => document.getElementById('world-ui');
+
+// ---------------------------------------------------------------------------
+// Responsive pixel scale: --px (pixel-art pixel size), --u (layout unit), --fs
+
+export function applyScale() {
+  const w = window.innerWidth, hgt = window.innerHeight;
+  const portrait = hgt > w;
+  const base = portrait ? Math.min(w, hgt * 0.6) : Math.min(hgt * 0.78, w * 0.48);
+  const u = Math.max(3.4, Math.min(9.5, base / 100));
+  const px = Math.max(2, Math.min(4, Math.round(Math.min(w, hgt) / 260)));
+  const de = document.documentElement.style;
+  de.setProperty('--u', u.toFixed(2) + 'px');
+  de.setProperty('--px', px + 'px');
+  de.setProperty('--pxs', Math.max(2, px - 1) + 'px');
+  de.setProperty('--fs', Math.max(12, Math.round(u * 3.5)) + 'px');
+}
+if (typeof window !== 'undefined') {
+  injectSkins();
+  applyScale();
+  window.addEventListener('resize', applyScale);
+  window.addEventListener('orientationchange', () => setTimeout(applyScale, 200));
+}
 
 export function h(tag, props, ...children) {
   const el = document.createElement(tag);
@@ -44,6 +70,7 @@ export function clearUI() {
   floaters.length = 0;
   bubbles.length = 0;
   pointers.length = 0;
+  activeDialogue = null;
 }
 
 /** Light markup: *bold* and _emphasis_. */
@@ -53,78 +80,9 @@ export function rich(text) {
 }
 
 // ---------------------------------------------------------------------------
-// Pixel icons
+// Icons
 
-const PAL = {
-  k: '#0d1029', w: '#ffffff', y: '#ffd23f', Y: '#e0a21a', o: '#ff8a2a', O: '#d0601a', r: '#ff4a4a', R: '#b8282f',
-  p: '#ff2e88', P: '#c4126a', b: '#29b6f6', B: '#1477c9', g: '#5fdc4a', G: '#2f9e2f', s: '#c8ccd8', S: '#8a93b8',
-  n: '#8e5a3c', N: '#5a3220', v: '#b05cff', V: '#7a2fd0', c: '#9ff2ff',
-};
-
-const ICONS = {
-  coin: ['....kkkk....', '..kkyyyykk..', '.kyyyyyyyyk.', '.kywYYYyyyk.', 'kyywYyyYyyYk', 'kyyyYYYyyyYk', 'kyyyYyyYyyYk', 'kyyyYYYyyyYk', '.kyyyyyyyYk.', '.kYyyyyyYYk.', '..kkYYYYkk..', '....kkkk....'],
-  bucks: ['............', '...kkkkkk...', '..kpwwpppk..', '.kpwpppppPk.', 'kkkkkkkkkkkk', 'kppwppppPPPk', '.kppppppPPk.', '..kpppppPk..', '...kpppPk...', '....kpPk....', '.....kk.....', '............'],
-  trophy: ['..kkkkkkkk..', 'kkkwyyyyYkkk', 'kykwyyyyYkyk', 'kykyyyyyYkyk', '.kkyyyyyYkk.', '..kyyyyyYk..', '...kkyYkk...', '....kyYk....', '....kyYk....', '...kkkkkk...', '..kYyyyyYk..', '..kkkkkkkk..'],
-  calorie: ['.....kk.....', '....kok.....', '...koork.k..', '...koyok.kk.', '..koyyyokok.', '.koyyyyyook.', '.koyywyyyok.', 'kooyywwyyook', 'koyyywwyyyok', 'koyyyyyyyyok', '.kooyyyyook.', '..kkkkkkkk..'],
-  energy: ['......kkkk..', '.....kyyk...', '....kyyk....', '...kyyk.....', '..kyyykkkk..', '.kyyyyyyyk..', '.kkkkyyyk...', '....kyyk....', '...kyyk.....', '..kyyk......', '..kyk.......', '..kk........'],
-  hp: ['............', '.kkk..kkk...', 'krrwkkrrrk..', 'krwrrrrrRRk.', 'krrrrrrrrRk.', 'krrrrrrrrRk.', '.krrrrrrRk..', '..krrrrRk...', '...krrrk....', '....krk.....', '.....k......', '............'],
-  heart: ['............', '.kkk..kkk...', 'kppwkkpppk..', 'kpwpppppPPk.', 'kppppppppPk.', 'kppppppppPk.', '.kppppppPk..', '..kppppPk...', '...kpppk....', '....kpk.....', '.....k......', '............'],
-  sword: ['.........kk.', '........kwsk', '.......kwsk.', '......kwsk..', '.....kwsk...', '.k..kwsk....', '.kkkwsk.....', '..kkSk......', '..knkk......', '.knnk.k.....', 'kNnk........', 'kkk.........'],
-  clock: ['...kkkkkk...', '..kwwwwwwk..', '.kwwwkwwwwk.', 'kwwwwkwwwwwk', 'kwwwwkwwwwwk', 'kwwwwkkkkwwk', 'kwwwwwwwwwwk', 'kwwwwwwwwwwk', '.kwwwwwwwwk.', '..kwwwwwwk..', '...kkkkkk...'],
-  lock: ['....kkkk....', '...kSSSSk...', '..kSk..kSk..', '..kSk..kSk..', '.kkkkkkkkkk.', '.kyyyyyyyYk.', '.kyyykkyyYk.', '.kyyykkyyYk.', '.kyyyykyyYk.', '.kYYYYYYYYk.', '.kkkkkkkkkk.'],
-  star: ['.....kk.....', '....kyyk....', '....kyyk....', 'kkkkkyykkkkk', 'kyyyywyyyyYk', '.kyyyyyyyYk.', '..kyyyyyYk..', '..kyyyyyyk..', '.kyyykkyyYk.', '.kyykk.kkYk.', 'kkkk....kkkk'],
-  vial: ['...kkkkkk...', '...kooooOk..', '...kkkkkkk..', '....kcwck...', '....kccck...', '....kykkk...', '....kkyyk...', '....kgggk...', '....kgwgk...', '....kgggk...', '.....kgk....', '......k.....'],
-  flask: ['....kkkk....', '....kcwk....', '....kcwk....', '....kcck....', '...kcccck...', '..kcccccck..', '..kgggggggk.', '.kggwggggGk.', '.kgggggggGk.', 'kgggggggggGk', 'kkkkkkkkkkkk'],
-  up: ['.....kk.....', '....kggk....', '...kgggGk...', '..kggggGGk..', '.kkkkggkkkk.', '....kggk....', '....kggk....', '....kggk....', '....kGGk....', '....kkkk....'],
-  bag: ['...k....k...', '....kkkk....', '.....kk.....', '....kGGk....', '...kggggk...', '..kgggwggk..', '.kggwwwgggk.', '.kggwgggGGk.', '.kgggwwgGGk.', '.kgggggwGGk.', '.kggwwwgGGk.', '..kgggGGGk..', '...kkkkkk...'],
-  skull: ['..kkkkkkkk..', '.kwwwwwwwwk.', 'kwwwwwwwwwwk', 'kwkkwwwwkkwk', 'kwkkwwwwkkwk', 'kwwwwkkwwwwk', '.kwwwwwwwwk.', '..kwkwkwkk..', '..kkkkkkkk..'],
-  cart: ['k...........', 'kk..........', '.kkkkkkkkkkk', '.kwwwwwwwwk.', '.kwbwbwbwk..', '.kwwwwwwwk..', '..kkkkkkkk..', '..k.....k...', '.kkk...kkk..', '.kSk...kSk..', '.kkk...kkk..'],
-  pin: ['...kkkkkk...', '..kpppppPk..', '.kppwwwppPk.', '.kpwkkkwpPk.', '.kpwkkkwpPk.', '.kppwwwppPk.', '..kpppppPk..', '...kpppPk...', '....kpPk....', '.....kk.....'],
-  crown: ['k....kk....k', 'kk..kyyk..kk', 'kyk.kyyk.kyk', 'kyykyyyykyyk', 'kyyyyyyyyyyk', 'kyyyyyyyyyyk', 'kypyyyyybyyk', 'kyyyyyyyyyyk', 'kYYYYYYYYYYk', 'kkkkkkkkkkkk'],
-  swarm: ['..kkkkkkkk..', '.kbbbbbbbbk.', 'kbbwwbbwwbbk', 'kbbwkbbwkbbk', 'kbbbbbbbbbbk', 'kbkkkkkkkkbk', 'kbkwkwkwkwbk', 'kbbbbbbbbbbk', '.kbbbbbbbbk.', '..kk....kk..'],
-  magic: ['.....k......', '....kvk.....', '.kk.kvk.kk..', '.kvkkvkkvk..', '..kvvvvvk...', 'kkkvvwvvkkk.', 'kvvvwwwvvvk.', 'kkkvvwvvkkk.', '..kvvvvvk...', '.kvkkvkkvk..', '.kk.kvk.kk..', '....kvk.....', '.....k......'],
-  briefcase: ['....kkkk....', '....k..k....', 'kkkkkkkkkkkk', 'kNnnnnnnnnNk', 'kNnnnyynnnNk', 'kkkkkyykkkkk', 'kNnnnnnnnnNk', 'kNnnnnnnnnNk', 'kNnnnnnnnnNk', 'kkkkkkkkkkkk'],
-  check: ['..........kk', '.........kgk', '........kgk.', '.kk....kgk..', 'kgk...kgk...', '.kgk.kgk....', '..kgkgk.....', '...kgk......', '....k.......'],
-  x: ['kk......kk', 'kwk....kwk', '.kwk..kwk.', '..kwkkwk..', '...kwwk...', '...kwwk...', '..kwkkwk..', '.kwk..kwk.', 'kwk....kwk', 'kk......kk'],
-  gear: ['....kkkk....', '.kk.kssk.kk.', '.kskssssksk.', '..kssssssk..', 'kkssskkssskk', 'ksssk..kssSk', 'ksssk..kssSk', 'kkssskkssSkk', '..kssssSSk..', '.kskssSSksk.', '.kk.kSSk.kk.', '....kkkk....'],
-  speed: ['............', '....kkkkkk..', '...kbbbbbbk.', 'kk.kbwbbbbBk', '...kbbbbbbBk', 'kkkkbbbbbBBk', '...kbbbbbBk.', 'kk.kkkkkkk..'],
-  range: ['.....kk.....', '....kwwk....', '...kwrrwk...', '..kwrkkrwk..', '.kwrk..krwk.', 'kwrk.kk.krwk', 'kwrk.kk.krwk', '.kwrk..krwk.', '..kwrkkrwk..', '...kwrrwk...', '....kwwk....', '.....kk.....'],
-  shield: ['kkkkkkkkkkk', 'kbbbbwbbbBk', 'kbbbwwbbbBk', 'kbbbbwbbbBk', 'kbbbbbbbbBk', '.kbbbbbbBk.', '.kbbbbbbBk.', '..kbbbbBk..', '...kbbBk...', '....kkk....'],
-  ball: ['...kkkkkk...', '..kwwwkkwwk.', '.kwwwkkkwwwk', 'kkwwwkwwwkkk', 'kkkwwwwwkkkk', 'kwwwwwwwwwwk', 'kwwkkwwwwwwk', 'kwkkkwwwkkwk', '.kwkwwwwkkk.', '..kwwwwwwk..', '...kkkkkk...'],
-  truck: ['............', '......kkkk..', '......kccok.', 'kkkkkkkccook', 'kooooookoooo', 'koooowookooo', 'kkkkkkkkkkkk', '.kSSk..kSSk.', '.kkkk..kkkk.'],
-  music: ['....kkkkkkk.', '....kvvvvvk.', '....kvkkkvk.', '....kvk.kvk.', '....kvk.kvk.', '..kkkvk.kvk.', '.kvvvvkkkvk.', '.kvvvvkvvvk.', '..kkkkkvvvk.', '.......kkk..'],
-  play: ['kk........', 'kwkk......', 'kwwwkk....', 'kwwwwwkk..', 'kwwwwwwwk.', 'kwwwwwkk..', 'kwwwkk....', 'kwkk......', 'kk........'],
-  bolt: ['....kkk.', '...kyyk.', '..kyyk..', '.kyyykk.', 'kkkyyyk.', '..kyyk..', '.kyyk...', '.kyk....', '.kk.....'],
-  chest: ['..kkkkkkkk..', '.knnnnnnnnk.', 'knnnnnnnnnnk', 'kkkkkkkkkkkk', 'knnnnkkNnnnk', 'kyyyykykyyyk', 'knnnnkkknnnk', 'knnnnnnnnnnk', 'kNNNNNNNNNNk', 'kkkkkkkkkkkk'],
-  quest: ['..kkkkkkk...', '.kwwwwwwwk..', '.kwkkkkkwk..', '.kwwwwwwwk..', '.kwkkkkwwk..', '.kwwwwwwwk..', '.kwkkkkkwk..', '.kwwwwwwwkk.', '.kwkkkwwkpk.', '.kwwwwwwkpk.', '..kkkkkkkk..'],
-  dna: ['kk......kk', '.kbk..kpk.', '..kbkkpk..', '...kbpk...', '...kpbk...', '..kpkkbk..', '.kpk..kbk.', 'kpk....kbk', '.kpk..kbk.', '..kpkkbk..'],
-  chrome: ['....kk....', '...kwck...', '..kwccsk..', '.kwccsssk.', 'kwccsssSSk', '.kcssssSk.', '..ksssSk..', '...kSSk...', '....kk....'],
-  mega: ['kk.......kk', 'kpk.....kpk', 'kppk...kppk', 'kpppk.kpppk', 'kpwppkpppPk', 'kpwpppppPPk', 'kppppppppPk', 'kpppkkkppPk', 'kppk...kpPk', 'kkk.....kkk'],
-  paint: ['.....kkkk...', '....kpbyk...', '...kpbygk...', '..kpbygk....', '..kkkkk.....', '..ksssk.....', '..knnk......', '.knnk.......', '.knk........', 'kkk.........'],
-  flag: ['kk..........', 'kpkkkkkkk...', 'kppppppppk..', 'kppwpppppPk.', 'kppppppppk..', 'kpkkkkkkk...', 'kk..........', 'kk..........', 'kk..........', 'kk..........'],
-};
-
-const iconCache = new Map();
-export function iconURL(name) {
-  if (iconCache.has(name)) return iconCache.get(name);
-  const rows = ICONS[name] || ICONS.star;
-  const w = Math.max(...rows.map((r) => r.length)), hgt = rows.length;
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = hgt;
-  const ctx = c.getContext('2d');
-  rows.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) {
-      const ch = row[x];
-      if (ch === '.' || ch === ' ') continue;
-      ctx.fillStyle = PAL[ch] || '#f0f';
-      ctx.fillRect(x, y, 1, 1);
-    }
-  });
-  const url = c.toDataURL();
-  iconCache.set(name, url);
-  return url;
-}
+export const iconURL = pixIconURL;
 export function icon(name, cls = '') {
   return h('img', { src: iconURL(name), class: 'pi ' + cls, alt: name, draggable: 'false' });
 }
@@ -132,13 +90,31 @@ export function icon(name, cls = '') {
 // ---------------------------------------------------------------------------
 // Buttons
 
+const COLORS = ['yellow', 'orange', 'blue', 'green', 'red', 'pink', 'purple', 'gray', 'teal', 'gold', 'white'];
+const SIZE_ALIAS = { small: 'sm', big: 'lg', huge: 'xl' };
+
+/**
+ * button(label, onClick, cls, opts)
+ * cls: space separated tokens: a colour (yellow|blue|green|red|pink|purple|gray|orange|teal|gold|white),
+ *      a size (sm|lg|xl or legacy small|big), extra classes (pulse, shine, icon-only...).
+ * opts: { icon, sound, sub (small second line), onDisabled, price: {cur, amount} }
+ */
 export function button(label, onClick, cls = '', opts = {}) {
-  const b = h('button', { class: 'btn ' + cls, type: 'button' });
-  if (opts.icon) b.appendChild(icon(opts.icon));
+  const tokens = String(cls || '').split(/\s+/).filter(Boolean).map((t) => SIZE_ALIAS[t] ?? t);
+  const color = tokens.find((t) => COLORS.includes(t)) ?? 'blue';
+  const rest = tokens.filter((t) => !COLORS.includes(t));
+  const b = h('button', { class: `btn sk-btn-${color} ${rest.join(' ')}`, type: 'button' });
+  const inner = h('span', { class: 'row gap-s', style: { gap: '0.3em' } });
+  if (opts.icon) inner.appendChild(icon(opts.icon));
   if (label !== null && label !== undefined && label !== '') {
-    if (label instanceof Node) b.appendChild(label);
-    else b.appendChild(h('span', { html: rich(label) }));
+    if (label instanceof Node) inner.appendChild(label);
+    else inner.appendChild(h('span', { html: rich(label) }));
   }
+  if (opts.price) inner.appendChild(priceTag(opts.price.cur, opts.price.amount));
+  if (opts.sub) {
+    const wrap = h('span', { class: 'col', style: { gap: '0', alignItems: 'center' } }, inner, h('span', { class: 'sub' }, opts.sub));
+    b.appendChild(wrap);
+  } else b.appendChild(inner);
   b.addEventListener('pointerdown', () => audio.unlock());
   b.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -155,51 +131,90 @@ export function button(label, onClick, cls = '', opts = {}) {
   });
   return b;
 }
-
-export function priceTag(cur, amount) {
-  return h('span', { class: 'price' }, icon(cur), String(amount));
+export function setDisabled(btn, on) {
+  btn.classList.toggle('disabled', !!on);
+  return btn;
 }
 
-export function bar(frac, cls = '', label = '') {
-  const i = h('i', { style: { width: Math.max(0, Math.min(1, frac)) * 100 + '%' } });
-  return h('div', { class: 'bar ' + cls }, i, label ? h('span', { class: 'outline-sm' }, label) : null);
+export function priceTag(cur, amount) {
+  return h('span', { class: 'price' }, icon(cur === 'bucks' ? 'bucks' : cur === 'coins' ? 'coin' : cur), h('span', {}, typeof amount === 'number' ? fmt(amount) : String(amount)));
 }
 
 // ---------------------------------------------------------------------------
-// Modal
+// Frames
 
-export function modal({ title, color = '', body, foot, onClose, size = '', closable = true, layer = 'overlay', cls = '' }) {
-  const back = h('div', { class: 'modal-back fade-in' });
-  const closeBtn = closable ? button('', () => close(), 'red small icon-only close-x', { icon: 'x' }) : null;
-  const panel = h(
-    'div',
-    { class: `modal px-box bounce-in ${size} ${cls}` },
-    h('div', { class: `modal-head ${color}` }, h('div', { class: 'title outline-sm' }, title), closeBtn),
-    h('div', { class: 'modal-body' }, body),
-    foot ? h('div', { class: 'modal-foot' }, foot) : null,
-  );
-  back.appendChild(panel);
+export function panel(kind = '', ...children) {
+  return h('div', { class: `panel sk-panel${kind ? '-' + kind : ''}` }, ...children);
+}
+export function ribbon(text, color = 'pink', cls = '') {
+  return h('div', { class: `ribbon sk-ribbon-${color} ${cls}` }, h('span', {}, text));
+}
+/** Currency pill: icon overlapping the left edge, value, optional green "+" button. */
+export function pill(iconName, value, opts = {}) {
+  const val = h('span', { class: 'val' }, typeof value === 'number' ? fmt(value) : value);
+  const el = h('div', { class: 'pill trough ' + (opts.plus ? 'has-plus ' : '') + (opts.cls ?? '') }, icon(iconName), val);
+  if (opts.plus) {
+    const plus = h('button', { class: 'btn sk-btn-green plus icon-only', type: 'button' }, h('span', { class: 't-d', style: { fontSize: '1.2em' } }, '+'));
+    plus.addEventListener('click', (e) => { e.stopPropagation(); audio.play('click'); opts.plus(); });
+    el.appendChild(plus);
+  }
+  if (opts.onClick) el.addEventListener('click', () => { audio.unlock(); audio.play('click'); opts.onClick(); });
+  el.val = val;
+  return el;
+}
+/** Progress bar. color: green|blue|pink|gold|purple|orange|red */
+export function bar(frac, color = '', label = '', opts = {}) {
+  const fill = h('i', { class: 'fill', style: { width: Math.max(0, Math.min(1, frac)) * 100 + '%' } });
+  const lbl = h('span', { class: 'lbl' }, label);
+  const el = h('div', { class: `bar trough ${color} ${opts.cls ?? ''}` }, fill, lbl, opts.icon ? icon(opts.icon, 'ico') : null);
+  el.set = (f, text) => {
+    fill.style.width = Math.max(0, Math.min(1, f)) * 100 + '%';
+    if (text !== undefined) lbl.textContent = text;
+  };
+  return el;
+}
+
+// ---------------------------------------------------------------------------
+// Modal popups
+
+/**
+ * modal({ title, color, body, foot, onClose, size: ''|'narrow'|'wide', closable, cls, panel: 'panel'|'light'|'gold'|'pink' })
+ */
+export function modal({ title, color = 'pink', body, foot, onClose, size = '', closable = true, layer = 'overlay', cls = '', panel: pk = '' }) {
+  const back = h('div', { class: 'modal-back' });
+  const ribbonColor = { yellow: 'gold', purple: 'purple', green: 'green', blue: 'blue', red: 'red' }[color] ?? (['pink', 'blue', 'gold', 'green', 'purple', 'red'].includes(color) ? color : 'pink');
+  const closeBtn = closable ? button('', () => close(), 'red sm icon-only modal-close', { icon: 'x', sound: 'tap' }) : null;
+  const bodyEl = h('div', { class: 'modal-body' });
+  appendChildren(bodyEl, [body]);
+  const box = h('div', { class: `panel sk-panel${pk ? '-' + pk : ''}`, style: { display: 'flex', flexDirection: 'column', minHeight: '0', flex: '1 1 auto' } }, closeBtn, bodyEl, foot ? h('div', { class: 'modal-foot' }, foot) : null);
+  const m = h('div', { class: `modal ${size} ${cls}` }, title ? h('div', { class: 'modal-head' }, ribbon(title, ribbonColor)) : null, box);
+  back.appendChild(m);
   back.addEventListener('pointerdown', (e) => {
     if (e.target === back && closable) close();
   });
   (layer === 'ui' ? $ui() : $overlay()).appendChild(back);
+  audio.play('pop', { pitch: 1.2, gap: 0.05 });
   let closed = false;
   function close() {
     if (closed) return;
     closed = true;
-    back.remove();
+    m.style.transition = 'transform 0.14s, opacity 0.14s';
+    m.style.transform = 'scale(0.85)';
+    m.style.opacity = '0';
+    back.style.transition = 'opacity 0.16s';
+    back.style.opacity = '0';
+    setTimeout(() => back.remove(), 160);
     onClose && onClose();
   }
-  const bodyEl = panel.querySelector('.modal-body');
   return {
-    el: back, panel, body: bodyEl, close,
+    el: back, panel: m, body: bodyEl, close,
     setBody(node) { clear(bodyEl); appendChildren(bodyEl, [node]); },
     get closed() { return closed; },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Toasts
+// Toasts & banners
 
 let toastBox = null;
 export function toast(text, opts = {}) {
@@ -207,25 +222,26 @@ export function toast(text, opts = {}) {
     toastBox = h('div', { class: 'toasts' });
     $overlay().appendChild(toastBox);
   }
-  const t = h('div', { class: 'toast px-box ' + (opts.cls ?? '') }, opts.icon ? icon(opts.icon) : null, h('span', { html: rich(text) }));
-  if (opts.color) t.style.background = opts.color;
+  const t = h('div', { class: 'toast sk-panel-dark ' + (opts.cls ?? '') }, opts.icon ? icon(opts.icon) : null, h('span', { html: rich(text) }));
   toastBox.appendChild(t);
+  while (toastBox.children.length > 3) toastBox.firstChild.remove();
   setTimeout(() => t.remove(), 2600);
 }
 
 export function bigBanner(text, sub = '', opts = {}) {
-  const el = h('div', { class: 'banner-big outline slam ' + (opts.cls ?? ''), style: { color: opts.color ?? '#fff' } }, text, sub ? h('small', {}, sub) : null);
+  const el = h('div', { class: 'banner-big ' + (opts.cls ?? ''), style: { color: opts.color ?? '#fff' } }, text, sub ? h('small', { class: 'outline-sm' }, sub) : null);
   $overlay().appendChild(el);
   if (opts.dur !== 0) setTimeout(() => {
-    el.style.transition = 'opacity 0.3s';
+    el.style.transition = 'opacity 0.3s, translate 0.3s';
     el.style.opacity = '0';
+    el.style.translate = '-50% -70%';
     setTimeout(() => el.remove(), 320);
   }, (opts.dur ?? 1.4) * 1000);
   return el;
 }
 
 // ---------------------------------------------------------------------------
-// Dialogue
+// Dialogue (typewriter)
 
 let activeDialogue = null;
 /**
@@ -236,24 +252,22 @@ let activeDialogue = null;
 export function say(who, text, opts = {}) {
   if (activeDialogue) activeDialogue.remove();
   const textEl = h('div', { class: 'txt' });
-  const box = h('div', { class: 'box px-box cream' }, who?.name ? h('div', { class: 'speaker', style: who.color ? { background: who.color } : null }, who.name) : null, textEl);
-  const next = h('div', { class: 'next display' }, '▼');
-  const portrait = who?.portrait ? h('div', { class: 'portrait px-box' }, h('img', { src: who.portrait })) : null;
-  const dlg = h('div', { class: 'dialogue slide-up' }, portrait, box);
+  const box = h('div', { class: 'box sk-panel-cream' }, who?.name ? h('div', { class: 'speaker', style: who.color ? { background: who.color } : null }, who.name) : null, textEl);
+  const next = h('div', { class: 'next' }, '▼');
+  const portrait = who?.portrait ? h('div', { class: 'portrait panel sk-panel-light' }, h('img', { src: who.portrait })) : null;
+  const dlg = h('div', { class: 'dialogue' }, portrait, box);
   $overlay().appendChild(dlg);
   activeDialogue = dlg;
   const html = rich(text);
-  // typewriter over visible characters while keeping tags
-  const plain = html.replace(/<[^>]+>/g, '');
+  const plain = html.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, '_');
   let shown = 0;
   let typing = true;
-  const speed = opts.speed ?? 55;
+  const speed = opts.speed ?? 60;
   const chibi = who?.chibi;
   if (chibi) chibi.talk(true);
   let acc = 0;
   let lastTick = performance.now();
   const renderPartial = (n) => {
-    // walk html, count text characters
     let out = '', count = 0;
     for (let i = 0; i < html.length && count < n; i++) {
       if (html[i] === '<') {
@@ -270,7 +284,6 @@ export function say(who, text, opts = {}) {
         count++;
       }
     }
-    // close dangling tags
     const opens = (out.match(/<(b|em)>/g) || []).length - (out.match(/<\/(b|em)>/g) || []).length;
     if (opens > 0) out += out.lastIndexOf('<em>') > out.lastIndexOf('<b>') ? '</em>' : '</b>';
     textEl.innerHTML = out;
@@ -297,7 +310,7 @@ export function say(who, text, opts = {}) {
       const ch = h('div', { class: 'choices' });
       opts.choices.forEach((c, i) => {
         const lbl = typeof c === 'string' ? c : c.label;
-        ch.appendChild(button(lbl, () => done(i), (typeof c === 'object' && c.cls) || (i === 0 ? 'pink small' : 'small')));
+        ch.appendChild(button(lbl, () => done(i), (typeof c === 'object' && c.cls) || (i === 0 ? 'pink sm' : 'blue sm')));
       });
       box.appendChild(ch);
     } else if (opts.wait !== false) box.appendChild(next);
@@ -344,11 +357,11 @@ const pointers = [];
 const _v = new THREE.Vector3();
 
 export function floatText(pos, text, cls = 'dmg', opts = {}) {
-  const el = h('div', { class: 'ftext outline ' + cls }, text);
+  const el = h('div', { class: 'ftext ' + cls }, text);
   $world().appendChild(el);
   floaters.push({
     el, pos: pos.clone ? pos.clone() : new THREE.Vector3(pos.x, pos.y, pos.z), t: 0,
-    life: opts.life ?? 0.9, rise: opts.rise ?? 50, dx: (Math.random() - 0.5) * (opts.spreadX ?? 20), pop: opts.pop ?? true,
+    life: opts.life ?? 0.9, rise: opts.rise ?? 50, dx: (Math.random() - 0.5) * (opts.spreadX ?? 24), pop: opts.pop ?? true,
   });
   if (floaters.length > 60) {
     const f = floaters.shift();
@@ -358,7 +371,7 @@ export function floatText(pos, text, cls = 'dmg', opts = {}) {
 
 /** Speech bubble following an Object3D-like target with getWorldPosition, or a chibi (uses headTop). */
 export function speech(target, text, dur = 2.2, opts = {}) {
-  const el = h('div', { class: 'speech' }, h('span', { class: 'speech-b bounce-in', html: rich(text) }));
+  const el = h('div', { class: 'speech' }, h('span', { class: 'speech-b pop-in', html: rich(text) }));
   $world().appendChild(el);
   const b = { el, target, t: 0, dur, offsetY: opts.offsetY ?? 0 };
   bubbles.push(b);
@@ -369,7 +382,7 @@ export function speech(target, text, dur = 2.2, opts = {}) {
 export function pointAt(target, tip = '', opts = {}) {
   const hand = h('img', { class: 'tut-hand', src: handURL() });
   const ring = h('div', { class: 'tut-ring' });
-  const tipEl = tip ? h('div', { class: 'tut-tip fade-in' }, tip) : null;
+  const tipEl = tip ? h('div', { class: 'tut-tip pop-in' }, tip) : null;
   const layer = $overlay();
   layer.appendChild(ring);
   layer.appendChild(hand);
@@ -389,11 +402,16 @@ export function pointAt(target, tip = '', opts = {}) {
 let _hand = null;
 function handURL() {
   if (_hand) return _hand;
-  const rows = ['...kk.......', '..kwwk......', '..kwwk......', '..kwwkkk....', '..kwwkwwkkk.', 'kkkwwkwwkwwk', 'kwkwwwwwwwwk', 'kwwwwwwwwwwk', '.kwwwwwwwwwk', '.kwwwwwwwwk.', '..kwwwwwwk..', '...kkkkkk...'];
+  const rows = [
+    '....kk..........', '...kwwk.........', '...kwwk.........', '...kwwk.........', '...kwwkkk.......', '...kwwkwwkkk....',
+    '.kkkwwkwwkwwkk..', 'kwwkwwwwwwwwwwk.', 'kwwwwwwwwwwwwwk.', '.kwwwwwwwwwwwwk.', '.kwwwwwwwwwwwwk.', '..kwwwwwwwwwwk..',
+    '..kwwwwwwwwwk...', '...kwwwwwwwk....', '...kssssssssk...', '...kkkkkkkkkk...',
+  ];
   const c = document.createElement('canvas');
-  c.width = 12; c.height = 12;
+  c.width = 16; c.height = 16;
   const ctx = c.getContext('2d');
-  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') { ctx.fillStyle = PAL[ch]; ctx.fillRect(x, y, 1, 1); } }));
+  const pal = { k: '#120c24', w: '#ffffff', s: '#c8d0e4' };
+  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { ctx.fillStyle = pal[ch]; ctx.fillRect(x, y, 1, 1); } }));
   _hand = c.toDataURL();
   return _hand;
 }
@@ -427,7 +445,7 @@ function updatePointer(p) {
   if (p.tipEl) {
     p.tipEl.style.display = '';
     p.tipEl.style.left = s.x + 'px';
-    p.tipEl.style.top = s.y - (p.opts.tipOffset ?? 40) + 'px';
+    p.tipEl.style.top = s.y - (p.opts.tipOffset ?? 46) + 'px';
   }
 }
 
@@ -442,11 +460,9 @@ export function updateWorldUI(dt) {
       continue;
     }
     const s = engine.toScreen(f.pos);
-    const pop = f.pop ? (k < 0.15 ? 0.6 + (k / 0.15) * 0.8 : k < 0.3 ? 1.4 - ((k - 0.15) / 0.15) * 0.4 : 1) : 1;
-    f.el.style.transform = `translate(${s.x + f.dx * k - 0}px, ${s.y - f.rise * Math.sqrt(k)}px) translate(-50%,-50%) scale(${pop})`;
-    f.el.style.left = '0px';
-    f.el.style.top = '0px';
-    f.el.style.opacity = k > 0.7 ? String(1 - (k - 0.7) / 0.3) : '1';
+    const pop = f.pop ? (k < 0.12 ? 0.5 + (k / 0.12) * 0.9 : k < 0.26 ? 1.4 - ((k - 0.12) / 0.14) * 0.4 : 1) : 1;
+    f.el.style.transform = `translate(${s.x + f.dx * k}px, ${s.y - f.rise * Math.sqrt(k)}px) translate(-50%,-50%) scale(${pop})`;
+    f.el.style.opacity = k > 0.72 ? String(1 - (k - 0.72) / 0.28) : '1';
   }
   for (let i = bubbles.length - 1; i >= 0; i--) {
     const b = bubbles[i];
@@ -469,6 +485,48 @@ export function updateWorldUI(dt) {
 }
 
 engine.onFrame((dt) => updateWorldUI(dt));
+
+// ---------------------------------------------------------------------------
+// Juice: sparkles, bumps, number roll-ups
+
+/** Burst of pixel sparkles from an element (screen space). */
+export function sparkle(el, o = {}) {
+  const r = el.getBoundingClientRect();
+  const n = o.count ?? 14;
+  const cols = o.colors ?? ['#ffffff', '#ffd84a', '#ff7ac0', '#8fd4ff'];
+  for (let i = 0; i < n; i++) {
+    const s = h('div', { class: 'spark' });
+    s.style.background = cols[i % cols.length];
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    s.style.left = cx + 'px';
+    s.style.top = cy + 'px';
+    $overlay().appendChild(s);
+    const a = Math.random() * Math.PI * 2, d = (o.spread ?? 60) * (0.4 + Math.random() * 0.8);
+    s.animate([
+      { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d}px)) scale(${0.4 + Math.random()})`, opacity: 0 },
+    ], { duration: 450 + Math.random() * 400, easing: 'cubic-bezier(.2,.8,.3,1)' }).onfinish = () => s.remove();
+  }
+}
+export function bump(el, cls = 'bump') {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+export function rollNumber(el, from, to, dur = 0.6, f = fmt) {
+  if (!el) return;
+  if (el._roll) cancelAnimationFrame(el._roll);
+  if (from === to) { el.textContent = f(to); return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / (dur * 1000));
+    const e = 1 - Math.pow(1 - k, 3);
+    el.textContent = f(Math.round(from + (to - from) * e));
+    if (k < 1) el._roll = requestAnimationFrame(step);
+  };
+  el._roll = requestAnimationFrame(step);
+}
 
 // ---------------------------------------------------------------------------
 // Misc helpers

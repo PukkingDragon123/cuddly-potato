@@ -4,7 +4,7 @@
 // stubby limbs, open mouths full of white teeth, glossy saturated colours and
 // MrBeast-magenta accents. See ../kit.js and ./panthers.js for conventions.
 // eslint-disable-next-line no-unused-vars
-import { G, blob, rbox, capsule, chain, cyl, stamp, eyes, mirror, sym, symBox, glowWhere, fadeY, gradY, n3, jp, part, shade, mixHex, mottle } from '../kit.js';
+import { G, blob, rbox, capsule, chain, cyl, stamp, eyes, eyeArt, mirror, sym, symBox, glowWhere, fadeY, gradY, n3, jp, part, shade, mixHex, mottle } from '../kit.js';
 
 // ---------------------------------------------------------------------------
 // Shared palette + helpers
@@ -147,6 +147,69 @@ function boltBadge(d = 11) {
     rows.push(s);
   }
   return rows;
+}
+
+/** Remove fully enclosed voxels (keeps the voxel budget down; the shell is unchanged). */
+function hollowOut(g) {
+  const kill = [];
+  g.forEach((x, y, z) => {
+    if (g.has(x + 1, y, z) && g.has(x - 1, y, z) && g.has(x, y + 1, z) && g.has(x, y - 1, z) && g.has(x, y, z + 1) && g.has(x, y, z - 1)) kill.push([x, y, z]);
+  });
+  for (const [x, y, z] of kill) g.del(x, y, z);
+  return g;
+}
+
+/** Topmost occupied y at (x, z), or null. */
+function topAt(g, x, z, ymin = -10, ymax = 60) {
+  for (let y = ymax; y >= ymin; y--) if (g.has(x, y, z)) return y;
+  return null;
+}
+
+/** Outermost occupied x on the +x (side = 1) or -x (side = -1) side at (y, z). */
+function edgeX(g, y, z, side = 1) {
+  if (side > 0) { for (let x = 40; x >= -40; x--) if (g.has(x, y, z)) return x; } else { for (let x = -40; x <= 40; x++) if (g.has(x, y, z)) return x; }
+  return null;
+}
+
+/**
+ * Stamp pixel art onto the side (+x / -x) surface of `src`, writing into `dst`.
+ * Viewed from that side, art u runs towards the model's back. (y, z) = top-left.
+ * pal values: colour | { c, glow, lift (voxels above the surface, 0 = recolour), thick }.
+ */
+function sideDecal(dst, src, art, pal, o = {}) {
+  const side = o.side ?? 1;
+  for (let v = 0; v < art.length; v++) for (let u = 0; u < art[v].length; u++) {
+    let spec = pal[art[v][u]];
+    if (spec === undefined) continue;
+    if (typeof spec === 'number') spec = { c: spec };
+    const y = o.y - v, z = side > 0 ? o.z - u : o.z + u;
+    let sx = edgeX(src, y, z, side);
+    if (sx === null) continue;
+    if (o.hug) for (const [dy, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const e = edgeX(src, y + dy, z + dz, side); if (e !== null) sx = side > 0 ? Math.max(sx, e) : Math.min(sx, e); }
+    const lift = spec.lift ?? o.lift ?? 0, thick = spec.thick ?? o.thick ?? 1;
+    for (let i = lift; i < lift + thick; i++) dst.set(sx + side * i, y, z, spec.c, !!spec.glow);
+  }
+  return dst;
+}
+
+/** Left/right angry eye + brow art pair for a side-facing face (see sideDecal). */
+function sideEyes(dst, src, y, gap, w, h, o = {}) {
+  const pal = { W: { c: o.white ?? WHITE, lift: o.lift ?? 1, thick: o.thick ?? 1 }, P: { c: o.pupil ?? INK, lift: o.lift ?? 1, thick: o.thick ?? 1 }, I: { c: o.iris ?? INK, lift: o.lift ?? 1, thick: o.thick ?? 1 }, G: { c: WHITE, glow: true, lift: o.lift ?? 1, thick: o.thick ?? 1 }, B: { c: o.brow ?? INK, lift: o.lift ?? 1, thick: o.browThickness ?? (o.thick ?? 1) + 1 } };
+  const side = o.side ?? 1;
+  const L = eyeArt(w, h, { angle: 'angry', side: 'L', look: o.look });
+  const R = eyeArt(w, h, { angle: 'angry', side: 'R', look: o.look ? [-o.look[0], o.look[1]] : undefined });
+  // seen from +x the model's front (+z) is on the viewer's left
+  const zL = side > 0 ? gap + w - 1 : -gap - w, zR = side > 0 ? -gap - 1 : gap;
+  sideDecal(dst, src, L, pal, { side, y, z: zL, hug: true });
+  sideDecal(dst, src, R, pal, { side, y, z: zR, hug: true });
+  if (o.brow !== null) {
+    const bs = o.browSlant ?? 2, bt = o.browThick ?? 2;
+    const bL = browArt(w, bs, bt), bR = bL.map((r) => [...r].reverse().join(''));
+    const by = y + bt + (o.browDy ?? 0);
+    sideDecal(dst, src, bL, pal, { side, y: by, z: zL + side, hug: true });
+    sideDecal(dst, src, bR, pal, { side, y: by, z: zR + side, hug: true });
+  }
+  return dst;
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +443,309 @@ export const SNACK_MODELS = {
         { name: 'spinR', grid: wheel, at: [0, 0, 0], pivot: [0, 0, 0], parent: 'cutterR' },
       ],
       muzzle: [0, 14, 10],
+      jitter: 0.02,
+    };
+  },
+  // =================================================================== DONUT DASHER
+  // A strawberry-frosted sprinkle donut standing on its edge like a wheel. It
+  // barrels into enemies at full speed (the whole donut rolls) while its face
+  // stays upright: angry eyes on the frosting and the donut HOLE is a gaping,
+  // screaming mouth ringed with teeth. Seen side-on it is one big round face.
+  donutDasher() {
+    const DOUGH = 0xeaa456, DOUGHL = 0xffd99c, DOUGHD = 0xc0742e;
+    const FROST = 0xff5cbc, FROSTL = 0xff9ad6, FROSTD = 0xe02c98;
+    const SPR = [0xffffff, 0xffe14a, 0x3fd7ff, 0x8cff4a, 0xa970ff, 0xff8a2a];
+    const CY = 14.9, R = 10, A = 4.4, B = 4.4, P = 2.5;
+    const holeR = (s) => R - (A + 0.35) * Math.max(0, 1 - (s / (B + 0.35)) ** P) ** (1 / P);
+    const body = G();
+    for (let x = -6; x <= 5; x++) for (let y = -1; y <= 30; y++) for (let z = -16; z <= 15; z++) {
+      const xc = x + 0.5, yc = y + 0.5 - CY, zc = z + 0.5;
+      const t = Math.hypot(yc, zc) - R;
+      if (Math.abs(t / (A + 0.35)) ** P + Math.abs(xc / (B + 0.35)) ** P > 1) continue;
+      const th = Math.atan2(yc, zc), s = Math.abs(xc), side = xc < 0 ? -1 : 1;
+      // frosting on both flat faces: wavy edge plus long drips over the rim
+      const drip = t > 0 ? Math.max(0, Math.sin(th * 5 + side * 1.9)) ** 8 * 2.2 : 0;
+      const edge = (t < -2 ? 2.6 : 1.5 + 0.7 * Math.sin(th * 9 + side)) - drip;
+      let c;
+      if (s > edge) c = s < edge + 0.9 ? FROSTD : n3(x, y, z, 3) < 0.12 ? FROSTL : FROST;
+      else c = s < 0.9 && t > 2 ? DOUGHL : n3(x, y, z, 1) < 0.2 ? DOUGHD : DOUGH;
+      body.set(x, y, z, c);
+    }
+    // rainbow sprinkles (flush, so the upright face can slide over them)
+    const spr = [];
+    body.forEach((x, y, z, c) => {
+      if (c !== FROST && c !== FROSTL) return;
+      const side = x + 0.5 < 0 ? -1 : 1;
+      if (body.has(x + side, y, z) || n3(x, y, z, 7) > 0.075) return;
+      spr.push([x, y, z, SPR[Math.floor(n3(z, x, y, 2) * SPR.length) % SPR.length]]);
+    });
+    for (const [x, y, z, c] of spr) {
+      body.set(x, y, z, c);
+      const [dy, dz] = n3(x, z, y, 4) < 0.5 ? [1, 0] : [0, 1];
+      if (body.get(x, y + dy, z + dz) === FROST) body.set(x, y + dy, z + dz, c);
+    }
+    // candy lightning bolts on both faces (they whirl round as it rolls)
+    const BOLT = ['..MMM', '.MMM.', 'MMM..', 'MMMMM', '..MM.', '.MM..', 'MM...'];
+    sideDecal(body, body, BOLT, { M: 0xffe14a }, { side: 1, y: 8, z: 2 });
+    sideDecal(body, body, BOLT, { M: 0xffe14a }, { side: -1, y: 8, z: -3 });
+
+    // ---- the upright face (does not roll)
+    const head = G();
+    sideEyes(head, body, 25, 1, 5, 5, { brow: INK, look: [0, -0.2], browThickness: 1, browDy: -1 });
+    mirror(head);
+    // stubby gloved arms punching forward off the front of the wheel
+    const armL = G();
+    capsule(armL, [-5.5, 12, 6], [-7.5, 10.5, 9.5], 0.9, 0.9, DOUGHD);
+    glove(armL, -8, 10, 10.5, { r: 2.1, cuffCol: MAG });
+    const armR = flipX(armL);
+    // the hole is the mouth: dark throat + tongue in the middle, zig-zag teeth
+    for (let x = -3; x <= 2; x++) {
+      const s = Math.abs(x + 0.5);
+      const lim = holeR(s) - 0.75;
+      const cells = new Set();
+      for (let y = 8; y <= 21; y++) for (let z = -7; z <= 6; z++) if (Math.hypot(y + 0.5 - CY, z + 0.5) < lim) cells.add(`${y},${z}`);
+      for (const k of cells) {
+        const [y, z] = k.split(',').map(Number);
+        const yc = y + 0.5 - CY, zc = z + 0.5;
+        if (s < 1) head.set(x, y, z, yc < -1.2 && Math.abs(zc) < 3.2 ? TONGUE : MOUTH);
+        else {
+          // teeth hang from the top of the hole and stick up from the bottom
+          const up = !cells.has(`${y + 1},${z}`), up2 = !cells.has(`${y + 2},${z}`) && (z + 64) % 2 === 0;
+          const dn = !cells.has(`${y - 1},${z}`), dn2 = !cells.has(`${y - 2},${z}`) && (z + 64) % 2 === 1;
+          if (Math.abs(zc) < 3.6 && (up || up2 || dn || dn2)) head.set(x, y, z, T);
+          else if (s < 2) head.set(x, y, z, MOUTH);
+        }
+      }
+    }
+
+    const C = [0, CY, 0];
+    return {
+      gait: 'roll',
+      voxel: 0.05,
+      parts: [
+        jp('body', body, C),
+        jp('head', head, C),
+        jp('armL', armL, [-5.5, 12, 6]),
+        jp('armR', armR, [4.5, 12, 6]),
+      ],
+      muzzle: [0, 14, 15],
+      jitter: 0.02,
+    };
+  },
+  // =================================================================== BURGER BRUTE
+  // A towering double-decker cheeseburger tank. The sesame top bun is a
+  // hinged lid (upper jaw) with a furious face that flips open to CHOMP; the
+  // lower stack is a mouth lined with teeth, a ketchup tongue, lettuce lips
+  // and cheese drooping over the patty. Huge meaty arms with white boxing
+  // gloves, and a toothpick flag with a magenta lightning bolt.
+  burgerBrute() {
+    const BUN = 0xf2a443, BUNL = 0xffc96a, BUND = 0xc9772a, CRUMB = 0xffe3a6;
+    const PAT = 0x6b3518, PATD = 0x4a2210, PATL = 0x8f5129;
+    const CHZ = 0xffc21a, CHZL = 0xffdf5a;
+    const LET = 0x5bd63a, LETD = 0x2f9e22, TOM = 0xf23a32, TOML = 0xff8a72;
+    const SEED = 0xfff3cf, WOOD = 0xe8c48a;
+    const RB = 10.5;
+    const bunCol = (x, y, z) => (n3(x, y, z, 2) < 0.18 ? BUNL : n3(x, y, z, 6) < 0.1 ? BUND : BUN);
+    const rr = (x, z) => Math.hypot(x + 0.5, z + 0.5);
+    const ang = (x, z) => Math.atan2(z + 0.5, x + 0.5);
+
+    const body = G();
+    // bottom bun: rounded underside, crumb ring on the cut top
+    blob(body, -0.5, 9.8, 0, RB, 3.9, RB, (x, y, z) => (y >= 11 ? CRUMB : bunCol(x, y, z)), { p: 2.4, clip: (x, y) => y > 11 });
+    // patty: bumpy, chargrilled edge
+    for (let y = 12; y <= 14; y++) for (let x = -13; x <= 12; x++) for (let z = -13; z <= 12; z++) {
+      const lim = 11.3 + (n3(x, 0, z, 5) - 0.5) * 1.3 - (y !== 13 ? 0.45 : 0);
+      if (rr(x, z) > lim) continue;
+      body.set(x, y, z, n3(x, y, z, 1) < 0.25 ? PATD : n3(x, y, z, 8) < 0.15 ? PATL : PAT);
+    }
+    // cheese slice (a diamond-turned square) with the corners melting down
+    for (let x = -16; x <= 15; x++) for (let z = -16; z <= 15; z++) {
+      const u = Math.abs(x + 0.5), v = Math.abs(z + 0.5);
+      if (u + v > 14.6) continue;
+      const r = rr(x, z);
+      const droop = r > 10.6 ? Math.floor((r - 10.6) * 1.15) : 0;
+      for (let y = 15 - droop; y <= 15; y++) body.set(x, y, z, y === 15 - droop && droop > 0 ? CHZL : n3(x, y, z, 3) < 0.2 ? CHZL : CHZ);
+    }
+    // gooey cheese strings
+    for (const [x, z, n] of [[-1, 13, 3], [5, 10, 2], [-8, 8, 2], [10, -3, 2]]) for (let i = 0; i < n; i++) body.set(x, 11 - i, z, CHZ);
+    // ruffled lettuce
+    for (let x = -14; x <= 13; x++) for (let z = -14; z <= 13; z++) {
+      const r = rr(x, z), a = ang(x, z);
+      const edge = 11.6 + Math.sin(a * 13) * 0.9;
+      if (r > edge) continue;
+      const lobe = Math.sin(a * 13) > 0.3;
+      body.set(x, 16, z, r > edge - 1.2 ? LETD : LET);
+      if (r > 10.4 && lobe) body.set(x, 15, z, LETD);
+    }
+    // tomato slices
+    for (let x = -12; x <= 11; x++) for (let z = -12; z <= 11; z++) {
+      const r = rr(x, z), a = ang(x, z);
+      if (r > 10.6) continue;
+      body.set(x, 17, z, r > 9.6 ? TOM : Math.sin(a * 6) > 0.6 && r > 7 ? TOML : TOM);
+    }
+    // mouth: dark floor + ketchup tongue + lower teeth around the front
+    for (let x = -10; x <= 9; x++) for (let z = -10; z <= 9; z++) if (rr(x, z) < 8.6) body.set(x, 17, z, MOUTH);
+    blob(body, -0.5, 17.6, 3.8, 3.8, 0.9, 4.6, TONGUE, { p: 2.2, clip: (x, y) => y < 18 });
+    body.set(-1, 18, 6, 0xd8306e).set(0, 18, 6, 0xd8306e).set(-1, 18, 5, 0xd8306e).set(0, 18, 5, 0xd8306e);
+    for (let x = -11; x <= 10; x++) for (let z = -3; z <= 11; z++) {
+      const r = rr(x, z);
+      if (r < 8.6 || r > 10.2) continue;
+      body.set(x, 18, z, T);
+      if (Math.floor((ang(x, z) + 4) * 10.4 / 2) % 2 === 0) body.set(x, 19, z, T);
+    }
+    // ketchup drips + pickles poking out of the sides
+    for (const [x, z, n] of [[-6, 9, 3], [8, 6, 2], [-10, -2, 2]]) for (let i = 0; i < n; i++) body.set(x, 16 - i, z, 0xd8142a);
+    for (const s of [-1, 1]) {
+      const px = s < 0 ? -12 : 11;
+      cyl(body, 'x', 16, 4, px, px + s, 2.2, 2.2, (x, y, z) => (Math.hypot(y - 16, z - 4) > 1.6 ? 0x2f8a2a : 0x8cd84a));
+    }
+    gradY(body, 6, 17, -0.12, 0.04);
+    hollowOut(body);
+
+    // ---- top bun lid (hinged at the back)
+    const LJ = [-0.5, 20, -9];
+    const lid = G();
+    blob(lid, -0.5, 20, 0, RB + 0.3, 9.2, RB + 0.3, (x, y, z) => (y === 20 ? (rr(x, z) < 8.8 ? MOUTH : CRUMB) : bunCol(x, y, z)), { p: 2.15, clip: (x, y) => y < 20 });
+    // upper teeth hanging from the front rim
+    for (let x = -11; x <= 10; x++) for (let z = -3; z <= 11; z++) {
+      const r = rr(x, z);
+      if (r < 8.6 || r > 10.2) continue;
+      lid.set(x, 19, z, T);
+      if (Math.floor((ang(x, z) + 4) * 10.4 / 2) % 2 === 1) lid.set(x, 18, z, T);
+    }
+    gradY(lid, 20, 29, -0.06, 0.1);
+    // furious face on the bun
+    angryEyes(lid, 27, 1, 6, 6, { brow: INK, look: [0, -0.3], zmin: 0, browSlant: 3 });
+    // sesame seeds on the dome
+    for (let x = -11; x <= 10; x++) for (let z = -11; z <= 10; z++) {
+      if (n3(x, 0, z, 9) > 0.07) continue;
+      const y = topAt(lid, x, z, 20, 40);
+      if (y === null || y < 25) continue;
+      if (z > 2 && y < 28) continue; // keep the face clear
+      lid.set(x, y + 1, z, SEED);
+      if (n3(z, 1, x, 3) < 0.5) lid.set(x + 1, y + 1, z, SEED); else lid.set(x, y + 1, z + 1, SEED);
+    }
+    // toothpick flag (seen side-on by the battle camera)
+    capsule(lid, [3, 26, -3], [3, 35, -3.5], 0.45, 0.45, WOOD);
+    for (let y = 30; y <= 35; y++) for (let z = -11; z <= -4; z++) {
+      const notch = z <= -10 && Math.abs(y - 32.5) < 1;
+      if (notch) continue;
+      lid.set(3, y, z, MAG).set(4, y, z, MAG);
+    }
+    const FLAGBOLT = ['..WW', '.WW.', 'WWWW', '.WW.', 'WW..'];
+    stamp(lid, FLAGBOLT, { W: WHITE }, { axis: 'x', y: 34, z: -6 });
+    stamp(lid, FLAGBOLT, { W: WHITE }, { axis: '-x', y: 34, z: -9 });
+    hollowOut(lid);
+
+    // ---- big meaty arms with boxing gloves
+    const AJ = [-10.5, 13.5, 0];
+    const armL = G();
+    capsule(armL, [-10.5, 13.5, 0], [-14, 9.5, 2], 2.3, 2.0, PAT);
+    glove(armL, -14.6, 7.6, 3.4, { r: 3.1, cuffCol: MAG });
+    const armR = flipX(armL);
+
+    const legL = stubLeg(-5, 7, 0, { col: PATD, r0: 2.4, r1: 2.1, ankle: 2.6, shoe: { col: MAG, w: 3.2, l: 4.2, h: 2.2 } });
+    const legR = flipX(legL);
+
+    const BJ = [-0.5, 6, 0];
+    return {
+      gait: 'walk',
+      voxel: 0.05,
+      parts: [
+        jp('legL', legL, [-5, 7, 0]),
+        jp('legR', legR, [4, 7, 0]),
+        jp('body', body, BJ),
+        jp('lid', lid, LJ, BJ, { parent: 'body', rot: [-0.2, 0, 0] }),
+        jp('armL', armL, AJ, BJ, { parent: 'body' }),
+        jp('armR', armR, [9.5, 13.5, 0], BJ, { parent: 'body' }),
+      ],
+      muzzle: [0, 18, 13],
+      jitter: 0.02,
+    };
+  },
+  // ===================================================================== SODA SURGE
+  // A shaken-up blue-raspberry soda can with a magenta swoosh, foam bursting
+  // out of the top and a striped bendy straw bent forward like a blaster: it
+  // recoils as it sprays a fizzy stream that pierces everything in line.
+  sodaSurge() {
+    const CAN = 0x1fb4ff, CAND = 0x0f7fe0, CANL = 0x8fe2ff, SIL = 0xd8dfea, SILD = 0x9aa6b8, SILL = 0xf4f7fb;
+    const FOAM = 0xf2fdff, FOAMB = 0xbfefff, FIZZ = 0x9ff4ff;
+    const Y0 = 5, Y1 = 25, RC = 7.6;
+    const radAt = (y) => (y <= Y0 + 1 ? RC - (Y0 + 2 - y) * 0.8 : y >= Y1 - 2 ? RC - (y - (Y1 - 3)) * 0.55 : RC);
+    const canCol = (x, y, z) => {
+      if (y <= Y0 + 1) return y === Y0 ? SILD : SIL;
+      if (y >= Y1 - 1) return (x + z + 40) % 5 === 0 ? SILL : SIL;
+      const th = Math.atan2(x + 0.5, z + 0.5); // 0 = straight ahead
+      const yb = 7.6 + 6.5 * (1 - Math.cos(th)) / 2;
+      const d = y - yb;
+      if (Math.abs(d) < 1.2) return MAG;
+      if (d >= 1.2 && d < 2.2) return WHITE;
+      if (y === Y1 - 2 || y === Y0 + 2) return CAND;
+      return n3(x, y, z, 4) < 0.06 ? CANL : CAN;
+    };
+    const body = G();
+    for (let y = Y0; y <= Y1; y++) cyl(body, 'y', -0.5, -0.5, y, y, radAt(y), radAt(y), canCol);
+    // lid rim + the opening the straw comes out of
+    for (let x = -8; x <= 7; x++) for (let z = -8; z <= 7; z++) {
+      const r = Math.hypot(x + 0.5, z + 0.5);
+      if (r > 4.7 && r < 6.2) body.set(x, Y1 + 1, z, SIL);
+    }
+    body.box(-2, Y1, 1, 1, Y1, 4, 0x1a2638);
+    // pull tab at the back of the lid
+    body.box(-2, Y1 + 1, -4, 1, Y1 + 1, -2, SILL).del(-1, Y1 + 1, -3).del(0, Y1 + 1, -3);
+    // foam bursting out of the top and running down the sides
+    blob(body, -0.5, Y1 + 1.4, 3, 2.6, 1.3, 2.2, (x, y, z) => (n3(x, y, z, 5) < 0.3 ? FOAMB : FOAM), { p: 2 });
+    for (const [x, y, z] of [[-2, 27, 5], [1, 27, 4], [-4, 26, 4], [3, 26, 2], [-3, 27, 1]]) body.set(x, y, z, FOAM);
+    for (const [x, y, z] of [[-7, 24, 2], [-7, 23, 2], [-7, 22, 2], [-8, 21, 2], [6, 24, 1], [6, 23, 1], [7, 22, 1]]) body.set(x, y, z, FOAM);
+    // dented side + a few bubbles printed on the label
+    for (const [x, y] of [[-8, 18], [-8, 17]]) body.set(x, y, -2, CAND);
+    stamp(body, ['.WW.', 'W..W', 'W..W', '.WW.'], { W: CANL }, { axis: '-x', y: 21, z: -2 });
+    stamp(body, ['.W.', 'W.W', '.W.'], { W: CANL }, { axis: 'x', y: 19, z: -3 });
+    // big white lightning-bolt logo on the back
+    stamp(body, ['..WWW', '.WWW.', 'WWW..', 'WWWWW', '..WW.', '.WW..', 'WW...'], { W: WHITE }, { axis: '-z', x: -3, y: 22 });
+    gradY(body, Y0, Y1, -0.12, 0.06);
+
+    // face
+    angryEyes(body, 22, 1, 6, 6, { brow: INK, browSlant: 2 });
+    const mouthMask = (x, y) => y >= 9 && y <= 14 && Math.abs(x + 0.5) <= 6 - (y < 11 ? (11 - y) * 1.6 : 0);
+    carveMouth(body, mouthMask, -8, 7, 9, 14, { depth: 3 });
+    for (let x = -3; x <= 2; x++) for (let y = 9; y <= 10; y++) { const z = frontAt(body, x, y, -6, 10); if (z !== null && body.get(x, y, z) === MOUTH) body.set(x, y, z, TONGUE); }
+    // fizzy drool spilling over the lip
+    for (const [x, n] of [[-3, 3], [-2, 2], [1, 4], [2, 2]]) {
+      for (let i = 1; i <= n; i++) { const z = frontAt(body, x, 9 - i, -8, 10); if (z !== null) body.set(x, 9 - i, z + 1, i === n ? FIZZ : FOAM, i === n && x === 1); }
+    }
+
+    // ---- bendy-straw blaster (striped MrBeast magenta)
+    const CJ = [-0.5, Y1, 2.5];
+    const straw = G();
+    const stripe = (x, y, z) => (z > 6 ? (Math.floor(z / 2) % 2 === 0 ? MAG : WHITE) : y < 30 ? (Math.floor(y / 2) % 2 === 0 ? MAG : WHITE) : 0xff8fd0);
+    chain(straw, [[-0.5, Y1 - 1, 2.5], [-0.5, 30, 2.5], [-0.5, 32.6, 4.4], [-0.5, 33.4, 7.5], [-0.5, 33.4, 14]], 1.5, stripe);
+    // flared nozzle + fizzy bubbles (glow)
+    cyl(straw, 'z', -0.5, 33.4, 14, 15, 1.6, 2.1, WHITE, { hollow: 1 });
+    for (const [x, y, z] of [[-1, 33, 16], [0, 34, 17], [-1, 35, 18], [0, 33, 19], [-2, 34, 18]]) straw.set(x, y, z, z % 2 ? FIZZ : WHITE, true);
+
+    // ---- arms + legs
+    const AJ = [-7.6, 16, 0];
+    const armL = G();
+    capsule(armL, [-7.6, 16, 0], [-10.6, 12, 2], 1.3, 1.2, SIL);
+    glove(armL, -11.1, 10.6, 2.6, { r: 2.1, cuffCol: MAG });
+    const armR = flipX(armL);
+    const legL = stubLeg(-3.5, 5.5, 0, { col: CAND, r0: 1.7, r1: 1.5, shoe: { col: MAG, sole: WHITE, toe: WHITE } });
+    const legR = flipX(legL);
+
+    const BJ = [-0.5, 5, 0];
+    return {
+      gait: 'hop',
+      voxel: 0.05,
+      parts: [
+        jp('legL', legL, [-3.5, 5.5, 0]),
+        jp('legR', legR, [2.5, 5.5, 0]),
+        jp('body', body, BJ),
+        jp('cannon', straw, CJ, BJ, { parent: 'body' }),
+        jp('armL', armL, AJ, BJ, { parent: 'body' }),
+        jp('armR', armR, [6.6, 16, 0], BJ, { parent: 'body' }),
+      ],
+      muzzle: [-0.5, 33.5, 17],
       jitter: 0.02,
     };
   },

@@ -20,7 +20,7 @@ export const LAB_LEVEL_REWARDS = (level) => ({ coins: 100 * level, bucks: level 
 
 // Tower stats at Lab Level 1.
 export const TOWERS = {
-  lab: { hp: 2800, dmg: 72, atk: 1.0, range: 6.6 },
+  lab: { hp: 3700, dmg: 80, atk: 1.0, range: 6.6 },
   turret: { hp: 1550, dmg: 50, atk: 0.8, range: 6.4 },
 };
 

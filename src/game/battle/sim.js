@@ -1,24 +1,40 @@
-// Battle simulation: pure game logic (no rendering). Two Labs at either end of
-// a 1D lane; Swarms advance automatically and fight. Fixed time-step and its
-// own seeded RNG so it could be driven by networked inputs later.
+// Battle simulation: pure game logic (no rendering).
+//
+// Clash Royale rules inside a Battle Cats side-view lane:
+//   * energy 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
+//   * an 8-card deck cycling through a hand of 4 (+ a "next" card)
+//   * troops are dropped anywhere in your half (or tapped out at your Lab)
+//     and then march forward and fight automatically
+//   * each side has a guard turret (princess tower) and a Lab (king tower);
+//     turret = 1 crown, Lab = 3 crowns and instant victory
+//   * 3:00 regulation, sudden-death overtime, then lowest-tower tiebreak
+//   * Commanders on the Lab with a charged signature + skills, in-battle Lab
+//     overclock (spend energy for faster energy), bosses for boss battles.
+// Fixed time-step with its own seeded RNG (host-authoritative friend battles).
 import { SWARMS, swarmStats } from '../../data/swarms.js';
 import { SPELLS, spellPower } from '../../data/spells.js';
 import { COMMANDERS, cmdPower } from '../../data/commanders.js';
-import { LAB_LEVELS } from '../../data/labs.js';
+import { TOWERS, ENERGY, OVERCLOCK, labPower } from '../../data/labs.js';
 import { mulberry32 } from '../../core/util.js';
+import { FIELD } from './field.js';
 
-export const LAB_X = 16;
-export const LAB_HALF = 1.7;
+export const LAB_X = FIELD.LAB_X;
+export const LAB_HALF = FIELD.LAB_HALF;
+export const TURRET_X = FIELD.TURRET_X;
 export const STEP = 1 / 30;
 const GRAV = 32;
+const REGULATION = 180;
+const DOUBLE_AT = 120;
+const OT_LEN = 60;
+const DEPLOY_DELAY = 0.65;
 
 let UID = 1;
 
 export class BattleSim {
   /**
-   * cfg: { seed, timeLimit, sides: [SideCfg, SideCfg], boss? }
-   * SideCfg: { name, deck:[{id, level, variant, skin}], spells:[{id, level}], commander:{id, level}|null,
-   *            perks:{}, labHp, ai:boolean }
+   * cfg: { seed, timeLimit, sides: [SideCfg, SideCfg], boss?, noOvertime? }
+   * SideCfg: { name, deck: [{ id, unit?, level, variant, skin, spell? }], commander: { id, level } | null,
+   *            perks: {}, labLevel, hpMult? }
    */
   constructor(cfg) {
     this.cfg = cfg;
@@ -33,8 +49,12 @@ export class BattleSim {
     this.events = [];
     this.over = false;
     this.winner = -1;
-    this.timeLimit = cfg.timeLimit ?? 180;
+    this.draw = false;
+    this.regulation = cfg.timeLimit ?? REGULATION;
+    this.timeLimit = this.regulation;
+    this.noOvertime = !!cfg.noOvertime;
     this.overtime = false;
+    this.doubleEnergy = false;
     this.paused = false;
     this.sides = cfg.sides.map((s, i) => this.makeSide(s, i));
     if (cfg.boss) this.spawnBoss(cfg.boss);
@@ -42,18 +62,33 @@ export class BattleSim {
 
   makeSide(s, i) {
     const perks = s.perks || {};
-    const labMax = Math.round(s.labHp * (1 + (perks.thickWalls ?? 0) / 100));
+    const dir = i === 0 ? 1 : -1;
+    const pow = labPower(s.labLevel ?? 1) * (s.hpMult ?? 1);
+    const mk = (kind, x, half, T, hpMult = 1) => ({
+      building: true, kind, side: i, x, half, hp: Math.round(T.hp * pow * hpMult), maxHp: Math.round(T.hp * pow * hpMult),
+      dmg: T.dmg * labPower(s.labLevel ?? 1) * (kind === 'turret' ? 1 + (perks.quickHands ?? 0) / 100 : 1),
+      atk: T.atk, range: T.range, cool: 0.6, alive: true, active: kind === 'turret', shield: 0, shieldT: 0, radius: half, dead: false, id: UID++,
+    });
+    const lab = mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF, TOWERS.lab, 1 + (perks.thickWalls ?? 0) / 100);
+    const turret = mk('turret', i === 0 ? -TURRET_X : TURRET_X, FIELD.TURRET_HALF, TOWERS.turret, 1 + (perks.thickWalls ?? 0) / 100);
     const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
     const lvl = s.commander?.level ?? 1;
     const skills = cmd ? cmd.skills.filter((k) => lvl >= k.level) : [];
+    const deck = (s.deck || []).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
+    const order = deck.map((_, k) => k);
+    for (let k = order.length - 1; k > 0; k--) {
+      const j = Math.floor(this.rng() * (k + 1));
+      [order[k], order[j]] = [order[j], order[k]];
+    }
+    const handSize = Math.min(4, deck.length);
     return {
-      i, dir: i === 0 ? 1 : -1, labX: i === 0 ? -LAB_X : LAB_X,
-      name: s.name, deck: s.deck, spells: s.spells || [],
-      energy: 60 + (perks.headStart ?? 0), labLevel: 1, labHp: labMax, labMaxHp: labMax, shield: 0, shieldT: 0,
-      cds: s.deck.map(() => 0.6), spellCds: (s.spells || []).map(() => 4),
+      i, dir, labX: lab.x, name: s.name, deck,
+      hand: order.slice(0, handSize), queue: order.slice(handSize),
+      energy: Math.min(ENERGY.max, ENERGY.start + (perks.headStart ?? 0)), overclock: 0,
+      lab, turret, crowns: 0,
       cmd, cmdLevel: lvl, sig: 0.15, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
       perks, buffs: { rally: 0, dance: 0, immortal: 0 },
-      stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {} },
+      stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       power: cmdPower(lvl),
     };
   }
@@ -72,31 +107,58 @@ export class BattleSim {
 
   // -------------------------------------------------------------------------
   // Queries
-  labLevelInfo(si) {
-    return LAB_LEVELS[this.sides[si].labLevel - 1];
-  }
-  cardCost(si, idx) {
+
+  buildings(si) {
     const s = this.sides[si];
-    const c = s.deck[idx];
+    return [s.turret, s.lab].filter((b) => b.alive);
+  }
+  /** The enemy building currently facing side si's troops (turret first). */
+  frontBuilding(si) {
+    const en = this.sides[1 - si];
+    return en.turret.alive ? en.turret : en.lab.alive ? en.lab : null;
+  }
+  /** x of the face of a building that troops of side `fromSide` hit. */
+  faceX(b, fromSide) {
+    return b.x - this.sides[fromSide].dir * b.half;
+  }
+  handCard(si, slot) {
+    const s = this.sides[si];
+    const k = s.hand[slot];
+    return k === undefined ? null : s.deck[k];
+  }
+  nextCard(si) {
+    const s = this.sides[si];
+    return s.queue.length ? s.deck[s.queue[0]] : null;
+  }
+  cardCost(si, slot) {
+    const c = this.handCard(si, slot);
     if (!c) return Infinity;
-    return Math.round(SWARMS[c.id].cost * (1 - (s.perks.bargain ?? 0) / 100));
+    return (c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3;
   }
-  canDeploy(si, idx) {
-    const s = this.sides[si];
-    return !this.over && s.deck[idx] && s.cds[idx] <= 0 && s.energy >= this.cardCost(si, idx);
+  canPlay(si, slot) {
+    return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
-  spellCost(si, idx) {
-    const sp = this.sides[si].spells[idx];
-    return sp ? SPELLS[sp.id].cost : Infinity;
-  }
-  canCast(si, idx) {
-    const s = this.sides[si];
-    return !this.over && s.spells[idx] && s.spellCds[idx] <= 0 && s.energy >= this.spellCost(si, idx);
+  overclockInfo(si) {
+    return OVERCLOCK[this.sides[si].overclock];
   }
   canUpgradeLab(si) {
     const s = this.sides[si];
-    const info = LAB_LEVELS[s.labLevel - 1];
-    return !this.over && info.upCost !== null && s.energy >= info.upCost;
+    const info = OVERCLOCK[s.overclock];
+    return !this.over && info.cost !== null && s.energy >= info.cost;
+  }
+  /** Allowed deploy range [min, max] in x for a side's troops. */
+  deployRange(si) {
+    const s = this.sides[si];
+    const en = this.sides[1 - si];
+    const back = s.labX + s.dir * (LAB_HALF + 0.2);
+    let front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX; // own half up to the centre line
+    // CR pocket: after you take the enemy turret you may drop troops up to it
+    if (!en.turret.alive) front = en.turret.x - s.dir * 1.6;
+    return si === 0 ? [back, front] : [front, back];
+  }
+  clampDeploy(si, x) {
+    const [a, b] = this.deployRange(si);
+    return Math.max(a, Math.min(b, x));
   }
   enemiesOf(si) {
     return this.units.filter((u) => !u.dead && u.side !== si);
@@ -104,7 +166,7 @@ export class BattleSim {
   alliesOf(si) {
     return this.units.filter((u) => !u.dead && u.side === si);
   }
-  /** The enemy unit closest to side si's lab. */
+  /** The enemy unit closest to side si's Lab. */
   frontEnemyX(si) {
     const s = this.sides[si];
     let best = null, bd = Infinity;
@@ -115,7 +177,7 @@ export class BattleSim {
     }
     return best ? best.x : null;
   }
-  /** Frontmost ally of side si (closest to enemy lab). */
+  /** Frontmost ally of side si (closest to the enemy Lab). */
   frontAllyX(si) {
     const s = this.sides[si];
     let best = s.labX + s.dir * (LAB_HALF + 1), bd = -Infinity;
@@ -131,7 +193,7 @@ export class BattleSim {
     let best = null, bc = 0;
     for (const a of es) {
       let c = 0;
-      for (const b of es) if (Math.abs(a.x - b.x) <= radius) c += b.boss ? 3 : 1;
+      for (const b of es) if (Math.abs(a.x - b.x) <= radius) c += b.boss ? 3 : 1 + b.cost / 6;
       if (c > bc) { bc = c; best = a.x; }
     }
     return best === null ? null : { x: best, count: bc };
@@ -140,49 +202,76 @@ export class BattleSim {
   // -------------------------------------------------------------------------
   // Player actions
 
-  deploy(si, idx, free = false) {
+  /**
+   * Play the card in hand slot `slot`. x = drop position (troops: clamped to
+   * your half, default just in front of your Lab; spells: required target).
+   */
+  play(si, slot, x = null, free = false) {
     const s = this.sides[si];
-    const card = s.deck[idx];
-    if (!card) return false;
+    const card = this.handCard(si, slot);
+    if (!card || this.over) return false;
+    const cost = this.cardCost(si, slot);
     if (!free) {
-      if (!this.canDeploy(si, idx)) return false;
-      s.energy -= this.cardCost(si, idx);
-      s.cds[idx] = SWARMS[card.id].cd * (1 - (s.perks.quickHands ?? 0) / 100);
+      if (s.energy < cost) return false;
+      s.energy -= cost;
+      if (s.perks.bargain && this.rand() * 100 < s.perks.bargain) {
+        s.energy = Math.min(ENERGY.max, s.energy + 1);
+        this.emit('refund', { side: si });
+      }
     }
-    const n = SWARMS[card.id].count ?? 1;
-    for (let k = 0; k < n; k++) this.spawnUnit(si, card, { back: k * 0.45 });
-    s.stats.deployed += n;
-    s.stats.deployById[card.baseId ?? card.id] = (s.stats.deployById[card.baseId ?? card.id] ?? 0) + n;
-    if (SWARMS[card.id].series === 'food') s.stats.food += n;
-    this.emit('deploy', { side: si, idx, id: card.id });
+    if (card.spell) {
+      const tx = x ?? this.densestEnemyX(si)?.x ?? this.sides[1 - si].labX;
+      this.castSpell(si, card, Math.max(-FIELD.VIEW_X, Math.min(FIELD.VIEW_X, tx)));
+    } else {
+      const dx = x === null ? s.labX + s.dir * (LAB_HALF + 0.35) : this.clampDeploy(si, x);
+      this.deployTroop(si, card, dx);
+    }
+    // cycle: played card goes to the back of the queue, next card fills the slot
+    const k = s.hand[slot];
+    if (s.queue.length) {
+      s.hand[slot] = s.queue.shift();
+      s.queue.push(k);
+    }
+    this.emit('cycle', { side: si, slot, card: card.id, cost });
     return true;
+  }
+  // legacy alias used by old callers: deploy(si, slot)
+  deploy(si, slot, free = false) {
+    return this.play(si, slot, null, free);
+  }
+
+  deployTroop(si, card, x) {
+    const s = this.sides[si];
+    const def = SWARMS[card.unit];
+    const n = def.count ?? 1;
+    for (let k = 0; k < n; k++) this.spawnUnit(si, card, { x: x - s.dir * k * 0.42, z: (k - (n - 1) / 2) * 0.55, delay: DEPLOY_DELAY + k * 0.05 });
+    s.stats.deployed += n;
+    const key = card.id;
+    s.stats.deployById[key] = (s.stats.deployById[key] ?? 0) + n;
+    if (def.series === 'food') s.stats.food += n;
+    this.emit('deploy', { side: si, id: card.unit, card: card.id, x, count: n });
   }
 
   upgradeLab(si) {
     if (!this.canUpgradeLab(si)) return false;
     const s = this.sides[si];
-    s.energy -= LAB_LEVELS[s.labLevel - 1].upCost;
-    s.labLevel++;
-    this.emit('labUp', { side: si, level: s.labLevel });
+    s.energy -= OVERCLOCK[s.overclock].cost;
+    s.overclock++;
+    this.emit('labUp', { side: si, level: s.overclock + 1 });
     return true;
   }
 
-  castSpell(si, idx, x) {
-    if (!this.canCast(si, idx)) return false;
+  castSpell(si, card, x) {
     const s = this.sides[si];
-    const sp = s.spells[idx];
-    const def = SPELLS[sp.id];
-    const pw = spellPower(sp.level ?? 1);
-    s.energy -= def.cost;
-    s.spellCds[idx] = def.cd * (1 - (s.perks.spellSlinger ?? 0) / 100);
+    const id = card.unit ?? card.id;
+    const def = SPELLS[id];
+    const pw = spellPower(card.level ?? 1);
     s.stats.spells++;
-    s.stats['cast_' + sp.id] = (s.stats['cast_' + sp.id] ?? 0) + 1;
-    x = Math.max(-LAB_X + 1, Math.min(LAB_X - 1, x));
+    s.stats['cast_' + id] = (s.stats['cast_' + id] ?? 0) + 1;
     const R = def.radius;
-    const en = 1 - si;
-    switch (sp.id) {
+    switch (id) {
       case 'foodThrow': {
-        this.emit('spell', { side: si, id: sp.id, x, delay: 0.55, radius: R });
+        this.emit('spell', { side: si, id, x, delay: 0.55, radius: R });
         this.later(0.55, () => {
           for (const u of this.alliesOf(si)) {
             if (Math.abs(u.x - x) > R) continue;
@@ -193,41 +282,44 @@ export class BattleSim {
         break;
       }
       case 'moneyDrop': {
-        this.emit('spell', { side: si, id: sp.id, x, delay: 0.7, radius: R });
+        this.emit('spell', { side: si, id, x, delay: 0.7, radius: R });
         this.later(0.7, () => {
-          this.areaDamage(si, x, R, def.dmg * pw, { kind: 'money', knock: 7, labMult: 0.5 });
+          this.areaDamage(si, x, R, def.dmg * pw, { kind: 'money', knock: 7, building: def.building });
           this.emit('impact', { x, radius: R, kind: 'money', side: si });
         });
         break;
       }
       case 'slimeFlood': {
-        this.emit('spell', { side: si, id: sp.id, x, delay: 0.3, radius: R, dur: def.dur });
+        this.emit('spell', { side: si, id, x, delay: 0.3, radius: R, dur: def.dur });
         this.later(0.3, () => this.zones.push({ side: si, x, r: R, t: def.dur, slow: def.slow, dps: def.dps * pw, kind: 'slime' }));
         break;
       }
       case 'freezeRay': {
-        this.emit('spell', { side: si, id: sp.id, x, delay: 0.35, radius: R });
+        this.emit('spell', { side: si, id, x, delay: 0.35, radius: R });
         this.later(0.35, () => {
           for (const e of this.enemiesOf(si)) {
-            if (Math.abs(e.x - x) > R) continue;
+            if (Math.abs(e.x - x) > R + e.radius) continue;
             e.buffs.freeze = Math.max(e.buffs.freeze, def.freeze * (e.boss ? 0.4 : 1));
             this.damage(e, def.dmg * pw, null, { kind: 'ice' });
           }
+          for (const b of this.buildings(1 - si)) if (Math.abs(b.x - x) <= R + b.half) b.frozen = def.freeze;
         });
         break;
       }
       case 'sodaRocket': {
-        this.emit('spell', { side: si, id: sp.id, x, delay: 0.9, radius: R });
+        this.emit('spell', { side: si, id, x, delay: 0.9, radius: R });
         this.later(0.9, () => {
-          this.areaDamage(si, x, R, def.dmg * pw, { kind: 'soda', knock: 5, labMult: 0.6 });
+          this.areaDamage(si, x, R, def.dmg * pw, { kind: 'soda', knock: 5, building: def.building });
           this.emit('impact', { x, radius: R, kind: 'soda', side: si });
         });
         break;
       }
       case 'labShield': {
-        s.shield = s.labMaxHp * def.shield * pw;
-        s.shieldT = def.dur;
-        this.emit('spell', { side: si, id: sp.id, x: s.labX, delay: 0, radius: 0 });
+        for (const b of this.buildings(si)) {
+          b.shield = b.maxHp * def.shield * pw;
+          b.shieldT = def.dur;
+        }
+        this.emit('spell', { side: si, id, x: s.labX, delay: 0, radius: 0 });
         break;
       }
       default:
@@ -248,11 +340,12 @@ export class BattleSim {
       case 'beakerBarrage': {
         const es = this.enemiesOf(si).sort((a, b) => (a.x - s.labX) * s.dir - (b.x - s.labX) * s.dir);
         const xs = [];
-        const fx = this.frontEnemyX(si) ?? this.sides[en].labX - this.sides[en].dir * 3;
+        const fb = this.frontBuilding(si);
+        const fx = this.frontEnemyX(si) ?? (fb ? this.faceX(fb, si) : this.sides[en].labX);
         for (let k = 0; k < sg.count; k++) xs.push(es[k] ? es[k].x : fx + s.dir * (k - 2) * 1.2);
         this.emit('signature', { side: si, id: sg.id, xs });
         xs.forEach((x, k) => this.later(0.6 + k * 0.12, () => {
-          this.areaDamage(si, x, sg.radius, sg.dmg * pw, { kind: 'acid', labMult: 0.5 });
+          this.areaDamage(si, x, sg.radius, sg.dmg * pw, { kind: 'acid', building: 0.35 });
           this.emit('impact', { x, radius: sg.radius, kind: 'acid', side: si });
         }));
         break;
@@ -264,7 +357,7 @@ export class BattleSim {
             e.buffs.stun = Math.max(e.buffs.stun, sg.stun * (e.boss ? 0.4 : 1));
             this.damage(e, sg.dmg * pw, null, { kind: 'money' });
           }
-          s.energy = Math.min(this.labLevelInfo(si).max, s.energy + sg.energy);
+          s.energy = Math.min(ENERGY.max, s.energy + sg.energy);
           this.emit('energyGain', { side: si, amount: sg.energy });
         });
         break;
@@ -274,7 +367,7 @@ export class BattleSim {
         const tx = Math.max(-LAB_X + 2.5, Math.min(LAB_X - 2.5, x));
         this.emit('signature', { side: si, id: sg.id, x: tx });
         this.later(1.0, () => {
-          this.areaDamage(si, tx, sg.radius, sg.dmg * pw, { kind: 'flop', stun: sg.stun, knock: 3, labMult: 0.4 });
+          this.areaDamage(si, tx, sg.radius, sg.dmg * pw, { kind: 'flop', stun: sg.stun, knock: 3, building: 0.3 });
           this.emit('impact', { x: tx, radius: sg.radius, kind: 'flop', side: si });
         });
         break;
@@ -306,9 +399,10 @@ export class BattleSim {
         this.emit('skill', { side: si, id: sk.id });
         break;
       case 'emergencyRepair': {
-        const amt = s.labMaxHp * sk.heal * pw;
-        s.labHp = Math.min(s.labMaxHp, s.labHp + amt);
-        this.emit('skill', { side: si, id: sk.id, amount: amt });
+        const b = s.turret.alive ? s.turret : s.lab;
+        const amt = b.maxHp * sk.heal * pw;
+        b.hp = Math.min(b.maxHp, b.hp + amt);
+        this.emit('skill', { side: si, id: sk.id, amount: amt, kind: b.kind });
         break;
       }
       case 'lastToLeave':
@@ -317,10 +411,11 @@ export class BattleSim {
         break;
       case 'subscribeSmash': {
         const c = this.densestEnemyX(si, 2.4);
-        const x = c ? c.x : this.sides[1 - si].labX - this.sides[1 - si].dir * 2.5;
+        const fb = this.frontBuilding(si);
+        const x = c ? c.x : fb ? this.faceX(fb, si) - s.dir * 1.2 : 0;
         this.emit('skill', { side: si, id: sk.id, x });
         this.later(0.9, () => {
-          this.areaDamage(si, x, sk.radius, sk.dmg * pw, { kind: 'button', knock: 5, labMult: 0.5 });
+          this.areaDamage(si, x, sk.radius, sk.dmg * pw, { kind: 'button', knock: 5, building: 0.35 });
           this.emit('impact', { x, radius: sk.radius, kind: 'button', side: si });
         });
         break;
@@ -333,16 +428,17 @@ export class BattleSim {
       }
       case 'luckyFail': {
         this.emit('skill', { side: si, id: sk.id });
-        for (let i = 0; i < sk.count; i++) {
-          const idx = Math.floor(this.rand() * s.deck.length);
-          this.later(0.4 + i * 0.25, () => this.deploy(si, idx, true));
+        const troops = s.deck.filter((c) => !c.spell);
+        for (let i = 0; i < sk.count && troops.length; i++) {
+          const card = troops[Math.floor(this.rand() * troops.length)];
+          this.later(0.4 + i * 0.25, () => this.deployTroop(si, card, s.labX + s.dir * (LAB_HALF + 0.4)));
         }
         break;
       }
       case 'footballKick': {
         this.emit('skill', { side: si, id: sk.id });
         this.later(0.45, () => {
-          const m = { kind: 'ball', side: si, x: s.labX + s.dir * LAB_HALF, speed: 17, dmg: sk.dmg * pw, labDmg: sk.dmg * 0.4 * pw, hit: new Set(), id: UID++ };
+          const m = { kind: 'ball', side: si, x: s.labX + s.dir * LAB_HALF, speed: 17, dmg: sk.dmg * pw, labDmg: sk.dmg * 0.35 * pw, hit: new Set(), id: UID++ };
           this.movers.push(m);
           this.emit('moverStart', { mover: m });
         });
@@ -365,35 +461,37 @@ export class BattleSim {
 
   spawnUnit(si, card, opts = {}) {
     const s = this.sides[si];
-    const def = SWARMS[card.id];
+    const id = card.unit ?? card.id;
+    const def = SWARMS[id];
     const mods = { dmg: 1 + (s.perks.sharpTeeth ?? 0) / 100 };
-    const st = swarmStats(card.id, card.level ?? 1, card.variant ?? 'base', mods);
+    const st = swarmStats(id, card.level ?? 1, card.variant ?? 'base', mods);
     const size = def.size ?? 1;
     const kb = opts.kb ?? def.kb ?? 2;
     const thresholds = [];
     for (let k = 1; k < kb; k++) thresholds.push(1 - k / kb);
-    const x = opts.x ?? s.labX + s.dir * (LAB_HALF + 0.3 - (opts.back ?? 0));
+    const x = opts.x ?? s.labX + s.dir * (LAB_HALF + 0.3);
     const u = {
-      id: UID++, side: si, type: card.id, model: opts.model ?? card.model, skin: card.skin, variant: card.variant ?? 'base',
+      id: UID++, side: si, type: id, card: card.id, model: opts.model ?? card.model, skin: card.skin ?? null, variant: card.variant ?? 'base',
       st, hp: st.hp * (opts.hpMult ?? 1), maxHp: st.hp * (opts.hpMult ?? 1), baseMaxHp: st.hp * (opts.hpMult ?? 1),
       dmgMult: opts.dmgMult ?? 1, x, y: 0, vx: 0, vy: 0, radius: 0.3 * size * (opts.scale ?? 1),
-      size: size * (opts.scale ?? 1), state: 'walk', cool: this.rand() * 0.3, atkPhase: 0, atkTarget: null,
+      size: size * (opts.scale ?? 1), state: 'spawn', spawnT: opts.delay ?? 0, cool: this.rand() * 0.3, atkPhase: 0, atkTarget: null,
       kbIndex: 0, kbThresholds: thresholds, kbT: 0,
       buffs: { stun: 0, freeze: 0, slow: 0, slowT: 0, burn: 0, burnT: 0, growT: 0, growScale: 1, auraT: 0 },
-      z: (this.rand() - 0.5) * 1.6, born: this.t, dead: false, boss: !!opts.boss, cost: def.cost,
-      speedMult: opts.speedMult ?? 1,
+      z: opts.z !== undefined ? Math.max(-FIELD.LANE_Z, Math.min(FIELD.LANE_Z, opts.z + (this.rand() - 0.5) * 0.6)) : (this.rand() - 0.5) * 2 * FIELD.LANE_Z,
+      born: this.t, dead: false, boss: !!opts.boss, cost: def.elixir ?? 0,
+      speedMult: opts.speedMult ?? 1, flying: !!def.traits?.flying, siege: !!def.traits?.siege, ambush: def.traits?.ambush ?? 0,
+      level: card.level ?? 1,
     };
-    if (def.traits?.flying) u.y = 0;
     this.units.push(u);
-    this.emit('spawn', { unit: u, fromLab: !opts.x });
+    this.emit('spawn', { unit: u, dropped: opts.delay > 0 });
     return u;
   }
 
   spawnBoss(b) {
-    const card = { id: b.unit, level: b.level ?? 1, model: b.model };
+    const card = { id: b.unit, unit: b.unit, level: b.level ?? 1, model: b.model };
     const u = this.spawnUnit(1, card, {
-      x: LAB_X - LAB_HALF - 2.2, boss: true, kb: 3, scale: b.scale / (SWARMS[b.unit].size ?? 1),
-      hpMult: b.hp / swarmStats(b.unit, b.level ?? 1).hp, dmgMult: b.dmg ?? 2, model: b.model, speedMult: 0.55,
+      x: TURRET_X - FIELD.TURRET_HALF - 2.4, boss: true, kb: 3, scale: b.scale / (SWARMS[b.unit].size ?? 1), delay: 0,
+      hpMult: b.hp / swarmStats(b.unit, b.level ?? 1).hp, dmgMult: b.dmg ?? 2, model: b.model, speedMult: 0.5,
     });
     u.bossId = b.id;
     u.slamT = 6;
@@ -423,23 +521,30 @@ export class BattleSim {
     const dir = s.dir;
     const reach = u.st.range + u.radius;
     let best = null, bd = Infinity;
-    for (const e of this.units) {
-      if (e.dead || e.side === u.side) continue;
-      const d = (e.x - u.x) * dir;
-      if (d < -(u.radius + e.radius)) continue;
-      if (d - e.radius <= reach && d < bd) { best = e; bd = d; }
+    if (!u.siege) {
+      for (const e of this.units) {
+        if (e.dead || e.side === u.side || e.state === 'spawn') continue;
+        const d = (e.x - u.x) * dir;
+        if (d < -(u.radius + e.radius)) continue;
+        if (d - e.radius <= reach && d < bd) { best = e; bd = d; }
+      }
     }
-    if (best) return best;
-    const en = this.sides[1 - u.side];
-    const front = en.labX + (en.dir === 1 ? LAB_HALF : -LAB_HALF);
-    const gap = (front - u.x) * dir;
-    if (gap <= reach) return { lab: en.i };
-    return null;
+    const b = this.frontBuilding(u.side);
+    if (b) {
+      const gap = (this.faceX(b, u.side) - u.x) * dir;
+      if (gap <= reach && gap < bd) best = b;
+    }
+    return best;
   }
 
   updateUnit(u, dt) {
     const b = u.buffs;
     const s = this.sides[u.side];
+    if (u.state === 'spawn') {
+      u.spawnT -= dt;
+      if (u.spawnT <= 0) { u.state = 'walk'; this.emit('landed', { unit: u }); }
+      return;
+    }
     // status timers
     if (b.burnT > 0) {
       b.burnT -= dt;
@@ -456,7 +561,6 @@ export class BattleSim {
         this.emit('shrink', { unit: u });
       }
     }
-    // aura
     if (u.st.traits.aura) {
       b.auraT -= dt;
       if (b.auraT <= 0) {
@@ -494,7 +598,7 @@ export class BattleSim {
           for (const e of this.units) {
             if (e.dead || e.side === u.side || Math.abs(e.x - u.x) > 3.5) continue;
             e.buffs.stun = Math.max(e.buffs.stun, 1.0);
-            this.damage(e, 60 * u.dmgMult, u, { kind: 'slam' });
+            this.damage(e, 120 * u.dmgMult, u, { kind: 'slam' });
             this.knock(e, 4);
           }
         });
@@ -525,12 +629,19 @@ export class BattleSim {
       }
     } else {
       u.state = 'walk';
-      u.x += s.dir * u.st.speed * u.speedMult * spd * dt * 0.75;
+      u.x += s.dir * u.st.speed * u.speedMult * spd * dt;
       this.clampUnit(u);
     }
   }
 
   clampUnit(u) {
+    const s = this.sides[u.side];
+    // can't walk through the enemy's front building
+    const fb = this.frontBuilding(u.side);
+    if (fb) {
+      const lim = this.faceX(fb, u.side) - s.dir * u.radius * 0.6;
+      if ((u.x - lim) * s.dir > 0) u.x = lim;
+    }
     const min = -LAB_X + LAB_HALF * 0.6, max = LAB_X - LAB_HALF * 0.6;
     if (u.x < min) u.x = min;
     if (u.x > max) u.x = max;
@@ -538,9 +649,9 @@ export class BattleSim {
 
   resolveAttack(u) {
     let t = u.atkTarget;
-    if (!t || (t.dead && !t.lab)) t = this.findTarget(u);
+    if (!t || t.dead || (t.building && !t.alive)) t = this.findTarget(u);
     if (!t) return;
-    const tx = t.lab !== undefined ? this.sides[t.lab].labX + (this.sides[t.lab].dir === 1 ? LAB_HALF : -LAB_HALF) : t.x;
+    const tx = t.building ? this.faceX(t, u.side) : t.x;
     if (u.st.projectile) {
       const dist = Math.abs(tx - u.x);
       const flight = 0.18 + dist / 13;
@@ -552,18 +663,27 @@ export class BattleSim {
     }
   }
 
+  unitDamage(u) {
+    let dmg = u.st.dmg * u.dmgMult * (this.sides[u.side].buffs.dance > 0 ? 1.5 : 1);
+    if (u.ambush) {
+      dmg *= u.ambush;
+      u.ambush = 0;
+      this.emit('ambush', { unit: u });
+    }
+    return dmg;
+  }
+
   applyHit(u, t, tx) {
     const tr = u.st.traits;
-    const dmg = u.st.dmg * u.dmgMult * (this.sides[u.side].buffs.dance > 0 ? 1.5 : 1);
+    const dmg = this.unitDamage(u);
     const kind = u.st.projectile ?? 'melee';
     if (tr.area) {
-      this.areaDamage(u.side, tx, 0.9 + u.radius * 0.5, dmg, { src: u, kind, front: true, ux: u.x });
-      if (t.lab !== undefined) this.damageLab(t.lab, dmg, u);
-      else if (this.areaHitsLab(u.side, tx, 0.9)) this.damageLab(1 - u.side, dmg, u);
+      this.areaDamage(u.side, tx, 0.9 + u.radius * 0.5, dmg, { src: u, kind, building: 1, front: true });
       this.emit('areaHit', { unit: u, x: tx, kind });
     } else if (tr.chain) {
+      if (t.building) this.damageBuilding(t, dmg, u);
       const hitList = [];
-      let cur = t.lab !== undefined ? null : t;
+      let cur = t.building ? null : t;
       if (cur) {
         hitList.push(cur);
         for (let k = 1; k < tr.chain; k++) {
@@ -578,8 +698,8 @@ export class BattleSim {
           cur = nb;
         }
         hitList.forEach((e, k) => this.damage(e, dmg * Math.pow(0.75, k), u, { kind }));
-        this.emit('chain', { unit: u, xs: hitList.map((e) => e.x) });
-      } else this.damageLab(t.lab, dmg, u);
+      }
+      this.emit('chain', { unit: u, xs: [t.building ? tx : null, ...hitList.slice(t.building ? 0 : 1).map((e) => e.x)].filter((v) => v !== null), from: tx });
     } else if (tr.pierce) {
       const dir = this.sides[u.side].dir;
       for (const e of this.units) {
@@ -587,21 +707,16 @@ export class BattleSim {
         const d = (e.x - u.x) * dir;
         if (d >= -0.2 && d <= u.st.range + u.radius + e.radius) this.damage(e, dmg, u, { kind });
       }
-      if (t.lab !== undefined) this.damageLab(t.lab, dmg, u);
-    } else if (t.lab !== undefined) {
-      this.damageLab(t.lab, dmg, u);
+      if (t.building) this.damageBuilding(t, dmg, u);
+    } else if (t.building) {
+      this.damageBuilding(t, dmg, u);
     } else {
       this.damage(t, dmg, u, { kind });
       if (tr.knock && !t.dead) this.knock(t, 3);
     }
   }
 
-  areaHitsLab(si, x, r) {
-    const en = this.sides[1 - si];
-    const front = en.labX + (en.dir === 1 ? LAB_HALF : -LAB_HALF);
-    return Math.abs(front - x) <= r + 0.4;
-  }
-
+  /** Damage every enemy (units + buildings) of side si within r of x. */
   areaDamage(si, x, r, dmg, o = {}) {
     for (const e of this.units) {
       if (e.dead || e.side === si) continue;
@@ -610,21 +725,23 @@ export class BattleSim {
       if (!e.dead && o.stun) e.buffs.stun = Math.max(e.buffs.stun, o.stun * (e.boss ? 0.4 : 1));
       if (!e.dead && o.knock) this.knock(e, o.knock);
     }
-    if (o.labMult && this.areaHitsLab(si, x, r)) this.damageLab(1 - si, dmg * o.labMult, o.src ?? null);
+    if (o.building) {
+      for (const b of this.buildings(1 - si)) {
+        if (Math.abs(b.x - x) <= r + b.half) this.damageBuilding(b, dmg * o.building, o.src ?? null, { spell: !o.src });
+      }
+    }
     if (o.kind && o.kind !== 'melee') this.emit('areaFx', { side: si, x, r, kind: o.kind });
   }
 
   explode(u) {
-    const tr = u.st.traits;
-    this.areaDamage(u.side, u.x + this.sides[u.side].dir * 0.6, 1.6, u.st.dmg * u.dmgMult, { src: u, kind: 'explode', knock: 4, labMult: 1 });
+    this.areaDamage(u.side, u.x + this.sides[u.side].dir * 0.6, 1.6, u.st.dmg * u.dmgMult, { src: u, kind: 'explode', knock: 4, building: 1 });
     this.emit('explode', { unit: u, x: u.x });
-    this.kill(u, null, { silent: true, noBounty: true });
-    void tr;
+    this.kill(u, null, { silent: true });
   }
 
   knock(e, power) {
-    if (e.dead) return;
-    if (e.boss) power *= 0.25;
+    if (e.dead || e.state === 'spawn') return;
+    if (e.boss || e.siege) power *= 0.3;
     const dir = this.sides[e.side].dir;
     e.state = 'kb';
     e.vx = -dir * power * 1.2;
@@ -641,7 +758,7 @@ export class BattleSim {
     if (e.st.traits.armor) d *= 1 - e.st.traits.armor;
     const def = this.sides[e.side];
     if (def.perks.armorUp) d *= 1 - def.perks.armorUp / 100;
-    if (src && src.st && e.st.traits.flying && !src.st.projectile) d *= 0.5;
+    if (src && src.st && e.flying && !src.st.projectile) d *= 0.5;
     if (e.buffs.freeze > 0 && o.kind !== 'ice') d *= 1.25;
     if (d <= 0) return;
     const before = e.hp;
@@ -653,15 +770,13 @@ export class BattleSim {
       this.kill(e, src);
       return;
     }
-    // on-hit effects from the attacker
     if (src && src.st) {
       const tr = src.st.traits;
       if (tr.stun && this.rand() < tr.stun.chance) e.buffs.stun = Math.max(e.buffs.stun, tr.stun.dur * (e.boss ? 0.4 : 1));
       if (tr.freeze && this.rand() < tr.freeze.chance) e.buffs.freeze = Math.max(e.buffs.freeze, tr.freeze.dur * (e.boss ? 0.4 : 1));
       if (tr.slow) { e.buffs.slow = Math.max(e.buffs.slow, tr.slow.amt); e.buffs.slowT = tr.slow.dur; }
-      if (tr.burn) { e.buffs.burn = tr.burn.dps; e.buffs.burnT = tr.burn.dur; }
+      if (tr.burn) { e.buffs.burn = tr.burn.dps; e.buffs.burnT = tr.burn.dur; e.buffs.poison = !!tr.burn.poison; }
     }
-    // knockback thresholds
     const frac = e.hp / e.maxHp;
     if (e.kbIndex < e.kbThresholds.length && frac <= e.kbThresholds[e.kbIndex] && e.state !== 'kb') {
       while (e.kbIndex < e.kbThresholds.length && frac <= e.kbThresholds[e.kbIndex]) e.kbIndex++;
@@ -673,19 +788,16 @@ export class BattleSim {
     if (e.dead) return;
     e.dead = true;
     e.hp = 0;
-    const silent = !!o.silent;
     const killerSide = 1 - e.side;
-    const bounty = e.cost > 0 && !o.noBounty ? Math.round(e.cost * 0.35) : 0;
     const ks = this.sides[killerSide];
-    if (bounty) ks.energy = Math.min(this.labLevelInfo(killerSide).max, ks.energy + bounty);
     ks.stats.kills++;
     ks.sig = Math.min(1, ks.sig + 0.03);
-    this.emit('death', { unit: e, bounty, killerSide, silent });
+    this.emit('death', { unit: e, killerSide, silent: !!o.silent });
     const tr = e.st.traits;
     if (tr.split) {
       const mini = e.type === 'melonMauler' ? 'seedling' : 'miniSlime';
       for (let k = 0; k < tr.split; k++) {
-        const m = this.spawnUnit(e.side, { id: mini, level: e.st.level }, { x: e.x + (k - (tr.split - 1) / 2) * 0.5 });
+        const m = this.spawnUnit(e.side, { id: mini, unit: mini, level: e.st.level }, { x: e.x + (k - (tr.split - 1) / 2) * 0.5, delay: 0 });
         m.vy = 4; m.state = 'kb'; m.kbT = 0.4; m.vx = (k - 0.5) * 2;
       }
     }
@@ -696,32 +808,84 @@ export class BattleSim {
     if (e.boss) this.emit('bossDown', { unit: e });
   }
 
-  damageLab(si, d, src) {
-    const s = this.sides[si];
-    if (this.over) return;
-    if (s.shield > 0) {
-      const ab = Math.min(s.shield, d);
-      s.shield -= ab;
+  damageBuilding(b, d, src, o = {}) {
+    if (!b.alive || this.over) return;
+    if (b.shield > 0) {
+      const ab = Math.min(b.shield, d);
+      b.shield -= ab;
       d -= ab;
-      this.emit('shieldHit', { side: si });
+      this.emit('shieldHit', { side: b.side, kind: b.kind });
     }
     if (d <= 0) return;
-    // siege pressure: troops hit Labs harder, ramping up late in the match
-    if (src && src.st) d *= 1.5 * (this.t > 90 ? 1.5 : 1) * (this.overtime ? 1.5 : 1);
-    s.labHp -= d;
-    if (src && src.side !== undefined) this.sides[src.side].stats.dmg += d;
-    this.emit('labHit', { side: si, amount: Math.round(d), src });
-    if (s.labHp <= 0) {
-      s.labHp = 0;
-      this.end(1 - si);
+    b.hp -= d;
+    const atk = 1 - b.side;
+    this.sides[atk].stats.dmg += d;
+    this.sides[atk].stats.towerDmg += d;
+    if (b.kind === 'lab' && !b.active) {
+      b.active = true;
+      this.emit('labActivate', { side: b.side });
+    }
+    this.emit('towerHit', { side: b.side, kind: b.kind, amount: Math.round(d), src, spell: !!o.spell });
+    if (b.hp <= 0) this.destroyBuilding(b);
+  }
+
+  destroyBuilding(b) {
+    b.hp = 0;
+    b.alive = false;
+    b.dead = true;
+    const atk = this.sides[1 - b.side];
+    const own = this.sides[b.side];
+    if (b.kind === 'turret') {
+      atk.crowns = Math.min(3, atk.crowns + 1);
+      if (!own.lab.active) { own.lab.active = true; this.emit('labActivate', { side: b.side }); }
+      this.emit('towerDown', { side: b.side, kind: 'turret', crowns: atk.crowns });
+      if (this.overtime) this.end(1 - b.side);
+    } else {
+      atk.crowns = 3;
+      this.emit('towerDown', { side: b.side, kind: 'lab', crowns: 3 });
+      this.end(1 - b.side);
     }
   }
 
-  end(winner) {
+  updateBuilding(b, dt) {
+    if (!b.alive) return;
+    if (b.shieldT > 0) { b.shieldT -= dt; if (b.shieldT <= 0) b.shield = 0; }
+    if (b.frozen > 0) { b.frozen -= dt; return; }
+    if (!b.active) return;
+    b.cool -= dt;
+    if (b.cool > 0) return;
+    // nearest enemy in range
+    let best = null, bd = Infinity;
+    for (const e of this.units) {
+      if (e.dead || e.side === b.side || e.state === 'spawn') continue;
+      const d = Math.abs(e.x - b.x) - e.radius;
+      if (d <= b.range && d < bd) { bd = d; best = e; }
+    }
+    if (!best) return;
+    b.cool = b.atk;
+    const dist = Math.abs(best.x - b.x);
+    const p = {
+      id: UID++, side: b.side, src: b, x0: b.x, x: b.x, tx: best.x, t: 0, flight: 0.15 + dist / 22, target: best,
+      kind: b.kind === 'lab' ? 'labCannon' : 'turretBolt', dmg: b.dmg, height: b.kind === 'lab' ? 3.4 : 2.6, tower: true,
+    };
+    this.projectiles.push(p);
+    this.emit('towerShoot', { side: b.side, kind: b.kind, proj: p });
+  }
+
+  end(winner, o = {}) {
     if (this.over) return;
     this.over = true;
     this.winner = winner;
-    this.emit('end', { winner });
+    this.draw = winner < 0;
+    this.emit('end', { winner, draw: this.draw, reason: o.reason ?? 'crowns' });
+  }
+
+  /** Lowest-tower tiebreak (Clash Royale): the side whose weakest tower has more HP% wins. */
+  tiebreak() {
+    const weakest = (si) => Math.min(...[this.sides[si].turret, this.sides[si].lab].map((b) => (b.alive ? b.hp / b.maxHp : 0)));
+    const a = weakest(0), b = weakest(1);
+    if (Math.abs(a - b) < 1e-4) return -1;
+    return a > b ? 0 : 1;
   }
 
   // -------------------------------------------------------------------------
@@ -737,9 +901,13 @@ export class BattleSim {
     }
   }
 
+  energyRate(si) {
+    const s = this.sides[si];
+    return ENERGY.perSec * OVERCLOCK[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1);
+  }
+
   tick(dt) {
     this.t += dt;
-    // scheduled actions
     if (this.timers.length) {
       const due = this.timers.filter((tm) => tm.at <= this.t);
       if (due.length) {
@@ -747,17 +915,13 @@ export class BattleSim {
         for (const tm of due) tm.fn();
       }
     }
-    // sides
     for (const s of this.sides) {
-      const info = LAB_LEVELS[s.labLevel - 1];
-      const regen = info.regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 2 : 1);
-      s.energy = Math.min(info.max, s.energy + regen * dt);
-      for (let k = 0; k < s.cds.length; k++) if (s.cds[k] > 0) s.cds[k] -= dt;
-      for (let k = 0; k < s.spellCds.length; k++) if (s.spellCds[k] > 0) s.spellCds[k] -= dt;
+      s.energy = Math.min(ENERGY.max, s.energy + this.energyRate(s.i) * dt);
       for (let k = 0; k < s.skillCds.length; k++) if (s.skillCds[k] > 0) s.skillCds[k] -= dt;
       if (s.cmd && s.sig < 1) s.sig = Math.min(1, s.sig + dt / (s.cmd.signature.charge * (1 - (s.perks.hypeMan ?? 0) / 100)));
       for (const k in s.buffs) if (s.buffs[k] > 0) s.buffs[k] -= dt;
-      if (s.shieldT > 0) { s.shieldT -= dt; if (s.shieldT <= 0) s.shield = 0; }
+      this.updateBuilding(s.turret, dt);
+      this.updateBuilding(s.lab, dt);
     }
     // zones
     for (const z of this.zones) {
@@ -783,49 +947,66 @@ export class BattleSim {
           this.emit('moverHit', { mover: m, unit: e });
         }
       }
-      const en = this.sides[1 - m.side];
-      const front = en.labX + (en.dir === 1 ? LAB_HALF : -LAB_HALF);
-      if ((front - m.x) * s.dir <= 0) {
+      const fb = this.frontBuilding(m.side);
+      if (fb && (this.faceX(fb, m.side) - m.x) * s.dir <= 0) {
         m.done = true;
-        this.damageLab(en.i, m.labDmg, null);
-        this.emit('moverEnd', { mover: m, x: front });
-      }
+        this.damageBuilding(fb, m.labDmg, null, { spell: true });
+        this.emit('moverEnd', { mover: m, x: this.faceX(fb, m.side) });
+      } else if (!fb) m.done = true;
     }
     this.movers = this.movers.filter((m) => !m.done);
-    // units
     for (const u of this.units) if (!u.dead) this.updateUnit(u, dt);
     // projectiles
     for (const p of this.projectiles) {
       p.t += dt;
-      if (p.target && !p.target.lab && !p.target.dead) p.tx = p.target.x;
+      if (p.target && !p.target.building && !p.target.dead) p.tx = p.target.x;
       p.x = p.x0 + (p.tx - p.x0) * Math.min(1, p.t / p.flight);
-      if (p.t >= p.flight) {
-        p.done = true;
-        const u = p.src;
-        let t = p.target;
-        if (t && !t.lab && t.dead) {
-          // retarget to anything near the landing spot
-          t = null;
-          for (const e of this.units) if (!e.dead && e.side !== p.side && Math.abs(e.x - p.tx) < 0.8 + e.radius) { t = e; break; }
-        }
-        if (t) this.applyHit(u, t, p.tx);
-        else if (u.st.traits.area) this.applyHit(u, { x: p.tx, dead: false, none: true }, p.tx);
+      if (p.t < p.flight) continue;
+      p.done = true;
+      if (p.tower) {
+        if (p.target && !p.target.dead) this.damage(p.target, p.dmg, null, { kind: p.kind });
         this.emit('projHit', { proj: p });
+        continue;
       }
+      const u = p.src;
+      let t = p.target;
+      if (t && (t.dead || (t.building && !t.alive))) {
+        t = null;
+        for (const e of this.units) if (!e.dead && e.side !== p.side && Math.abs(e.x - p.tx) < 0.8 + e.radius) { t = e; break; }
+        if (!t) { const fb = this.frontBuilding(p.side); if (fb && Math.abs(this.faceX(fb, p.side) - p.tx) < 1) t = fb; }
+      }
+      if (t) this.applyHit(u, t, p.tx);
+      else if (u.st.traits.area) this.applyHit(u, { x: p.tx, dead: false, none: true }, p.tx);
+      this.emit('projHit', { proj: p });
     }
     this.projectiles = this.projectiles.filter((p) => !p.done);
-    // cleanup dead
     if (this.units.length > 40 && this.units.some((u) => u.dead)) this.units = this.units.filter((u) => !u.dead);
     else if (this.t % 2 < dt) this.units = this.units.filter((u) => !u.dead);
-    // time
-    if (this.t >= this.timeLimit && !this.overtime) {
-      this.overtime = true;
-      this.timeLimit += 45;
-      this.emit('overtime');
-    } else if (this.t >= this.timeLimit && this.overtime) {
-      const f0 = this.sides[0].labHp / this.sides[0].labMaxHp, f1 = this.sides[1].labHp / this.sides[1].labMaxHp;
-      this.end(f0 >= f1 ? 0 : 1);
+    this.updateClock();
+  }
+
+  updateClock() {
+    if (this.over) return;
+    if (!this.doubleEnergy && !this.noOvertime && this.t >= this.regulation - (REGULATION - DOUBLE_AT)) {
+      this.doubleEnergy = true;
+      this.emit('doubleEnergy');
     }
+    if (this.t < this.timeLimit) return;
+    const [a, b] = [this.sides[0].crowns, this.sides[1].crowns];
+    if (!this.overtime) {
+      if (a !== b) return this.end(a > b ? 0 : 1, { reason: 'time' });
+      if (this.noOvertime) return this.end(this.tiebreak(), { reason: 'tiebreak' });
+      this.overtime = true;
+      this.timeLimit = this.regulation + OT_LEN;
+      this.emit('overtime');
+      return;
+    }
+    if (a !== b) return this.end(a > b ? 0 : 1, { reason: 'time' });
+    this.end(this.tiebreak(), { reason: 'tiebreak' });
+  }
+
+  get timeLeft() {
+    return Math.max(0, this.timeLimit - this.t);
   }
 
   drainEvents() {

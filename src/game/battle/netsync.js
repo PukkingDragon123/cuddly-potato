@@ -4,16 +4,18 @@
 import { SWARMS, swarmStats } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
 import { COMMANDERS } from '../../data/commanders.js';
-import { LAB_LEVELS } from '../../data/labs.js';
-import { LAB_X, LAB_HALF } from './sim.js';
+import { OVERCLOCK, ENERGY } from '../../data/labs.js';
+import { FIELD } from './field.js';
+import { LAB_X, LAB_HALF, TURRET_X } from './sim.js';
 
-const STATES = ['walk', 'attack', 'kb', 'stun', 'frozen'];
+const STATES = ['walk', 'attack', 'kb', 'stun', 'frozen', 'spawn'];
 const SEND_HZ = 15;
 
 const unitFull = (u) => ({
-  i: u.id, s: u.side, ty: u.type, m: u.model ?? null, sk: u.skin ?? null, v: u.variant, x: +u.x.toFixed(3), y: +u.y.toFixed(3), z: +u.z.toFixed(3),
-  hp: Math.round(u.hp), mh: Math.round(u.maxHp), sz: u.size, b: u.boss ? 1 : 0, c: u.cost, lv: u.st.level, gs: u.buffs.growScale ?? 1,
+  i: u.id, s: u.side, ty: u.type, cd: u.card, m: u.model ?? null, sk: u.skin ?? null, v: u.variant, x: +u.x.toFixed(3), y: +u.y.toFixed(3), z: +u.z.toFixed(3),
+  hp: Math.round(u.hp), mh: Math.round(u.maxHp), sz: u.size, b: u.boss ? 1 : 0, c: u.cost, lv: u.st.level, gs: u.buffs.growScale ?? 1, st: u.state, sp: u.spawnT ?? 0,
 });
+const bref = (b) => ({ bk: b.kind, bs: b.side });
 
 function serEvent(e) {
   const o = { type: e.type };
@@ -21,9 +23,13 @@ function serEvent(e) {
     if (k === 'type' || k === 't') continue;
     const v = e[k];
     if (k === 'unit') o.unit = e.type === 'spawn' ? unitFull(v) : { i: v.id, x: v.x, size: v.size, side: v.side, type: v.type };
-    else if (k === 'src') o.src = v && v.id ? { i: v.id, size: v.size, side: v.side } : null;
-    else if (k === 'proj') o.proj = { i: v.id, kind: v.kind, x0: v.x0, tx: v.tx, flight: v.flight, h: v.height, s: v.side, src: v.src?.id, tgt: v.target?.lab !== undefined ? { lab: v.target.lab } : v.target?.id };
-    else if (k === 'mover') o.mover = { i: v.id, kind: v.kind, side: v.side, x: v.x, speed: v.speed };
+    else if (k === 'src') o.src = v ? (v.building ? bref(v) : v.id ? { i: v.id, size: v.size, side: v.side } : null) : null;
+    else if (k === 'proj') {
+      o.proj = {
+        i: v.id, kind: v.kind, x0: v.x0, tx: v.tx, flight: v.flight, h: v.height, s: v.side,
+        src: v.src?.building ? bref(v.src) : v.src?.id, tgt: v.target?.building ? bref(v.target) : v.target?.id, tw: v.tower ? 1 : 0,
+      };
+    } else if (k === 'mover') o.mover = { i: v.id, kind: v.kind, side: v.side, x: v.x, speed: v.speed };
     else o[k] = v;
   }
   return o;
@@ -36,7 +42,6 @@ export class HostSync {
     this.peer = peer;
     this.acc = 0;
     this.pending = [];
-    // tap the event stream (view drains it every frame)
     const orig = sim.drainEvents.bind(sim);
     sim.drainEvents = () => {
       const evs = orig();
@@ -49,22 +54,22 @@ export class HostSync {
     const sim = this.sim;
     if (msg.t !== 'in' || sim.over) return;
     switch (msg.a) {
-      case 'deploy': sim.deploy(1, msg.i); break;
-      case 'spell': sim.castSpell(1, msg.i, -msg.x); break;
+      case 'play': sim.play(1, msg.slot, msg.x === null ? null : -msg.x); break;
       case 'sig': sim.useSignature(1); break;
       case 'skill': sim.useSkill(1, msg.k); break;
       case 'lab': sim.upgradeLab(1); break;
-      case 'surrender': sim.end(0); break;
+      case 'emote': this.peerEmote && this.peerEmote(msg.e); break;
+      case 'surrender': sim.end(0, { reason: 'surrender' }); break;
       default: break;
     }
   }
   snapshot() {
     const sim = this.sim;
+    const tw = (b) => [Math.round(b.hp), b.maxHp, b.alive ? 1 : 0, b.active ? 1 : 0, Math.round(b.shield)];
     return {
-      t: 's', time: +sim.t.toFixed(2), tl: sim.timeLimit, ot: sim.overtime ? 1 : 0, p: sim.paused ? 1 : 0,
-      sides: sim.sides.map((s) => [Math.round(s.energy), s.labLevel, Math.round(s.labHp), s.labMaxHp, Math.round(s.shield), +s.sig.toFixed(3),
-        s.cds.map((c) => +c.toFixed(2)), s.spellCds.map((c) => +c.toFixed(2)), s.skillCds.map((c) => +c.toFixed(2)),
-        [+s.buffs.rally.toFixed(2), +s.buffs.dance.toFixed(2), +s.buffs.immortal.toFixed(2)]]),
+      t: 's', time: +sim.t.toFixed(2), tl: sim.timeLimit, ot: sim.overtime ? 1 : 0, de: sim.doubleEnergy ? 1 : 0, p: sim.paused ? 1 : 0,
+      sides: sim.sides.map((s) => [+s.energy.toFixed(2), s.overclock, +s.sig.toFixed(3), s.hand, s.queue, s.skillCds.map((c) => +c.toFixed(2)),
+        [+s.buffs.rally.toFixed(2), +s.buffs.dance.toFixed(2), +s.buffs.immortal.toFixed(2)], tw(s.turret), tw(s.lab), s.crowns]),
       u: sim.units.filter((u) => !u.dead).map((u) => [u.id, +u.x.toFixed(3), +u.y.toFixed(3), Math.round(u.hp), Math.round(u.maxHp), Math.max(0, STATES.indexOf(u.state)), u.buffs.growScale ?? 1,
         (u.buffs.burnT > 0 ? 1 : 0) | (u.buffs.slowT > 0 && u.buffs.slow > 0 ? 2 : 0)]),
       mv: sim.movers.map((m) => [m.id, +m.x.toFixed(3)]),
@@ -96,10 +101,13 @@ export class RemoteSim {
     this.cfg = cfg;
     this.peer = peer;
     this.t = 0;
-    this.timeLimit = 150;
+    this.timeLimit = 180;
+    this.regulation = 180;
     this.overtime = false;
+    this.doubleEnergy = false;
     this.over = false;
     this.winner = -1;
+    this.draw = false;
     this.paused = true;
     this.units = [];
     this.unitMap = new Map();
@@ -111,34 +119,46 @@ export class RemoteSim {
     this.sides = cfg.sides.map((s, i) => {
       const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
       const lvl = s.commander?.level ?? 1;
+      const deck = (s.deck || []).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
+      const mk = (kind, x, half) => ({ building: true, kind, side: i, x, half, hp: 1, maxHp: 1, alive: true, active: kind === 'turret', shield: 0, radius: half, dead: false });
       return {
-        i, dir: i === 0 ? 1 : -1, labX: i === 0 ? -LAB_X : LAB_X, name: s.name, deck: s.deck, spells: s.spells || [],
-        energy: 0, labLevel: 1, labHp: s.labHp, labMaxHp: s.labHp, shield: 0, sig: 0,
-        cds: s.deck.map(() => 0), spellCds: (s.spells || []).map(() => 0), cmd, cmdLevel: lvl,
-        skills: cmd ? cmd.skills.filter((k) => lvl >= k.level) : [], skillCds: [], perks: s.perks || {},
-        buffs: { rally: 0, dance: 0, immortal: 0 }, stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {} },
+        i, dir: i === 0 ? 1 : -1, labX: i === 0 ? -LAB_X : LAB_X, name: s.name, deck, hand: deck.slice(0, 4).map((_, k) => k), queue: deck.slice(4).map((_, k) => k + 4),
+        energy: ENERGY.start, overclock: 0, sig: 0, crowns: 0,
+        lab: mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF), turret: mk('turret', i === 0 ? -TURRET_X : TURRET_X, FIELD.TURRET_HALF),
+        cmd, cmdLevel: lvl, skills: cmd ? cmd.skills.filter((k) => lvl >= k.level) : [], skillCds: [], perks: s.perks || {},
+        buffs: { rally: 0, dance: 0, immortal: 0 }, stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       };
     });
     this.sides.forEach((s) => (s.skillCds = s.skills.map(() => 0)));
     this.offMsg = peer.on((msg) => this.onMsg(msg));
   }
 
-  // ---- incoming
+  bld(r) {
+    if (!r) return null;
+    const s = this.sides[mSide(r.bs)];
+    return r.bk === 'lab' ? s.lab : s.turret;
+  }
+
   onMsg(msg) {
     if (msg.t !== 's') return;
-    // events first (spawns create units), then state
     for (const e of msg.e || []) this.applyEvent(e);
     this.t = msg.time;
     this.timeLimit = msg.tl;
     this.overtime = !!msg.ot;
+    this.doubleEnergy = !!msg.de;
     this.paused = !!msg.p;
     msg.sides.forEach((arr, hs) => {
       const s = this.sides[mSide(hs)];
-      [s.energy, s.labLevel, s.labHp, s.labMaxHp, s.shield, s.sig] = arr;
-      s.cds = arr[6];
-      s.spellCds = arr[7];
-      s.skillCds = arr[8];
-      [s.buffs.rally, s.buffs.dance, s.buffs.immortal] = arr[9];
+      [s.energy, s.overclock, s.sig, s.hand, s.queue, s.skillCds] = arr;
+      [s.buffs.rally, s.buffs.dance, s.buffs.immortal] = arr[6];
+      for (const [b, a] of [[s.turret, arr[7]], [s.lab, arr[8]]]) {
+        [b.hp, b.maxHp] = a;
+        b.alive = !!a[2];
+        b.dead = !b.alive;
+        b.active = !!a[3];
+        b.shield = a[4];
+      }
+      s.crowns = arr[9];
     });
     const alive = new Set();
     for (const a of msg.u) {
@@ -169,9 +189,10 @@ export class RemoteSim {
     const def = SWARMS[d.ty] || SWARMS.panther;
     const st = swarmStats(d.ty, d.lv ?? 1, d.v ?? 'base');
     u = {
-      id: d.i, side: mSide(d.s), type: d.ty, model: d.m ?? undefined, skin: d.sk, variant: d.v ?? 'base', st,
-      x: mX(d.x), y: d.y, z: d.z, hp: d.hp, maxHp: d.mh, size: d.sz, boss: !!d.b, cost: d.c ?? def.cost, state: 'walk',
+      id: d.i, side: mSide(d.s), type: d.ty, card: d.cd, model: d.m ?? undefined, skin: d.sk, variant: d.v ?? 'base', st,
+      x: mX(d.x), y: d.y, z: -d.z, hp: d.hp, maxHp: d.mh, size: d.sz, boss: !!d.b, cost: d.c ?? def.elixir, state: d.st ?? 'walk', spawnT: d.sp ?? 0,
       buffs: { growScale: d.gs ?? 1, burnT: 0, slowT: 0, slow: 0 }, radius: 0.3 * d.sz, dead: false, _born: performance.now(),
+      flying: !!def.traits?.flying, level: d.lv ?? 1,
     };
     this.unitMap.set(d.i, u);
     this.units.push(u);
@@ -186,17 +207,18 @@ export class RemoteSim {
     const ev = { ...e };
     if ('side' in ev && typeof ev.side === 'number') ev.side = mSide(ev.side);
     if ('killerSide' in ev) ev.killerSide = mSide(ev.killerSide);
-    if ('winner' in ev) ev.winner = mSide(ev.winner);
-    if (typeof ev.x === 'number') ev.x = mX(ev.x);
+    if ('winner' in ev) ev.winner = ev.winner < 0 ? -1 : mSide(ev.winner);
+    for (const k of ['x', 'from']) if (typeof ev[k] === 'number') ev[k] = mX(ev[k]);
     if (Array.isArray(ev.xs)) ev.xs = ev.xs.map(mX);
     if (e.unit) ev.unit = e.type === 'spawn' ? this.toUnit(e.unit) : this.ref(e.unit);
-    if (e.src) ev.src = this.unitMap.get(e.src.i) || { id: e.src.i, size: e.src.size, side: mSide(e.src.side ?? 0) };
+    if (e.src) ev.src = e.src.bk ? this.bld(e.src) : this.unitMap.get(e.src.i) || { id: e.src.i, size: e.src.size, side: mSide(e.src.side ?? 0) };
     if (e.proj) {
       const p = e.proj;
       let pr = this.projMap.get(p.i);
       if (!pr) {
-        const tgt = p.tgt && typeof p.tgt === 'object' ? { lab: mSide(p.tgt.lab) } : this.unitMap.get(p.tgt) || null;
-        pr = { id: p.i, kind: p.kind, x0: mX(p.x0), x: mX(p.x0), tx: mX(p.tx), flight: p.flight, t: 0, height: p.h, side: mSide(p.s), src: this.unitMap.get(p.src) || { id: p.src, x: mX(p.x0), size: 1 }, target: tgt };
+        const tgt = p.tgt && typeof p.tgt === 'object' ? this.bld(p.tgt) : this.unitMap.get(p.tgt) || null;
+        const src = p.src && typeof p.src === 'object' ? this.bld(p.src) : this.unitMap.get(p.src) || { id: p.src, x: mX(p.x0), size: 1 };
+        pr = { id: p.i, kind: p.kind, x0: mX(p.x0), x: mX(p.x0), tx: mX(p.tx), flight: p.flight, t: 0, height: p.h, side: mSide(p.s), src, target: tgt, tower: !!p.tw };
         this.projMap.set(p.i, pr);
         this.projectiles.push(pr);
       }
@@ -224,13 +246,13 @@ export class RemoteSim {
       ev.unit.dead = true;
       ev.unit._deadAt = performance.now();
     }
+    if (e.type === 'landed' && ev.unit) ev.unit.state = 'walk';
     if (e.type === 'end') {
       this.over = true;
       this.winner = ev.winner;
+      this.draw = !!e.draw;
     }
-    if (e.type === 'deploy' && ev.side === 0) {
-      this.sides[0].stats.deployed++;
-    }
+    if (e.type === 'deploy' && ev.side === 0) this.sides[0].stats.deployed += e.count ?? 1;
     this.events.push(ev);
   }
 
@@ -239,7 +261,7 @@ export class RemoteSim {
     if (this.over) return;
     for (const p of this.projectiles) {
       p.t += dt;
-      if (p.target && !p.target.lab && !p.target.dead) p.tx = p.target.x;
+      if (p.target && !p.target.building && !p.target.dead) p.tx = p.target.x;
       p.x = p.x0 + (p.tx - p.x0) * Math.min(1, p.t / p.flight);
     }
     for (const m of this.movers) m.x += this.sides[m.side].dir * m.speed * dt;
@@ -249,31 +271,48 @@ export class RemoteSim {
     this.events = [];
     return e;
   }
-  labLevelInfo(si) {
-    return LAB_LEVELS[this.sides[si].labLevel - 1];
+  get timeLeft() {
+    return Math.max(0, this.timeLimit - this.t);
   }
-  cardCost(si, idx) {
+  handCard(si, slot) {
     const s = this.sides[si];
-    const c = s.deck[idx];
+    const k = s.hand[slot];
+    return k === undefined ? null : s.deck[k];
+  }
+  nextCard(si) {
+    const s = this.sides[si];
+    return s.queue.length ? s.deck[s.queue[0]] : null;
+  }
+  cardCost(si, slot) {
+    const c = this.handCard(si, slot);
     if (!c) return Infinity;
-    return Math.round(SWARMS[c.id].cost * (1 - (s.perks.bargain ?? 0) / 100));
+    return (c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3;
   }
-  canDeploy(si, idx) {
-    const s = this.sides[si];
-    return !this.over && s.deck[idx] && s.cds[idx] <= 0 && s.energy >= this.cardCost(si, idx);
+  canPlay(si, slot) {
+    return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
-  spellCost(si, idx) {
-    const sp = this.sides[si].spells[idx];
-    return sp ? SPELLS[sp.id].cost : Infinity;
-  }
-  canCast(si, idx) {
-    const s = this.sides[si];
-    return !this.over && s.spells[idx] && s.spellCds[idx] <= 0 && s.energy >= this.spellCost(si, idx);
+  overclockInfo(si) {
+    return OVERCLOCK[this.sides[si].overclock];
   }
   canUpgradeLab(si) {
     const s = this.sides[si];
-    const info = LAB_LEVELS[s.labLevel - 1];
-    return !this.over && info.upCost !== null && s.energy >= info.upCost;
+    const info = OVERCLOCK[s.overclock];
+    return !this.over && info.cost !== null && s.energy >= info.cost;
+  }
+  deployRange(si) {
+    const s = this.sides[si], en = this.sides[1 - si];
+    const back = s.labX + s.dir * (LAB_HALF + 0.2);
+    let front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX;
+    if (!en.turret.alive) front = en.turret.x - s.dir * 1.6;
+    return si === 0 ? [back, front] : [front, back];
+  }
+  clampDeploy(si, x) {
+    const [a, b] = this.deployRange(si);
+    return Math.max(a, Math.min(b, x));
+  }
+  frontBuilding(si) {
+    const en = this.sides[1 - si];
+    return en.turret.alive ? en.turret : en.lab.alive ? en.lab : null;
   }
   enemiesOf(si) {
     return this.units.filter((u) => !u.dead && u.side !== si);
@@ -305,24 +344,20 @@ export class RemoteSim {
     return null;
   }
 
-  // ---- actions: sent to the host (optimistic success if locally valid)
+  // ---- actions: sent to the host (optimistic if locally valid)
   send(a, extra = {}) {
     this.peer.send({ t: 'in', a, ...extra });
   }
-  deploy(si, idx) {
-    if (!this.canDeploy(0, idx)) return false;
-    this.send('deploy', { i: idx });
-    this.sides[0].energy -= this.cardCost(0, idx);
-    this.sides[0].cds[idx] = SWARMS[this.sides[0].deck[idx].id].cd;
+  play(si, slot, x = null) {
+    if (!this.canPlay(0, slot)) return false;
+    const card = this.handCard(0, slot);
+    const xx = x === null ? null : card.spell ? x : this.clampDeploy(0, x);
+    this.send('play', { slot, x: xx === null ? null : mX(xx) });
+    this.sides[0].energy -= this.cardCost(0, slot);
     return true;
   }
-  castSpell(si, idx, x) {
-    if (!this.canCast(0, idx)) return false;
-    this.send('spell', { i: idx, x: mX(x) });
-    this.sides[0].energy -= this.spellCost(0, idx);
-    this.sides[0].spellCds[idx] = SPELLS[this.sides[0].spells[idx].id].cd;
-    this.sides[0].stats.spells++;
-    return true;
+  deploy(si, slot) {
+    return this.play(si, slot, null);
   }
   useSignature() {
     if (this.sides[0].sig < 1 || this.over) return false;
@@ -343,10 +378,11 @@ export class RemoteSim {
     this.send('lab');
     return true;
   }
-  end(winner) {
-    // surrender: tell the host
+  emote(id) {
+    this.send('emote', { e: id });
+  }
+  end() {
     this.send('surrender');
-    void winner;
   }
   dispose() {
     this.offMsg && this.offMsg();

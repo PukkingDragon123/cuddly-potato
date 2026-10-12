@@ -4,7 +4,7 @@
 // (model faces +Z, y = 0 ground, x symmetric around -0.5, parts modelled in
 // absolute coordinates and attached with jp() at their joints).
 // eslint-disable-next-line no-unused-vars
-import { G, blob, rbox, capsule, chain, cyl, stamp, eyes, mirror, sym, symBox, glowWhere, fadeY, gradY, n3, jp, part, shade, mixHex, mottle } from '../kit.js';
+import { G, blob, rbox, capsule, chain, cyl, stamp, eyes, mirror, sym, symBox, glowWhere, fadeY, gradY, n3, jp, part, shade, mixHex, mottle, frontZ } from '../kit.js';
 
 const MAG = 0xff1f9e; // MrBeast magenta
 const INK = 0x15121f;
@@ -45,7 +45,8 @@ function eyeBall(g, cx, cy, cz, r, side, o = {}) {
   stamp(g, art, { P: { c: o.pupil ?? INK, glow: !!o.pupilGlow }, G: { c: 0xffffff, glow: true } }, { axis: 'z', x: px, y: py, depth: 2 });
   if (o.brow !== false) {
     const bc = o.browCol ?? INK, bt = o.browT ?? 2;
-    const x0 = Math.floor(Math.min(outer, inner)) - (side < 0 ? 1 : 0), x1 = Math.ceil(Math.max(outer, inner)) + (side > 0 ? 1 : 0);
+    const ext = o.browOut ?? 1;
+    const x0 = Math.floor(Math.min(outer, inner)) - (side < 0 ? ext : 0), x1 = Math.ceil(Math.max(outer, inner)) + (side > 0 ? ext : 0);
     for (let x = x0; x <= x1; x++) {
       const yb = Math.round(yLine(Math.max(Math.min(x, Math.max(outer, inner)), Math.min(outer, inner))));
       const t = (x - cx) / (rx + 1.2);
@@ -53,6 +54,17 @@ function eyeBall(g, cx, cy, cz, r, side, o = {}) {
       for (let y = yb; y < yb + bt; y++) for (let z = cz - 1; z <= zf; z++) g.set(x, y, z, bc);
     }
   }
+  return g;
+}
+
+/** Remove interior voxels deeper than d from the surface (keeps the look, trims the voxel count). */
+function hollowOut(g, d = 2) {
+  const kill = [];
+  g.forEach((x, y, z) => {
+    for (let dx = -d; dx <= d; dx++) for (let dy = -d; dy <= d; dy++) for (let dz = -d; dz <= d; dz++) if (!g.has(x + dx, y + dy, z + dz)) return;
+    kill.push([x, y, z]);
+  });
+  for (const [x, y, z] of kill) g.del(x, y, z);
   return g;
 }
 
@@ -324,6 +336,7 @@ function circuitShark() {
     gold: 0xffc93a, goldD: 0xd89a1a, via: 0x7ff6ff, chip: 0x1d2236, pin: 0xd8dde8,
     metal: 0xb4bdd0, metalD: 0x5a6378, boot: 0x2a2440, spark: 0x9ffcff,
   };
+  const GUM = 0xff4f9a;
   // countershaded PCB skin: dark top, green flanks, white belly
   const skin = (bellyY) => (x, y, z) => (y <= bellyY ? K.belly : y >= bellyY + 9 ? K.top : n3(x, y, z, 3) < 0.07 ? K.light : K.main);
   // circuit traces stamped on a side (art columns run towards the tail)
@@ -366,49 +379,54 @@ function circuitShark() {
     'MMMMMMMMMMM',
   ];
   slabYZ(body, FIN, { M: MAG, m: 0xff7ccc }, -1, 0, 30, -3);
-  for (const [y, z] of [[31, -12], [32, -13], [29, -14], [27, -13]]) body.set(y === 31 ? -1 : 0, y, z, K.spark, true);
+  for (const [y, z] of [[31, -11], [32, -12], [32, -13], [33, -14], [29, -13], [28, -14], [28, -15]]) for (const x of [-1, 0]) body.set(x, y, z, K.spark, true);
   gradY(body, 8, 22, -0.08, 0.05);
 
   // ------------------------------------------------------------ head (upper jaw, eyes, snout)
   const HJ = [-0.5, 15, -2];
   const head = G();
-  blob(head, -0.5, 18, 3, 8.6, 7.6, 9.6, skin(13), { p: 2.25 });
-  blob(head, -0.5, 19.5, 9.5, 6.6, 4.6, 4.4, skin(13), { p: 2.2 });
+  blob(head, -0.5, 18, 3, 8.8, 7.4, 9.2, skin(13), { p: 2.35 });
+  // pointed snout overhanging the grin
+  blob(head, -0.5, 20.5, 9.5, 4.6, 3.6, 4.6, skin(13), { p: 2.2 });
+  capsule(head, [-0.5, 20.5, 10], [-0.5, 20, 14.5], 3.4, 1.6, skin(13));
   // the mouth: carve the lower front and line it
   head.carve((x, y, z) => y <= 15 && z >= 3);
   head.carve((x, y, z) => y < 11);
   head.forEach((x, y, z) => {
-    if (y === 16 && z >= 3 && head.has(x, 17, z) && !head.has(x, 15, z)) head.set(x, y, z, MOUTH);
+    if (y === 16 && z >= 3 && !head.has(x, 15, z)) head.set(x, y, z, MOUTH);
   });
-  for (let x = -9; x <= 8; x++) for (let y = 11; y <= 15; y++) if (head.has(x, y, 2)) head.set(x, y, 2, MOUTH);
-  // upper teeth: zig-zag row hanging from the rim (front + sides)
+  for (let x = -10; x <= 9; x++) for (let y = 11; y <= 15; y++) if (head.has(x, y, 2)) head.set(x, y, 2, MOUTH);
+  // upper teeth: zig-zag row hanging from a magenta gum line (front + sides)
   head.forEach((x, y, z) => {
     if (y !== 16 || z < 3) return;
     const rim = !head.has(x, 16, z + 1) || !head.has(x + 1, 16, z) || !head.has(x - 1, 16, z);
     if (!rim) return;
+    head.set(x, 16, z, GUM);
     head.set(x, 15, z, TOOTH);
     if (((x + z + 40) % 2) === 0) head.set(x, 14, z, TOOTH);
   });
-  // eyes: bulging, angry, high on the head
-  eyeBall(head, -5, 21, 9, [2.6, 3, 2.6], -1, { browCol: K.top, browT: 2, pw: 2, ph: 3, inward: 0.6 });
-  eyeBall(head, 4, 21, 9, [2.6, 3, 2.6], 1, { browCol: K.top, browT: 2, pw: 2, ph: 3, inward: 0.6 });
+  // eyes: big, bulging and angry on either side of the snout
+  for (const [cx, side] of [[-5.5, -1], [4.5, 1]]) {
+    const cz = (frontZ(head, Math.round(cx), 20) ?? 9) - 1;
+    eyeBall(head, cx, 20, cz, [2.8, 3, 2.2], side, { pw: 2, ph: 3, inward: 0.7, browT: 2, browHi: 0.9, browLo: 0.2, browOut: 0 });
+  }
   // nostrils + magenta bolt cheek marks
-  sym(head, -2, 21, 14, K.top);
-  stamp(head, ['..MM', '.MM.', 'MMMM', '.MM.', 'MM..'], { M: MAG }, { axis: '-x', y: 20, z: 4 });
-  stamp(head, ['MM..', '.MM.', 'MMMM', '.MM.', '..MM'], { M: MAG }, { axis: 'x', y: 20, z: 1 });
-  stamp(head, TRACE.slice(0, 4), tracePal, { axis: '-x', y: 25, z: 1 });
-  stamp(head, rev(TRACE.slice(0, 4)), tracePal, { axis: 'x', y: 25, z: -11 });
+  sym(head, -2, 20, 15, K.top); sym(head, -2, 20, 14, K.top);
+  stamp(head, ['..MM', '.MM.', 'MMMM', '.MM.', 'MM..'], { M: MAG }, { axis: '-x', y: 21, z: 3 });
+  stamp(head, ['MM..', '.MM.', 'MMMM', '.MM.', '..MM'], { M: MAG }, { axis: 'x', y: 21, z: 0 });
+  stamp(head, TRACE.slice(0, 4), tracePal, { axis: '-x', y: 25, z: -1 });
+  stamp(head, rev(TRACE.slice(0, 4)), tracePal, { axis: 'x', y: 25, z: -13 });
   gradY(head, 11, 26, -0.06, 0.06, (x, y, z, c) => c !== TOOTH && c !== MOUTH);
 
   // ------------------------------------------------------------ jaw (lower jaw, opens wide)
   const JJ = [-0.5, 14, 1];
   const jaw = G();
-  blob(jaw, -0.5, 12, 6.5, 7.4, 3.2, 7.4, (x, y) => (y <= 10 ? K.bellyD : K.belly), { p: 2.3 });
+  blob(jaw, -0.5, 12, 6.5, 7.6, 3.2, 7.6, (x, y) => (y <= 10 ? K.bellyD : K.belly), { p: 2.4 });
   jaw.carve((x, y) => y > 13);
   jaw.forEach((x, y, z) => {
     if (y !== 13) return;
     const rim = !jaw.has(x, 13, z + 1) || !jaw.has(x + 1, 13, z) || !jaw.has(x - 1, 13, z);
-    if (rim) { jaw.set(x, 14, z, TOOTH); if (((x + z + 41) % 2) === 0) jaw.set(x, 15, z, TOOTH); }
+    if (rim) { jaw.set(x, 13, z, GUM); jaw.set(x, 14, z, TOOTH); if (((x + z + 41) % 2) === 0) jaw.set(x, 15, z, TOOTH); }
     else jaw.set(x, y, z, Math.abs(x + 0.5) <= 3 && z <= 10 ? TONGUE : MOUTH);
   });
 
@@ -449,9 +467,159 @@ function circuitShark() {
       jp('armR', armR, [5, 13, 0], [-0.5, 0, 0], { parent: 'body' }),
       jp('tail', tail, TJ, [-0.5, 0, 0], { parent: 'body' }),
       jp('head', head, HJ),
-      jp('jaw', jaw, JJ, HJ, { parent: 'head', rot: [0.18, 0, 0] }),
+      jp('jaw', jaw, JJ, HJ, { parent: 'head', rot: [0.3, 0, 0] }),
     ],
     muzzle: [-0.5, 14, 15],
+  };
+}
+
+// ===========================================================================
+// Mega-Tech Mech (legendary): a stompy walking missile tank. The chunky
+// cockpit body is its face (glowing angry visor eyes, grille jaw full of
+// teeth), twin missile pods on its shoulders recoil when it fires a volley,
+// gatling arms swing up to aim and a radar dish spins on its back.
+function megaTechMech() {
+  const K = {
+    armor: 0xff6a1a, armorD: 0xd2480c, armorL: 0xffa45a, white: 0xf3f5fa, whiteD: 0xc9cfdc,
+    gun: 0x3a4258, gunD: 0x262c3e, gunL: 0x6b7590, visor: 0x101830, eye: 0x5ff6ff, eyeHot: 0xe0ffff,
+    yellow: 0xffd23f, red: 0xff2f45,
+  };
+  const armorCol = (x, y, z) => (y >= 25 ? K.armorL : K.armor);
+
+  // ------------------------------------------------------------ legs (thick pistons + big stompy feet)
+  const leg = G();
+  blob(leg, -6, 11, -1, 2.8, 2.6, 2.8, K.gun);
+  capsule(leg, [-6, 10, -1], [-6, 6, 0], 2.2, 2, K.gunL);
+  rbox(leg, -9, 3, -3, -3, 8, 3, 2, armorCol); // shin armour
+  rbox(leg, -8, 7, 2, -4, 9, 4, 1, K.white); // knee cap
+  rbox(leg, -10, 0, -5, -2, 3, 6, 1.5, K.gunD); // foot
+  rbox(leg, -10, 1, 4, -2, 3, 7, 1, K.white); // toe cap
+  for (let x = -10; x <= -2; x++) for (let z = -5; z <= 7; z++) if (leg.has(x, 0, z)) leg.set(x, 0, z, (x + z + 40) % 4 < 2 ? K.yellow : INK); // hazard soles
+  const legR = flipX(leg);
+
+  // ------------------------------------------------------------ hips
+  const body = G();
+  rbox(body, -7, 9, -4, 6, 13, 4, 2, K.gun);
+  rbox(body, -5, 10, 4, 4, 12, 5, 1, K.yellow);
+  for (let x = -5; x <= 4; x++) if ((x + 40) % 3 === 0) body.set(x, 11, 6, INK);
+
+  // ------------------------------------------------------------ head = cockpit torso with the face
+  const HJ = [-0.5, 13, 0];
+  const head = G();
+  rbox(head, -10, 13, -7, 9, 27, 8, 4, armorCol);
+  // white face plate + darker belly band
+  rbox(head, -8, 18, 7, 7, 26, 9, 2, K.white);
+  rbox(head, -11, 13, -6, 10, 15, 7, 1, K.armorD);
+  // visor band with angry glowing eyes
+  rbox(head, -8, 19, 9, 7, 24, 9, 1, K.visor);
+  const VISOR_L = [
+    'BB.......',
+    '.BBB.....',
+    '..EBBBB..',
+    '.EEEEBBB.',
+    '.EEEPPE..',
+    '.EEEPPE..',
+    '..EEEE...',
+  ];
+  const VISOR = VISOR_L.map((r) => r + [...r].reverse().join(''));
+  stamp(head, VISOR, { B: { c: MAG, raise: 1 }, E: { c: K.eye, glow: true }, P: K.visor }, { axis: 'z', x: -9, y: 25, zmin: 6 });
+  sym(head, -5, 21, 10, K.eyeHot, true);
+  // gunmetal mouth frame + deep grille mouth (the jaw plate hangs below it)
+  rbox(head, -8, 13, 7, 7, 18, 9, 1, K.gun);
+  head.carve((x, y, z) => y >= 13 && y <= 17 && z >= 5 && Math.abs(x + 0.5) <= 6.6);
+  for (let x = -7; x <= 6; x++) {
+    for (let y = 13; y <= 17; y++) head.set(x, y, 4, MOUTH);
+    for (let z = 5; z <= 7; z++) head.set(x, 18, z, MOUTH);
+    head.set(x, 17, 8, TOOTH);
+    if ((x + 7) % 2 === 0) head.set(x, 16, 8, TOOTH);
+  }
+  // shoulder sockets + MrBeast bolts on the flanks + rivets
+  for (const s of [-1, 1]) blob(head, s < 0 ? -11 : 10, 21, 0, 2.4, 2.4, 2.4, K.gun);
+  const BOLT = ['..MMM', '.MMM.', 'MMM..', 'MMMMM', '..MM.', '.MM..', 'MM...'];
+  stamp(head, BOLT, { M: MAG }, { axis: '-x', y: 21, z: -1, zmin: -8 });
+  stamp(head, rev(BOLT), { M: MAG }, { axis: 'x', y: 21, z: 3 });
+  for (const [x, y] of [[-7, 26], [6, 26]]) head.set(x, y, frontZ(head, x, y) + 1, K.whiteD);
+  // exhaust stacks on the back
+  for (const x of [-6, 5]) {
+    cyl(head, 'y', x, -7.5, 18, 26, 1.5, 1.5, K.gunL);
+    cyl(head, 'y', x, -7.5, 26, 27, 1.8, 1.8, K.gunD);
+    head.set(x, 27, -7, 0xff8a2a, true); head.set(x, 27, -8, 0xff8a2a, true);
+  }
+  // spinning radar dish mount
+  cyl(head, 'y', -0.5, -3, 27, 29, 1, 1, K.gunL);
+  gradY(head, 13, 27, -0.08, 0.06, (x, y, z, c) => c === K.armor || c === K.armorL || c === K.white);
+  hollowOut(head, 2);
+
+  // ------------------------------------------------------------ jaw: grille chin plate with lower teeth
+  const JJ = [-0.5, 13.5, 4];
+  const jaw = G();
+  rbox(jaw, -7, 10, 4, 6, 13, 9, 1, K.gun);
+  for (let x = -6; x <= 5; x++) {
+    for (let z = 5; z <= 7; z++) jaw.set(x, 13, z, MOUTH);
+    jaw.set(x, 14, 8, TOOTH);
+    if ((x + 6) % 2 === 1) jaw.set(x, 15, 8, TOOTH);
+    if ((x + 6) % 2 === 0) jaw.set(x, 11, 10, K.gunL);
+  }
+
+  // ------------------------------------------------------------ cannon: twin shoulder missile pods (recoil)
+  const CJ = [-0.5, 27, 0];
+  const cannon = G();
+  for (const s of [-1, 1]) {
+    const x0 = s < 0 ? -14 : 6, x1 = s < 0 ? -7 : 13;
+    rbox(cannon, x0, 25, -6, x1, 32, 5, 1.5, (x, y) => (y >= 31 ? K.armorL : K.armor));
+    rbox(cannon, x0, 25, 5, x1, 32, 6, 1, K.white);
+    rbox(cannon, x0, 25, -6, x1, 25, 5, 0, K.gun);
+    // 2x2 launch tubes with magenta missile tips
+    for (const tx of [x0 + 2, x1 - 2]) for (const ty of [30, 27]) {
+      cannon.box(tx - 1, ty - 1, 6, tx + 1, ty + 1, 6, K.gunD);
+      cannon.set(tx, ty, 7, MAG);
+      cannon.set(tx, ty, 8, 0xff9ad6);
+    }
+    // hazard stripes on the pod side
+    for (let z = -5; z <= 4; z++) for (let y = 27; y <= 28; y++) cannon.set(s < 0 ? x0 : x1, y, z, (z + y + 40) % 4 < 2 ? K.yellow : INK);
+    // pylon to the body
+    rbox(cannon, s < 0 ? -9 : 6, 24, -3, s < 0 ? -7 : 8, 26, 2, 0, K.gun);
+  }
+  hollowOut(cannon, 1);
+
+  // ------------------------------------------------------------ gatling arms (raise to aim)
+  const arm = G();
+  blob(arm, -12.5, 21, 0, 2.8, 2.8, 2.8, K.armor);
+  rbox(arm, -14, 17, -3, -11, 19, 3, 1, K.white);
+  capsule(arm, [-12.5, 19, 0], [-12.5, 14, 1], 1.8, 1.6, K.gunL);
+  rbox(arm, -15, 10, -2, -10, 15, 6, 2, armorCol); // forearm housing
+  for (const [dx, dy] of [[-1.2, 0], [1.2, 0], [0, 1.2], [0, -1.2]]) cyl(arm, 'z', -12.5 + dx, 12.5 + dy, 6, 11, 0.7, 0.7, K.gun);
+  cyl(arm, 'z', -12.5, 12.5, 7, 7, 2.3, 2.3, K.gunD);
+  cyl(arm, 'z', -12.5, 12.5, 11, 11, 2, 2, K.gunL, { hollow: 0.9 });
+  arm.set(-13, 12, 12, K.red, true);
+  const armR = flipX(arm);
+
+  // ------------------------------------------------------------ radar dish (spins) + antenna
+  const dish = G();
+  cyl(dish, 'y', -0.5, -3, 30, 30, 0.8, 0.8, K.gunL);
+  for (let x = -6; x <= 5; x++) for (let z = -8; z <= 2; z++) {
+    const d = Math.hypot(x + 0.5, z + 3);
+    if (d > 4.6) continue;
+    dish.set(x, 31 + Math.round(d * d / 10), z, d < 1.2 ? K.red : d > 3.6 ? K.armor : K.whiteD, d < 1.2);
+  }
+  const ant = G();
+  capsule(ant, [4.5, 27, -5], [6.5, 33, -6], 0.5, 0.4, K.gunL);
+  blob(ant, 6.5, 33.5, -6, 0.9, 0.9, 0.9, MAG, { glow: true });
+
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    parts: [
+      jp('legL', leg, [-6, 11, -1]), jp('legR', legR, [5, 11, -1]),
+      jp('body', body, [-0.5, 0, 0]),
+      jp('head', head, HJ),
+      jp('jaw', jaw, JJ, HJ, { parent: 'head', rot: [0.22, 0, 0] }),
+      jp('cannon', cannon, CJ, HJ, { parent: 'head' }),
+      jp('armL', arm, [-12.5, 21, 0], HJ, { parent: 'head' }),
+      jp('armR', armR, [11.5, 21, 0], HJ, { parent: 'head' }),
+      jp('spin', dish, [-0.5, 30, -2.5], HJ, { parent: 'head' }),
+      jp('antenna', ant, [4.5, 27, -5], HJ, { parent: 'head' }),
+    ],
+    muzzle: [-0.5, 29, 9],
   };
 }
 
@@ -459,4 +627,5 @@ export const TECHNO_MODELS = {
   glitchBot,
   droneFang,
   circuitShark,
+  megaTechMech,
 };

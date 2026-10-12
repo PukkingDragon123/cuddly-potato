@@ -1,6 +1,6 @@
-// Builds a battle side config (deck, spells, Commander, perks, cosmetics)
+// Builds a battle side config (deck, Commander, perks, Lab Level, cosmetics)
 // from the player's profile. Shared by battles and the friend-battle lobby.
-import { state, deployInfo, perkBonuses } from '../state.js';
+import { state, deployInfo, perkBonuses, currentDeck, labLevel } from '../state.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { CMD_SKINS } from '../../data/season.js';
 
@@ -13,20 +13,23 @@ export function commanderCfg(id, level, skinId) {
   return { id, level, char: c.char, override };
 }
 
+/** Card entry for a deck slot: { id (card), unit (what spawns), level, variant, skin }. */
+export function deckEntry(id, level, extra = {}) {
+  return { id, unit: id, level, variant: 'base', skin: null, ...extra };
+}
+
 export function playerSide() {
   const p = state.p;
-  const deck = p.deck.filter((id) => p.swarms[id]).map((id) => {
+  const deck = currentDeck().filter((id) => p.cards[id]).map((id) => {
     const d = deployInfo(id);
-    return { id: d.unit, baseId: id, level: d.level, variant: d.variant, skin: d.skin };
+    return { id, unit: d.unit, level: d.level, variant: d.variant, skin: d.skin };
   });
-  const spells = p.spells.equipped.filter((id) => p.spells.owned[id]).map((id) => ({ id, level: p.spells.owned[id].level }));
   const cid = p.commanders.equipped;
   const cs = p.commanders.owned[cid];
   const commander = commanderCfg(cid, cs?.level ?? 1, cs?.skin);
-  if (commander && cid === 'recruit') commander.override = { ...(commander.override || {}) };
   return {
-    name: p.name, deck, spells, commander, perks: perkBonuses(), labStyle: p.cosmetics.labSkin === 'default' ? 'default' : p.cosmetics.labSkin,
+    name: p.name, deck, commander, perks: perkBonuses(), labLevel: labLevel(),
+    labStyle: p.cosmetics.labSkin === 'default' ? 'default' : p.cosmetics.labSkin,
     banner: p.cosmetics.banner, trophies: p.trophies,
   };
 }
-
