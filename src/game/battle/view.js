@@ -1,5 +1,8 @@
-// Battle 3D view: renders the simulation with voxel models, particles,
-// camera work, Commander reactions and lots of juice.
+// Battle 3D view: renders the simulation inside a voxel arena with the
+// Battle Cats side-view camera — Labs (king towers) with their Commanders,
+// Panther Cannon guard turrets, Swarms dropped in from shattering vials,
+// team-coloured HP plates, tower projectiles, spells, Commander abilities and
+// lots of juice (hit-stop, shake, particles, slow-mo finishes).
 import * as THREE from 'three';
 import { engine, addLights } from '../../core/engine.js';
 import { VoxGrid, makeMesh, Mats } from '../../core/voxel.js';
@@ -13,69 +16,22 @@ import { SWARMS, SERIES } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
 import { createSwarm } from '../../models/swarmModels.js';
 import * as Props from '../../models/props.js';
-import { floatText, speech, bigBanner } from '../../ui/ui.js';
-import { LAB_X, LAB_HALF } from './sim.js';
-import { state } from '../state.js';
+import { makeLabBuilding } from '../../models/props/lab.js';
+import { makeTurret } from '../../models/props/turret.js';
+import { makeArenaBattle } from '../../models/arenas/index.js';
+import { battleCamera } from '../../models/arenas/kit.js';
+import { h, $world, floatText, speech } from '../../ui/ui.js';
+import { FIELD } from './field.js';
+import { LAB_X, LAB_HALF, TURRET_X } from './sim.js';
 
-const THEMES = {
-  lab: { sky: 0x8fd3ff, fog: 0xbfe6ff, ground: 0x7ac75a, lane: 0xcbb98a },
-  suburb: { sky: 0xffb38a, fog: 0xffd2b0, ground: 0x6fbf55, lane: 0x8a8f9a },
-  mansion: { sky: 0x9ad8ff, fog: 0xd0ecff, ground: 0x5fb84a, lane: 0xe8d8a0 },
-  mart: { sky: 0xfff0d8, fog: 0xffe8c8, ground: 0xe8e4dc, lane: 0xf4f0e8 },
-  techno: { sky: 0x1a1f4a, fog: 0x2a2f6a, ground: 0x3a4466, lane: 0x5a6488 },
-  reactor: { sky: 0x1a3a2a, fog: 0x2a5a3a, ground: 0x4a6a4a, lane: 0x6a7a5a },
-  factory: { sky: 0xd8a87a, fog: 0xe8c09a, ground: 0x7d4a2d, lane: 0xb07a4a },
-};
-
-const SIDE_COLORS = [0x5fdc4a, 0xff4a4a];
+export const TEAM_COLORS = [0x2b9cff, 0xff3d55];
+const TEAM_LIGHT = [0x9fe0ff, 0xffb0bc];
 const PROJ_COLORS = {
   sludge: [0x7a6a2a, 0x8fb23a], letters: [0xffffff, 0xf4f0e0], nuke: [0x7cff3a, 0xd4ff9a], zap: [0x9ff2ff, 0xffffff],
   laser: [0xff4fd8, 0x9ff2ff], missile: [0xdddddd, 0xff8a2a], fire: [0xff5a1f, 0xffd23f], fries: [0xffd23f, 0xf7c873],
   soda: [0x8a3a1a, 0xffe0c0], acid: [0x7cff3a, 0xb6ff3a],
 };
-
-// ---------------------------------------------------------------------------
-// Fallback visuals (used if a prop factory is missing)
-
-function fallbackLab(style, flip) {
-  const g = new VoxGrid();
-  const main = style === 'mansion' ? 0xf4ead0 : style === 'rival' ? 0x6a3a8a : 0xeaf2ff;
-  const trim = style === 'mansion' ? 0xffd23f : 0xff2e88;
-  g.box(-8, 0, -8, 7, 22, 7, main);
-  g.box(-9, 22, -9, 8, 23, 8, trim);
-  g.box(-3, 4, 8, 2, 16, 8, 0x29b6f6, true);
-  g.box(-6, 0, 8, 5, 2, 8, trim);
-  const root = new THREE.Group();
-  const mesh = makeMesh(g.build({ scale: 0.2 }));
-  root.add(mesh);
-  const seat = new THREE.Object3D();
-  seat.position.set(flip ? -1.2 : 1.2, 4.7, 0.3);
-  root.add(seat);
-  const core = new THREE.Object3D();
-  core.position.set(0, 2, 1.7);
-  root.add(core);
-  return { root, seat, core, height: 4.7, width: 3.4, meshes: [mesh], setLevel() {}, setDamage() {}, update() {} };
-}
-
-function fallbackBackdrop(theme) {
-  const t = THEMES[theme] || THEMES.lab;
-  const root = new THREE.Group();
-  const ground = new THREE.Mesh(new THREE.BoxGeometry(80, 1, 40), new THREE.MeshLambertMaterial({ color: t.ground }));
-  ground.position.set(0, -0.5, -12);
-  ground.receiveShadow = true;
-  root.add(ground);
-  const lane = new THREE.Mesh(new THREE.BoxGeometry(64, 0.04, 6), new THREE.MeshLambertMaterial({ color: t.lane }));
-  lane.position.y = 0.02;
-  lane.receiveShadow = true;
-  root.add(lane);
-  for (let i = 0; i < 30; i++) {
-    const h = rand(1, 5);
-    const b = new THREE.Mesh(new THREE.BoxGeometry(rand(1, 3), h, rand(1, 3)), new THREE.MeshLambertMaterial({ color: pick([0x6a8acf, 0x8fbf6a, 0xcf8a6a, 0xdcdcdc]) }));
-    b.position.set(rand(-34, 34), h / 2, rand(-22, -6));
-    root.add(b);
-  }
-  return { root, breakables: [], update() {} };
-}
+const LOB = new Set(['sludge', 'letters', 'nuke', 'fries', 'fire', 'acid', 'labCannon']);
 
 function propOr(name, ...args) {
   try {
@@ -92,11 +48,19 @@ function simpleVox(build, scale = 0.1) {
   return makeMesh(g.build({ scale, pivot: 'center' }));
 }
 
+const hexOf = (css, fb = 0x7cff3a) => (typeof css === 'string' ? parseInt(css.replace('#', ''), 16) : css ?? fb);
+const seriesColor = (id) => hexOf(SERIES[SWARMS[id]?.series]?.color);
+
+// ---------------------------------------------------------------------------
+// Shared meshes
+
 const projGeo = {};
-function projectileMesh(kind) {
-  if (!projGeo[kind]) {
+function projectileMesh(kind, side = 0) {
+  const key = kind + side;
+  if (!projGeo[key]) {
     const c = PROJ_COLORS[kind] || [0xffffff, 0xdddddd];
     const g = new VoxGrid();
+    let scale = 0.1;
     switch (kind) {
       case 'letters':
         g.box(-2, 0, -1, 1, 0, 1, c[0]).set(-1, 0, 2, 0xff4a4a).set(0, 0, 2, 0x29b6f6);
@@ -120,14 +84,114 @@ function projectileMesh(kind) {
       case 'soda':
         g.sphere(-0.5, -0.5, -0.5, 1.4, 0x9a4a2a).set(0, 1, 0, 0xfff0e0);
         break;
+      case 'turretBolt':
+        // elongated team-coloured plasma slug with a white-hot core
+        g.box(-1, -1, -4, 0, 0, 3, TEAM_COLORS[side], true);
+        g.box(-1, -1, 1, 0, 0, 4, 0xffffff, true);
+        scale = 0.07;
+        break;
+      case 'labCannon':
+        g.sphere(-0.5, -0.5, -0.5, 2.6, (x, y, z) => ((x + y + z) & 1 ? TEAM_COLORS[side] : TEAM_LIGHT[side]), true);
+        g.set(0, 0, 3, 0xffffff, true);
+        scale = 0.09;
+        break;
       default:
         g.sphere(-0.5, -0.5, -0.5, 1.6, (x, y, z) => ((x + y + z) & 1 ? c[0] : c[1]));
     }
-    projGeo[kind] = g.build({ pivot: 'center', scale: 0.1 });
+    projGeo[key] = g.build({ pivot: 'center', scale });
   }
-  const m = makeMesh(projGeo[kind]);
+  const m = makeMesh(projGeo[key]);
   m.castShadow = false;
   return m;
+}
+
+// pixel-art decal textures: team ring under units + soft blob shadow
+const texCache = {};
+function pixelTex(key, size, paint) {
+  if (texCache[key]) return texCache[key];
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  paint(ctx, size);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  texCache[key] = t;
+  return t;
+}
+const ringTex = () => pixelTex('ring', 32, (ctx, s) => {
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
+    if (d > 0.98) continue;
+    if (d > 0.78) { ctx.fillStyle = d > 0.9 ? '#ffffff' : '#dfe8ff'; ctx.fillRect(x, y, 1, 1); }
+    else if (d > 0.7) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, 1, 1); }
+  }
+});
+const shadowTex = () => pixelTex('shadow', 32, (ctx, s) => {
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
+    if (d > 1) continue;
+    const a = d < 0.6 ? 0.5 : d < 0.82 ? 0.34 : 0.16;
+    ctx.fillStyle = `rgba(10,8,30,${a})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+});
+const stripeTex = () => {
+  const t = pixelTex('stripes', 16, (ctx, s) => {
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const on = ((x + y) & 7) < 3;
+      ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)';
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+};
+const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const decalMat = (tex, color, opacity = 1) => new THREE.MeshBasicMaterial({
+  map: tex, color, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, fog: false,
+});
+
+// lab test-tube vial that Swarms are dropped in with
+const vialGeo = {};
+function vialMesh(color) {
+  if (!vialGeo[color]) {
+    const g = new VoxGrid();
+    const r2 = (x, z) => (x + 0.5) ** 2 + (z + 0.5) ** 2;
+    for (let y = 0; y <= 13; y++) for (let x = -2; x <= 1; x++) for (let z = -2; z <= 1; z++) {
+      const d = r2(x, z);
+      if (d > 4.6) continue;
+      if (y === 0 && d > 2) continue;
+      if (y <= 8) g.set(x, y, z, y === 8 ? 0xffffff : color, y < 8);
+      else g.set(x, y, z, d > 2 ? 0xdff4ff : 0xb8e6ff);
+    }
+    for (let x = -2; x <= 1; x++) for (let z = -2; z <= 1; z++) if (r2(x, z) <= 4.6) g.set(x, 13, z, 0xffffff);
+    for (let y = 14; y <= 16; y++) for (let x = -1; x <= 0; x++) for (let z = -1; z <= 0; z++) g.set(x, y, z, y === 16 ? 0xd89a5a : 0xb07a4a);
+    // label band
+    for (let y = 4; y <= 6; y++) for (let x = -1; x <= 0; x++) g.set(x, y, 2, y === 5 ? 0xff2e88 : 0xffffff);
+    vialGeo[color] = g.build({ scale: 0.06, pivot: [-0.5, 0, -0.5] });
+  }
+  const m = makeMesh(vialGeo[color]);
+  m.castShadow = true;
+  return m;
+}
+
+// ---------------------------------------------------------------------------
+// HP plates (DOM, crisp pixel art, anchored to world positions)
+
+const _v = new THREE.Vector3();
+/** Plates never rise above this screen y (the HUD's top bar sets it). */
+export const plateBounds = { minY: 0 };
+function placeEl(el, pos, dy = 0) {
+  const s = engine.toScreen(pos);
+  if (!s.visible || s.x < -80 || s.x > engine.width + 80) {
+    if (el.style.display !== 'none') el.style.display = 'none';
+    return;
+  }
+  if (el.style.display === 'none') el.style.display = '';
+  const y = Math.max(plateBounds.minY + (el.offsetHeight || 0), s.y - dy);
+  el.style.transform = `translate3d(${Math.round(s.x)}px, ${Math.round(y)}px, 0)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,35 +202,62 @@ class UnitActor {
     this.u = u;
     const rig = (this.rig = createSwarm(u.type, { variant: u.variant, skin: u.skin, scale: u.size, model: u.model }));
     rig.root.position.set(u.x, 0, u.z);
-    rig.root.rotation.y = u.side === 0 ? Math.PI / 2 - 0.5 : -Math.PI / 2 + 0.5;
+    this.face = u.side === 0 ? Math.PI / 2 - 0.45 : -Math.PI / 2 + 0.45;
+    rig.root.rotation.y = this.face;
     view.scene.add(rig.root);
     this.flying = !!SWARMS[u.type]?.traits?.flying;
-    // hp bar
-    const bw = Math.max(0.5, 0.42 * u.size);
-    this.barW = bw;
-    const bg = new THREE.Mesh(view.barGeo, view.barBgMat);
-    bg.scale.set(bw + 0.06, 0.1, 0.02);
-    const fill = new THREE.Mesh(view.barGeo, u.side === 0 ? view.barMat0 : view.barMat1);
-    fill.scale.set(bw, 0.06, 0.03);
-    fill.position.z = 0.01;
-    this.bar = new THREE.Group();
-    this.bar.add(bg, fill);
-    this.barFill = fill;
-    this.bar.visible = false;
-    view.scene.add(this.bar);
-    this.lastHp = u.hp;
+    this.h0 = rig.height / Math.max(0.01, rig.baseScale);
+    // ground decals: soft shadow + team ring
+    const r = Math.max(0.55, 0.62 * u.size) * (u.boss ? 1.3 : 1);
+    this.shadow = new THREE.Mesh(PLANE, view.shadowMat);
+    this.shadow.scale.set(r * 1.5, 1, r * 1.1);
+    this.ring = new THREE.Mesh(PLANE, view.ringMats[u.side]);
+    this.ring.scale.set(r * 1.6, 1, r * 1.15);
+    this.shadow.position.set(u.x, 0.025, u.z);
+    this.ring.position.set(u.x, 0.03, u.z);
+    view.scene.add(this.shadow, this.ring);
+    // HP plate
+    const lvl = h('i', { class: 'lv' }, String(u.level ?? 1));
+    this.hpFill = h('i', { class: 'f' });
+    this.hpGhost = h('i', { class: 'g' });
+    this.plate = h('div', { class: `uplate s${u.side}${u.boss ? ' boss' : ''}` }, lvl, h('b', { class: 'hpb' }, this.hpGhost, this.hpFill));
+    view.plateLayer.appendChild(this.plate);
+    this.showT = 1.6;
+    this.ghostFrac = 1;
     this.dustT = 0;
     this.danceT = 0;
     this.iceMesh = null;
     this.statusT = 0;
-    this.scaleNow = 0.01;
-    rig.inner.scale.setScalar(0.01);
     this.spawnT = 0;
+    this.landed = !(u.state === 'spawn' && u.spawnT > 0.05);
+    this.hidden = !this.landed;
+    if (this.hidden) {
+      rig.root.visible = false;
+      this.ring.visible = this.shadow.visible = false;
+      this.plate.style.display = 'none';
+    }
+    rig.inner.scale.setScalar(0.01);
+    this.bounceT = 0;
+  }
+  land() {
+    if (this.landed) return;
+    this.landed = true;
+    this.hidden = false;
+    this.rig.root.visible = this.ring.visible = this.shadow.visible = true;
+    this.plate.style.display = '';
+    this.spawnT = 0;
+    const p = this.rig.root.position;
+    fx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 4, scale: 0.9 * this.u.size });
   }
   update(dt) {
     const u = this.u, rig = this.rig;
+    if (this.hidden) {
+      rig.root.position.set(u.x, 0, u.z);
+      return;
+    }
     const p = rig.root.position;
     p.x = damp(p.x, u.x, 25, dt);
+    p.z = damp(p.z, u.z, 10, dt);
     const hover = this.flying ? 0.9 + Math.sin(this.view.t * 3 + u.id) * 0.1 : 0;
     p.y = u.y + hover;
     // state
@@ -177,17 +268,25 @@ class UnitActor {
     else if (u.state === 'stun') rig.setState('stun');
     else rig.setState('idle');
     rig.frozen = u.state === 'frozen';
-    rig.walkRate = (u.st.speed / 1.5) * (this.view.sim.sides[u.side].buffs.dance > 0 ? 1.35 : 1);
-    // spawn pop-in + grow buff scale
+    rig.walkRate = ((u.st?.speed ?? 1.5) / 1.5) * (this.view.sim.sides[u.side].buffs.dance > 0 ? 1.35 : 1) * (u.buffs.slowT > 0 ? 1 - (u.buffs.slow ?? 0) : 1);
+    // spawn pop-in (overshoot) + grow buff scale
     this.spawnT += dt;
     const target = u.size * (u.buffs.growScale ?? 1);
-    if (this.spawnT < 0.35) {
-      const k = this.spawnT / 0.35;
-      rig.baseScale = target * (k < 0.7 ? (k / 0.7) * 1.2 : 1.2 - ((k - 0.7) / 0.3) * 0.2);
+    if (this.spawnT < 0.4) {
+      const k = this.spawnT / 0.4;
+      rig.baseScale = target * (k < 0.6 ? (k / 0.6) * 1.28 : 1.28 - ((k - 0.6) / 0.4) * 0.28);
     } else rig.baseScale = damp(rig.baseScale, target, 8, dt);
     rig.update(dt);
     // knockback tumble
-    rig.root.rotation.z = u.state === 'kb' ? damp(rig.root.rotation.z, (u.side === 0 ? 1 : -1) * 0.5, 12, dt) : damp(rig.root.rotation.z, 0, 10, dt);
+    const tumble = u.state === 'kb' ? (u.side === 0 ? 1 : -1) * 0.55 : 0;
+    rig.root.rotation.z = damp(rig.root.rotation.z, tumble, u.state === 'kb' ? 12 : 10, dt);
+    // decals
+    const air = Math.max(0, p.y);
+    const sh = 1 / (1 + air * 0.35);
+    this.shadow.position.set(p.x, 0.025, p.z);
+    this.ring.position.set(p.x, 0.03, p.z);
+    this.shadow.material.opacity = 1;
+    this.shadow.scale.x = this.ring.scale.x * 0.95 * sh;
     // dust
     if (u.state === 'walk' && !this.flying) {
       this.dustT -= dt;
@@ -196,22 +295,27 @@ class UnitActor {
         fx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 2, scale: 0.8 * u.size, color: this.view.dustColor });
       }
     }
-    // hp bar
+    // HP plate: shown briefly after landing (level badge) and whenever damaged
     const frac = Math.max(0, u.hp / u.maxHp);
-    if (u.hp < u.maxHp - 0.5) this.bar.visible = true;
-    this.barFill.scale.x = Math.max(0.001, this.barW * frac);
-    this.barFill.position.x = -(this.barW * (1 - frac)) / 2;
-    this.bar.position.set(p.x, p.y + rig.height * (rig.baseScale / Math.max(0.01, rig._h0 ?? rig.baseScale)) + 0.25, p.z + 0.3);
+    this.showT -= dt;
+    const show = this.showT > 0 || frac < 0.999 || u.boss;
+    this.plate.classList.toggle('hide', !show);
+    this.hpFill.style.width = (frac * 100).toFixed(1) + '%';
+    this.ghostFrac = Math.max(frac, damp(this.ghostFrac, frac, 3.5, dt));
+    this.hpGhost.style.width = (this.ghostFrac * 100).toFixed(1) + '%';
+    const top = p.y + this.h0 * rig.baseScale + 0.18;
+    placeEl(this.plate, _v.set(p.x, top, p.z));
     // status fx
     this.statusT -= dt;
     if (this.statusT <= 0) {
       this.statusT = 0.15;
-      const top = new THREE.Vector3(p.x, p.y + rig.height * 0.9, p.z);
-      if (u.state === 'stun') fx.sparkle(top, { count: 2, color: 0xffd23f, speed: 1.5, life: 0.4 });
+      const tp = new THREE.Vector3(p.x, p.y + rig.height * 0.9, p.z);
+      if (u.state === 'stun') fx.sparkle(tp, { count: 2, color: 0xffd23f, speed: 1.5, life: 0.4 });
       if (u.buffs.burnT > 0) fx.fire(new THREE.Vector3(p.x, p.y + 0.3, p.z), { count: 2, scale: 0.7 });
       if (u.buffs.slowT > 0 && u.buffs.slow > 0) fx.slime(new THREE.Vector3(p.x, p.y + 0.2, p.z), { count: 1, speed: 0.5, color: 0x7cff3a, scale: 0.6 });
-      if (this.view.sim.sides[u.side].buffs.dance > 0) fx.sparkle(top, { count: 1, colors: [0xff4fa3, 0xffd23f, 0x5fdc4a, 0x29b6f6], speed: 1, life: 0.6 });
-      if (this.view.sim.sides[u.side].buffs.immortal > 0) fx.sparkle(top, { count: 1, color: 0xffe27a, speed: 0.8 });
+      if (this.view.sim.sides[u.side].buffs.dance > 0) fx.sparkle(tp, { count: 1, colors: [0xff4fa3, 0xffd23f, 0x5fdc4a, 0x29b6f6], speed: 1, life: 0.6 });
+      if (this.view.sim.sides[u.side].buffs.immortal > 0) fx.sparkle(tp, { count: 1, color: 0xffe27a, speed: 0.8 });
+      if (u.buffs.growT > 0) fx.sparkle(tp, { count: 1, colors: [0x5fdc4a, 0xd4ff9a], speed: 0.8 });
     }
     // frozen ice block
     if (u.state === 'frozen' && !this.iceMesh) {
@@ -221,6 +325,7 @@ class UnitActor {
     if (this.iceMesh) {
       if (u.state !== 'frozen') {
         fx.burst(this.iceMesh.position, { count: 10, colors: [0x9ff2ff, 0xffffff], size: 0.08, speed: 3 });
+        audio.play('shatter', { pitch: 1.4, vol: 0.5, gap: 0.05 });
         this.view.scene.remove(this.iceMesh);
         this.iceMesh = null;
       } else {
@@ -231,9 +336,49 @@ class UnitActor {
     }
   }
   dispose() {
-    this.view.scene.remove(this.rig.root);
-    this.view.scene.remove(this.bar);
+    this.view.scene.remove(this.rig.root, this.shadow, this.ring);
+    this.plate.remove();
     if (this.iceMesh) this.view.scene.remove(this.iceMesh);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Towers: Lab (king tower, sleeps until hit or a turret falls) + guard turret
+
+class TowerPlate {
+  constructor(layer, side, kind, b, name) {
+    this.b = b;
+    this.kind = kind;
+    this.num = h('span', { class: 'n' }, String(b.hp));
+    this.fill = h('i', { class: 'f' });
+    this.ghost = h('i', { class: 'g' });
+    this.zz = kind === 'lab' ? h('div', { class: 'zz' }, 'z', h('span', {}, 'z'), h('span', {}, 'z')) : null;
+    this.el = h('div', { class: `tplate s${side} ${kind}` },
+      kind === 'lab' && name ? h('div', { class: 'tname' }, name) : null,
+      h('div', { class: 'tbar' }, this.ghost, this.fill, this.num), this.zz);
+    layer.appendChild(this.el);
+    this.ghostFrac = 1;
+    this.shown = -1;
+  }
+  update(dt, pos) {
+    const b = this.b;
+    const frac = Math.max(0, b.hp / b.maxHp);
+    const hp = Math.max(0, Math.ceil(b.hp));
+    if (hp !== this.shown) {
+      this.shown = hp;
+      this.num.textContent = String(hp);
+      this.fill.style.width = (frac * 100).toFixed(1) + '%';
+    }
+    this.ghostFrac = Math.max(frac, damp(this.ghostFrac, frac, 2.5, dt));
+    this.ghost.style.width = (this.ghostFrac * 100).toFixed(1) + '%';
+    if (this.zz) this.zz.style.display = b.active || !b.alive ? 'none' : '';
+    this.el.classList.toggle('low', frac < 0.3);
+    this.el.classList.toggle('shield', b.shield > 0);
+    if (!b.alive) this.el.style.display = 'none';
+    else placeEl(this.el, pos);
+  }
+  dispose() {
+    this.el.remove();
   }
 }
 
@@ -244,40 +389,73 @@ export class BattleView {
     this.sim = sim;
     this.cfg = cfg;
     this.t = 0;
-    const theme = (this.theme = cfg.theme || 'lab');
-    const T = THEMES[theme] || THEMES.lab;
-    this.dustColor = theme === 'mart' ? 0xdedad0 : theme === 'techno' ? 0x8090b0 : undefined;
-    const scene = (this.scene = new THREE.Scene());
-    scene.background = new THREE.Color(T.sky);
-    scene.fog = new THREE.Fog(T.fog, 30, 70);
-    this.camera = new THREE.PerspectiveCamera(34, engine.aspect, 0.1, 200);
-    const { sun } = addLights(scene, { shadowExtent: 24, dir: [-6, 14, 10], sun: theme === 'techno' ? 1.4 : 2.1, hemi: theme === 'techno' ? 1.6 : 1.25 });
-    this.sun = sun;
+    this.theme = cfg.theme || 'lab';
+    this.scene = cfg.scene ?? new THREE.Scene();
+    this.scene.background = new THREE.Color(0x8fd3ff);
+    this.camera = cfg.camera ?? new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 600);
+    this.listeners = new Set();
+    this.plateLayer = h('div', { class: 'bt-plates' });
+    $world().appendChild(this.plateLayer);
 
-    // backdrop
-    const bd = propOr('makeBattleBackdrop', theme) || fallbackBackdrop(theme);
-    this.backdrop = bd;
-    scene.add(bd.root);
-    if (bd.sky !== undefined && bd.sky !== null) scene.background = new THREE.Color(bd.sky);
-    scene.fog = new THREE.Fog(bd.fog ?? T.fog, 40, 125);
-    this.breakables = (bd.breakables || []).map((b) => ({ ...b, alive: true }));
-
-    // shared meshes
-    this.barGeo = new THREE.BoxGeometry(1, 1, 1);
-    this.barBgMat = new THREE.MeshBasicMaterial({ color: 0x15121f });
-    this.barMat0 = new THREE.MeshBasicMaterial({ color: 0x5fdc4a });
-    this.barMat1 = new THREE.MeshBasicMaterial({ color: 0xff4a4a });
+    // shared materials
+    this.shadowMat = decalMat(shadowTex(), 0xffffff, 1);
+    this.ringMats = TEAM_COLORS.map((c) => decalMat(ringTex(), c, 0.95));
     this.iceGeo = new THREE.BoxGeometry(1, 1, 1);
     this.iceMat = new THREE.MeshPhongMaterial({ color: 0x9ff2ff, transparent: true, opacity: 0.45, shininess: 100, depthWrite: false });
 
-    // labs
+    this.actors = new Map();
+    this.projs = new Map();
+    this.movers = new Map();
+    this.zones = [];
+    this.vials = [];
+    this.breakables = [];
+    this.cartsSmashed = 0;
+    // camera
+    this.zoom = 1;
+    this.camX = -FIELD.VIEW_X;
+    this.camTargetX = this.camX;
+    this.manualT = 0;
+    this.edge = 0;
+    this.aimRing = null;
+    this.ghost = null;
+    this.zone = null;
+  }
+
+  /** Build the arena, Labs, turrets and Commanders (async: arena modules are code-split). */
+  async load() {
+    const cfg = this.cfg, scene = this.scene;
+    const A = await makeArenaBattle(this.theme, { seed: cfg.seed ?? 1 });
+    this.arena = A;
+    scene.add(A.root);
+    const L = A.lights ?? {};
+    this.lightDir = L.dir ?? [-6, 14, 10];
+    const { sun } = addLights(scene, {
+      sky: L.sky, ground: L.ground, hemi: L.hemi, sun: L.sun, sunColor: L.sunColor, dir: this.lightDir,
+      rimIntensity: L.rim, rimColor: L.rimColor, shadowExtent: 16, shadowFar: 70,
+    });
+    this.sun = sun;
+    if (A.sky?.isTexture) scene.background = A.sky;
+    else scene.background = new THREE.Color(A.sky ?? 0x8fd3ff);
+    if (A.fog) scene.fog = new THREE.Fog(A.fog.color, A.fog.near, A.fog.far);
+    this.bloom = A.bloom ?? null;
+    this.dustColor = A.dust;
+    this.breakables = (A.breakables || []).map((b) => ({ ...b, alive: true }));
+
+    // Labs + turrets
     this.labs = [0, 1].map((i) => {
       const style = cfg.sides[i].labStyle || (i === 0 ? 'default' : 'rival');
-      const lab = propOr('makeLabBuilding', { style, flip: i === 1 }) || fallbackLab(style, i === 1);
-      lab.root.position.set(i === 0 ? -LAB_X - 0.4 : LAB_X + 0.4, 0, 0);
+      let lab;
+      try {
+        lab = makeLabBuilding({ style, flip: i === 1 });
+      } catch (e) {
+        console.warn('lab style failed', style, e);
+        lab = makeLabBuilding({ style: i === 0 ? 'default' : 'rival', flip: i === 1 });
+      }
+      lab.root.position.set(i === 0 ? -LAB_X : LAB_X, 0, 0);
       scene.add(lab.root);
       lab.style = style;
       lab.shakeT = 0;
+      lab.setLevel(1);
       lab.onChunk = (mesh) => {
         fx.shatter(mesh, { force: 5, dirX: i === 0 ? 0.4 : -0.4, life: 2 });
         audio.play('crunch', { pitch: 0.6, gap: 0.1 });
@@ -285,7 +463,20 @@ export class BattleView {
       };
       return lab;
     });
-    // commanders on labs
+    this.turrets = [0, 1].map((i) => {
+      const t = makeTurret({ side: i });
+      t.root.position.set(i === 0 ? -TURRET_X : TURRET_X, 0, 0);
+      for (const m of t.meshes) m.castShadow = true;
+      scene.add(t.root);
+      t.shakeT = 0;
+      return t;
+    });
+    // tower HP plates
+    this.towerPlates = [0, 1].map((i) => ({
+      lab: new TowerPlate(this.plateLayer, i, 'lab', this.sim.sides[i].lab, cfg.sides[i].name),
+      turret: new TowerPlate(this.plateLayer, i, 'turret', this.sim.sides[i].turret),
+    }));
+    // Commanders sit on the Lab roofs
     this.cmds = [0, 1].map((i) => {
       const c = cfg.sides[i].commander;
       if (!c) return null;
@@ -303,68 +494,164 @@ export class BattleView {
       ch.reactT = 0;
       return ch;
     });
-
-    this.actors = new Map();
-    this.projs = new Map();
-    this.movers = new Map();
-    this.zones = [];
-    // camera
-    this.camX = -6;
-    this.camTargetX = -6;
-    this.manualT = 0;
-    this.zoom = 1;
-    this.aimRing = null;
+    // deploy zone overlay + ghost preview
+    const zmat = new THREE.MeshBasicMaterial({ map: stripeTex(), color: TEAM_COLORS[0], transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, fog: false });
+    this.zone = new THREE.Mesh(PLANE, zmat);
+    this.zone.visible = false;
+    scene.add(this.zone);
+    const nmat = zmat.clone();
+    nmat.color = new THREE.Color(0xff3d55);
+    nmat.opacity = 0.22;
+    this.noZone = new THREE.Mesh(PLANE, nmat);
+    this.noZone.visible = false;
+    scene.add(this.noZone);
+    this.ghostMat = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.55, depthWrite: false });
+    this.ghostRing = new THREE.Mesh(PLANE, decalMat(ringTex(), TEAM_COLORS[0], 1));
+    this.ghostRing.visible = false;
+    scene.add(this.ghostRing);
+    this.loaded = true;
     this.updateCamera(0, true);
   }
 
-  resize(w, h) {
-    this.camera.aspect = w / h;
+  on(fn) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  resize(w, hh) {
+    this.camera.aspect = w / hh;
     this.camera.updateProjectionMatrix();
+    this.updateCamera(0, true);
   }
 
   // -------------------------------------------------------------------------
+  // Camera: Battle Cats side view that follows the front line; the player can
+  // drag to pan and pinch to zoom; dragging a card to the screen edge pans.
+
+  viewWidth() {
+    const a = this.camera.aspect;
+    const base = a < 1 ? 11.5 : Math.min(FIELD.VIEW_X * 2, 15 + a * 2);
+    return clamp(base * this.zoom, 9, FIELD.VIEW_X * 2 + 2);
+  }
   updateCamera(dt, snap = false) {
     const sim = this.sim;
-    const aspect = this.camera.aspect;
-    const tanV = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    const wantWidth = aspect >= 1 ? 18.5 : 11.5;
-    let dist = (wantWidth / (2 * tanV * aspect)) * this.zoom;
-    dist = clamp(dist, 9, 46);
-    this.dist = dist;
-    const halfW = dist * tanV * aspect;
+    const cam = this.camera;
+    const width = this.viewWidth();
+    const halfW = width / 2;
+    const minX = -FIELD.VIEW_X + halfW, maxX = FIELD.VIEW_X - halfW;
     if (this.manualT > 0) this.manualT -= dt;
-    else {
-      // auto-follow: frame the battle front
-      const f0 = sim.frontAllyX(0);
+    else if (this.edge) this.camTargetX += this.edge * dt * 9;
+    else if (this.autoFollow !== false) {
+      const s0 = sim.sides[0];
       const fe = sim.frontEnemyX(0);
-      let tx = f0;
-      if (fe !== null) tx = (f0 + fe) / 2;
-      tx = Math.max(tx - 2, -LAB_X + halfW - 2.5);
+      const fa = sim.frontAllyX(0);
+      let tx;
+      if (fe !== null && fe < 1) tx = Math.min(fe + halfW * 0.15, (fa + fe) / 2); // defend: keep the closest threat in view
+      else if (fe !== null) tx = (Math.max(fa, s0.labX + 2) + fe) / 2;
+      else tx = fa - halfW * 0.2;
       this.camTargetX = tx;
     }
-    const minX = -LAB_X - 3 + halfW, maxX = LAB_X + 3 - halfW;
     this.camTargetX = minX > maxX ? 0 : clamp(this.camTargetX, minX, maxX);
-    this.camX = snap ? this.camTargetX : damp(this.camX, this.camTargetX, 3.5, dt);
-    const cam = this.camera;
-    const portraitLift = aspect < 1 ? dist * 0.09 : 0;
-    cam.position.set(this.camX, 2.2 + dist * 0.16, dist);
-    cam.lookAt(this.camX, 1.25 + dist * 0.02 + portraitLift, 0);
-    // sun follows camera so shadows stay crisp
-    this.sun.position.set(this.camX - 6, 14, 10);
-    this.sun.target.position.set(this.camX, 0, 0);
+    this.camX = snap ? this.camTargetX : damp(this.camX, this.camTargetX, this.manualT > 0 || this.edge ? 10 : 2.6, dt);
+    if (minX <= maxX) this.camX = clamp(this.camX, minX, maxX);
+    const c = battleCamera(this.camX, width, cam.aspect, cam.fov, cam.aspect < 1 ? 0.56 : 0.6);
+    cam.position.set(...c.pos);
+    cam.lookAt(...c.look);
+    this.dist = c.dist;
+    this.halfW = halfW;
+    // the sun follows the camera so shadows stay crisp
+    if (this.sun) {
+      const d = this.lightDir;
+      this.sun.position.set(this.camX + d[0], d[1], d[2]);
+      this.sun.target.position.set(this.camX, 0, 0);
+      const ext = halfW + 3;
+      const sc = this.sun.shadow.camera;
+      if (Math.abs(sc.right - ext) > 0.5) {
+        sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext;
+        sc.updateProjectionMatrix();
+      }
+    }
+  }
+  /** World units per CSS pixel at the lane. */
+  worldPerPx() {
+    return (this.halfW * 2) / engine.width;
   }
   pan(dxPixels) {
-    const worldPerPx = (2 * this.dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.camera.aspect) / engine.width;
-    this.camTargetX -= dxPixels * worldPerPx;
-    this.camX -= dxPixels * worldPerPx;
-    this.manualT = 4;
+    const d = dxPixels * this.worldPerPx();
+    this.camTargetX -= d;
+    this.camX -= d;
+    this.manualT = 3.5;
   }
   zoomBy(f) {
-    this.zoom = clamp(this.zoom * f, 0.6, 1.6);
+    this.zoom = clamp(this.zoom * f, 0.7, 1.9);
+    this.manualT = Math.max(this.manualT, 1.5);
   }
   focus(x, hold = 2) {
     this.camTargetX = x;
     this.manualT = hold;
+  }
+  /** Card dragged near a screen edge: pan that way (-1, 0, 1). */
+  setEdgePan(dir) {
+    this.edge = dir;
+    if (dir) this.manualT = 0;
+  }
+  /** World x under a screen point (on the lane plane). */
+  screenToX(clientX, clientY) {
+    const p = engine.rayToZPlane(clientX, clientY, 0, this.camera);
+    return p ? p.x : null;
+  }
+  xToScreen(x, y = 0.6) {
+    return engine.toScreen(_v.set(x, y, 0), this.camera);
+  }
+
+  // -------------------------------------------------------------------------
+  // Deploy previews
+
+  /** Highlight the deploy range (x0..x1) while a troop card is held. */
+  showDeployZone(range) {
+    if (!this.zone) return;
+    if (!range) {
+      this.zone.visible = this.noZone.visible = false;
+      return;
+    }
+    const [a, b] = range;
+    const zw = FIELD.LANE_HALF * 2 - 0.2;
+    this.zone.visible = true;
+    this.zone.scale.set(b - a, 1, zw);
+    this.zone.position.set((a + b) / 2, 0.035, 0);
+    this.zone.material.map.repeat.set((b - a) / 1.2, zw / 1.2);
+    const nx0 = b, nx1 = LAB_X + LAB_HALF;
+    this.noZone.visible = nx1 > nx0;
+    this.noZone.scale.set(nx1 - nx0, 1, zw);
+    this.noZone.position.set((nx0 + nx1) / 2, 0.034, 0);
+  }
+
+  /** Translucent preview of the troop at x (null to hide). */
+  setGhost(unitId, x, valid = true) {
+    if (!unitId || x === null) {
+      if (this.ghost) this.ghost.rig.root.visible = false;
+      this.ghostRing.visible = false;
+      return;
+    }
+    if (!this.ghost || this.ghost.id !== unitId) {
+      if (this.ghost) this.scene.remove(this.ghost.rig.root);
+      const def = SWARMS[unitId];
+      const rig = createSwarm(unitId, { scale: def?.size ?? 1 });
+      for (const m of rig.meshes) { m.material = this.ghostMat; m.castShadow = false; }
+      rig.root.rotation.y = Math.PI / 2 - 0.45;
+      rig.setState('idle');
+      this.scene.add(rig.root);
+      this.ghost = { id: unitId, rig, count: def?.count ?? 1 };
+    }
+    const g = this.ghost;
+    g.rig.root.visible = true;
+    g.rig.root.position.set(x, 0, 0);
+    this.ghostMat.color.setHex(valid ? 0xbfe6ff : 0xff8a9a);
+    this.ghostRing.visible = true;
+    const r = 0.9 + (g.count > 1 ? 0.4 : 0);
+    this.ghostRing.scale.set(r * 1.8, 1, r * 1.3);
+    this.ghostRing.position.set(x - (g.count > 1 ? 0.2 * (g.count - 1) : 0), 0.04, 0);
+    this.ghostRing.material.color.setHex(valid ? TEAM_COLORS[0] : 0xff3d55);
   }
 
   setAim(spellId, x) {
@@ -377,52 +664,75 @@ export class BattleView {
     }
     const sp = SPELLS[spellId];
     if (!this.aimRing) {
-      const geo = new THREE.RingGeometry(0.9, 1, 40);
-      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+      const geo = new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.9, depthWrite: false, fog: false });
       this.aimRing = new THREE.Mesh(geo, mat);
-      this.aimRing.rotation.x = -Math.PI / 2;
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.2, depthWrite: false, fog: false }));
       this.aimRing.add(disc);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7, 6, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.35, depthWrite: false, fog: false }));
+      beam.position.y = 3.5;
+      this.aimRing.add(beam);
       this.scene.add(this.aimRing);
     }
-    this.aimRing.material.color.set(sp.color);
-    const r = Math.max(0.8, sp.radius);
-    this.aimRing.scale.set(r, r, r);
-    this.aimRing.position.set(clamp(x, -LAB_X + 1, LAB_X - 1), 0.06, 0);
+    const r = Math.max(0.8, sp.radius || 1.2);
+    this.aimRing.scale.set(r, 1, Math.min(r, FIELD.LANE_HALF));
+    this.aimRing.position.set(clamp(x, -FIELD.VIEW_X, FIELD.VIEW_X), 0.06, 0);
   }
 
   // -------------------------------------------------------------------------
   update(dt, gdt) {
+    if (!this.loaded) return;
     this.t += dt;
     const sim = this.sim;
-    for (const ev of sim.drainEvents()) this.onEvent(ev);
+    for (const ev of sim.drainEvents()) {
+      try {
+        this.onEvent(ev);
+      } catch (e) {
+        console.error('battle fx error', ev.type, e);
+      }
+      for (const fn of this.listeners) fn(ev);
+    }
     for (const a of this.actors.values()) a.update(gdt);
     this.updateProjectiles(gdt);
     this.updateMovers(gdt);
-    for (const lab of this.labs) {
-      try {
-        lab.update && lab.update(gdt);
-      } catch (e) {
-        lab.update = null;
-        console.error('lab update failed', e);
-      }
+    this.updateVials(gdt);
+    for (let i = 0; i < 2; i++) {
+      const lab = this.labs[i];
+      lab.update(gdt);
       if (lab.shakeT > 0) {
         lab.shakeT -= dt;
-        lab.root.position.y = Math.sin(this.t * 60) * 0.03 * (lab.shakeT > 0 ? 1 : 0);
+        lab.root.position.x = (i === 0 ? -LAB_X : LAB_X) + (lab.shakeT > 0 ? Math.sin(this.t * 70) * 0.04 : 0);
       }
+      const tur = this.turrets[i];
+      tur.update(gdt);
+      if (tur.shakeT > 0) {
+        tur.shakeT -= dt;
+        tur.root.position.x = (i === 0 ? -TURRET_X : TURRET_X) + (tur.shakeT > 0 ? Math.sin(this.t * 80) * 0.035 : 0);
+      }
+      if (tur.dead) {
+        tur.smokeT = (tur.smokeT ?? 0) - gdt;
+        if (tur.smokeT <= 0) {
+          tur.smokeT = 0.25;
+          fx.smoke(new THREE.Vector3(tur.root.position.x + rand(-0.3, 0.3), 1.0, rand(-0.3, 0.3)), { count: 1, scale: 0.7, life: 1.2, color: 0x6a6a7a });
+        }
+      }
+      const tp = this.towerPlates[i];
+      tp.lab.update(dt, _v.set(lab.root.position.x, lab.height + 0.55, 0));
+      tp.turret.update(dt, _v.set(tur.root.position.x, tur.height + 0.35, 0));
     }
-    if (this.backdrop.update && !this.backdropBroken) {
+    if (this.ghost?.rig.root.visible) this.ghost.rig.update(dt);
+    if (this.arena?.update && !this.arenaBroken) {
       try {
-        this.backdrop.update(dt);
+        this.arena.update(dt, this.t);
       } catch (e) {
-        this.backdropBroken = true;
-        console.error('backdrop update failed', e);
+        this.arenaBroken = true;
+        console.error('arena update failed', e);
       }
     }
     this.updateCommanders(dt);
     for (const z of this.zones) z.update(gdt);
     this.zones = this.zones.filter((z) => !z.done);
-    if (this.aimRing) this.aimRing.rotation.z += dt * 0.8;
+    if (this.aimRing) this.aimRing.children[0].material.opacity = 0.16 + Math.sin(this.t * 6) * 0.06;
     this.updateCamera(dt);
   }
 
@@ -437,7 +747,7 @@ export class BattleView {
         if (s.sig >= 1) {
           ch.play('sitCheer');
           ch.expr('star', 'grin');
-        } else if (s.labHp < s.labMaxHp * 0.35) {
+        } else if (s.lab.hp < s.lab.maxHp * 0.35 || !s.turret.alive) {
           ch.play('sitWorried');
           ch.expr('shock', 'wobble');
         } else {
@@ -472,26 +782,90 @@ export class BattleView {
   }
 
   // -------------------------------------------------------------------------
+  // Deploy: a lab vial falls from the sky, shatters and the Swarm pops out
+
+  dropVial(side, unitId, x, count = 1, delay = 0.65) {
+    const col = seriesColor(unitId);
+    const mesh = vialMesh(col);
+    mesh.position.set(x, 7, 0.1);
+    mesh.rotation.set(0, 0, (side === 0 ? -1 : 1) * 0.3);
+    this.scene.add(mesh);
+    const tele = new THREE.Mesh(PLANE, decalMat(ringTex(), TEAM_COLORS[side], 0.9));
+    tele.position.set(x - (count > 1 ? (side === 0 ? 0.21 : -0.21) * (count - 1) : 0), 0.04, 0);
+    this.scene.add(tele);
+    this.vials.push({ mesh, tele, side, x, col, t: 0, dur: Math.max(0.3, delay - 0.05), count });
+    audio.play('whoosh', { pitch: 1.6, vol: 0.5, gap: 0.03 });
+  }
+  updateVials(dt) {
+    for (const v of this.vials) {
+      v.t += dt;
+      const k = Math.min(1, v.t / v.dur);
+      v.mesh.position.y = 7 * (1 - k * k) + 0.05;
+      v.mesh.rotation.z += dt * (v.side === 0 ? -9 : 9);
+      v.mesh.rotation.y += dt * 4;
+      const r = 1.6 - k * 0.6;
+      v.tele.scale.set(r * 1.6, 1, r * 1.1);
+      v.tele.material.opacity = 0.35 + k * 0.6;
+      if (k >= 1 && !v.done) {
+        v.done = true;
+        const p = new THREE.Vector3(v.x, 0.35, 0);
+        v.mesh.updateMatrixWorld(true);
+        fx.shatter(v.mesh, { force: 4, life: 0.9 });
+        fx.burst(p, { count: 14, colors: [0xffffff, 0xcff2ff, 0x9fe6ff], size: 0.06, speed: 4.5, life: 0.5 });
+        fx.slime(p, { count: 10 + v.count * 2, color: v.col, speed: 3.4 });
+        fx.bubbles(p, { count: 5, color: v.col });
+        fx.shockwave(new THREE.Vector3(v.tele.position.x, 0.02, 0), { radius: 1.3, color: TEAM_COLORS[v.side] });
+        audio.play('shatter', { pitch: 1.5 + Math.random() * 0.3, vol: 0.55, gap: 0.03 });
+        audio.play('spawn', { pitch: 0.9 + Math.random() * 0.3, gap: 0.05 });
+        this.scene.remove(v.mesh, v.tele);
+      }
+    }
+    this.vials = this.vials.filter((v) => !v.done);
+  }
+
+  // -------------------------------------------------------------------------
   // Event handling
+
+  buildingObj(side, kind) {
+    return kind === 'lab' ? this.labs[side] : this.turrets[side];
+  }
+  /** Screen position of a tower (for HUD crown flights). */
+  towerScreen(side, kind) {
+    const o = this.buildingObj(side, kind);
+    return engine.toScreen(_v.set(o.root.position.x, (o.height ?? 3) * 0.7, 0), this.camera);
+  }
 
   onEvent(ev) {
     switch (ev.type) {
       case 'spawn': {
         const a = new UnitActor(this, ev.unit);
-        a.rig._h0 = a.rig.baseScale;
         this.actors.set(ev.unit.id, a);
-        const p = new THREE.Vector3(ev.unit.x, 0.3, ev.unit.z);
-        const col = SERIES[SWARMS[ev.unit.type]?.series]?.color ?? '#7cff3a';
-        fx.slime(p, { count: 10, color: parseInt(col.slice(1), 16), speed: 3 });
-        fx.bubbles(p, { count: 5, color: parseInt(col.slice(1), 16) });
-        if (ev.unit.boss) {
-          engine.shake(0.6);
-          audio.play('roar', { pitch: 0.7 });
-        } else audio.play('spawn', { pitch: 0.9 + Math.random() * 0.3, gap: 0.05 });
+        if (a.landed) {
+          const p = new THREE.Vector3(ev.unit.x, 0.3, ev.unit.z);
+          const col = seriesColor(ev.unit.type);
+          fx.slime(p, { count: 8, color: col, speed: 3 });
+          fx.bubbles(p, { count: 4, color: col });
+          if (ev.unit.boss) {
+            engine.shake(0.6);
+            audio.play('roar', { pitch: 0.7 });
+          } else audio.play('spawn', { pitch: 0.9 + Math.random() * 0.3, gap: 0.05 });
+        }
+        break;
+      }
+      case 'landed': {
+        const a = this.actors.get(ev.unit.id);
+        if (a) a.land();
         break;
       }
       case 'deploy':
+        this.dropVial(ev.side, ev.id, ev.x, ev.count ?? 1);
         if (ev.side === 0) this.react(0, 'sitCheer', 'happy', 'grin', 0.6);
+        break;
+      case 'cycle':
+        if (ev.side === 0 && ev.cost) {
+          const x = this.lastDropX ?? this.sim.sides[0].labX;
+          floatText(new THREE.Vector3(x, 1.6, 0), `-${ev.cost}`, 'cost', { life: 0.9, rise: 40 });
+        }
         break;
       case 'attack': {
         const a = this.actors.get(ev.unit.id);
@@ -505,7 +879,7 @@ export class BattleView {
       }
       case 'hit': {
         const a = this.actors.get(ev.unit.id);
-        if (!a) break;
+        if (!a || a.hidden) break;
         a.rig.flash(0.07);
         a.rig.boing(-0.15);
         const p = a.rig.root.position;
@@ -517,12 +891,13 @@ export class BattleView {
         else if (kind === 'fire' || kind === 'burn') fx.fire(at, { count: 4 });
         else if (kind === 'zap' || kind === 'laser') fx.sparkle(at, { count: 6, colors: [0x9ff2ff, 0xffffff, 0xff4fd8], speed: 3 });
         else if (kind === 'money') fx.cash(at, 4, { speed: 3, ground: 0 });
+        else if (kind === 'turretBolt' || kind === 'labCannon') fx.sparkle(at, { count: 8, colors: [TEAM_LIGHT[1 - ev.unit.side], 0xffffff], speed: 3.5 });
         else fx.burst(at, { count: 4, colors: [0xffffff], size: 0.05, speed: 2, life: 0.3 });
-        if (ev.amount >= 1) floatText(at, String(ev.amount), ev.crit ? 'crit' : 'dmg', { life: ev.crit ? 1.1 : 0.8 });
+        if (ev.amount >= 1 && (ev.crit || ev.amount >= 60)) floatText(at, String(ev.amount), ev.crit ? 'crit' : 'dmg', { life: ev.crit ? 1.1 : 0.8 });
         audio.play(kind === 'melee' ? (ev.src?.size > 1.4 ? 'hitHeavy' : pick(['hit', 'bite', 'chomp'])) : kind === 'sludge' ? 'splat' : 'hit', { pitch: 0.8 + Math.random() * 0.4, gap: 0.04 });
         if (ev.crit || (ev.src && ev.src.size > 1.6)) {
           engine.shake(0.18);
-          engine.hitstop(0.04);
+          engine.hitstop(0.045);
         }
         break;
       }
@@ -540,9 +915,10 @@ export class BattleView {
         const a = this.actors.get(ev.unit.id);
         if (a) {
           const big = ev.unit.size > 1.5 || ev.unit.boss;
-          for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 7 : 5, dirX: ev.unit.side === 0 ? -0.6 : 0.6, life: big ? 2.2 : 1.5 });
+          if (!a.hidden) for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 7 : 5, dirX: ev.unit.side === 0 ? -0.6 : 0.6, life: big ? 2.2 : 1.5 });
           const p = a.rig.root.position.clone();
           fx.smoke(p, { count: big ? 10 : 4, scale: big ? 1.6 : 0.8 });
+          fx.slime(p.clone().setY(0.3), { count: big ? 12 : 5, color: seriesColor(ev.unit.type), speed: 3 });
           if (ev.unit.type === 'feastablesPanther' || ev.unit.type === 'chocoChomper') fx.chocolate(p.clone().setY(0.6), { count: 30 });
           if (SWARMS[ev.unit.type]?.series === 'food') fx.groceries(p.clone().setY(0.5), { count: 6 });
           audio.play(big ? 'explode' : 'death', { pitch: 0.8 + Math.random() * 0.4, gap: 0.03 });
@@ -550,7 +926,6 @@ export class BattleView {
             engine.shake(0.5);
             engine.hitstop(0.08);
           }
-          if (ev.bounty && ev.killerSide === 0 && !ev.silent) floatText(p.clone().setY(1.2), `+${ev.bounty}`, 'energy', { life: 1.1, rise: 70 });
           if (ev.killerSide === 0 && Math.random() < 0.3) this.react(0, 'sitCheer', 'happy', 'grin', 0.8);
           if (ev.killerSide === 1 && Math.random() < 0.3) this.react(1, 'sitCheer', 'happy', 'tongue', 0.8);
           a.dispose();
@@ -562,6 +937,20 @@ export class BattleView {
       case 'shoot':
         this.addProjectile(ev.proj);
         break;
+      case 'towerShoot': {
+        if (ev.kind === 'turret') {
+          const t = this.turrets[ev.side];
+          const tgt = ev.proj.target;
+          if (tgt) t.aim(tgt.x, tgt.z ?? 0);
+          t.fire();
+        } else {
+          const lab = this.labs[ev.side];
+          lab.root.scale.set(1.03, 0.97, 1.03);
+          tween(lab.root.scale, { x: 1, y: 1, z: 1 }, 0.25, { ease: 'outElastic' });
+        }
+        this.addProjectile(ev.proj);
+        break;
+      }
       case 'projHit':
         this.removeProjectile(ev.proj);
         break;
@@ -591,36 +980,41 @@ export class BattleView {
         this.smashNear(ev.x, 2.2, ev.unit.side);
         break;
       }
-      case 'labHit': {
+      case 'towerHit':
+        this.towerHitFx(ev);
+        break;
+      case 'labActivate': {
         const lab = this.labs[ev.side];
-        lab.shakeT = 0.12;
-        const s = this.sim.sides[ev.side];
-        lab.setDamage && lab.setDamage(1 - s.labHp / s.labMaxHp);
-        const fx0 = ev.side === 0 ? -LAB_X + LAB_HALF : LAB_X - LAB_HALF;
-        const p = new THREE.Vector3(fx0, rand(0.8, 3), rand(-0.5, 1.2));
-        fx.burst(p, { count: 4, colors: lab.style === 'mansion' ? [0xf4ead0, 0xffd23f] : [0xeaf2ff, 0x29b6f6, 0xff2e88], size: 0.12, speed: 4, vx: ev.side === 0 ? 2 : -2 });
-        if (ev.amount >= 1) floatText(p, String(ev.amount), ev.amount > 150 ? 'crit' : 'dmg', { life: 0.9 });
-        audio.play('crunch', { pitch: 0.7 + Math.random() * 0.3, gap: 0.08 });
-        if (ev.amount > 120) engine.shake(0.25);
-        if (Math.random() < 0.15) this.react(ev.side, 'sitWorried', 'shock', 'shout', 0.9, ev.side === 1 ? pick(['Hey!', 'My Lab!', 'Not the Lab!', 'OUCH!']) : null);
+        lab.core.updateWorldMatrix(true, false);
+        const p = new THREE.Vector3().setFromMatrixPosition(lab.core.matrixWorld);
+        fx.sparkle(p, { count: 26, colors: [TEAM_COLORS[ev.side], 0xffffff, 0xffd23f], speed: 4, radius: 1.6 });
+        fx.shockwave(new THREE.Vector3(lab.root.position.x, 0.05, 0), { radius: 3.2, color: TEAM_COLORS[ev.side] });
+        floatText(p.clone().setY(lab.height + 1.2), ev.side === 0 ? 'LAB ONLINE!' : 'RIVAL LAB ONLINE!', 'big', { life: 1.5, rise: 30 });
+        audio.play('alarm', { vol: 0.6 });
+        audio.play('upgrade', { pitch: 0.8 });
+        lab.root.scale.set(1.08, 0.92, 1.08);
+        tween(lab.root.scale, { x: 1, y: 1, z: 1 }, 0.5, { ease: 'outElastic' });
+        this.react(ev.side, 'sitWorried', 'shock', 'shout', 1.1, ev.side === 0 ? 'Lab defenses ON!' : pick(['Wake up, Lab!', 'Defenses up!']));
         break;
       }
+      case 'towerDown':
+        if (ev.kind === 'turret') this.turretDestroyed(ev.side);
+        else this.labDestroyed(ev.side);
+        break;
       case 'shieldHit': {
-        const lab = this.labs[ev.side];
-        if (lab.bubble) {
-          lab.bubble.material.opacity = 0.6;
-        }
+        const lab = this.buildingObj(ev.side, ev.kind ?? 'lab');
+        if (lab.bubble) lab.bubble.material.opacity = 0.6;
         break;
       }
       case 'labUp': {
         const lab = this.labs[ev.side];
-        lab.setLevel && lab.setLevel(ev.level);
+        lab.setLevel(ev.level * 2 - 1);
         lab.core.updateWorldMatrix(true, false);
         const p = new THREE.Vector3().setFromMatrixPosition(lab.core.matrixWorld);
         fx.sparkle(p, { count: 24, colors: [0x29b6f6, 0xff2e88, 0xffd23f], speed: 4, radius: 2 });
         fx.rise(p.clone().setY(0.2), { count: 20, colors: [0x29b6f6, 0x9ff2ff], radius: 1.4 });
         if (ev.side === 0) {
-          floatText(p.clone().setY(p.y + 1.6), `LAB LV ${ev.level}!`, 'big', { life: 1.4, rise: 40 });
+          floatText(p.clone().setY(p.y + 1.6), `OVERCLOCK ${ev.level}!`, 'big', { life: 1.4, rise: 40 });
           audio.play('upgrade');
           this.react(0, 'sitCheer', 'star', 'grin', 1);
         }
@@ -652,6 +1046,9 @@ export class BattleView {
       case 'healBurst':
         fx.rise(new THREE.Vector3(ev.x, 0.1, 0), { count: 20, colors: [0x5fdc4a, 0xd4ff9a], radius: 2.4 });
         audio.play('heal');
+        break;
+      case 'refund':
+        if (ev.side === 0) floatText(new THREE.Vector3(this.sim.sides[0].labX, 2.4, 0), '+1 REFUND', 'energy', { life: 1.1 });
         break;
       case 'energyGain':
         if (ev.side === 0) audio.play('chaching');
@@ -711,29 +1108,78 @@ export class BattleView {
         fx.confetti(new THREE.Vector3(ev.unit.x, 2, 0), { count: 80 });
         audio.play('cheer');
         break;
-      case 'overtime':
-        audio.play('bell');
-        bigBanner('OVERTIME!', '2x energy - finish it!', { dur: 1.8, color: '#ff8a2a' });
-        engine.shake(0.3);
-        break;
-      case 'end':
-        break;
       default:
         break;
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Projectiles
+  towerHitFx(ev) {
+    const b = ev.kind === 'lab' ? this.sim.sides[ev.side].lab : this.sim.sides[ev.side].turret;
+    const obj = this.buildingObj(ev.side, ev.kind);
+    obj.shakeT = 0.12;
+    const frac = 1 - b.hp / b.maxHp;
+    if (ev.kind === 'lab') obj.setDamage(frac);
+    else obj.setDamage(frac);
+    const fx0 = b.x - (ev.side === 0 ? -1 : 1) * b.half;
+    const p = new THREE.Vector3(fx0, rand(0.6, (obj.height ?? 3) * 0.8), rand(-0.4, 0.9));
+    const chips = ev.kind === 'lab' ? (obj.style === 'mansion' ? [0xf4ead0, 0xffd23f] : [0xeaf2ff, TEAM_COLORS[ev.side], 0xff2e88]) : [0xf0f4fc, TEAM_COLORS[ev.side], 0xb8c2d6];
+    fx.burst(p, { count: 5, colors: chips, size: 0.11, speed: 4, vx: ev.side === 0 ? 2 : -2 });
+    if (ev.amount >= 1) floatText(p, String(ev.amount), ev.amount > 150 ? 'crit' : 'tower', { life: 0.9 });
+    audio.play('crunch', { pitch: 0.7 + Math.random() * 0.3, gap: 0.08 });
+    if (ev.amount > 120) engine.shake(0.22);
+    if (Math.random() < 0.12) this.react(ev.side, 'sitWorried', 'shock', 'shout', 0.9, ev.side === 1 ? pick(['Hey!', 'My Lab!', 'Not the Lab!', 'OUCH!']) : null);
+  }
 
-  addProjectile(p) {
-    const mesh = projectileMesh(p.kind);
+  turretDestroyed(side) {
+    const t = this.turrets[side];
+    t.dead = true;
+    const p = t.root.position.clone().setY(1.6);
+    engine.shake(0.8);
+    engine.hitstop(0.12);
+    audio.play('explode', { pitch: 0.75 });
+    audio.play('crunch', { pitch: 0.5 });
+    fx.burst(p, { count: 40, colors: [0xffd23f, 0xff8a2a, 0xffffff, TEAM_COLORS[side]], size: 0.14, speed: 8 });
+    fx.fire(p, { count: 18, radius: 1.6, scale: 1.3 });
+    fx.smoke(p, { count: 14, scale: 1.8 });
+    fx.shockwave(p.clone().setY(0.05), { radius: 4, color: 0xffffff });
+    for (const m of t.meshes) fx.shatter(m, { force: 7, dirX: side === 0 ? -0.5 : 0.5, life: 2.4, fraction: m === t.meshes[0] ? 0.55 : 1 });
+    // leave a smoking stump
+    t.head.visible = false;
+    const body = t.meshes[0];
+    animate(0.35, (e) => body.scale.set(1, 1 - e * 0.62, 1), { ease: 'outQuad' });
+    this.smashNear(t.root.position.x, 2.4, 1 - side);
+    this.react(side, 'sitWorried', 'shock', 'shout', 1.4, side === 1 ? pick(['NOOO my turret!', 'Ouch!!', 'Not fair!']) : null);
+    this.react(1 - side, 'sitCheer', 'star', 'grin', 1.4);
+  }
+
+  // -------------------------------------------------------------------------
+  // Projectiles (troop shots + tower bolts / Lab cannon balls)
+
+  projStart(p) {
+    if (p.tower) {
+      if (p.src.kind === 'turret') {
+        const t = this.turrets[p.side];
+        t.muzzle.updateWorldMatrix(true, false);
+        return new THREE.Vector3().setFromMatrixPosition(t.muzzle.matrixWorld);
+      }
+      return this.labTop(p.side).add(new THREE.Vector3(p.side === 0 ? 0.6 : -0.6, -1.2, 0));
+    }
     const a = this.actors.get(p.src.id);
-    const start = a ? a.rig.muzzleWorld(new THREE.Vector3()) : new THREE.Vector3(p.x0, p.height, 0);
+    return a ? a.rig.muzzleWorld(new THREE.Vector3()) : new THREE.Vector3(p.x0, p.height ?? 1, 0);
+  }
+  addProjectile(p) {
+    const mesh = projectileMesh(p.kind, p.side);
+    const start = this.projStart(p);
     mesh.position.copy(start);
     this.scene.add(mesh);
-    const z1 = 0;
-    this.projs.set(p.id, { p, mesh, start, z1, trailT: 0 });
+    this.projs.set(p.id, { p, mesh, start, trailT: 0 });
+    if (p.tower) {
+      const big = p.kind === 'labCannon';
+      audio.play(big ? 'boom' : 'laser', { pitch: big ? 0.9 : 1.5 + Math.random() * 0.2, vol: big ? 0.7 : 0.45, gap: 0.05 });
+      fx.sparkle(start, { count: big ? 10 : 5, colors: [TEAM_LIGHT[p.side], 0xffffff], speed: 2.5, life: 0.3 });
+      if (big) fx.smoke(start, { count: 2, scale: 0.6, life: 0.5 });
+      return;
+    }
     const snd = { sludge: 'splat', letters: 'whoosh', nuke: 'zap', zap: 'zap', laser: 'laser', missile: 'whoosh', fire: 'whoosh', fries: 'swing', soda: 'fizz' }[p.kind] || 'shoot';
     audio.play(snd, { pitch: 1 + Math.random() * 0.3, gap: 0.05 });
     if (p.kind === 'laser' || p.kind === 'zap') fx.sparkle(start, { count: 4, colors: PROJ_COLORS[p.kind], speed: 2 });
@@ -742,26 +1188,28 @@ export class BattleView {
     for (const pr of this.projs.values()) {
       const p = pr.p;
       const k = Math.min(1, p.t / p.flight);
-      const lob = ['sludge', 'letters', 'nuke', 'fries', 'fire', 'acid'].includes(p.kind);
+      const lob = LOB.has(p.kind);
       let tz = 0;
-      const ta = p.target && !p.target.lab ? this.actors.get(p.target.id) : null;
-      const ty = ta ? ta.rig.root.position.y + ta.rig.height * 0.5 : 1.2;
+      const ta = p.target && !p.target.building ? this.actors.get(p.target.id) : null;
+      const ty = ta ? ta.rig.root.position.y + ta.rig.height * 0.5 : p.target?.building ? 1.4 : 0.8;
       if (ta) tz = ta.rig.root.position.z;
       const x = pr.start.x + (p.tx - pr.start.x) * k;
       const yLine = pr.start.y + (ty - pr.start.y) * k;
-      const arc = lob ? Math.sin(k * Math.PI) * (1 + Math.abs(p.tx - pr.start.x) * 0.15) : 0;
+      const arc = lob ? Math.sin(k * Math.PI) * (p.kind === 'labCannon' ? 1.2 : 1 + Math.abs(p.tx - pr.start.x) * 0.15) : 0;
       const z = pr.start.z + (tz - pr.start.z) * k;
       const m = pr.mesh;
       const prev = m.position.clone();
       m.position.set(x, yLine + arc, z);
       if (p.kind === 'letters' || p.kind === 'fries') { m.rotation.x += dt * 14; m.rotation.z += dt * 9; }
-      else m.lookAt(m.position.clone().add(m.position.clone().sub(prev)));
+      else if (p.kind === 'labCannon') { m.rotation.x += dt * 8; m.rotation.y += dt * 5; }
+      else if (m.position.distanceToSquared(prev) > 1e-8) m.lookAt(m.position.clone().add(m.position.clone().sub(prev)));
       pr.trailT -= dt;
       if (pr.trailT <= 0) {
-        pr.trailT = 0.04;
+        pr.trailT = 0.035;
         const cols = PROJ_COLORS[p.kind] || [0xffffff];
         if (p.kind === 'missile') fx.smoke(m.position, { count: 1, scale: 0.4, life: 0.5 });
         else if (p.kind === 'fire') fx.fire(m.position, { count: 2, radius: 0.3 });
+        else if (p.kind === 'turretBolt' || p.kind === 'labCannon') particles.spawn('glow', { x: m.position.x, y: m.position.y, z: m.position.z, size: p.kind === 'labCannon' ? 0.16 : 0.09, life: 0.22, grav: 0, color: TEAM_LIGHT[p.side] });
         else if (['nuke', 'laser', 'zap'].includes(p.kind)) fx.sparkle(m.position, { count: 1, colors: cols, speed: 0.3, life: 0.3 });
         else if (p.kind === 'soda') fx.bubbles(m.position, { count: 1, color: 0xffe0c0, radius: 0.05 });
         else if (p.kind === 'sludge') fx.slime(m.position, { count: 1, color: cols[1], speed: 0.3, scale: 0.6 });
@@ -776,6 +1224,15 @@ export class BattleView {
     const pos = pr.mesh.position.clone();
     const cols = PROJ_COLORS[p.kind] || [0xffffff];
     switch (p.kind) {
+      case 'turretBolt':
+        fx.burst(pos, { count: 8, colors: [TEAM_LIGHT[p.side], 0xffffff], size: 0.06, speed: 3.5, layer: 'glow', life: 0.3 });
+        break;
+      case 'labCannon':
+        fx.burst(pos, { count: 16, colors: [TEAM_COLORS[p.side], TEAM_LIGHT[p.side], 0xffffff], size: 0.1, speed: 5, layer: 'glow' });
+        fx.shockwave(pos.clone().setY(0.03), { radius: 1.2, color: TEAM_COLORS[p.side] });
+        audio.play('explode', { pitch: 1.6, vol: 0.5, gap: 0.05 });
+        engine.shake(0.1);
+        break;
       case 'nuke':
         fx.burst(pos, { count: 18, colors: [0x7cff3a, 0xd4ff9a, 0xffffff], size: 0.1, speed: 5, layer: 'glow' });
         fx.shockwave(pos.clone().setY(0), { radius: 1.6, color: 0x7cff3a });
@@ -1016,31 +1473,35 @@ export class BattleView {
         break;
       }
       case 'labShield': {
-        const lab = this.labs[side];
-        const geo = new THREE.SphereGeometry(3.6, 20, 14);
-        const mat = new THREE.MeshPhongMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.3, shininess: 120, depthWrite: false, emissive: 0x0a3a6a });
-        const bubble = new THREE.Mesh(geo, mat);
-        bubble.position.copy(lab.root.position).setY(1.8);
-        bubble.scale.setScalar(0.01);
-        this.scene.add(bubble);
-        tween(bubble.scale, { x: 1, y: 1, z: 1 }, 0.5, { ease: 'outElastic' });
-        lab.bubble = bubble;
         audio.play('magic');
-        const z = {
-          done: false,
-          update: (dt) => {
-            mat.opacity = damp(mat.opacity, 0.25, 4, dt);
-            bubble.rotation.y += dt * 0.5;
-            if (this.sim.sides[side].shield <= 0) {
-              fx.burst(bubble.position, { count: 30, colors: [0x9ff2ff, 0xffffff], size: 0.08, speed: 6, layer: 'glow' });
-              audio.play('shatter');
-              this.scene.remove(bubble);
-              lab.bubble = null;
-              z.done = true;
-            }
-          },
+        const sd = this.sim.sides[side];
+        const mk = (obj, b, r, y) => {
+          const geo = new THREE.SphereGeometry(r, 24, 16);
+          const mat = new THREE.MeshPhongMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.3, shininess: 120, depthWrite: false, emissive: 0x0a3a6a });
+          const bubble = new THREE.Mesh(geo, mat);
+          bubble.position.copy(obj.root.position).setY(y);
+          bubble.scale.setScalar(0.01);
+          this.scene.add(bubble);
+          tween(bubble.scale, { x: 1, y: 1, z: 1 }, 0.5, { ease: 'outElastic' });
+          obj.bubble = bubble;
+          const z = {
+            done: false,
+            update: (dt) => {
+              mat.opacity = damp(mat.opacity, 0.25, 4, dt);
+              bubble.rotation.y += dt * 0.5;
+              if (b.shield <= 0 || !b.alive) {
+                fx.burst(bubble.position, { count: 30, colors: [0x9ff2ff, 0xffffff], size: 0.08, speed: 6, layer: 'glow' });
+                audio.play('shatter');
+                this.scene.remove(bubble);
+                obj.bubble = null;
+                z.done = true;
+              }
+            },
+          };
+          this.zones.push(z);
         };
-        this.zones.push(z);
+        mk(this.labs[side], sd.lab, 3.4, 1.8);
+        if (sd.turret.alive) mk(this.turrets[side], sd.turret, 1.9, 1.5);
         break;
       }
       default:
@@ -1388,12 +1849,15 @@ export class BattleView {
     this.scene.remove(mv.obj);
   }
 
+
   // -------------------------------------------------------------------------
   // Endgame
 
+  /** Lab destroyed: slow-mo chain explosions, the Commander tumbles off the roof. */
   async labDestroyed(side) {
     const lab = this.labs[side];
-    this.focus(lab.root.position.x + (side === 0 ? 4 : -4), 10);
+    this.autoFollow = false;
+    this.focus(lab.root.position.x + (side === 0 ? 3 : -3), 10);
     engine.timeScale = 0.3;
     const p = lab.root.position.clone().setY(2);
     for (let i = 0; i < 6; i++) {
@@ -1405,15 +1869,14 @@ export class BattleView {
       }, i * 160);
     }
     setTimeout(() => {
-      lab.setDamage && lab.setDamage(1);
-      for (const m of lab.meshes || []) fx.shatter(m, { force: 9, life: 3, fraction: 0.6 });
+      lab.setDamage(1);
+      for (const m of lab.meshes || []) if (m.visible) fx.shatter(m, { force: 9, life: 3, fraction: 0.6 });
       fx.smoke(p, { count: 30, scale: 2.5, life: 2 });
       fx.shockwave(p.clone().setY(0), { radius: 7, color: 0xffffff });
-      if (side === 1 && this.theme === 'mart') fx.groceries(p, { count: 40, speed: 10 });
-      if (lab.style === 'mansion') fx.cash(p, 120, { speed: 10 });
+      if (this.theme === 'mart') fx.groceries(p, { count: 40, speed: 10 });
+      if (lab.style === 'mansion' || lab.style === 'goldVault') fx.cash(p, 120, { speed: 10 });
       engine.shake(1);
       engine.timeScale = 1;
-      // commander tumbles
       const ch = this.cmds[side];
       if (ch) {
         ch.busy = true;
@@ -1437,29 +1900,38 @@ export class BattleView {
     await new Promise((r) => setTimeout(r, 2200));
   }
 
-  /** Units of the winning side celebrate. */
+  /** Units of the winning side celebrate; the camera settles on the loser's side. */
   celebrate(side) {
     for (const a of this.actors.values()) {
       if (a.u.side === side) a.danceT = 99;
+    }
+    const ch = this.cmds[side];
+    if (ch && !ch.busy) {
+      ch.busy = true;
+      ch.play('victory');
+      ch.expr('star', 'grin');
     }
   }
 
   dispose() {
     for (const a of this.actors.values()) a.dispose();
     this.actors.clear();
-    // free GPU memory held by the backdrop/labs (cached geometry simply re-uploads if reused)
-    const seen = new Set([Mats.solid, Mats.glow, Mats.flash, Mats.flashRed]);
+    for (const tp of this.towerPlates ?? []) { tp.lab.dispose(); tp.turret.dispose(); }
+    this.plateLayer.remove();
+    this.listeners.clear();
+    // free GPU memory held by the arena (cached geometry simply re-uploads if reused)
+    const seen = new Set();
+    for (const v of Object.values(Mats)) for (const m of Array.isArray(v) ? v : [v]) seen.add(m);
     const free = (root) => root && root.traverse((o) => {
       if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
       for (const m of mats) {
-        if (seen.has(m)) continue;
+        if (seen.has(m) || m.userData?.shared) continue;
         seen.add(m);
-        for (const k of ['map', 'emissiveMap', 'alphaMap']) if (m[k] && !seen.has(m[k])) { seen.add(m[k]); m[k].dispose(); }
+        for (const k of ['map', 'emissiveMap', 'alphaMap']) if (m[k] && !seen.has(m[k]) && !Object.values(texCache).includes(m[k])) { seen.add(m[k]); m[k].dispose(); }
         m.dispose();
       }
     });
-    free(this.backdrop?.root);
-    for (const lab of this.labs) free(lab.root);
+    free(this.arena?.root);
   }
 }

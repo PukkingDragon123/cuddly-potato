@@ -443,7 +443,7 @@ export function signGrid(label, o = {}) {
   g.box(x0, (o.legH ?? 0) + H - 1, 0, x0 + W - 1, (o.legH ?? 0) + H - 1, 1, o.frame ?? 0xffd23f);
   g.box(x0, o.legH ?? 0, 0, x0, (o.legH ?? 0) + H - 1, 1, o.frame ?? 0xffd23f);
   g.box(x0 + W - 1, o.legH ?? 0, 0, x0 + W - 1, (o.legH ?? 0) + H - 1, 1, o.frame ?? 0xffd23f);
-  text(g, label, 0, (o.legH ?? 0) + (o.pad ?? 3), 2, '+z', o.color ?? 0xff2e88, { center: true, scale: sc, glow: o.glow !== false });
+  text(g, label, 0, (o.legH ?? 0) + (o.pad ?? 3), 2, '+z', o.color ?? 0xff2e88, { center: true, scale: sc, glow: !!o.glow }); // big glowing text hazes the whole screen with bloom: opt-in only
   if (o.legH) for (const lx of [x0 + 2, x0 + W - 3]) g.box(lx, 0, 0, lx, o.legH - 1, 1, o.leg ?? 0x5d6476);
   return g;
 }

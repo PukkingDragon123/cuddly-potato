@@ -1,31 +1,33 @@
-// Dev helper: ?seed=1 (basic) or ?seed=all gives a populated profile for testing.
-import { state, grantSwarm, grantSpell, grantCommander, addVial, unlockMega } from '../game/state.js';
-import { COLLECTABLE } from '../data/swarms.js';
-import { SPELLS } from '../data/spells.js';
+// Dev helper: ?seed=1 (fresh player past the tutorial), ?seed=mid (~900 trophies)
+// or ?seed=all (everything unlocked) gives a populated profile for testing.
+import { state, grantCard, grantCommander, addVial, unlockMega, setDeck } from '../game/state.js';
+import { ALL_CARDS, STARTER_DECK } from '../data/cards.js';
 
 export function seedProfile(level = '1') {
   const p = state.p;
   p.tutorial = 'done';
+  p.name = p.name === 'Recruit' ? 'LabHero' : p.name;
   p.coins = Math.max(p.coins, 5000);
   p.bucks = Math.max(p.bucks, 500);
-  grantSwarm('panther', 5);
-  grantSwarm('cloggedToilet', 3);
-  grantSpell('foodThrow');
-  grantSpell('moneyDrop');
-  if (level === 'all') {
-    p.trophies = p.bestTrophies = 900;
+  for (const id of STARTER_DECK) grantCard(id, 4);
+  setDeck(STARTER_DECK.slice());
+  if (level === 'mid' || level === 'all') {
+    const tro = level === 'all' ? 3600 : 900;
+    p.trophies = p.bestTrophies = Math.max(p.trophies, tro);
     p.calories = 2400;
-    for (const s of COLLECTABLE) grantSwarm(s.id, 6, Math.random() < 0.15 ? 'gold' : 'base');
-    for (const id of Object.keys(SPELLS)) grantSpell(id);
+    for (const c of ALL_CARDS) {
+      if (level === 'mid' && !['lab', 'circle', 'factory'].includes(c.arena)) continue;
+      grantCard(c.id, 12);
+      if (p.cards[c.id]) p.cards[c.id].level = Math.max(p.cards[c.id].level, level === 'all' ? 7 : 4);
+    }
     for (const id of ['jimmy', 'nolan', 'juan']) grantCommander(id);
-    p.commanders.owned.juan.level = 6;
-    p.commanders.equipped = 'juan';
-    unlockMega('feastablesPanther');
-    p.deck = ['panther', 'cloggedToilet', 'trashedCan', 'mutantMailbox', 'burgerBrute', 'chocoChomper'];
-    p.spells.equipped = ['foodThrow', 'moneyDrop', 'sodaRocket'];
-    addVial('lab');
-    addVial('food');
-    addVial('mega');
+    p.commanders.owned.jimmy.level = 6;
+    p.commanders.equipped = 'jimmy';
+    if (level === 'all') unlockMega('feastablesPanther');
+    setDeck(['panther', 'cloggedToilet', 'steelPanther', 'fryFiend', 'beastTiger', 'pizzaSlicer', 'foodThrow', 'moneyDrop'].filter((id) => p.cards[id]));
+    addVial('labPack');
+    addVial('megaLab');
+    addVial('testTube');
   }
   state.save();
 }

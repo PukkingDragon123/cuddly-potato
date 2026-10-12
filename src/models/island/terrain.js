@@ -60,6 +60,8 @@ const FACE_SHADE = { px: 0.9, nx: 0.86, pz: 1.0, nz: 0.8 };
  * spec: { zones: [{x,z,y,rp,rb,biome}], road: THREE.Vector3[] control points (x,z), river: [[x,z],...], peaks: [[x,z,h,r]] }
  */
 export function buildTerrain(spec) {
+  const _t0 = performance.now();
+  const tick = (label) => { if (spec.log) console.log(`[terrain] ${label} ${Math.round(performance.now() - _t0)}ms`); };
   const N = NX * NZ;
   const H = new Float32Array(N); // working height (world units)
   const fine = new Uint8Array(N); // 1 = shaped (fine 0.5 quantisation)
@@ -82,7 +84,7 @@ export function buildTerrain(spec) {
     for (let i = 0; i < NX; i++) {
       const x = cx(i);
       const th = Math.atan2(z, x);
-      const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(x * 0.035, z * 0.035, 3, 3) - 0.5) * 0.22;
+      const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(x * 0.035, z * 0.035, 2, 3) - 0.5) * 0.22;
       const rho = Math.sqrt((x / 76) ** 2 + ((z + 1) / 70) ** 2) / R;
       let L = 1 - rho;
       // cliffy north + west coasts, beaches south + east
@@ -92,6 +94,10 @@ export function buildTerrain(spec) {
       landF[j * NX + i] = L;
     }
   }
+  // river distance (for the valley + calmer hills along it)
+  const riverPts = densify(spec.river, 0.25);
+  const rDist = new Float32Array(N).fill(99);
+  stamp(riverPts, 16, (id, d) => { if (d < rDist[id]) rDist[id] = d; });
   // zone RBF base height + hills + peaks
   const sig2 = 2 * 20 * 20;
   for (let j = 0; j < NZ; j++) {
@@ -100,38 +106,40 @@ export function buildTerrain(spec) {
       const id = j * NX + i, x = cx(i);
       let L = landF[id];
       // keep zones on land
-      let near = 0;
+      let near = 0, ws = 0, hs = 0;
       for (const Z of zones) {
-        const d = Math.hypot(x - Z.x, z - Z.z);
-        near = Math.max(near, 1 - smooth(Z.rp + Z.rb, Z.rp + Z.rb + 10, d));
-      }
-      L = Math.max(L, near * 0.12);
-      let ws = 0, hs = 0;
-      for (const Z of zones) {
-        const w = Math.exp(-((x - Z.x) ** 2 + (z - Z.z) ** 2) / sig2) + 1e-6;
+        const d2 = (x - Z.x) ** 2 + (z - Z.z) ** 2;
+        const R0 = Z.rp + Z.rb;
+        if (d2 < (R0 + 10) ** 2) near = Math.max(near, 1 - smooth(R0, R0 + 10, Math.sqrt(d2)));
+        const w = Math.exp(-d2 / sig2) + 1e-6;
         ws += w;
         hs += w * (Z.y - 0.5);
       }
+      L = Math.max(L, near * 0.12);
       const base = hs / ws;
       const cliff = cliffF[id];
       const coastW = lerp(0.22, 0.035, cliff);
       const coast = smooth(0, coastW, L);
       const inland = smooth(0.05, 0.3, L);
-      let h = (base + 0.4) * coast + (fbm(x * 0.045, z * 0.045, 3, 11) - 0.5) * 8 * inland;
+      const rd = rDist[id];
+      const calm = smooth(3, 13, rd);
+      let h = (base + 0.4) * coast + (fbm(x * 0.045, z * 0.045, 3, 11) - 0.5) * 8 * inland * calm;
+      // gentle river valley (never below the beach level inland)
+      if (rd < 16 && L > 0) h = Math.max(Math.min(h, 1.5), h - 3 * Math.exp(-(rd * rd) / (2 * 6 * 6)) * inland);
       // rolling beach dunes
-      if (L > 0 && L < 0.12 && cliff < 0.4) h = Math.max(h, 0.55 + fbm(x * 0.12, z * 0.12, 2, 5) * 0.6);
-      for (const [px, pz, ph, pr] of spec.peaks) {
-        const d = Math.hypot(x - px, z - pz);
-        const k = Math.exp(-(d * d) / (2 * pr * pr));
-        h = Math.max(h, ph * k * (0.85 + fbm(x * 0.2, z * 0.2, 2, 21) * 0.3));
-      }
+      if (L > 0 && L < 0.12 && cliff < 0.4) h = Math.max(h, 0.55 + vnoise(x * 0.12, 5, z * 0.12) * 0.6);
       if (L <= 0) h = Math.min(h, L * 40); // open sea
+      for (const [px, pz, ph, pr] of spec.peaks) {
+        let d2 = (x - px) ** 2 + (z - pz) ** 2;
+        if (d2 > 9 * pr * pr) continue;
+        d2 *= 0.6 + vnoise(x * 0.16 + px, 13, z * 0.16) * 0.8;
+        const k = Math.exp(-d2 / (2 * pr * pr));
+        h = Math.max(h, ph * k * (0.85 + vnoise(x * 0.2, 21, z * 0.2) * 0.3));
+      }
       H[id] = h;
     }
   }
-  // valley along the river (natural terrain only)
-  const riverPts = densify(spec.river, 0.25);
-  stamp(riverPts, 12, (id, d) => { H[id] -= 5 * Math.exp(-(d * d) / (2 * 6 * 6)); });
+  tick('natural');
 
   // ---------------------------------------------------------------- zone plateaus
   for (let j = 0; j < NZ; j++) {
@@ -145,9 +153,16 @@ export function buildTerrain(spec) {
         H[id] = lerp(Z.y - 0.5, H[id], s);
         fine[id] = 1;
       }
+      for (const [bx, bz, by, br, bb] of spec.basins ?? []) {
+        const d = Math.hypot(x - bx, z - bz);
+        if (d > br + bb) continue;
+        const s = smooth(br, br + bb, d + (vnoise(x * 0.25, 6, z * 0.25) - 0.5) * 2);
+        H[id] = lerp(by, H[id], s);
+      }
     }
   }
 
+  tick('zones');
   // ---------------------------------------------------------------- road
   const road = densify(spec.road, 0.25);
   // indices of zone centres along the dense road
@@ -180,6 +195,7 @@ export function buildTerrain(spec) {
     fine[id] = 1;
   }
 
+  tick('road');
   // ---------------------------------------------------------------- quantise
   for (let j = 0; j < NZ; j++) {
     const z = cz(j);
@@ -211,7 +227,8 @@ export function buildTerrain(spec) {
     if (rd < RW + 2.6) g = Math.min(g, ry - 1.0);
     wl = Math.min(wl, g - 0.12);
     if (k > riverPts.length - 12) wl = Math.min(wl, 0.12 * (riverPts.length - k) / 12);
-    p.y = Math.max(0.05, wl);
+    // pool-and-drop: water levels on whole units so cascades are fewer + taller
+    p.y = Math.max(0.05, k === 0 ? wl : Math.floor((wl + 0.12) / 1.0) * 1.0 - 0.15);
     p.w = (spec.riverWidth ? spec.riverWidth(k / (riverPts.length - 1)) : 1.2);
     riverInfo.push(p);
   }
@@ -235,10 +252,11 @@ export function buildTerrain(spec) {
     const [lx, lz, lr, ly] = spec.lagoon;
     forDisc(lx, lz, lr + 1.5, (id, d, x, z) => {
       const rr = lr * (1 + (fbm(x * 0.3, z * 0.3, 2, 9) - 0.5) * 0.35);
-      if (d < rr) { hv[id] = Math.round((ly - 0.75) / VY); mat[id] = MAT.CHANNEL; }
+      if (d < rr) { hv[id] = Math.floor((ly - 0.75) / VY); mat[id] = MAT.CHANNEL; }
     });
   }
 
+  tick('river');
   // ---------------------------------------------------------------- materials (per column)
   const biomeAt = (x, z, jit = 0) => {
     let best = null, bw = 0;
@@ -317,9 +335,13 @@ export function buildTerrain(spec) {
       return m;
     },
   };
+  tick('materials');
   api.mesh = buildMesh(api);
+  tick('mesh');
   api.colorTex = paintColorMap(api, spec);
+  tick('colormap');
   api.distTex = shoreDistance(api);
+  tick('shore');
   return api;
 }
 
@@ -475,7 +497,7 @@ function paintColorMap(T, spec) {
     [MAT.GRASS]: [0x5cc24a, 0x4fb441, 0x6ad154, 0x86de5e, 0x3f9e3a],
     [MAT.LUSH]: [0x4fd05a, 0x3fbe4c, 0x62de68, 0x9af07a, 0x2f9e44],
     [MAT.PASTEL]: [0x7cd88a, 0x6fcc7e, 0x8fe29a, 0xb4f0b8, 0x5ab86c],
-    [MAT.ROCK]: [0x9aa2b4, 0x8a92a4, 0xa8b0c0, 0xc2c8d4, 0x6f7788],
+    [MAT.ROCK]: [0x58b84a, 0x4fa844, 0x9aa2b4, 0x6ad154, 0x8a92a4],
     [MAT.SNOW]: [0xf4f9ff, 0xe6f0fb, 0xffffff, 0xffffff, 0xc8dcf0],
     [MAT.DESERT]: [0xf2c879, 0xe8b866, 0xf8d68e, 0xffe6a8, 0xd8a050],
     [MAT.ASH]: [0x4a4458, 0x564f64, 0x3e3a4c, 0x6a6278, 0x2e2a3a],
@@ -577,45 +599,50 @@ function paintColorMap(T, spec) {
 
 function shoreDistance(T) {
   const { hv } = T;
-  const N = NX * NZ;
+  const PAD = 48; // extra columns of open sea on each side
+  const W = NX + PAD * 2, Hh = NZ + PAD * 2;
+  const N = W * Hh;
   const D = new Float32Array(N);
   const INF = 1e6;
-  for (let id = 0; id < N; id++) D[id] = hv[id] >= 1 ? 0 : INF;
+  for (let j = 0; j < Hh; j++) for (let i = 0; i < W; i++) {
+    const ii = i - PAD, jj = j - PAD;
+    const land = ii >= 0 && jj >= 0 && ii < NX && jj < NZ && hv[jj * NX + ii] >= 1;
+    D[j * W + i] = land ? 0 : INF;
+  }
   const a = CS, b = CS * Math.SQRT2;
-  for (let j = 0; j < NZ; j++)
-    for (let i = 0; i < NX; i++) {
-      const id = j * NX + i;
+  for (let j = 0; j < Hh; j++)
+    for (let i = 0; i < W; i++) {
+      const id = j * W + i;
       let v = D[id];
       if (i > 0) v = Math.min(v, D[id - 1] + a);
       if (j > 0) {
-        v = Math.min(v, D[id - NX] + a);
-        if (i > 0) v = Math.min(v, D[id - NX - 1] + b);
-        if (i < NX - 1) v = Math.min(v, D[id - NX + 1] + b);
+        v = Math.min(v, D[id - W] + a);
+        if (i > 0) v = Math.min(v, D[id - W - 1] + b);
+        if (i < W - 1) v = Math.min(v, D[id - W + 1] + b);
       }
       D[id] = v;
     }
-  for (let j = NZ - 1; j >= 0; j--)
-    for (let i = NX - 1; i >= 0; i--) {
-      const id = j * NX + i;
+  for (let j = Hh - 1; j >= 0; j--)
+    for (let i = W - 1; i >= 0; i--) {
+      const id = j * W + i;
       let v = D[id];
-      if (i < NX - 1) v = Math.min(v, D[id + 1] + a);
-      if (j < NZ - 1) {
-        v = Math.min(v, D[id + NX] + a);
-        if (i < NX - 1) v = Math.min(v, D[id + NX + 1] + b);
-        if (i > 0) v = Math.min(v, D[id + NX - 1] + b);
+      if (i < W - 1) v = Math.min(v, D[id + 1] + a);
+      if (j < Hh - 1) {
+        v = Math.min(v, D[id + W] + a);
+        if (i < W - 1) v = Math.min(v, D[id + W + 1] + b);
+        if (i > 0) v = Math.min(v, D[id + W - 1] + b);
       }
       D[id] = v;
     }
   const data = new Uint8Array(N * 4);
   for (let id = 0; id < N; id++) {
-    const v = clamp(D[id] / 32, 0, 1);
-    data[id * 4] = Math.round(v * 255);
-    data[id * 4 + 1] = hv[id] >= 1 ? 255 : 0;
+    data[id * 4] = Math.round(clamp(D[id] / 32, 0, 1) * 255);
     data[id * 4 + 3] = 255;
   }
-  const tex = new THREE.DataTexture(data, NX, NZ, THREE.RGBAFormat);
+  const tex = new THREE.DataTexture(data, W, Hh, THREE.RGBAFormat);
   tex.magFilter = THREE.LinearFilter;
   tex.minFilter = THREE.LinearFilter;
   tex.needsUpdate = true;
+  tex.userData.rect = [X0 - PAD * CS, Z0 - PAD * CS, W * CS, Hh * CS];
   return tex;
 }

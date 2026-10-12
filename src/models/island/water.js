@@ -34,9 +34,9 @@ float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); 
 vec3 ramp(float d, float dith) {
   vec3 a; vec3 b; float f;
   if (d < 2.5) { a = cShallow; b = cShallow2; f = d / 2.5; }
-  else if (d < 7.0) { a = cShallow2; b = cMid; f = (d - 2.5) / 4.5; }
-  else if (d < 15.0) { a = cMid; b = cDeep; f = (d - 7.0) / 8.0; }
-  else { a = cDeep; b = cDeepest; f = clamp((d - 15.0) / 14.0, 0.0, 1.0); }
+  else if (d < 6.5) { a = cShallow2; b = cMid; f = (d - 2.5) / 4.0; }
+  else if (d < 13.0) { a = cMid; b = cDeep; f = (d - 6.5) / 6.5; }
+  else { a = cDeep; b = cDeepest; f = clamp((d - 13.0) / 12.0, 0.0, 1.0); }
   f = floor(f * 3.0 + dith) / 3.0;
   return mix(a, b, f);
 }
@@ -76,7 +76,7 @@ export function makeOcean(T, size = 2600) {
     THREE.UniformsLib.fog,
     {
       uTime: { value: 0 },
-      uRect: { value: new THREE.Vector4(X0, Z0, NX * CS, NZ * CS) },
+      uRect: { value: new THREE.Vector4(...(T.distTex.userData.rect ?? [X0, Z0, NX * CS, NZ * CS])) },
       cFoam: { value: col(0xf4ffff) },
       cShallow: { value: col(0x7af0e0) },
       cShallow2: { value: col(0x2fd4d8) },
@@ -169,7 +169,6 @@ export function lagoonTexture() {
 export function makeRiver(samples) {
   const flat = { pos: [], uv: [], idx: [] }, falls = { pos: [], uv: [], idx: [] };
   const splashes = [];
-  let v = 0;
   const n = samples.length;
   const side = (k) => {
     const a = samples[Math.max(0, k - 2)], b = samples[Math.min(n - 1, k + 2)];
@@ -178,34 +177,49 @@ export function makeRiver(samples) {
     tx /= l; tz /= l;
     return [-tz, tx];
   };
-  let inFall = false, fallTop = 0;
+  const quad = (G, a, b, c, d, v0, v1) => {
+    const base = G.pos.length / 3;
+    G.pos.push(...a, ...b, ...c, ...d);
+    G.uv.push(0, v0, 1, v0, 1, v1, 0, v1);
+    G.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  };
+  const edge = (k, y, ext = 0) => {
+    const S = samples[Math.min(n - 1, k)];
+    const [ax, az] = side(k);
+    const w = S.w + ext;
+    return [[S.x - ax * w, y, S.z - az * w], [S.x + ax * w, y, S.z + az * w]];
+  };
+  // drops + "rapids" (flats squeezed between nearby drops render as white water)
+  const isDrop = (k) => k >= 0 && k < n - 1 && samples[k].y - samples[k + 1].y > 0.05;
+  const nearDrop = (k) => { for (let d = -3; d <= 3; d++) if (isDrop(k + d)) return true; return false; };
+  let v = 0, casTop = null;
   for (let k = 0; k < n - 1; k++) {
     const A = samples[k], B = samples[k + 1];
     const hz = Math.hypot(B.x - A.x, B.z - A.z);
     const dy = A.y - B.y;
-    const steep = dy / Math.max(hz, 1e-3) > 1.2;
-    const L = Math.hypot(hz, dy);
-    const [ax, az] = side(k), [bx, bz] = side(k + 1);
-    const tgt = steep ? falls : flat;
-    const base = tgt.pos.length / 3;
-    const lip = steep ? 0.12 : 0;
-    // waterfall sheets bulge slightly outward from the cliff
-    const ox = steep ? (B.x - A.x) / Math.max(hz, 1e-3) * lip : 0, oz = steep ? (B.z - A.z) / Math.max(hz, 1e-3) * lip : 0;
-    tgt.pos.push(
-      A.x - ax * A.w, A.y, A.z - az * A.w,
-      A.x + ax * A.w, A.y, A.z + az * A.w,
-      B.x + bx * B.w + ox, B.y, B.z + bz * B.w + oz,
-      B.x - bx * B.w + ox, B.y, B.z - bz * B.w + oz,
-    );
-    const v0 = v / 2.0, v1 = (v + L) / 2.0;
-    tgt.uv.push(0, v0, 1, v0, 1, v1, 0, v1);
-    tgt.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
-    v += L;
-    if (steep && !inFall) { inFall = true; fallTop = A.y; }
-    if (!steep && inFall) {
-      inFall = false;
-      if (fallTop - A.y > 1.2) splashes.push({ x: A.x, y: A.y, z: A.z, w: A.w, h: fallTop - A.y });
+    if (dy > 0.05 && k + 2 < n) {
+      // drop: the top surface overhangs to k+2, then a vertical sheet falls to the lower pool
+      if (casTop === null) casTop = A.y;
+      const [a0, a1] = edge(k, A.y), [b0, b1] = edge(k + 2, A.y, 0.05);
+      quad(nearDrop(k - 1) && isDrop(k - 2) ? falls : flat, a0, a1, b1, b0, v / 2, (v + hz * 2) / 2);
+      const [c0, c1] = edge(k + 2, B.y - 0.02, 0.05);
+      const fb = falls.pos.length / 3;
+      falls.pos.push(...b0, ...b1, ...c1, ...c0);
+      falls.uv.push(0, 0, 1, 0, 1, dy / 2, 0, dy / 2);
+      falls.idx.push(fb, fb + 2, fb + 1, fb, fb + 3, fb + 2);
+      let more = false;
+      for (let d = 1; d <= 4; d++) if (isDrop(k + d)) more = true;
+      if (!more) {
+        const S = samples[k + 2];
+        if (casTop - B.y > 0.9) splashes.push({ x: S.x, y: B.y, z: S.z, w: S.w, h: casTop - B.y });
+        casTop = null;
+      }
+      v += hz;
+      continue;
     }
+    const [a0, a1] = edge(k, A.y), [b0, b1] = edge(k + 1, B.y);
+    quad(nearDrop(k) && casTop !== null ? falls : flat, a0, a1, b1, b0, v / 2, (v + hz) / 2);
+    v += hz;
   }
   const mk = (G, tex, name) => {
     const geo = new THREE.BufferGeometry();
@@ -235,7 +249,8 @@ export function makeRiver(samples) {
   // mist puffs (flat foam rings) under big falls
   const mist = [];
   for (const S of splashes) {
-    const ringGeo = new THREE.CircleGeometry(S.w * 1.5 + 0.6, 12);
+    if (S.h < 2.5) continue;
+    const ringGeo = new THREE.CircleGeometry(S.w * 1.2 + 0.3, 10);
     ringGeo.rotateX(-Math.PI / 2);
     const ringM = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xe8fcff, transparent: true, opacity: 0.85, depthWrite: false }));
     ringM.position.set(S.x, S.y + 0.03, S.z);
@@ -260,4 +275,32 @@ export function makeRiver(samples) {
     mist.forEach((m, i) => { const s = 1 + Math.sin(t * 3 + i) * 0.08; m.scale.set(s, 1, s); });
   };
   return { group, update, splashes };
+}
+
+/** Flat water surface over terrain columns (row runs merged). cols: [[i, j], ...] */
+export function columnWater(cols, y, grid, mat) {
+  const { X0, Z0, CS } = grid;
+  const rows = new Map();
+  for (const [i, j] of cols) { if (!rows.has(j)) rows.set(j, []); rows.get(j).push(i); }
+  const pos = [], uv = [], idx = [];
+  for (const [j, is] of rows) {
+    is.sort((a, b) => a - b);
+    for (let s = 0; s < is.length; ) {
+      let e = s;
+      while (e + 1 < is.length && is[e + 1] === is[e] + 1) e++;
+      const x0 = X0 + is[s] * CS, x1 = X0 + (is[e] + 1) * CS, z0 = Z0 + j * CS, z1 = z0 + CS;
+      const b = pos.length / 3;
+      pos.push(x0, y, z0, x0, y, z1, x1, y, z1, x1, y, z0);
+      uv.push(x0 / 4, z0 / 4, x0 / 4, z1 / 4, x1 / 4, z1 / 4, x1 / 4, z0 / 4);
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+      s = e + 1;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return new THREE.Mesh(geo, mat);
 }

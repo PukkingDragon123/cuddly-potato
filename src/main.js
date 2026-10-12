@@ -43,6 +43,7 @@ async function boot() {
   if (dev === 'models' || dev === 'chars' || dev === 'props') await game.go('preview', { mode: dev, id: params.get('id'), instant: true });
   else if (dev === 'modellab') await game.go('modellab', { ...Object.fromEntries(params), instant: true });
   else if (dev === 'arena') await game.go('arenaview', { ...Object.fromEntries(params), instant: true });
+  else if (dev === 'island') await game.go('islandview', { ...Object.fromEntries(params), instant: true });
   else if (dev === 'ui') await game.go('uibench', { ...Object.fromEntries(params), instant: true });
   else if (params.get('scene')) await game.go(params.get('scene'), { instant: true, dev: true, ...Object.fromEntries(params) });
   else await game.go('title', { instant: true });

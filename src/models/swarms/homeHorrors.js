@@ -578,14 +578,20 @@ function toiletRollDef() {
  * side: -1 = model's left. o: lid colour, slant, pupil, pw/ph, look [dx, dy].
  */
 function orbEye(g, cx, cy, cz, r, side, o = {}) {
-  const lidC = o.lid ?? INK;
-  blob(g, cx, cy, cz, r, r, r, o.white ?? WHITE, { p: 2, glow: !!o.glow });
-  const slant = o.slant ?? 0.45, lift = o.lift ?? 0.35;
+  const lidC = o.lid ?? INK, white = o.white ?? WHITE;
+  blob(g, cx, cy, cz, r, r, r, white, { p: 2, glow: !!o.glow });
+  const slant = o.slant ?? 0.45, lift = o.lift ?? 0.5;
   const lineY = (x) => cy + r * lift + (x - cx) * side * slant; // higher at the outer side
-  blob(g, cx, cy, cz, r + 0.7, r + 0.7, r + 0.7, lidC, { p: 2, clip: (x, y, z) => y < lineY(x) || z < cz - r * 0.6 });
-  g.paint((x, y, z, c) => (c === (o.white ?? WHITE) && y >= lineY(x) && Math.hypot(x - cx, y - cy, z - cz) <= r + 0.8 ? lidC : undefined));
+  g.paint((x, y, z, c) => (c === white && y >= lineY(x) && Math.hypot(x - cx, y - cy, z - cz) <= r + 0.8 ? lidC : undefined));
+  // thick angry brow riding the lid line
+  if (o.brow !== false) {
+    const bz = (x, y) => cz + Math.sqrt(Math.max(0, r * r - (x - cx) ** 2 - (y - cy) ** 2)) * 0.85;
+    const xo = cx + side * r * 0.95, xi = cx - side * r * 0.95;
+    const yo = lineY(xo) + 0.3, yi = lineY(xi) + 0.3;
+    capsule(g, [xo, yo, bz(xo, yo)], [xi, yi, bz(xi, yi) + 0.4], o.browR ?? 1, o.browR ?? 1, o.browCol ?? INK);
+  }
   const pw = o.pw ?? 2, ph = o.ph ?? 3, look = o.look ?? [0, 0];
-  const px = Math.round(cx - side * 0.6 + look[0] - pw / 2 + 0.5), py = Math.round(cy - 0.4 + look[1] + ph / 2 - 0.5);
+  const px = Math.round(cx - side * 0.6 + look[0] - pw / 2 + 0.5), py = Math.round(cy - 0.6 + look[1] + ph / 2 - 0.5);
   const art = [];
   for (let v = 0; v < ph; v++) art.push('P'.repeat(pw));
   const gx = side < 0 ? 0 : pw - 1;
@@ -656,9 +662,9 @@ function mailboxDef() {
   stamp(head, BOLT_R, { M: MAG }, { axis: 'x', y: WALL + 1, z: -2 });
   stamp(head, ['W.WWW', 'W...W', 'W.WWW', 'W...W', 'W.WWW'], { W: WHITE }, { axis: '-x', y: WALL - 1, z: 4 });
   // frog-eyes on top of the arch (angry lids)
-  const EY = WALL + AR - 0.5, EZ = 4.5;
-  orbEye(head, -4.2, EY, EZ, 3.4, -1, { lid: BLUE_D, slant: 0.5, lift: 0.3 });
-  orbEye(head, 3.2, EY, EZ, 3.4, 1, { lid: BLUE_D, slant: 0.5, lift: 0.3 });
+  const EY = WALL + AR + 0.8, EZ = 5.5;
+  orbEye(head, -4.2, EY, EZ, 3.6, -1, { lid: BLUE, slant: 0.4, lift: 0.5, pw: 2, ph: 3 });
+  orbEye(head, 3.2, EY, EZ, 3.6, 1, { lid: BLUE, slant: 0.4, lift: 0.5, pw: 2, ph: 3 });
   gradY(head, B0, WALL + 8, -0.1, 0.05, (x, y, z, c) => c === BLUE || c === BLUE_L);
 
   // ---- door = jaw, hinged at the bottom front edge
@@ -691,7 +697,7 @@ function mailboxDef() {
   const AJ = [-0.5, WALL + AR, -6];
   const stalk = G();
   chain(stalk, [[-0.5, WALL + AR - 1, -6], [-0.5, WALL + AR + 3, -7], [-0.5, WALL + AR + 6, -6]], [1.2, 0.8], BLUE_D);
-  orbEye(stalk, -0.5, WALL + AR + 8, -5.5, 2.3, 1, { lid: BLUE_D, slant: 0, lift: 0.45, pw: 2, ph: 2 });
+  orbEye(stalk, -0.5, WALL + AR + 8, -5.5, 2.3, 1, { lid: BLUE, slant: 0, lift: 0.4, pw: 2, ph: 2, browR: 0.7 });
 
   // ---- legs with chunky boots
   const legL = bootLeg(-3.5, 0.5, 5, WOOD, BOOT, { r: 1.9, sole: INK });
@@ -704,7 +710,7 @@ function mailboxDef() {
       jp('legL', legL, [-3.5, 5, 0.5]), jp('legR', flipX(legL), [2.5, 5, 0.5]),
       jp('body', body, root),
       jp('head', head, HJ),
-      jp('jaw', door, DJ, HJ, { parent: 'head', rot: [0.32, 0, 0] }),
+      jp('jaw', door, DJ, HJ, { parent: 'head', rot: [0.62, 0, 0] }),
       jp('flag', flag, FJ, HJ, { parent: 'head' }),
       jp('antenna', stalk, AJ, HJ, { parent: 'head' }),
     ],
@@ -712,6 +718,402 @@ function mailboxDef() {
     finish: 'gloss',
     jitter: 0.02,
   };
+}
+
+// ===========================================================================
+// Street signs come alive: a chunky sign-plate head on a bolted pole torso with
+// pipe arms sprouting from the plate's flanks and stubby legs.
+
+/** 3x5 pixel font for sign lettering. */
+const FONT = {
+  S: ['###', '#..', '###', '..#', '###'], T: ['###', '.#.', '.#.', '.#.', '.#.'], O: ['###', '#.#', '#.#', '#.#', '###'], P: ['###', '#.#', '###', '#..', '#..'],
+};
+function textArt(str, ch = 'W', mirrorText = false) {
+  const rows = ['', '', '', '', ''];
+  [...str].forEach((c, i) => { for (let r = 0; r < 5; r++) rows[r] += (i ? '.' : '') + FONT[c][r].replace(/#/g, ch); });
+  return mirrorText ? rows.map((r) => [...r].reverse().join('')) : rows;
+}
+
+/**
+ * Sign body mold. S: { pole, poleD, leg, foot, footD, glove, gloveD, glowKnuckle }.
+ * Returns grids { body, legL, legR } and arm builder. Arms are attached to the
+ * head plate's flanks at shoulder = [x, y, z] (left side).
+ */
+function signMold(S, o = {}) {
+  const body = G();
+  cyl(body, 'y', -0.5, -0.5, 4, 13, 2.4, 2.4, (x, y) => ((y + 40) % 4 === 0 ? S.poleD : S.pole));
+  // hip bracket + bolts
+  rbox(body, -4, 4, -3, 3, 6, 2, 1, S.poleD);
+  for (const x of [-3, 2]) body.set(x, 5, 3, CHROME);
+  if (S.hazard) body.paint((x, y, z, c) => (y >= 7 && y <= 12 && c !== S.poleD ? ((y + x + 40) % 4 < 2 ? S.hazard[0] : S.hazard[1]) : undefined));
+  const legL = G();
+  capsule(legL, [-3, 6, -0.5], [-3, 2.5, 0], 1.6, 1.5, S.leg);
+  if (S.concrete) {
+    rbox(legL, -6, 0, -3, 0, 3, 4, 1, (x, y, z) => (n3(x, y, z, 8) < 0.22 ? S.footD : S.foot));
+    for (const [x, y, z] of [[-6, 3, 4], [0, 0, -3], [-6, 0, 4]]) legL.del(x, y, z);
+  } else {
+    blob(legL, -3, 1.5, 1.2, 2.7, 1.8, 3.4, S.foot, { p: 2.4, clip: (x, y) => y < 0 });
+    legL.paint((x, y, z, c) => (y === 0 ? S.footD : undefined));
+  }
+  const legR = flipX(legL);
+  const arm = (sh) => {
+    const g = G();
+    const [sx, sy, sz] = sh;
+    blob(g, sx, sy, sz, 1.8, 1.8, 1.8, S.poleD);
+    capsule(g, [sx - 0.8, sy, sz], [sx - 1.8, sy - 6, sz + 0.5], 1.3, 1.2, S.pole);
+    // cartoon glove: puffy cuff + fist
+    cyl(g, 'y', sx - 1.8, sz + 0.5, sy - 7.5, sy - 6.5, 2.1, 2.1, S.gloveD);
+    blob(g, sx - 1.8, sy - 9.2, sz + 0.8, 2.5, 2.3, 2.6, S.glove, { p: 2.3 });
+    blob(g, sx - 0.2, sy - 8.6, sz + 2.6, 1, 1, 1.1, S.glove);
+    for (const dz of [-1, 1]) g.set(Math.round(sx - 1.8), Math.round(sy - 8.6), Math.round(sz + 0.8 + dz), S.gloveD);
+    if (S.glowKnuckle) for (const dz of [-1, 0, 1, 2]) g.set(Math.round(sx - 1.8), Math.round(sy - 11.2), Math.round(sz + 1 + dz), S.glowKnuckle, true);
+    return g;
+  };
+  return { body, legL, legR, arm };
+}
+
+function packSign(m, head, HJ, sh, extra = {}) {
+  const armL = m.arm(sh), armR = flipX(armL);
+  const root = [-0.5, 0, 0];
+  return {
+    gait: 'walk',
+    voxel: 0.05,
+    parts: [
+      jp('legL', m.legL, [-3, 6, -0.5]), jp('legR', m.legR, [2, 6, -0.5]),
+      jp('body', m.body, root),
+      jp('head', head, HJ),
+      jp('armL', armL, sh, HJ, { parent: 'head' }),
+      jp('armR', armR, [-1 - sh[0], sh[1], sh[2]], HJ, { parent: 'head' }),
+      ...(extra.parts ?? []),
+    ],
+    muzzle: extra.muzzle ?? [-0.5, 18, 8],
+    finish: extra.finish ?? 'gloss',
+    jitter: 0.02,
+  };
+}
+
+function stopSignDef() {
+  const RED = 0xe8202a, RED_D = 0xb0141c, BORDER = WHITE, BACK = 0xa8b2c4;
+  const m = signMold({ pole: 0xa8b2c4, poleD: 0x6b7590, leg: 0xa8b2c4, foot: 0xb8b4a8, footD: 0x8a867c, concrete: true, glove: WHITE, gloveD: 0xd6dae6 });
+  const CY = 22, ZB = -3, ZF = 5;
+  const oct = (x, y, sh = 0) => { const dx = Math.abs(x + 0.5), dy = Math.abs(y - CY); return dx <= 11 - sh && dy <= 11 - sh && dx + dy <= 15.6 - sh * 1.4; };
+  const HJ = [-0.5, 12, 0];
+  const head = G();
+  // pole continues up behind the plate, with a bracket
+  cyl(head, 'y', -0.5, -3.5, 12, 30, 1.6, 1.6, 0xa8b2c4);
+  for (const y of [15, 27]) rbox(head, -3, y, -4, 2, y + 1, -2, 0.5, 0x6b7590);
+  for (let x = -12; x <= 11; x++) for (let y = CY - 12; y <= CY + 12; y++) for (let z = ZB; z <= ZF; z++) {
+    const bev = z === ZF || z === ZB ? 0.7 : 0;
+    if (!oct(x, y, bev)) continue;
+    head.set(x, y, z, z === ZB ? BACK : z === ZF ? RED : RED_D);
+  }
+  // raised white border on the face + a white stripe round the rim (reads side-on)
+  for (let x = -12; x <= 11; x++) for (let y = CY - 12; y <= CY + 12; y++) {
+    if (!oct(x, y, 0.7) || oct(x, y, 1.9)) continue;
+    head.set(x, y, ZF + 1, BORDER);
+  }
+  head.paint((x, y, z, c) => (c === RED_D && z === 1 && !oct(x, y, 1) ? BORDER : undefined));
+  // STOP on the back plate (reads from behind)
+  stamp(head, textArt('STOP', 'W', true), { W: { c: WHITE, raise: 1 } }, { axis: '-z', x: -8, y: CY + 2 });
+  for (const [x, y] of [[-1, CY + 7], [-1, CY - 7]]) head.set(x, y, ZB - 1, CHROME);
+  // ---- furious face: big bulging eyes, heavy brows, shouting mouth
+  const EYY = CY + 2.8;
+  eyeBall(head, -4.6, EYY, ZF, [3, 3.4, 2.7], -1, { browCol: INK, browT: 2, inward: 1, pw: 2, ph: 3 });
+  eyeBall(head, 3.6, EYY, ZF, [3, 3.4, 2.7], 1, { browCol: INK, browT: 2, inward: 1, pw: 2, ph: 3 });
+  // throbbing vein
+  stamp(head, ['V.V', '.V.', 'V.V'], { V: { c: 0x8a0a14, raise: 1 } }, { axis: 'z', x: 5, y: CY + 8 });
+  openMouth(head, -7, 6, CY - 8, CY - 3, (x, y) => {
+    const dx = Math.abs(x + 0.5), t = (CY - 3 - y) / 5.6;
+    return dx <= 5.6 * Math.sqrt(Math.max(0, 1 - t * t * t)) + 0.2;
+  }, { depth: 4, top: 2, bot: 2, period: 3, tongueW: 2.5, back: MOUTH });
+  gradY(head, CY - 11, CY + 11, -0.1, 0.06, (x, y, z, c) => c === RED || c === RED_D);
+  return packSign(m, head, HJ, [-11.6, CY - 3, 1], { muzzle: [-0.5, CY - 5, 8] });
+}
+
+function shockSignDef() {
+  const YEL = 0xffd23f, YEL_D = 0xe0a21a, BLACK = 0x1a1a22, CYAN = 0x7ff6ff, CYAN_W = 0xe8ffff;
+  const m = signMold({ pole: 0x8a92a4, poleD: 0x4e5668, leg: 0x8a92a4, foot: BLACK, footD: YEL, glove: YEL, gloveD: YEL_D, glowKnuckle: CYAN, hazard: [YEL, BLACK] });
+  const CY = 22, ZB = -3, ZF = 4, RAD = 12.6;
+  const dia = (x, y, sh = 0) => Math.abs(x + 0.5) + Math.abs(y - CY) <= RAD - sh;
+  const HJ = [-0.5, 12, 0];
+  const head = G();
+  cyl(head, 'y', -0.5, -3.5, 12, 28, 1.6, 1.6, 0x8a92a4);
+  rbox(head, -3, 16, -4, 2, 17, -2, 0.5, 0x4e5668);
+  for (let x = -14; x <= 13; x++) for (let y = CY - 13; y <= CY + 13; y++) for (let z = ZB; z <= ZF; z++) {
+    const bev = z === ZF || z === ZB ? 0.8 : 0;
+    if (!dia(x, y, bev)) continue;
+    head.set(x, y, z, z === ZB ? 0x8a92a4 : z === ZF ? YEL : YEL_D);
+  }
+  // black raised border + black rim stripe
+  for (let x = -14; x <= 13; x++) for (let y = CY - 13; y <= CY + 13; y++) if (dia(x, y, 0.8) && !dia(x, y, 2.4)) head.set(x, y, ZF + 1, BLACK);
+  head.paint((x, y, z, c) => (c === YEL_D && z === 0 ? BLACK : undefined));
+  // high-voltage bolt on the forehead (raised) + on the back
+  const BOLTF = ['...KKK', '..KKK.', '.KKK..', 'KKKKKK', '..KKK.', '.KKK..', '.KK...', 'KK....'];
+  stamp(head, BOLTF, { K: { c: MAG, raise: 1 } }, { axis: 'z', x: -3, y: CY + 11 });
+  stamp(head, BOLTF.map((r) => [...r].reverse().join('')), { K: { c: BLACK, raise: 1 } }, { axis: '-z', x: -3, y: CY + 4 });
+  // glowing electric eyes with angry brows
+  const EYY = CY + 0.8;
+  eyeBall(head, -4.6, EYY, ZF, [2.9, 3.2, 2.6], -1, { white: 0xd8fcff, browCol: BLACK, browT: 2, inward: 0.8, pw: 2, ph: 3, pupil: 0x0a3a6a });
+  eyeBall(head, 3.6, EYY, ZF, [2.9, 3.2, 2.6], 1, { white: 0xd8fcff, browCol: BLACK, browT: 2, inward: 0.8, pw: 2, ph: 3, pupil: 0x0a3a6a });
+  // electric irises (glowing ring around the pupils)
+  glowWhere(head, (x, y, z, c) => c === 0xd8fcff && Math.abs(y - EYY + 0.6) <= 1.6 && (Math.abs(x + 4.6 + 0.8) <= 1.6 || Math.abs(x - 3.6 - 0.8) <= 1.6) && z >= ZF + 1, CYAN);
+  // crackling zig-zag grin with a glowing throat
+  openMouth(head, -6, 5, CY - 8, CY - 4, (x, y) => {
+    const dx = Math.abs(x + 0.5);
+    return dx <= 5.6 - (CY - 4 - y) * 0.55;
+  }, { depth: 3, top: 2, bot: 2, period: 2, tongue: false, back: 0x1a5a8a });
+  glowWhere(head, (x, y, z, c) => c === 0x1a5a8a, 0x3ad8ff);
+  // sparks crackling off the plate edges
+  const spark = [[-13, CY + 1], [-14, CY + 2], [-13, CY + 3], [-14, CY + 4], [12, CY - 2], [13, CY - 1], [12, CY], [13, CY + 1]];
+  for (const [i, [x, y]] of spark.entries()) head.set(x, y, 0, i % 2 ? CYAN : CYAN_W, true);
+  gradY(head, CY - 12, CY + 12, -0.08, 0.06, (x, y, z, c) => c === YEL || c === YEL_D);
+  // ---- antenna with a crackling spark ball (lightning fires from here)
+  const AJ = [-0.5, CY + RAD - 1, 0.5];
+  const ant = G();
+  cyl(ant, 'y', -0.5, 0.5, AJ[1], AJ[1] + 4, 0.7, 0.7, 0x8a92a4);
+  blob(ant, -0.5, AJ[1] + 6, 0.5, 1.6, 1.6, 1.6, CYAN_W, { glow: true });
+  for (const [x, y, z] of [[-3, AJ[1] + 7, 0], [2, AJ[1] + 5, 1], [-2, AJ[1] + 4, 1], [1, AJ[1] + 8, 0]]) ant.set(x, y, z, CYAN, true);
+  return packSign(m, head, HJ, [-10.6, CY - 3, 0.5], {
+    muzzle: [-0.5, AJ[1] + 6, 0.5],
+    parts: [jp('antenna', ant, AJ, HJ, { parent: 'head' })],
+  });
+}
+
+// ===========================================================================
+// Bad Eggsperiment: a cracked lab egg with a furious yolk monster bursting out
+// of the shell, goggles on its forehead and a lit fuse (kamikaze).
+
+function badEggDef() {
+  const SHELL = 0xfff1d6, SPECK = 0xe6cfa0, CRACK = 0x8a6a3a, YOLK = 0xffaa00, YOLK_L = 0xffcc22, YOLK_D = 0xe06a00;
+  const HOT = 0xff7a1a, LEG = 0xff9a2a, LEG_D = 0xe0761a;
+  const CY = 14.5, RY = 11, R = 8.6;
+  const rAt = (y) => { const t = (y - CY) / RY; return t * t >= 1 ? 0 : R * Math.sqrt(1 - t * t) * (1 - 0.12 * t); };
+  const crackY = (x, z) => {
+    const a = Math.atan2(z, x + 0.5);
+    const k = ((a / (Math.PI * 2)) * 18 + 18) % 2;
+    return 18 + (k < 1 ? k : 2 - k) * 2.2 - 1;
+  };
+  const shellCol = (x, y, z) => (n3(x, y, z, 11) < 0.07 ? SPECK : SHELL);
+  const body = G(), lid = G();
+  for (let y = 3; y <= 26; y++) {
+    const r = rAt(y);
+    if (r <= 0) continue;
+    for (let x = -10; x <= 9; x++) for (let z = -10; z <= 10; z++) {
+      const d = Math.hypot(x + 0.5, z);
+      if (d > r + 0.35) continue;
+      const shell = d > r - 1.6 || y <= 4;
+      if (y <= crackY(x, z)) body.set(x, y, z, shell ? shellCol(x, y, z) : YOLK);
+      else if (shell) lid.set(x, y, z, shellCol(x, y, z));
+    }
+  }
+  // glowing hot crack along the seam (body side) + hairline cracks
+  body.forEach((x, y, z, c) => {
+    if (c === YOLK) return;
+    if ((lid.has(x, y + 1, z) || lid.has(x, y + 2, z)) && !body.has(x, y + 1, z) && Math.hypot(x + 0.5, z) > rAt(y) - 1.6 && n3(x, y, z, 5) < 0.7) body.set(x, y, z, HOT, true);
+  });
+  for (const [x0, y0, z0, dx, dy, n] of [[-8, 16, 2, 0, -1, 4], [7, 15, -2, 0, -1, 3], [-6, 14, -6, 1, -1, 3], [5, 16, 6, 1, -1, 2]]) {
+    for (let i = 0; i < n; i++) {
+      const x = x0 + (i % 2) * dx, y = y0 + i * dy;
+      for (let z = z0 - 2; z <= z0 + 2; z++) if (body.get(x, y, z) === SHELL) { body.set(x, y, z, CRACK); break; }
+    }
+  }
+  // ---- the front shell is smashed open: the yolk monster bulges out
+  const inHole = (x, y) => {
+    const dx = (x + 0.5) / 7.2, dy = (y - 11.5) / 6;
+    const jag = ((x + 40) % 3) * 0.12;
+    return dx * dx + dy * dy <= 1 - jag;
+  };
+  body.carve((x, y, z, c) => z > 0 && inHole(x, y) && c !== YOLK);
+  blob(body, -0.5, 11.5, 6, 6.6, 5.6, 4.6, (x, y, z) => (y > 14 ? YOLK_L : y < 8 ? YOLK_D : YOLK), { p: 2.2 });
+  // jagged shell shards around the hole
+  for (const [x, y] of [[-7, 12], [6, 11], [-6, 15], [5, 15], [-3, 6], [2, 6], [-7, 9], [6, 8]]) {
+    const z = fz(body, x, y);
+    if (z !== null) { body.set(x, y, z + 1, SHELL); body.set(x, y + 1, z + 1, SHELL); }
+  }
+  // yolk face: angry bulging eyes + fanged grin
+  eyeBall(body, -3.2, 13.4, 9, [2.2, 2.5, 1.8], -1, { browCol: 0xa83a00, browT: 1, inward: 0.6, pw: 2, ph: 2 });
+  eyeBall(body, 2.2, 13.4, 9, [2.2, 2.5, 1.8], 1, { browCol: 0xa83a00, browT: 1, inward: 0.6, pw: 2, ph: 2 });
+  openMouth(body, -5, 4, 7, 10, (x, y) => Math.abs(x + 0.5) <= 4.6 - (10 - y) * 0.7, { depth: 2, top: 2, bot: 1, period: 2, tongueW: 1.5, tongueRows: 0, zmin: 0 });
+  // magenta bolts on the flanks
+  stamp(body, BOLT, { M: MAG }, { axis: '-x', y: 13, z: -2 });
+  stamp(body, BOLT_R, { M: MAG }, { axis: 'x', y: 13, z: 2 });
+  // ---- lab goggles strapped round the shell top (pushed up on the forehead)
+  lid.paint((x, y, z, c) => (y === 21 || y === 22 ? INK : undefined));
+  for (const [cx, side] of [[-3.3, -1], [2.3, 1]]) {
+    const zf0 = Math.ceil(Math.sqrt(Math.max(0, rAt(21.5) ** 2 - (cx + 0.5) ** 2)));
+    cyl(lid, 'z', cx, 21.5, zf0 - 1, zf0, 2.1, 2.1, 0x3a3a4a);
+    cyl(lid, 'z', cx, 21.5, zf0, zf0, 1.3, 1.3, 0x7fe8ff);
+    lid.set(Math.round(cx - side * 0.8), 22, zf0, WHITE, true);
+  }
+  // ---- fuse burning on top
+  const LJ = [-0.5, 18, -8];
+  const AJ = [-0.5, 25, -1];
+  const fuse = G();
+  chain(fuse, [[-0.5, 25, -1], [0, 27, -2], [1.5, 28.5, -1.5], [2.5, 29.5, 0]], [0.9, 0.6], 0x4a3a2a);
+  blob(fuse, 2.5, 30.6, 0, 1.2, 1.2, 1.2, 0xffd23f, { glow: true });
+  for (const [x, y, z, c] of [[4, 31, 0, HOT], [1, 32, 1, 0xfff6a0], [3, 32, -1, 0xffa21a], [2, 29, 1, HOT]]) fuse.set(x, y, z, c, true);
+  lid.set(-1, 25, -1, 0x6a5a4a); lid.set(0, 25, -1, 0x6a5a4a);
+  // ---- skinny chicken legs
+  const legL = G();
+  capsule(legL, [-3.2, 5, -0.5], [-3.2, 1, 0], 1, 0.9, LEG);
+  for (const [tx, tz] of [[-5.4, 3.6], [-3.2, 4.6], [-1, 3.6], [-3.2, -2.2]]) capsule(legL, [-3.2, 0.6, 0], [tx, 0.6, tz], 0.9, 0.6, LEG_D);
+
+  const root = [-0.5, 0, 0];
+  return {
+    gait: 'walk',
+    voxel: 0.05,
+    parts: [
+      jp('legL', legL, [-3.2, 5, -0.5]), jp('legR', flipX(legL), [2.2, 5, -0.5]),
+      jp('body', body, root),
+      jp('lid', lid, LJ, root, { parent: 'body', rot: [-0.08, 0, 0] }),
+      jp('antenna', fuse, AJ, LJ, { parent: 'lid' }),
+    ],
+    muzzle: [-0.5, 12, 9],
+    finish: 'gloss',
+    jitter: 0.02,
+  };
+}
+
+// ===========================================================================
+// Barf Bin: a neon-green wheelie bin hurling a sticky glowing barf stream.
+
+function barfBinDef() {
+  const BIN = 0x1fb83a, BIN_D = 0x0f7a28, LID = 0x179a30, LID_L = 0x30c04a;
+  const BARF = [0xb8ff3a, 0x9ae82a, 0xffc21a, 0x8a5a2a, 0xe8ff7a];
+  const barf = (x, y, z) => { const n = n3(x, y, z, 13); return n < 0.1 ? BARF[2] : n < 0.16 ? BARF[3] : n < 0.5 ? BARF[0] : n < 0.85 ? BARF[1] : BARF[4]; };
+  const Y0 = 3, TOP = 24;
+  const hw = (y) => 7 + ((y - Y0) / (TOP - Y0)) * 1.2; // tapered: wider at the top
+  const body = G();
+  for (let y = Y0; y <= TOP; y++) {
+    const w = hw(y);
+    rbox(body, Math.round(-0.5 - w), y, Math.round(-w + 0.5), Math.round(-0.5 + w), y, Math.round(w - 0.5), 2, (x, yy, z) => {
+      if (Math.abs(x + 0.5) > w - 0.7 && (z + 40) % 3 === 0) return BIN_D; // vertical ribs on the flanks
+      return BIN;
+    }, { noRoundY: true });
+  }
+  // top lip + base band
+  rbox(body, -9, TOP - 1, -9, 8, TOP, 9, 1.5, BIN_D);
+  rbox(body, -8, Y0, -8, 7, Y0 + 1, 7, 1.5, BIN_D);
+  // white recycling arrows on the flanks + magenta bolt on the back
+  const ARROWS = ['..W..', '.WWW.', 'W.W.W', '..W..', 'W...W', 'WWWWW'];
+  stamp(body, ARROWS, { W: WHITE }, { axis: 'x', y: 18, z: 2 });
+  stamp(body, ARROWS, { W: WHITE }, { axis: '-x', y: 18, z: -2 });
+  stamp(body, BOLT, { M: MAG }, { axis: '-z', x: -3, y: 17 });
+  // ---- sick, furious face
+  const EY = 18;
+  for (const [cx, side] of [[-3.8, -1], [2.8, 1]]) {
+    // purple eye bags
+    stamp(body, ['.BBBB.', 'BBBBBB'], { B: 0x9a5ac8 }, { axis: 'z', x: Math.round(cx - 2.5), y: EY - 3 });
+    eyeBall(body, cx, EY, 8, [2.9, 3.2, 2.4], side, { white: 0xf2ffc0, browCol: 0x0e4a1a, browT: 2, inward: 0.6, pw: 2, ph: side < 0 ? 2 : 3, down: side < 0 ? 0.2 : 0.8 });
+  }
+  openMouth(body, -7, 6, 6, 13, (x, y) => {
+    const dx = (x + 0.5) / 6.2, dy = (y - 9.5) / 3.8;
+    return dx * dx + dy * dy <= 1;
+  }, { depth: 4, top: 2, bot: 2, period: 3, tongue: false, back: 0x2a0a10, lipCol: BIN_D });
+  // barf: a thick stream pouring from the mouth down to a sticky puddle
+  chain(body, [[-0.5, 8, 6], [-0.5, 7.8, 10], [-0.5, 5.5, 12.5], [-0.5, 2.5, 13.5]], [2.2, 2, 1.9, 2.4], barf);
+  blob(body, -0.5, 0.5, 14, 6.6, 0.9, 4.6, barf, { p: 2.3, clip: (x, y) => y < 0 });
+  for (const [x, z] of [[-6, 11], [5, 16], [-4, 18], [3, 11]]) body.set(x, 1, z, BARF[4]);
+  glowWhere(body, (x, y, z, c) => (c === BARF[0] || c === BARF[4]) && z >= 7 && n3(x, y, z, 21) < 0.25);
+  // drips down the flanks
+  for (const [z, len] of [[5, 6], [-3, 4]]) { drip(body, 'x', z, TOP - 2, len, BARF[1]); drip(body, '-x', -z, TOP - 2, len - 1, BARF[1]); }
+  gradY(body, Y0, TOP, -0.14, 0.06, (x, y, z, c) => c === BIN || c === BIN_D);
+
+  // ---- lid (hinged at the back, burps open on attacks)
+  const LJ = [-0.5, TOP + 1, -9];
+  const lid = G();
+  rbox(lid, -10, TOP + 1, -10, 9, TOP + 2, 10, 1.5, LID);
+  rbox(lid, -9, TOP + 3, -9, 8, TOP + 3, 7, 1.5, LID_L);
+  rbox(lid, -6, TOP, 9, 5, TOP + 2, 11, 1, LID); // front grab lip
+  stamp(lid, ['.MMM', 'MMM.', 'MMMM', '.MM.', 'MM..'], { M: MAG }, { axis: 'y', x: -2, z: -3 });
+  // compost poking out under the lid
+  for (const [x, y, z, c] of [[-8, TOP, 9, 0xffd23f], [-9, TOP - 1, 9, 0xffd23f], [-7, TOP, 10, 0xffd23f], [6, TOP, 9, 0x8a5a2a], [7, TOP, 9, 0xff4a3a], [0, TOP, 10, 0x6aa83a]]) lid.set(x, y, z, c);
+  // stink fumes
+  for (const [x, y, z] of [[-4, TOP + 5, -2], [-3, TOP + 6, -2], [-4, TOP + 7, -2], [3, TOP + 5, 1], [4, TOP + 6, 1], [3, TOP + 7, 1], [4, TOP + 8, 1]]) lid.set(x, y, z, GOO_L, true);
+
+  // ---- buzzing flies orbiting the bin
+  const FJ = [-0.5, TOP + 6, 0];
+  const flies = G();
+  for (const s of [-1, 1]) {
+    const fx = Math.round(-0.5 + s * 11);
+    flies.set(fx, FJ[1], 0, INK); flies.set(fx, FJ[1], 1, INK);
+    flies.set(fx - 1, FJ[1] + 1, 0, 0xe8f4ff); flies.set(fx + 1, FJ[1] + 1, 0, 0xe8f4ff);
+  }
+  // ---- back wheels + stubby front feet
+  const wheel = (x) => {
+    const w = G();
+    cyl(w, 'x', 3, -7, x - 1, x + 1, 3, 3, INK);
+    cyl(w, 'x', 3, -7, x - 1, x + 1, 1.3, 1.3, 0x6b7386);
+    return w;
+  };
+  const legL = bootLeg(-4, 3, 4, BIN_D, BIN_D, { r: 1.8, bw: 2.4, bl: 3, sole: INK });
+
+  const root = [-0.5, 0, 0];
+  return {
+    gait: 'walk',
+    voxel: 0.05,
+    parts: [
+      jp('legL', legL, [-4, 4, 3]), jp('legR', flipX(legL), [3, 4, 3]),
+      jp('wheelBL', wheel(-9), [-9, 3, -7]), jp('wheelBR', wheel(8), [8, 3, -7]),
+      jp('body', body, root),
+      jp('lid', lid, LJ, root, { parent: 'body', rot: [-0.12, 0, 0] }),
+      jp('spinFlies', flies, FJ, root, { parent: 'body' }),
+    ],
+    muzzle: [-0.5, 9, 10],
+    finish: 'gloss',
+    jitter: 0.02,
+  };
+}
+
+// ===========================================================================
+// Atomic Toilet: the toilet mold reworked as a hazard-yellow reactor that
+// flushes radioactive blasts: glowing green sludge, glowing eyes, trefoils,
+// a hazard-striped tank lid, a glowing core and exhaust stacks.
+
+const TREFOIL = [
+  '.KK...KK.',
+  'KKKK.KKKK',
+  'KKKK.KKKK',
+  '.KKK.KKK.',
+  '....K....',
+  '...KKK...',
+  '..KKKKK..',
+  '..KKKKK..',
+  '...KKK...',
+];
+
+function atomicToiletDef() {
+  const S = {
+    main: 0xffc20a, dark: 0xe07a00, seat: 0xffe04a, lidUnder: 0xffd84a, brow: 0x1a1a22, throat: 0x0a2a10,
+    tooth: MAG, toothTip: MAG_L,
+    sludge: [0x7cff3a, 0xb8ff6a, 0x3ad82a, 0xeaffb0], goo: [GOO, 0xb8ff6a],
+  };
+  const BLACK = 0x1a1a22, NUKE = 0x9cff3a, NUKE_W = 0xe0ffb0;
+  const m = toiletMold(S);
+  const b = m.grids.body, lid = m.grids.lid;
+  // radioactive sludge glows
+  glowWhere(b, (x, y, z, c) => S.sludge.includes(c) && y >= 8 && y <= 12);
+  // glowing eyes (the eye whites turn nuclear green)
+  glowWhere(b, (x, y, z, c) => c === WHITE && y >= 18 && y <= 28 && z >= -6, 0xa8ff4a);
+  // swap the bolt decals for trefoils on the tank flanks
+  b.paint((x, y, z, c) => (c === MAG && Math.abs(x + 0.5) > 8 && y >= 15 && y <= 23 ? S.main : undefined));
+  stamp(b, TREFOIL, { K: BLACK }, { axis: '-x', y: 24, z: -12 });
+  stamp(b, TREFOIL, { K: BLACK }, { axis: 'x', y: 24, z: -4 });
+  // hazard stripes round the tank lid
+  b.paint((x, y, z, c) => (c === S.seat && y >= 30 && z <= -1 ? (((x + z + y + 60) % 4) < 2 ? BLACK : S.main) : undefined));
+  // glowing core dome replaces the flush button + exhaust stacks puffing green
+  b.carve((x, y, z, c) => c === CHROME && y >= 33);
+  blob(b, -0.5, 33.5, -7.5, 2.6, 1.8, 2.4, NUKE, { glow: true, clip: (x, y) => y < 33 });
+  cyl(b, 'y', -0.5, -7.5, 33, 33, 3.4, 3.4, BLACK);
+  for (const x of [-8, 7]) {
+    cyl(b, 'y', x, -11, 31, 37, 1.4, 1.4, CHROME_D);
+    cyl(b, 'y', x, -11, 37, 37, 1.8, 1.8, CHROME);
+    for (const [dx, dy, dz, c] of [[0, 39, 0, NUKE], [1, 40, -1, NUKE_W], [0, 41, 0, NUKE], [-1, 42, 0, NUKE]]) b.set(x + dx, dy, -11 + dz, c, true);
+  }
+  // the lid gets a trefoil instead of the bolt
+  lid.paint((x, y, z, c) => (c === MAG ? S.main : undefined));
+  stamp(lid, TREFOIL, { K: BLACK }, { axis: 'y', x: -5, z: 5 });
+  return packToilet(m, { muzzle: [-0.5, 16, 5] });
 }
 
 // ===========================================================================
@@ -739,5 +1141,25 @@ export const HOME_HORROR_MODELS = {
 
   mutantMailbox() {
     return mailboxDef();
+  },
+
+  ragingStopSign() {
+    return stopSignDef();
+  },
+
+  shockSign() {
+    return shockSignDef();
+  },
+
+  badEggsperiment() {
+    return badEggDef();
+  },
+
+  barfBin() {
+    return barfBinDef();
+  },
+
+  atomicToilet() {
+    return atomicToiletDef();
   },
 };

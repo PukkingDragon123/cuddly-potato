@@ -749,4 +749,309 @@ export const SNACK_MODELS = {
       jitter: 0.02,
     };
   },
+  // ================================================================== CHOCO CHOMPER
+  // A Feastables-style chocolate bar beast. The bar stands upright, its lower
+  // half still in a torn blue/pink wrapper (white label, foil edge, peeling
+  // flaps); the top half is a hinged head that chomps down like a giant bite,
+  // with a bite already missing from its corner, angry eyes, rows of teeth,
+  // sticky melted drips and chunky chocolate claws.
+  chocoChomper() {
+    const CHOC = 0x5e321a, CHOCL = 0x7a4627, CHOCD = 0x3a1c0c, MELT = 0x8f532e, CUT = 0x744026;
+    const BLUE = 0x1d9bf0, PINK = 0xff4fa3, YEL = 0xffd23f, FOIL = 0xdfe4ee;
+    const X0 = -9, X1 = 8, Z0 = -5, Z1 = 4;
+    const MF = 15, HU = 21; // mouth floor (top of the body), head underside
+    // pillow chunks: columns [-8..-5] [-2..1] [4..7] (symmetric), rows of 5
+    const inCol = (x) => (x >= -8 && x <= -5) || (x >= -2 && x <= 1) || (x >= 4 && x <= 7);
+    const chunkBar = (g, y0, y1, rows, skip) => {
+      for (let x = X0; x <= X1; x++) for (let y = y0; y <= y1; y++) for (let z = Z0; z <= Z1; z++) {
+        const groove = !rows.some(([a, b]) => y >= a && y <= b);
+        g.set(x, y, z, groove && (z === Z0 || z === Z1 || x === X0 || x === X1) ? CHOCD : CHOC);
+      }
+      for (const [a, b] of rows) for (let x = X0; x <= X1; x++) for (let y = a; y <= b; y++) {
+        if (!inCol(x)) continue;
+        const hi = y === b || x === -8 || x === -2 || x === 4; // lit bevel (top / left edge)
+        if (!skip || !skip(x, y)) g.set(x, y, Z1 + 1, hi ? CHOCL : CHOC);
+        g.set(x, y, Z0 - 1, hi ? CHOCL : CHOC);
+      }
+    };
+
+    // ---- lower bar (body) wrapped in a torn wrapper
+    const body = G();
+    chunkBar(body, 5, MF, [[6, 10], [12, 15]]);
+    const tear = (x, z) => 12 + Math.round(1.3 * Math.sin((x + z * 1.7) * 1.25) + n3(x, 0, z, 6) * 1.2);
+    for (let x = X0 - 1; x <= X1 + 1; x++) for (let z = Z0 - 2; z <= Z1 + 2; z++) {
+      const edgeX = x === X0 - 1 || x === X1 + 1, edgeZ = z === Z0 - 2 || z === Z1 + 2;
+      if (!edgeX && !edgeZ) continue;
+      if (edgeX && (z < Z0 - 1 || z > Z1 + 1)) continue;
+      const top = tear(x, z);
+      for (let y = 4; y <= top; y++) {
+        let c = (x + y * 2 + z + 60) % 13 < 4 ? PINK : BLUE; // diagonal pink stripes
+        if (y <= 5) c = YEL;
+        if (y === top) c = FOIL;
+        body.set(x, y, z, c);
+      }
+    }
+    for (let x = X0 - 1; x <= X1 + 1; x++) for (let z = Z0 - 2; z <= Z1 + 2; z++) body.set(x, 4, z, YEL);
+    // white Feastables-style label on the front (pink bolt + logo bars)
+    const LABEL = [
+      '.WWWWWWWWWW.',
+      'WWPPWWBBBBWW',
+      'WPPWWWWWWWWW',
+      'WPPPPWBBBWWW',
+      'WWPPWWWWWWWW',
+      '.WPWWWWWWWW.',
+    ];
+    stamp(body, LABEL, { W: WHITE, P: PINK, B: BLUE }, { axis: 'z', x: -6, y: 11 });
+    stamp(body, LABEL.map((r) => [...r].reverse().join('')), { W: WHITE, P: PINK, B: BLUE }, { axis: '-z', x: -6, y: 11 });
+    // peeled wrapper flaps curling outward (blue outside, foil inside)
+    for (const [sx, z0] of [[-1, 1], [1, -3]]) {
+      const bx = sx < 0 ? X0 - 1 : X1 + 1;
+      for (let i = 0; i < 4; i++) for (let dz = 0; dz < 3; dz++) {
+        const x = bx + sx * (1 + i), y = 13 - Math.round(i * 0.9), z = z0 + dz;
+        body.set(x, y, z, i === 3 ? FOIL : BLUE);
+        body.set(x, y - 1, z, FOIL);
+      }
+    }
+    // mouth: tongue floor, throat wall at the back, cheeks, lower teeth
+    for (let x = X0 + 1; x <= X1 - 1; x++) for (let z = Z0 + 1; z <= Z1 + 1; z++) body.set(x, MF, z, z >= -1 && Math.abs(x + 0.5) < 4.5 ? TONGUE : MOUTH);
+    for (let x = X0; x <= X1; x++) for (let y = MF + 1; y < HU; y++) { body.set(x, y, Z0, CHOCD); body.set(x, y, Z0 + 1, MOUTH); }
+    for (const x of [X0, X1]) for (let y = MF + 1; y < HU - 1; y++) for (let z = Z0; z <= -1; z++) body.set(x, y, z, CHOC);
+    for (let x = X0 + 1; x <= X1 - 1; x++) {
+      body.set(x, MF + 1, Z1 + 1, T);
+      if ((x + 64) % 2 === 0) body.set(x, MF + 2, Z1 + 1, T);
+    }
+    for (const x of [-7, 6]) { body.set(x, MF + 2, Z1 + 1, T); body.set(x, MF + 3, Z1 + 1, T); }
+    // sticky melted chocolate oozing over the wrapper
+    for (const [x, z, n] of [[-8, Z1 + 3, 4], [-7, Z1 + 3, 2], [6, Z1 + 3, 3], [X1 + 2, 0, 4], [X0 - 2, -2, 3]]) {
+      for (let i = 0; i < n; i++) body.set(x, 14 - i, z, MELT);
+    }
+    hollowOut(body);
+
+    // ---- upper bar (head): hinged at the back, chomps down
+    const HJ = [-0.5, HU, Z0 - 0.5];
+    const head = G();
+    const EYE_Y = 30;
+    const eyeZone = (x, y) => y >= EYE_Y - 6 && y <= EYE_Y + 3 && x >= -8 && x <= 7;
+    chunkBar(head, HU, 34, [[22, 27], [29, 33]], eyeZone);
+    for (let x = -8; x <= 7; x++) for (let y = EYE_Y - 5; y <= EYE_Y + 1; y++) head.set(x, y, Z1 + 1, CHOC);
+    // a big bite out of the top corner
+    const bite = (x, y) => Math.hypot(x - 8.5, y - 35.5) < 4.6 || Math.hypot(x - 4, y - 36.8) < 3.2;
+    head.carve((x, y) => bite(x, y));
+    head.paint((x, y) => (bite(x + 1, y) || bite(x - 1, y) || bite(x, y + 1) ? CUT : undefined));
+    // underside: dark palate + upper teeth + fangs hanging off the front edge
+    for (let x = X0 + 1; x <= X1 - 1; x++) for (let z = Z0 + 1; z <= Z1; z++) head.set(x, HU, z, MOUTH);
+    for (let x = X0 + 1; x <= X1 - 1; x++) {
+      head.set(x, HU - 1, Z1 + 1, T);
+      if ((x + 64) % 2 === 1) head.set(x, HU - 2, Z1 + 1, T);
+    }
+    for (const x of [-6, 5]) for (let y = HU - 3; y < HU; y++) head.set(x, y, Z1 + 1, T);
+    angryEyes(head, EYE_Y, 1, 6, 6, { brow: INK, browSlant: 3, look: [0, -0.3], zmin: 0 });
+    // melted drip running down the back from the bite
+    for (let i = 0; i < 3; i++) head.set(4, 31 - i, Z0 - 1, MELT);
+    hollowOut(head);
+
+    // ---- chunky chocolate arms with white claws
+    const AJ = [-10, 12, 0];
+    const armL = G();
+    capsule(armL, [-10, 12, 0], [-13, 9, 1.5], 2, 1.9, CHOC);
+    rbox(armL, -16, 3, -1, -11, 8, 4, 1.2, (x, y, z) => (y === 5 || x === -14 ? CHOCD : (y === 8 || z === 4) ? CHOCL : CHOC));
+    for (const x of [-15, -13.5, -12]) capsule(armL, [x, 4.5, 4], [x, 3, 6.4], 0.6, 0.35, WHITE);
+    const armR = flipX(armL);
+
+    const legL = stubLeg(-4, 5, 0, { col: CHOCD, r0: 1.9, r1: 1.7, shoe: { col: MAG, sole: WHITE, toe: WHITE } });
+    const legR = flipX(legL);
+
+    const BJ = [-0.5, 4, 0];
+    return {
+      gait: 'walk',
+      voxel: 0.05,
+      parts: [
+        jp('legL', legL, [-4, 5, 0]),
+        jp('legR', legR, [3, 5, 0]),
+        jp('body', body, BJ),
+        jp('head', head, HJ, BJ, { parent: 'body', rot: [-0.18, 0, 0] }),
+        jp('armL', armL, AJ, BJ, { parent: 'body' }),
+        jp('armR', armR, [9, 12, 0], BJ, { parent: 'body' }),
+      ],
+      muzzle: [0, 18, 8],
+      finish: 'gloss',
+      jitter: 0.02,
+    };
+  },
+  // =================================================================== MELON MAULER
+  // A huge striped watermelon brawler. The whole melon is sculpted in
+  // cross-section (green skin, pale rind, juicy red flesh with seeds), so its
+  // enormous chomping mouth and the cracks on its back show real melon inside.
+  // Magenta sweatband, curly vine with a wiggling leaf, big rind claws. When
+  // it pops it bursts into seedlings.
+  melonMauler() {
+    const SKIN = 0x1f7a2c, SKINL = 0x6fd04e, SKINLL = 0x9be66e, RIND = 0xe4f8bf, RINDG = 0xa8e07a;
+    const FLESH = 0xff3b5c, FLESHL = 0xff6a80, SEED = 0x2a1810;
+    const CX = -0.5, CY = 15, CZ = 0, AX = 11.2, AY = 10.4, AZ = 11.6;
+    const dist = (x, y, z) => Math.hypot((x + 0.5 - (CX + 0.5)) / (AX + 0.35), (y + 0.5 - (CY + 0.5)) / (AY + 0.35), (z + 0.5 - (CZ + 0.5)) / (AZ + 0.35));
+    const melonCol = (x, y, z) => {
+      const d = dist(x, y, z);
+      if (d > 0.9) {
+        // wavy dark stripes running pole to pole over a light green skin
+        const th = Math.atan2(z + 0.5, x + 0.5) + Math.sin(y * 0.7) * 0.06;
+        const f = (((th + Math.PI) / (Math.PI / 5)) % 1 + 1) % 1;
+        if (f < 0.44) return SKIN;
+        return n3(x, y, z, 2) < 0.06 ? SKINLL : SKINL;
+      }
+      if (d > 0.84) return RINDG;
+      if (d > 0.76) return RIND;
+      if (d > 0.42 && d < 0.68 && n3(x, y, z, 5) < 0.1) return SEED;
+      return n3(x, y, z, 7) < 0.15 ? FLESHL : FLESH;
+    };
+    const body = G();
+    blob(body, CX, CY, CZ, AX, AY, AZ, melonCol, { p: 2.1 });
+    const front0 = {};
+    for (let x = -13; x <= 12; x++) for (let y = 4; y <= 27; y++) front0[`${x},${y}`] = frontAt(body, x, y, -20, 20);
+
+    // enormous mouth: carving reveals rind + flesh; a dark throat in the middle
+    const MY0 = 9, MY1 = 16;
+    const mouth = (x, y) => y >= MY0 && y <= MY1 && Math.abs(x + 0.5) <= 8.4 - (y > 14 ? (y - 14) * 1.6 : 0);
+    body.carve((x, y, z) => mouth(x, y) && front0[`${x},${y}`] !== null && z > front0[`${x},${y}`] - 5);
+    body.carve((x, y, z) => y >= 11 && y <= 14 && Math.abs(x + 0.5) <= 2.2 && z > (front0[`${x},${y}`] ?? 0) - 8);
+    for (let x = -3; x <= 2; x++) for (let y = 11; y <= 14; y++) { const z = frontAt(body, x, y, -20, 20); if (z !== null && Math.abs(x + 0.5) <= 2.2) body.set(x, y, z, MOUTH); }
+    // upper teeth hanging from the lip
+    for (let x = -9; x <= 8; x++) {
+      let top = null;
+      for (let y = MY1; y >= MY0; y--) if (mouth(x, y)) { top = y; break; }
+      if (top === null) continue;
+      const z = front0[`${x},${top}`] - 1;
+      body.set(x, top, z, T);
+      if ((x + 64) % 2 === 0) body.set(x, top - 1, z, T);
+    }
+    for (const x of [-6, 5]) { const z = front0[`${x},${MY1 - 1}`] - 1; body.set(x, MY1 - 2, z, T); body.set(x, MY1 - 3, z, T); }
+    // furious eyes + brows
+    angryEyes(body, 23, 1, 6, 6, { brow: INK, browSlant: 3, look: [0, -0.3], zmin: 0 });
+    // brawler band-aid (white with a magenta pad) on both cheeks
+    const AID = ['WWWWW', 'WMMMW', 'WWWWW'];
+    stamp(body, AID, { W: { c: WHITE, raise: 1 }, M: { c: MAG, raise: 1 } }, { axis: '-x', y: 21, z: 2 });
+    stamp(body, AID, { W: { c: WHITE, raise: 1 }, M: { c: MAG, raise: 1 } }, { axis: 'x', y: 21, z: -2 });
+    // cracks on the back, juicy red showing through
+    stamp(body, ['..R....', '.RR....', '..RR...', '...R...', '...RR..', '....RR.', '.....R.'], { R: { c: FLESH, carve: false } }, { axis: '-z', x: -6, y: 20 });
+    stamp(body, ['....R.', '...RR.', '..RR..', '..R...', '.RR...', 'RR....'], { R: FLESH }, { axis: '-z', x: 1, y: 15 });
+    gradY(body, 4, 26, -0.1, 0.06);
+
+    // the lower front of the melon is the jaw
+    const JJ = [-0.5, MY0, 0];
+    const jaw = G();
+    body.forEach((x, y, z, c, glow) => { if (y < MY0 && z >= 0) jaw.set(x, y, z, c, glow); });
+    jaw.forEach((x, y, z) => body.del(x, y, z));
+    for (let x = -9; x <= 8; x++) {
+      if (!mouth(x, MY0) && !mouth(x, MY0 + 1)) continue;
+      const z = frontAt(jaw, x, MY0 - 1, -20, 20);
+      if (z === null) continue;
+      jaw.set(x, MY0, z - 1, T);
+      if ((x + 64) % 2 === 1) jaw.set(x, MY0 + 1, z - 1, T);
+    }
+    hollowOut(body);
+    hollowOut(jaw);
+
+    // curly vine + wiggling leaf on top
+    const VJ = [-0.5, 25, -1];
+    const vine = G();
+    chain(vine, [[-0.5, 24, -1], [-0.5, 27.5, -1.5], [0.8, 29.5, -2.6], [2.6, 29.4, -2.2], [3, 28, -1]], 0.8, 0x6b4a1e);
+    const leaf = (x, y, z) => (Math.abs(x + 3 - (y - 27) * 0.4) < 0.6 ? 0x2f9e22 : 0x52c43a);
+    blob(vine, -4, 28.6, -1, 3.2, 0.7, 2.2, leaf, { p: 2 });
+    capsule(vine, [-0.5, 27.5, -1.5], [-2, 28.4, -1.2], 0.4, 0.4, 0x6b4a1e);
+
+    // arms: dark vine arms ending in big rind claws
+    const AJ = [-10.5, 15, 1];
+    const armL = G();
+    capsule(armL, [-10.5, 15, 1], [-14, 10.5, 3], 2, 1.8, SKIN);
+    blob(armL, -14.5, 8.8, 3.6, 2.8, 2.6, 2.8, (x, y, z) => (n3(x, y, z, 3) < 0.3 ? SKINLL : SKINL), { p: 2.2 });
+    for (const [x, z] of [[-16.5, 5.5], [-14.5, 6.3], [-12.6, 5.5]]) capsule(armL, [x, 8, z], [x, 6.6, z + 2.4], 0.7, 0.3, WHITE);
+    const armR = flipX(armL);
+
+    const legL = stubLeg(-5, 6, 0, { col: SKIN, r0: 2.3, r1: 2, ankle: 2.6, shoe: { col: MAG, sole: WHITE, toe: WHITE, w: 3, l: 4, h: 2.1 } });
+    const legR = flipX(legL);
+
+    const BJ = [-0.5, 5, 0];
+    return {
+      gait: 'walk',
+      voxel: 0.05,
+      parts: [
+        jp('legL', legL, [-5, 6, 0]),
+        jp('legR', legR, [4, 6, 0]),
+        jp('body', body, BJ),
+        jp('jaw', jaw, JJ, BJ, { parent: 'body', rot: [0.12, 0, 0] }),
+        jp('antenna', vine, VJ, BJ, { parent: 'body' }),
+        jp('armL', armL, AJ, BJ, { parent: 'body' }),
+        jp('armR', armR, [9.5, 15, 1], BJ, { parent: 'body' }),
+      ],
+      muzzle: [0, 11, 13],
+      jitter: 0.02,
+    };
+  },
+  // ======================================================================= SEEDLING
+  // Tiny minion that bursts out of a popped Melon Mauler: a glossy watermelon
+  // seed with big angry eyes and a toothy grin, cracked open on top where a
+  // green sprout with two wiggly leaves is growing. Magenta mini sneakers.
+  seedling() {
+    const SEEDC = 0x46281a, SEEDD = 0x2a160c, SPROUT = 0x5bd63a, SPROUTD = 0x2f9e22, LEAF = 0x7fe85a;
+    const body = G();
+    const seedCol = (x, y, z) => (Math.abs(x + 0.5) < 1 && z < -1 ? SEEDD : SEEDC);
+    // flat almond-shaped seed: superellipse in x/z keeps the face front flat
+    for (let x = -7; x <= 6; x++) for (let y = 2; y <= 14; y++) for (let z = -5; z <= 5; z++) {
+      const dy = (y + 0.5 - 8.1) / 5.95, k = Math.max(0, 1 - Math.abs(dy) ** 2.2) ** (1 / 2.2);
+      if (k <= 0) continue;
+      const dx = (x + 0.5) / (5.45 * k), dz = (z + 0.5) / (4.1 * Math.max(0.35, k));
+      if (Math.abs(dx) ** 3 + Math.abs(dz) ** 3 <= 1) body.set(x, y, z, seedCol(x, y, z));
+    }
+    capsule(body, [-0.5, 10.5, -0.3], [-0.5, 14.4, -0.6], 3.6, 1, seedCol);
+    body.carve((x, y) => y < 2);
+    gradY(body, 2, 14, -0.22, 0.14);
+    // glossy highlight streak
+    for (const [x, y] of [[-5, 8], [-5, 7], [-4, 10], [-3, 12]]) { const z = frontAt(body, x, y, -6, 8); if (z !== null) body.set(x, y, z, 0xb08462); }
+    // the shell is cracking open where the sprout pokes out
+    for (const [x, y, z] of [[-2, 14, 0], [-1, 15, 0], [0, 14, -1], [1, 14, 0], [-1, 14, 1]]) body.set(x, y, z, 0xf2e2c4);
+    // hand-drawn angry face (10 wide, seam between columns 4 and 5)
+    const FACE = [
+      'BB......BB',
+      '.BBB..BBB.',
+      'WWWW..WWWW',
+      'WPPW..WPPW',
+      'WGPW..WPGW',
+      '.WW....WW.',
+    ];
+    stamp(body, FACE, { B: { c: INK, raise: 1 }, W: WHITE, P: INK, G: { c: WHITE, glow: true } }, { axis: 'z', x: -5, y: 12 });
+    const mouthMask = (x, y) => y >= 3 && y <= 5 && Math.abs(x + 0.5) <= 3.2 - (y === 3 ? 1.2 : 0);
+    carveMouth(body, mouthMask, -5, 4, 3, 5, { depth: 2 });
+    for (const x of [-2, -1, 0, 1]) { const z = frontAt(body, x, 3, -6, 8); if (z !== null && body.get(x, 3, z) === MOUTH) body.set(x, 3, z, TONGUE); }
+    for (const x of [-6, 5]) { const z = frontAt(body, x, 6, -6, 8); if (z !== null) body.set(x, 6, z, 0xff7aa8); }
+
+    // sprout (sways like an antenna)
+    const SJ = [-0.5, 14, -0.5];
+    const sprout = G();
+    capsule(sprout, [-0.5, 13, -0.5], [-0.5, 16.2, -0.5], 0.6, 0.6, SPROUTD);
+    blob(sprout, -2.7, 16.7, -0.5, 2.2, 0.8, 1.3, (x, y, z) => (x === -2 ? SPROUT : LEAF), { p: 2 });
+    blob(sprout, 1.9, 16.1, -0.5, 1.9, 0.7, 1.2, (x, y, z) => (x === 1 ? SPROUT : LEAF), { p: 2 });
+
+    // tiny arms + legs
+    const armL = G();
+    capsule(armL, [-4.6, 6, 0.5], [-6, 4.6, 1.2], 0.8, 0.7, SEEDD);
+    blob(armL, -6.2, 4, 1.4, 1.1, 1.1, 1.1, GLOVE);
+    const armR = flipX(armL);
+    const legL = stubLeg(-2, 3, 0, { col: SEEDD, r0: 0.9, r1: 0.8, ankle: 1.4, shoe: { col: MAG, sole: WHITE, toe: WHITE, w: 1.4, l: 1.9, h: 1.2 } });
+    const legR = flipX(legL);
+
+    const BJ = [-0.5, 2, 0];
+    return {
+      gait: 'hop',
+      voxel: 0.05,
+      parts: [
+        jp('legL', legL, [-2, 3, 0]),
+        jp('legR', legR, [1, 3, 0]),
+        jp('body', body, BJ),
+        jp('antenna', sprout, SJ, BJ, { parent: 'body' }),
+        jp('armL', armL, [-4.6, 6, 0.5], BJ, { parent: 'body' }),
+        jp('armR', armR, [3.6, 6, 0.5], BJ, { parent: 'body' }),
+      ],
+      muzzle: [0, 5, 5],
+      jitter: 0.02,
+    };
+  },
 };

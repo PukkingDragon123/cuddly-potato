@@ -14,8 +14,8 @@ import { makeArenaZone } from '../arenas/index.js';
 import { Mats } from '../../core/voxel.js';
 import { instanced } from '../props/common.js';
 import { mulberry32, clamp } from '../../core/util.js';
-import { buildTerrain, MAT, VY } from './terrain.js';
-import { makeOcean, makeRiver, lagoonTexture } from './water.js';
+import { buildTerrain, MAT, VY, X0, Z0, NX, CS } from './terrain.js';
+import { makeOcean, makeRiver, lagoonTexture, columnWater } from './water.js';
 import { makeSky, Billboards, makeDistantIslands, HORIZON } from './sky.js';
 import * as P from './props.js';
 
@@ -38,7 +38,8 @@ const ROAD = [
   [-30, 50], [-12, 53], [10, 44], [24, 40], [36, 36], [50, 26], [56, 12], [42, -4], [30, 2], [16, 6], [2, 12],
   [-12, 20], [-28, 16], [-46, 8], [-55, -8], [-54, -20], [-44, -30], [-32, -42], [-18, -36], [-6, -40], [6, -50], [20, -52], [38, -44],
 ];
-const RIVER = [[28, -38], [27, -33], [26, -29], [24.5, -23], [23, -16], [22, -6], [23.5, 4], [26, 14], [28, 24], [29.5, 34], [30.5, 44], [31.5, 54], [32.5, 64], [33, 76]];
+const RIVER = [[28, -38], [27, -33], [26, -28.5], [24.5, -23], [21.5, -17], [19.5, -10], [21, -3], [24.5, 3], [25, 10], [22.5, 17], [25, 24], [30, 30], [29.5, 38], [31, 46], [29, 54], [31.5, 62], [33, 70], [34, 80]];
+const BASINS = [[24.5, -21.5, 9.5, 6, 3]];
 const LAGOON = [28, -38, 4.4, 22.5];
 const BIOMES = [
   { id: 1, x: -46, z: 8, r: 24, mat: MAT.SNOW, plaza: [0xe8f2fc, 0xc8dcf0, 0xf6fbff] },
@@ -52,6 +53,8 @@ const PEAKS = [[12, -62, 31, 7], [60, -40, 25, 6], [-24, -60, 25, 6], [-62, -42,
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const PLINTH_R = (P.PLINTH_A * 0.25);
+const CLOUDS_PER_ZONE = 22;
+const PAD_Y = 7.4, PAD_S = 0.22;
 
 /**
  * Build Beast Island. opts: { decor (default true), dioramas (default true) }
@@ -68,10 +71,13 @@ export async function makeBeastIsland(opts = {}) {
     zones: ZONES.map((z) => ({ ...z, plinthR: PLINTH_R })),
     road: ROAD, river: RIVER, peaks: PEAKS, biomes: BIOMES,
     biomeById: Object.fromEntries(BIOMES.map((b) => [b.id, b])),
-    lagoon: LAGOON, riverStartY: LAGOON[3] - 0.35,
+    lagoon: LAGOON, riverStartY: LAGOON[3] - 0.35, basins: BASINS,
     riverWidth: (u) => 1.05 + u * 1.25,
     roadHalf: 1.5,
+    log: opts.log !== false,
   });
+  const lap = (l) => { if (opts.log !== false) console.log(`[beastIsland] ${l} ${Math.round(performance.now() - t0)}ms`); };
+  lap('terrain');
   const terrainMats = [
     new THREE.MeshLambertMaterial({ map: T.colorTex }),
     new THREE.MeshLambertMaterial({ vertexColors: true }),
@@ -88,16 +94,17 @@ export async function makeBeastIsland(opts = {}) {
   const river = makeRiver(T.river);
   root.add(river.group);
   const lagTex = lagoonTexture();
-  lagTex.repeat.set(3, 3);
-  const lagoon = new THREE.Mesh(new THREE.CircleGeometry(LAGOON[2] * 1.25, 28), new THREE.MeshBasicMaterial({ map: lagTex }));
-  lagoon.rotation.x = -Math.PI / 2;
-  lagoon.position.set(LAGOON[0], LAGOON[3] - 0.32, LAGOON[1]);
+  const lagCols = [];
+  T.forDisc(LAGOON[0], LAGOON[1], LAGOON[2] * 1.5, (id) => {
+    if (T.mat[id] === MAT.CHANNEL && T.hv[id] * VY <= LAGOON[3] - 0.75) lagCols.push([id % NX, Math.floor(id / NX)]);
+  });
+  const lagoon = columnWater(lagCols, LAGOON[3] - 0.32, { X0, Z0, CS }, new THREE.MeshBasicMaterial({ map: lagTex }));
   lagoon.name = 'lagoon';
   root.add(lagoon);
   updaters.push((dt, t) => {
     ocean.update(t);
     river.update(dt, t);
-    lagTex.offset.set(Math.sin(t * 0.3) * 0.05, t * 0.03);
+    lagTex.offset.set(Math.sin(t * 0.3) * 0.08, t * 0.04);
   });
 
   // ------------------------------------------------------------------ road polyline (final heights)
@@ -127,10 +134,12 @@ export async function makeBeastIsland(opts = {}) {
     root.add(m);
   }
 
+  lap('water+road');
   // ------------------------------------------------------------------ zones
-  const billboards = new Billboards(16 + ZONES.length * 16, { name: 'clouds' });
+  const billboards = new Billboards(16 + ZONES.length * CLOUDS_PER_ZONE, { name: 'clouds' });
   root.add(billboards.mesh);
   const dioramas = opts.dioramas === false ? ZONES.map(() => null) : await Promise.all(ZONES.map((Z) => makeArenaZone(Z.id).catch((e) => { console.error('island zone failed', Z.id, e); return null; })));
+  lap('dioramas');
   const zones = [];
   const lockState = {};
   ZONES.forEach((Z, k) => {
@@ -146,12 +155,10 @@ export async function makeBeastIsland(opts = {}) {
       dirs.push(d);
     }
     // camera: from the side away from the next zone, leaning south
-    const next = ZONES[k + 1], prev = ZONES[k - 1];
-    const toNext = next ? new THREE.Vector2(next.x - Z.x, next.z - Z.z).normalize() : new THREE.Vector2(Z.x - prev.x, Z.z - prev.z).normalize();
-    const dir = toNext.clone().multiplyScalar(-0.62).add(new THREE.Vector2(0.1, 0.62)).normalize();
+    const { toNext, dir } = camDir(k);
     const ry = Math.atan2(dir.x, dir.y);
-    const look = V(Z.x + toNext.x * 2.4, Z.y + 0.8, Z.z + toNext.y * 2.4);
-    const { pos: camPos } = frameCamera(T, look, dir, 31, 50);
+    const look = V(Z.x + toNext.x * 4, Z.y + 0.8, Z.z + toNext.y * 4);
+    const { pos: camPos } = frameCamera(T, look, dir, 46, 50);
 
     const group = new THREE.Group();
     group.name = 'zone:' + Z.id;
@@ -191,24 +198,25 @@ export async function makeBeastIsland(opts = {}) {
     lock.visible = false;
     group.add(lock);
     const pad = new THREE.Group();
-    pad.position.set(0, 5.4, 2.6);
+    pad.position.set(0, PAD_Y, 2.8);
     lock.add(pad);
-    const body = P.mesh(P.geo('padBody', P.padBodyGrid, 0.17, 'bottom'), { shadow: true });
-    const shackle = P.mesh(P.geo('padShackle', P.padShackleGrid, 0.17, [0, 0, 0]), { shadow: true });
-    shackle.position.set(0, 14 * 0.17 + 0.02, 0.06);
+    const body = P.mesh(P.geo('padBody', P.padBodyGrid, PAD_S, 'bottom'), { shadow: true });
+    const shackle = P.mesh(P.geo('padShackle', P.padShackleGrid, PAD_S, [0, 0, 0]), { shadow: true });
+    shackle.position.set(0, 14 * PAD_S + 0.02, 0.06);
     body.position.y = 0;
     pad.add(body, shackle);
     const chains = makeChains(pad.position, [[-5.6, -5.6], [5.6, -5.6], [-6.2, 4.6], [6.2, 4.6]]);
     lock.add(chains.group);
-    const slot0 = 16 + k * 16;
+    const slot0 = 16 + k * CLOUDS_PER_ZONE;
     const clouds = [];
     const CR = mulberry32(100 + k);
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2 + CR() * 0.3;
-      const ring = i < 11;
-      const r = ring ? 6.5 + CR() * 2.5 : CR() * 3.5;
-      const y = ring ? 1.2 + CR() * 3.2 : 3.4 + CR() * 2.4;
-      clouds.push({ slot: slot0 + i, lx: Math.cos(a) * r, lz: Math.sin(a) * r, y, w: 7 + CR() * 4.5, f: i % 4, ph: CR() * 6, flip: CR() < 0.5, ang: a });
+    const layers = [[10, 6.2, 8.6, 0.6, 2.6], [7, 2.6, 5.2, 2.8, 4.6], [5, 0, 2.4, 4.6, 5.8]];
+    let ci = 0;
+    for (const [n, r0, r1, y0, y1] of layers) for (let i = 0; i < n; i++, ci++) {
+      const a = (i / n) * Math.PI * 2 + CR() * 0.5 + r0;
+      const r = r0 + CR() * (r1 - r0);
+      clouds.push({ slot: slot0 + ci, lx: Math.cos(a) * r, lz: Math.sin(a) * r, y: y0 + CR() * (y1 - y0), w: 8 + CR() * 4, f: ci % 4, ph: CR() * 6, flip: CR() < 0.5, ang: a });
+      billboards.setTint(slot0 + ci, CR() < 0.5 ? 0xe4e8f8 : 0xf0f2fc);
     }
     const st = { k, locked: false, anim: null, lock, pad, body, shackle, chains, clouds, signCol, signGrey, center: c };
     lockState[Z.id] = st;
@@ -227,12 +235,12 @@ export async function makeBeastIsland(opts = {}) {
     const visible = st.locked || st.anim;
     for (const C of st.clouds) {
       if (!visible) { billboards.set(C.slot, 0, -999, 0, 0.001, 0.001, 0, 0); continue; }
-      const spread = 1 + k01 * 1.6;
+      const spread = 1 + k01 * 0.9;
       const wob = Math.sin(t * 0.5 + C.ph) * 0.35;
       const a = C.ang + t * 0.03;
       const r = Math.hypot(C.lx, C.lz) * spread + wob;
-      const fade = st.anim ? clamp(1 - (k01 - 0.05) * 1.4, 0, 1) : 1;
-      billboards.set(C.slot, Z.x + Math.cos(a) * r, Z.y + C.y + Math.sin(t * 0.7 + C.ph) * 0.2 + k01 * 2.5, Z.z + Math.sin(a) * r, C.w * (1 + k01 * 0.3), C.w * 0.5 * (1 + k01 * 0.3), C.f, fade, C.flip);
+      const fade = st.anim ? clamp(1 - k01 * 1.7, 0, 1) : 1;
+      billboards.set(C.slot, Z.x + Math.cos(a) * r, Z.y + C.y + Math.sin(t * 0.7 + C.ph) * 0.2 + k01 * 1.5, Z.z + Math.sin(a) * r, C.w * (1 + k01 * 0.25), C.w * 0.5 * (1 + k01 * 0.25), C.f, fade, C.flip);
     }
   }
 
@@ -245,8 +253,8 @@ export async function makeBeastIsland(opts = {}) {
       st.lock.visible = true;
       st.pad.scale.setScalar(1);
       st.pad.rotation.set(0, 0, 0);
-      st.pad.position.y = 5.4;
-      st.shackle.position.y = 14 * 0.17 + 0.02;
+      st.pad.position.y = PAD_Y;
+      st.shackle.position.y = 14 * PAD_S + 0.02;
       st.chains.group.position.y = 0;
       st.chains.group.scale.setScalar(1);
       st.signGrey.visible = true;
@@ -276,10 +284,10 @@ export async function makeBeastIsland(opts = {}) {
         // shake, pop the shackle, then the lock bursts upward and shrinks away
         const shake = u < 0.8 ? Math.sin(u * 60) * 0.12 * (u / 0.8) : 0;
         st.pad.rotation.z = shake;
-        if (u > 0.7) st.shackle.position.y = 14 * 0.17 + 0.02 + Math.min(1, (u - 0.7) / 0.15) * 0.7;
+        if (u > 0.7) st.shackle.position.y = 14 * PAD_S + 0.02 + Math.min(1, (u - 0.7) / 0.15) * 0.9;
         if (u > 1.0) {
           const k = Math.min(1, (u - 1.0) / 0.8);
-          st.pad.position.y = 5.4 + k * 3;
+          st.pad.position.y = PAD_Y + k * 3;
           st.pad.rotation.y = k * Math.PI * 2;
           st.pad.scale.setScalar(Math.max(0.001, (1 + Math.sin(k * Math.PI) * 0.35) * (1 - k * k)));
         }
@@ -298,7 +306,7 @@ export async function makeBeastIsland(opts = {}) {
       } else if (st.locked) {
         placeLockClouds(st, t, 0);
         st.pad.rotation.z = Math.sin(t * 1.3 + st.k) * 0.05;
-        st.pad.position.y = 5.4 + Math.sin(t * 1.1 + st.k) * 0.12;
+        st.pad.position.y = PAD_Y + Math.sin(t * 1.1 + st.k) * 0.12;
       }
     }
     zones.forEach((Z, k) => {
@@ -324,11 +332,14 @@ export async function makeBeastIsland(opts = {}) {
   });
   root.add(makeDistantIslands());
 
+  lap('zones');
   // ------------------------------------------------------------------ landmarks
   const exclude = [];
   addLandmarks({ T, root, updaters, exclude, R });
+  lap('landmarks');
   addRoadside({ T, root, bridges, exclude });
   if (opts.decor !== false) addDecor({ T, root, exclude, R });
+  lap('decor');
   addLife({ T, root, updaters, R });
 
   root.updateMatrixWorld(true);
@@ -344,11 +355,19 @@ export async function makeBeastIsland(opts = {}) {
     sky: makeSky(),
     fog: { color: HORIZON, near: 260, far: 900 },
     lights: { sky: 0xd8f0ff, ground: 0x8a7a5a, hemi: 1.15, sun: 2.5, sunColor: 0xfff0d6, dir: [34, 62, 44], rim: 0.7, rimColor: 0xa8dcff, shadowExtent: 34 },
-    overview: { camPos: V(6, 150, 128), camLook: V(4, 4, 2) },
+    overview: { camPos: V(2, 172, 150), camLook: V(2, 2, 5) },
     heightAt: (x, z) => T.heightAt(x, z),
     terrain: T,
   };
 }
+
+/** Horizontal direction from a zone toward its camera. */
+function camDir(k) {
+  const Z = ZONES[k], next = ZONES[k + 1], prev = ZONES[k - 1];
+  const toNext = next ? new THREE.Vector2(next.x - Z.x, next.z - Z.z).normalize() : new THREE.Vector2(Z.x - prev.x, Z.z - prev.z).normalize();
+  return { toNext, dir: toNext.clone().multiplyScalar(-0.62).add(new THREE.Vector2(0.1, 0.62)).normalize() };
+}
+const summitDir = () => camDir(ZONES.length - 1).dir;
 
 // ---------------------------------------------------------------------------
 // Camera framing: pitch up until the line of sight clears the terrain.
@@ -408,7 +427,7 @@ function makeChains(from, corners) {
   const linkGeo = P.geo('chainLink', P.chainLinkGrid, 0.075, 'center');
   const mats = [];
   for (const [cx, cz] of corners) {
-    const A = V(from.x + Math.sign(cx) * 1.2, from.y + 1.0, from.z - 0.1), B = V(cx, 0.15, cz);
+    const A = V(from.x + Math.sign(cx) * 1.7, from.y + 1.4, from.z - 0.2), B = V(cx, 0.15, cz);
     const len = A.distanceTo(B);
     const n = Math.round(len / 0.3);
     for (let i = 0; i <= n; i++) {
@@ -467,21 +486,12 @@ function addLandmarks({ T, root, updaters, exclude }) {
   lh.name = 'lighthouse';
   root.add(lh);
   exclude.push([lx, lz, 3.5]);
-  const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
-  const beamGeo = new THREE.ConeGeometry(2.2, 26, 12, 1, true);
-  beamGeo.translate(0, -13, 0);
-  beamGeo.rotateZ(Math.PI / 2);
-  const beam = new THREE.Group();
-  beam.position.set(lx, ly + 37.5 * 0.25, lz);
-  for (const s of [1, -1]) { const b = new THREE.Mesh(beamGeo, beamMat); b.rotation.y = s > 0 ? 0 : Math.PI; beam.add(b); }
-  root.add(beam);
-  updaters.push((dt, t) => { beam.rotation.y = t * 0.8; });
-
-  // --- giant panther head monument on the summit cliff
-  const hx = 47, hz = -26.5;
+  // --- giant panther head monument behind the summit arena, facing its camera
+  const S8 = ZONES[8], sd = summitDir();
+  const hx = S8.x - sd.x * 14, hz = S8.z - sd.y * 14;
   const head = P.mesh(P.geo('pantherHead', P.pantherHeadGrid, 0.28, 'bottom'), { receive: true });
-  head.position.set(hx, T.minHeight(hx, hz, 4) - 0.6, hz);
-  head.rotation.y = -0.35;
+  head.position.set(hx, T.minHeight(hx, hz, 3) - 0.8, hz);
+  head.rotation.y = Math.atan2(sd.x, sd.y);
   head.name = 'pantherMonument';
   root.add(head);
   exclude.push([hx, hz, 8]);
@@ -537,31 +547,32 @@ function addRoadside({ T, root, bridges, exclude }) {
 // ---------------------------------------------------------------------------
 // Vegetation + scenery scatter (instanced per kind)
 function addDecor({ T, root, exclude, R }) {
+  const LP = P.LOWPOLY;
   const kinds = {
-    palm: { fn: P.tree('palm'), s: 0.15, items: [], shadow: true },
-    palm2: { fn: P.tree('palm', { leaf: 0x5fd04a, seed: 3 }), s: 0.15, items: [], shadow: true },
-    round: { fn: P.tree('round', { leaf: 0x4cba3a }), s: 0.16, items: [], shadow: true },
-    round2: { fn: P.tree('round', { leaf: 0x6ad04a, seed: 5 }), s: 0.16, items: [], shadow: true },
-    sakura: { fn: P.tree('round', { leaf: 0xff9ec8, trunk: 0x8a5a3a, seed: 7 }), s: 0.15, items: [], shadow: true },
-    pine: { fn: P.tree('pine', { leaf: 0x3fae4a }), s: 0.15, items: [], shadow: true },
-    snowpine: { fn: P.tree('pine', { leaf: 0x3a9a5a, snow: true }), s: 0.15, items: [], shadow: true },
+    palm: { fn: () => LP.palm(0x4cba3a, 1), s: 0.17, items: [], shadow: true },
+    palm2: { fn: () => LP.palm(0x5fd04a, 2), s: 0.17, items: [], shadow: true },
+    round: { fn: () => LP.round(0x4cba3a, 1), s: 0.24, items: [], shadow: true },
+    round2: { fn: () => LP.round(0x6ad04a, 2), s: 0.24, items: [], shadow: true },
+    sakura: { fn: () => LP.round(0xff9ec8, 3), s: 0.22, items: [], shadow: true },
+    pine: { fn: () => LP.pine(0x3fae4a), s: 0.2, items: [], shadow: true },
+    snowpine: { fn: () => LP.pine(0x3a9a5a, true), s: 0.2, items: [], shadow: true },
     lolly: { fn: P.lollipopGrid, s: 0.12, items: [], shadow: true },
     cane: { fn: P.candyCaneGrid, s: 0.11, items: [], shadow: true },
-    cactus: { fn: P.cactusGrid, s: 0.14, items: [], shadow: true },
+    cactus: { fn: LP.cactus, s: 0.17, items: [], shadow: true },
     dead: { fn: P.deadTreeGrid, s: 0.14, items: [], shadow: true },
     crystal: { fn: P.crystalGrid, s: 0.14, items: [], shadow: false },
-    bush: { fn: () => P.bushGrid(0x4fb441), s: 0.14, items: [] },
-    pinkbush: { fn: () => P.bushGrid(0xff8ac0), s: 0.13, items: [] },
-    rock: { fn: P.rockBrush(0x9aa2b4, 3), s: 0.2, items: [], shadow: true },
-    sandrock: { fn: P.rockBrush(0xe0a058, 3), s: 0.2, items: [], shadow: true },
-    darkrock: { fn: P.rockBrush(0x4a4256, 3), s: 0.2, items: [], shadow: true },
-    icerock: { fn: P.rockBrush(0xcfe8fb, 3), s: 0.2, items: [], shadow: true },
-    flowers: { fn: () => P.flowerPatchGrid(1), s: 0.09, items: [] },
-    flowers2: { fn: () => P.flowerPatchGrid(2), s: 0.09, items: [] },
-    tuft: { fn: () => P.tuftGrid(0x4fb441), s: 0.1, items: [] },
+    bush: { fn: () => LP.bush(0x4fb441), s: 0.2, items: [] },
+    pinkbush: { fn: () => LP.bush(0xff8ac0), s: 0.2, items: [] },
+    rock: { fn: () => LP.rock(0x9aa2b4, 1), s: 0.22, items: [], shadow: true },
+    sandrock: { fn: () => LP.rock(0xe0a058, 2), s: 0.22, items: [], shadow: true },
+    darkrock: { fn: () => LP.rock(0x4a4256, 3), s: 0.22, items: [], shadow: true },
+    icerock: { fn: () => LP.rock(0xcfe8fb, 4), s: 0.22, items: [], shadow: true },
+    flowers: { fn: () => LP.flowers(1), s: 0.12, items: [] },
+    flowers2: { fn: () => LP.flowers(2), s: 0.12, items: [] },
+    tuft: { fn: () => LP.tuft(0x4fb441), s: 0.12, items: [] },
   };
   const table = {
-    [MAT.GRASS]: [['round', 0.13], ['round2', 0.1], ['palm', 0.06], ['bush', 0.1], ['rock', 0.04], ['flowers', 0.06], ['flowers2', 0.05], ['tuft', 0.16]],
+    [MAT.GRASS]: [['round', 0.11], ['round2', 0.09], ['palm', 0.05], ['bush', 0.09], ['rock', 0.04], ['flowers', 0.05], ['flowers2', 0.04], ['tuft', 0.14]],
     [MAT.LUSH]: [['palm', 0.14], ['palm2', 0.12], ['round2', 0.1], ['bush', 0.12], ['flowers', 0.12], ['flowers2', 0.1], ['tuft', 0.1]],
     [MAT.PASTEL]: [['sakura', 0.2], ['pinkbush', 0.1], ['flowers2', 0.1], ['tuft', 0.12], ['round2', 0.05]],
     [MAT.SAND]: [['palm', 0.08], ['palm2', 0.07], ['rock', 0.02]],
@@ -639,7 +650,7 @@ function addLife({ T, root, updaters, R }) {
   const wings = new THREE.InstancedMesh(wingGeo, Mats.pair, gulls.length * 2);
   for (const im of [bodies, wings]) { im.frustumCulled = false; im.castShadow = true; root.add(im); }
   bodies.name = 'gulls';
-  const m4 = new THREE.Matrix4(), w4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), mir = new THREE.Vector3(-1, 1, 1);
+  const m4 = new THREE.Matrix4(), w4 = new THREE.Matrix4(), _rz = new THREE.Matrix4(), _ry = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   updaters.push((dt, t) => {
     gulls.forEach((G, i) => {
       const a = G.ph + t * G.sp;
@@ -652,9 +663,8 @@ function addLife({ T, root, updaters, R }) {
       const flap = Math.sin(t * G.fl + G.ph) * 0.55;
       for (const s of [1, -1]) {
         w4.makeTranslation(0, 0.1, 0);
-        const r = new THREE.Matrix4().makeRotationZ(s * flap);
-        const sc = new THREE.Matrix4().makeScale(s, 1, 1);
-        w4.multiply(r).multiply(sc);
+        w4.multiply(_rz.makeRotationZ(s * flap));
+        if (s < 0) w4.multiply(_ry.makeRotationY(Math.PI));
         bodies.getMatrixAt(i, m4);
         m4.multiply(w4);
         wings.setMatrixAt(i * 2 + (s > 0 ? 0 : 1), m4);
@@ -663,6 +673,5 @@ function addLife({ T, root, updaters, R }) {
     bodies.instanceMatrix.needsUpdate = true;
     wings.instanceMatrix.needsUpdate = true;
   });
-  void mir;
   void T;
 }

@@ -538,6 +538,13 @@ const SFX = {
   error: (a) => a.tone({ type: 'square', f0: 200, f1: 150, dur: 0.18, vol: 0.12 }),
   tear: (a) => a.noise({ dur: 0.25, vol: 0.2, type: 'bandpass', f0: 1500, f1: 4000, q: 1 }),
   bell: (a) => { a.tone({ type: 'sine', f0: 1320, dur: 0.8, vol: 0.12 }); a.tone({ type: 'sine', f0: 2640, dur: 0.5, vol: 0.05 }); },
+  alarm: (a, p) => { for (let i = 0; i < 3; i++) { a.tone({ type: 'square', f0: 880 * p, f1: 660 * p, dur: 0.18, vol: 0.07, delay: i * 0.36 }); a.tone({ type: 'square', f0: 660 * p, f1: 880 * p, dur: 0.18, vol: 0.07, delay: i * 0.36 + 0.18 }); } },
+  boom: (a, p) => { a.tone({ type: 'sine', f0: 150 * p, f1: 45, dur: 0.3, vol: 0.4 }); a.noise({ dur: 0.18, vol: 0.22, type: 'lowpass', f0: 1400 * p, f1: 200 }); },
+  crown: (a) => { [784, 988, 1175, 1568].forEach((f, i) => a.tone({ type: 'square', f0: f, dur: 0.14, vol: 0.08, delay: i * 0.07 })); a.tone({ type: 'sine', f0: 2093, dur: 0.6, vol: 0.06, delay: 0.28 }); },
+  countdown: (a, p) => a.tone({ type: 'square', f0: 660 * p, dur: 0.12, vol: 0.1 }),
+  go: (a) => { a.tone({ type: 'square', f0: 990, dur: 0.35, vol: 0.12 }); a.tone({ type: 'square', f0: 1320, dur: 0.35, vol: 0.06 }); },
+  cardPick: (a, p) => a.tone({ type: 'triangle', f0: 500 * p, f1: 820 * p, dur: 0.07, vol: 0.13 }),
+  emote: (a, p) => a.tone({ type: 'sine', f0: 700 * p, f1: 1100 * p, dur: 0.12, vol: 0.12, vibrato: 30, vibRate: 18 }),
 };
 
 export const audio = new AudioSys();

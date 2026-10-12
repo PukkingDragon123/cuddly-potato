@@ -1,213 +1,464 @@
-// Battle HUD (DOM): labs' HP, timer, energy + Lab upgrade, deploy cards,
-// spells, Commander signature & skills.
+// Battle HUD (DOM), Clash Royale layout in the pixel-art skin:
+//   top    - your (blue) and the rival's (red) name banners with 3 crown slots,
+//            the match timer with 2x / overtime tags, a lane minimap
+//   bottom - Commander portrait (signature charge) + skills, the hand of 4
+//            cards with the NEXT card, the segmented energy bar, the Lab
+//            overclock button and emotes.
+// Input on cards is forwarded to the battle scene (tap/drag to deploy).
 import './battle.css';
-import { h, icon, $ui } from '../../ui/ui.js';
-import { swarmThumb, charPortrait } from '../../ui/thumbs.js';
-import { SWARMS } from '../../data/swarms.js';
-import { SPELLS } from '../../data/spells.js';
-import { LAB_LEVELS } from '../../data/labs.js';
-import { BANNERS } from '../../data/season.js';
+import { h, icon, iconURL, button, bigBanner, speech, sparkle, bump } from '../../ui/ui.js';
+import { cardEl } from '../../ui/cards.js';
+import { charPortrait } from '../../ui/thumbs.js';
+import { cardDef } from '../../data/cards.js';
+import { OVERCLOCK, ENERGY } from '../../data/labs.js';
+import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
+import { FIELD } from './field.js';
+import { plateBounds } from './view.js';
 
 const fmtT = (s) => {
   s = Math.max(0, Math.ceil(s));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
+export const EMOTES = [
+  { icon: 'smile', text: 'Good luck!' },
+  { icon: 'heart', text: 'Thanks!' },
+  { icon: 'star', text: 'Well played!' },
+  { icon: 'alert', text: 'Oops!' },
+  { icon: 'fire', text: 'WOW!' },
+  { icon: 'skull', text: 'Grrr!' },
+];
+
 export class BattleHUD {
-  constructor(sim, cfg, handlers) {
+  /**
+   * handlers: { press(slot, event), signature(), skill(k), overclock(), pause(), emote(i), minimap(x) }
+   */
+  constructor(sim, view, cfg, handlers) {
     this.sim = sim;
+    this.view = view;
     this.cfg = cfg;
     this.hd = handlers;
-    this.cache = {};
-    const s0 = sim.sides[0], s1 = sim.sides[1];
+    this.sel = -1;
+    const s0 = sim.sides[0];
+    const root = (this.root = h('div', { class: 'bhud' }));
+
+    // ------------------------------------------------------------ top
     const side = (i) => {
       const c = cfg.sides[i];
-      const banner = BANNERS[c.banner] || BANNERS.default;
-      const name = h('div', { class: 'bname outline-sm', style: { background: banner.css } },
-        i === 1 && c.ghost ? h('span', { class: 'tag' }, 'GHOST AI') : null,
-        c.trophies !== undefined ? h('span', {}, icon('trophy'), ' ', String(c.trophies)) : null,
-        h('span', {}, c.name));
-      if (banner.animated) name.classList.add('anim-' + banner.animated);
-      const bar = h('div', { class: 'bar labbar ' + (i === 0 ? 'blue' : 'pink') }, h('i', { style: { width: '100%' } }), h('span', { class: 'outline-sm' }, ''));
-      return { el: h('div', { class: 'bplayer' + (i === 1 ? ' right' : '') }, name, bar), bar };
+      const crowns = [0, 1, 2].map(() => icon('crown'));
+      const el = h('div', { class: `bh-side s${i}` },
+        h('div', { class: 'bh-name' },
+          h('span', { class: 'nm' }, c.name ?? (i ? 'Rival' : 'You')),
+          c.trophies !== undefined ? h('span', { class: 'tr' }, icon('trophy'), String(c.trophies)) : null),
+        c.clan || c.ghost ? h('div', { class: 'bh-sub' }, c.clan ?? '', c.ghost ? (c.clan ? ' - ' : '') + 'AI rival' : '') : null,
+        h('div', { class: 'bh-crowns' }, crowns));
+      return { el, crowns, shown: 0 };
     };
-    this.p0 = side(0);
-    this.p1 = side(1);
-    this.timer = h('div', { class: 'btimer px-box dark' }, '3:00');
-    const top = h('div', { class: 'btop' }, this.p0.el, h('div', { class: 'spacer' }), this.timer, h('div', { class: 'spacer' }), this.p1.el);
-    this.pauseBtn = h('button', { class: 'btn small gray icon-only bpause', onclick: (e) => { e.stopPropagation(); audio.play('click'); handlers.pause(); } }, h('span', { class: 'display', style: { fontSize: '0.7em' } }, 'II'));
+    this.sides = [side(0), side(1)];
+    this.tm = h('div', { class: 'tm' }, fmtT(sim.timeLeft));
+    this.tag = h('div', { class: 'tag hidden' }, '2x ENERGY');
+    this.timer = h('div', { class: 'bh-timer' }, h('div', { class: 'lbl' }, 'Time left'), this.tm, this.tag);
+    root.appendChild(h('div', { class: 'bh-top' }, this.sides[0].el, this.timer, this.sides[1].el));
 
-    // energy panel
-    this.enNum = h('span', {}, '0');
-    this.enMax = h('small', {}, '/0');
-    this.enBar = h('i', { style: { width: '0%' } });
-    this.labBtn = h('button', { class: 'btn small blabup green', type: 'button' }, h('span', { class: 'l1' }, 'LAB 1'), h('span', { class: 'l2' }, ''));
-    this.labBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.upgradeLab(); });
-    this.energy = h('div', { class: 'benergy px-box dark' }, h('div', { class: 'num' }, icon('energy'), this.enNum, this.enMax), h('div', { class: 'bar' }, this.enBar), this.labBtn);
+    // minimap
+    this.mini = h('div', { class: 'bh-mini hit' }, h('i', { class: 'mid' }));
+    this.miniWin = h('i', { class: 'win' });
+    this.mini.appendChild(this.miniWin);
+    this.miniTowers = [];
+    for (const si of [0, 1]) for (const kind of ['lab', 'turret']) {
+      const b = sim.sides[si][kind];
+      const el = h('i', { class: `twr ${kind} s${si}` });
+      el.style.left = this.mx(b.x) + '%';
+      this.mini.appendChild(el);
+      this.miniTowers.push({ el, b });
+    }
+    this.dots = [];
+    const miniPick = (e) => {
+      const r = this.mini.getBoundingClientRect();
+      const k = (e.clientX - r.left) / r.width;
+      handlers.minimap?.((k * 2 - 1) * FIELD.VIEW_X);
+    };
+    this.mini.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.mini.setPointerCapture(e.pointerId); miniPick(e); });
+    this.mini.addEventListener('pointermove', (e) => { if (e.buttons) miniPick(e); });
+    root.appendChild(this.mini);
+    const pause = button('', () => handlers.pause(), 'gray sm icon-only bh-pause', { icon: 'pause' });
+    root.appendChild(pause);
 
-    // cards
-    this.cards = s0.deck.map((c, i) => {
-      const def = SWARMS[c.id];
-      const el = h('div', { class: `bcard ${def.rarity}` },
-        h('img', { src: swarmThumb(c.id, c.variant, c.skin, 80), draggable: 'false' }),
-        h('div', { class: 'fill' }),
-        h('div', { class: 'cd' }),
-        h('div', { class: 'bcost' }, icon('energy'), String(sim.cardCost(0, i))),
-        h('div', { class: 'key' }, String(i + 1)),
-        def.isMega ? h('div', { class: 'mega' }, 'MEGA') : null);
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); audio.unlock(); handlers.deploy(i); });
-      return { el, fill: el.querySelector('.fill'), cd: el.querySelector('.cd') };
-    });
-    const cardRow = h('div', { class: 'bcards' }, this.cards.map((c) => c.el));
-
-    // spells
-    this.spells = s0.spells.map((sp, i) => {
-      const def = SPELLS[sp.id];
-      const el = h('div', { class: 'bspell', style: { background: def.color } },
-        h('div', { class: 'nm outline-sm' }, def.name),
-        icon(def.icon),
-        h('div', { class: 'cd' }),
-        h('div', { class: 'bcost' }, icon('energy'), String(def.cost)));
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); audio.unlock(); handlers.spell(i); });
-      return { el, cd: el.querySelector('.cd') };
-    });
-    // commander
+    // ------------------------------------------------------------ bottom
+    // Commander: signature portrait + skills
     const cmd = cfg.sides[0].commander;
-    this.sig = null;
-    this.skills = [];
-    let cmdEl = null;
+    this.cmdEl = h('div', { class: 'bh-cmd' });
     if (s0.cmd) {
-      const sigEl = h('div', { class: 'bsig' },
-        h('img', { class: 'por', src: charPortrait(cmd.char ?? cmd.id, { override: cmd.override }), draggable: 'false' }),
-        h('div', { class: 'charge' }),
-        icon(s0.cmd.signature.icon, 'sicon'),
-        h('div', { class: 'lbl outline-sm' }, s0.cmd.signature.name));
-      sigEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); audio.unlock(); handlers.signature(); });
-      this.sig = { el: sigEl, charge: sigEl.querySelector('.charge') };
-      this.skills = s0.skills.map((sk, k) => {
-        const el = h('div', { class: 'bskill', title: sk.name }, icon(sk.icon), h('div', { class: 'cd' }));
-        el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); audio.unlock(); handlers.skill(k); });
-        return { el, cd: el.querySelector('.cd') };
+      this.sigChg = h('div', { class: 'chg' });
+      this.sigPct = h('div', { class: 'pct' }, '');
+      this.sig = h('div', { class: 'bh-sig hit', title: s0.cmd.signature.name },
+        this.sigChg,
+        h('img', { class: 'por', src: charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 96, eyes: 'determined', mouth: 'grin' }) }),
+        h('div', { class: 'ab' }, icon(s0.cmd.signature.icon ?? 'star')),
+        this.sigPct);
+      this.sig.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.signature(); });
+      this.cmdEl.appendChild(this.sig);
+      this.skillEls = s0.skills.map((sk, k) => {
+        const cdv = h('div', { class: 'cdv' });
+        const cdn = h('div', { class: 'cdn' }, '');
+        const el = h('div', { class: 'bh-skill hit', title: sk.name }, icon(sk.icon ?? 'star'), cdv, cdn);
+        el.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.skill(k); });
+        return { el, cdv, cdn, sk };
       });
-      cmdEl = h('div', { class: 'bcmd' }, this.skills.length ? h('div', { class: 'bskills' }, this.skills.map((s) => s.el)) : null, sigEl);
+      if (this.skillEls.length) this.cmdEl.appendChild(h('div', { class: 'bh-skills' }, this.skillEls.map((s) => s.el)));
     }
-    const right = h('div', { class: 'bright' }, h('div', { class: 'bspells' }, this.spells.map((s) => s.el)), cmdEl);
-    this.bottom = h('div', { class: 'bbottom' }, this.energy, cardRow, right);
-    this.aimTip = h('div', { class: 'baimtip px-box cream hidden' }, 'Tap the battlefield to cast!');
-    this.el = h('div', { class: 'bhud' }, top, this.pauseBtn, this.bottom, this.aimTip);
-    $ui().appendChild(this.el);
-    this.aiming = null;
-    this.lastHp = [s0.labHp, s1.labHp];
+    // right: emote + overclock
+    this.ocBtn = button(h('span', { class: 'oc' }, h('b', {}, 'OVERCLOCK'), h('span', { class: 'ocv' }, 'x1.0'), h('small', { class: 'occ' }, '')), () => handlers.overclock(), 'purple sm bh-oc', { icon: 'lab' });
+    this.ocV = this.ocBtn.querySelector('.ocv');
+    this.ocC = this.ocBtn.querySelector('.occ');
+    this.emoteBtn = button('', () => this.toggleEmotes(), 'blue sm icon-only bh-emote', { icon: 'emote' });
+    this.rightEl = h('div', { class: 'bh-right' }, this.emoteBtn, this.ocBtn);
 
-    this.keyHandler = (e) => {
-      if (e.repeat) return;
-      const k = e.key.toLowerCase();
-      if (k >= '1' && k <= '8') handlers.deploy(+k - 1);
-      else if (k === 'q') handlers.spell(0);
-      else if (k === 'w') handlers.spell(1);
-      else if (k === 'e') handlers.spell(2);
-      else if (k === ' ') { e.preventDefault(); handlers.signature(); }
-      else if (k === 'u') handlers.upgradeLab();
-      else if (k === 'z') handlers.skill(0);
-      else if (k === 'x') handlers.skill(1);
-      else if (k === 'escape') handlers.pause();
-    };
-    window.addEventListener('keydown', this.keyHandler);
+    // hand + next
+    this.slots = [0, 1, 2, 3].map((i) => {
+      const el = h('div', { class: 'bh-slot', 'data-slot': String(i) });
+      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); audio.unlock(); handlers.press(i, e); });
+      return { el, key: null, dim: null };
+    });
+    this.nextBox = h('div', { class: 'bh-next' }, h('div', { class: 'lbl' }, 'NEXT'));
+    this.nextKey = null;
+    this.drop = h('div', { class: 'bh-drop', style: { backgroundImage: `url(${iconURL('energy')})` } }, '5');
+    this.segs = Array.from({ length: ENERGY.max }, () => h('div', { class: 'seg' }, h('i')));
+    this.rate = h('span', { class: 'rate hidden' }, '');
+    this.ebar = h('div', { class: 'bh-ebar' }, this.segs, this.rate);
+    this.energyRow = h('div', { class: 'bh-energy' }, this.drop, this.ebar);
+    this.deck = h('div', { class: 'bh-deck' },
+      h('div', { class: 'bh-row' }, this.nextBox, h('div', { class: 'bh-hand' }, this.slots.map((s) => s.el))),
+      this.energyRow);
+    root.appendChild(h('div', { class: 'bh-bottom' }, h('div', { class: 'bh-above' }, this.cmdEl, this.rightEl), this.deck));
+    this.refreshHand(true);
+    this.lastE = -1;
+    this.ticked = -1;
   }
 
-  setAiming(idx) {
-    this.aiming = idx;
-    this.spells.forEach((s, i) => s.el.classList.toggle('aiming', i === idx));
-    this.aimTip.classList.toggle('hidden', idx === null);
-    if (idx !== null) this.aimTip.textContent = `${SPELLS[this.sim.sides[0].spells[idx].id].name}: tap the battlefield!`;
+  mount(parent) {
+    parent.appendChild(this.root);
   }
 
-  set(el, key, prop, val) {
-    if (this.cache[key] === val) return;
-    this.cache[key] = val;
-    if (prop === 'text') el.textContent = val;
-    else if (prop === 'h') el.style.height = val;
-    else if (prop === 'w') el.style.width = val;
-    else if (prop === 'cls') {
-      const [name, on] = val.split(':');
-      el.classList.toggle(name, on === '1');
+  /** % position of a world x on the minimap. */
+  mx(x) {
+    return ((x / FIELD.VIEW_X + 1) / 2) * 100;
+  }
+
+  // -------------------------------------------------------------------------
+  // Hand
+
+  refreshHand(initial = false) {
+    const s = this.sim.sides[0];
+    this.slots.forEach((slot, i) => {
+      const k = s.hand[i];
+      const c = k === undefined ? null : s.deck[k];
+      const key = c ? `${k}` : null;
+      if (key === slot.key) return;
+      slot.key = key;
+      slot.el.innerHTML = '';
+      if (!c) return;
+      const card = cardEl(c.id, { owned: { level: c.level, variant: c.variant, skin: c.skin }, level: c.level, priority: true });
+      slot.el.appendChild(card);
+      slot.dim = h('div', { class: 'dim' });
+      card.appendChild(slot.dim);
+      if (engine.width > engine.height || !('ontouchstart' in window)) slot.el.appendChild(h('div', { class: 'key' }, String(i + 1)));
+      if (!initial) {
+        slot.el.classList.remove('enter');
+        void slot.el.offsetWidth;
+        slot.el.classList.add('enter');
+      }
+      slot.card = c;
+    });
+    const nx = this.sim.nextCard(0);
+    const nk = nx ? nx.id + nx.level : null;
+    if (nk !== this.nextKey) {
+      this.nextKey = nk;
+      this.nextBox.querySelector('.gcard')?.remove();
+      if (nx) this.nextBox.appendChild(cardEl(nx.id, { owned: { level: nx.level, variant: nx.variant, skin: nx.skin }, size: 'mini', noLevel: true }));
     }
   }
 
-  update() {
-    const sim = this.sim;
-    const s = sim.sides[0];
-    const info = LAB_LEVELS[s.labLevel - 1];
-    this.set(this.enNum, 'en', 'text', String(Math.floor(s.energy)));
-    this.set(this.enMax, 'enm', 'text', '/' + info.max);
-    this.set(this.enBar, 'enb', 'w', ((s.energy / info.max) * 100).toFixed(1) + '%');
-    const l1 = this.labBtn.querySelector('.l1'), l2 = this.labBtn.querySelector('.l2');
-    this.set(l1, 'lab1', 'text', `LAB ${s.labLevel}${info.upCost !== null ? ' ▲' : ' MAX'}`);
-    this.set(l2, 'lab2', 'text', info.upCost !== null ? `Upgrade ⚡${info.upCost}` : 'Fully charged');
-    const canUp = sim.canUpgradeLab(0);
-    this.set(this.labBtn, 'labr', 'cls', 'ready:' + (canUp ? 1 : 0));
-    this.set(this.labBtn, 'labd', 'cls', 'disabled:' + (canUp ? 0 : 1));
-    // cards
-    this.cards.forEach((c, i) => {
-      const def = SWARMS[s.deck[i].id];
+  select(slot) {
+    this.sel = slot;
+    this.slots.forEach((s, i) => s.el.classList.toggle('sel', i === slot));
+  }
+  slotEl(i) {
+    return this.slots[i]?.el;
+  }
+  /** y (px) of the top of the deck panel: pointer above it = over the battlefield. */
+  deckTop() {
+    return this.deck.getBoundingClientRect().top;
+  }
+  isOverField(x, y) {
+    if (y >= this.deckTop() - 4) return false;
+    const r = this.rightEl.getBoundingClientRect(), c = this.cmdEl.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return false;
+    if (x >= c.left && x <= c.right && y >= c.top && y <= c.bottom) return false;
+    return true;
+  }
+
+  /** Floating copy of the card following the finger while dragging. */
+  dragStart(slot) {
+    this.dragEnd();
+    const c = this.slots[slot].card;
+    if (!c) return;
+    this.slots[slot].el.classList.add('dragging');
+    this.drag = h('div', { class: 'bh-drag' }, cardEl(c.id, { owned: { level: c.level, variant: c.variant, skin: c.skin }, noLevel: true }));
+    this.root.appendChild(this.drag);
+    this.dragSlot = slot;
+  }
+  dragMove(x, y, overField) {
+    if (!this.drag) return;
+    this.drag.style.transform = `translate(${x}px, ${y}px)`;
+    this.drag.classList.toggle('over', !!overField);
+  }
+  dragEnd() {
+    if (this.drag) this.drag.remove();
+    this.drag = null;
+    if (this.dragSlot !== undefined) this.slots[this.dragSlot]?.el.classList.remove('dragging');
+    this.dragSlot = undefined;
+  }
+
+  hint(text, y = null) {
+    const el = h('div', { class: 'bh-hint' }, text);
+    el.style.top = (y ?? this.deckTop() - engine.height * 0.08) + 'px';
+    this.root.appendChild(el);
+    setTimeout(() => el.remove(), 1400);
+  }
+  needEnergy(cost) {
+    this.hint(`Need ${cost} energy!`);
+    this.energyRow.classList.remove('shake');
+    void this.energyRow.offsetWidth;
+    this.energyRow.classList.add('shake');
+    audio.play('deny');
+  }
+
+  // -------------------------------------------------------------------------
+  // Emotes
+
+  toggleEmotes() {
+    if (this.emotePop) {
+      this.emotePop.remove();
+      this.emotePop = null;
+      return;
+    }
+    const r = this.emoteBtn.getBoundingClientRect();
+    const pop = h('div', { class: 'bh-emotes' }, EMOTES.map((em, i) => button(em.text, () => { this.toggleEmotes(); this.hd.emote(i); }, 'white sm', { icon: em.icon })));
+    pop.style.right = Math.max(4, engine.width - r.right) + 'px';
+    pop.style.bottom = engine.height - r.top + 8 + 'px';
+    this.root.appendChild(pop);
+    this.emotePop = pop;
+  }
+  /** Show an emote bubble over a side's Commander (or Lab). */
+  showEmote(si, i) {
+    const em = EMOTES[i];
+    if (!em) return;
+    const ch = this.view.cmds?.[si];
+    const target = ch ?? this.view.labs?.[si]?.seat;
+    if (!target) return;
+    const b = speech(target, em.text, 2.2, { offsetY: 6 });
+    void b;
+    audio.play('emote', { pitch: si === 0 ? 1 : 0.85 });
+    if (ch && !ch.busy) { ch.play('sitCheer'); ch.expr(em.icon === 'skull' ? 'angry' : 'happy', em.icon === 'alert' ? 'open' : 'grin', 1.4); ch.reactT = 1.4; }
+  }
+
+  // -------------------------------------------------------------------------
+  // Events + per-frame refresh
+
+  onEvent(ev) {
+    switch (ev.type) {
+      case 'cycle':
+        if (ev.side === 0) this.refreshHand();
+        break;
+      case 'doubleEnergy':
+        bigBanner('2X ENERGY!', 'Last minute - spend it fast!', { dur: 1.6, color: '#ff7ac0' });
+        audio.play('bell');
+        break;
+      case 'overtime':
+        bigBanner('OVERTIME!', 'Next tower down wins!', { dur: 1.8, color: '#ffb84a' });
+        audio.play('alarm');
+        break;
+      case 'towerDown':
+        this.flyCrown(ev);
+        break;
+      case 'labUp':
+        if (ev.side === 0) bump(this.ocBtn);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** A crown flies from the destroyed tower to the attacker's banner. */
+  flyCrown(ev) {
+    const atk = 1 - ev.side;
+    const from = this.view.towerScreen(ev.side, ev.kind);
+    const crowns = this.sides[atk].crowns;
+    const n = this.sim.sides[atk].crowns;
+    for (let k = this.sides[atk].shown; k < n; k++) {
+      const target = crowns[k];
+      const tr = target.getBoundingClientRect();
+      const el = h('img', { class: 'bh-flycrown', src: iconURL('crown') });
+      el.style.transform = `translate(${from.x}px, ${from.y}px)`;
+      this.root.appendChild(el);
+      const t0 = performance.now(), dur = 900 + (k - this.sides[atk].shown) * 150;
+      const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
+      const step = (now) => {
+        const q = Math.min(1, (now - t0) / dur);
+        const e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+        const x = from.x + (tx - from.x) * e;
+        const y = from.y + (ty - from.y) * e - Math.sin(q * Math.PI) * engine.height * 0.18;
+        const s = 1.6 - q * 1.1;
+        el.style.transform = `translate(${x}px, ${y}px) scale(${s}) rotate(${(1 - q) * 360}deg)`;
+        if (q < 1) requestAnimationFrame(step);
+        else {
+          el.remove();
+          target.classList.add('on');
+          sparkle(target, { count: 16, colors: ['#ffd84a', '#ffffff', '#ffb84a'] });
+          audio.play('crown');
+        }
+      };
+      requestAnimationFrame(step);
+    }
+    this.sides[atk].shown = n;
+    if (ev.kind === 'turret') audio.play('cheer', { vol: 0.6 });
+  }
+
+  update(dt) {
+    const sim = this.sim, s = sim.sides[0];
+    this.layoutT = (this.layoutT ?? 0) - dt;
+    if (this.layoutT <= 0) {
+      this.layoutT = 0.5;
+      plateBounds.minY = this.root.style.display === 'none' ? 0 : this.mini.getBoundingClientRect().bottom + 4;
+    }
+    // timer
+    const tl = sim.timeLeft;
+    const sec = Math.ceil(tl);
+    if (sec !== this.ticked) {
+      this.ticked = sec;
+      this.tm.textContent = fmtT(tl);
+      if (!sim.over && sec <= 10 && sec > 0 && !sim.paused) audio.play('countdown', { pitch: sec <= 3 ? 1.3 : 1 });
+    }
+    this.timer.classList.toggle('urgent', tl <= 10 && !sim.over);
+    this.timer.classList.toggle('ot', sim.overtime);
+    if (sim.overtime) { this.tag.textContent = 'OVERTIME 3x'; this.tag.className = 'tag ot'; }
+    else if (sim.doubleEnergy) { this.tag.textContent = '2x ENERGY'; this.tag.className = 'tag'; }
+    else this.tag.className = 'tag hidden';
+    // energy
+    const e = s.energy;
+    if (Math.abs(e - this.lastE) > 0.004) {
+      this.lastE = e;
+      const whole = Math.floor(e + 1e-6);
+      this.drop.textContent = String(whole);
+      this.segs.forEach((seg, i) => {
+        const f = Math.max(0, Math.min(1, e - i));
+        seg.classList.toggle('full', f >= 1);
+        seg.firstChild.style.width = f >= 1 ? '' : (f * 100).toFixed(1) + '%';
+      });
+      this.ebar.classList.toggle('maxed', e >= ENERGY.max - 0.001);
+    }
+    this.ebar.classList.toggle('x2', sim.doubleEnergy && !sim.overtime);
+    this.ebar.classList.toggle('x3', sim.overtime);
+    // cards: affordability dim
+    this.slots.forEach((slot, i) => {
       const cost = sim.cardCost(0, i);
-      const cdFrac = Math.max(0, s.cds[i]) / (def.cd || 1);
-      this.set(c.cd, 'cd' + i, 'h', (Math.min(1, cdFrac) * 100).toFixed(0) + '%');
-      this.set(c.fill, 'fl' + i, 'h', (Math.min(1, s.energy / cost) * 100).toFixed(0) + '%');
-      const poor = s.energy < cost;
-      this.set(c.el, 'poor' + i, 'cls', 'poor:' + (poor ? 1 : 0));
-      const ready = !poor && s.cds[i] <= 0;
-      if (this.cache['rdy' + i] === false && ready) {
-        c.el.classList.remove('pop');
-        void c.el.offsetWidth;
-        c.el.classList.add('pop');
-      }
-      this.cache['rdy' + i] = ready;
-      this.set(c.el, 'ready' + i, 'cls', 'ready:' + (ready ? 1 : 0));
+      const poor = e < cost;
+      slot.el.classList.toggle('poor', poor);
+      if (slot.dim) slot.dim.style.height = poor ? ((1 - e / cost) * 100).toFixed(1) + '%' : '0%';
     });
-    this.spells.forEach((sp, i) => {
-      const def = SPELLS[s.spells[i].id];
-      this.set(sp.cd, 'scd' + i, 'h', (Math.min(1, Math.max(0, s.spellCds[i]) / def.cd) * 100).toFixed(0) + '%');
-      this.set(sp.el, 'spoor' + i, 'cls', 'poor:' + (s.energy < def.cost ? 1 : 0));
-    });
-    if (this.sig) {
-      this.set(this.sig.charge, 'sig', 'h', (s.sig * 100).toFixed(0) + '%');
-      this.set(this.sig.el, 'sigr', 'cls', 'ready:' + (s.sig >= 1 ? 1 : 0));
-      const lbl = this.sig.el.querySelector('.lbl');
-      this.set(lbl, 'sigl', 'text', s.sig >= 1 ? 'READY! TAP!' : `${s.cmd.signature.name} ${Math.floor(s.sig * 100)}%`);
+    // overclock
+    const oc = OVERCLOCK[s.overclock];
+    this.ocV.textContent = `x${oc.regen.toFixed(2).replace(/0$/, '')}`;
+    if (oc.cost === null) {
+      this.ocC.textContent = 'MAX';
+      this.ocBtn.classList.add('disabled');
+    } else {
+      this.ocC.textContent = `upgrade: ${oc.cost} energy`;
+      this.ocBtn.classList.toggle('disabled', !sim.canUpgradeLab(0));
     }
-    this.skills.forEach((sk, k) => {
-      const def = s.skills[k];
-      this.set(sk.cd, 'kcd' + k, 'h', (Math.min(1, Math.max(0, s.skillCds[k]) / def.cd) * 100).toFixed(0) + '%');
-      this.set(sk.el, 'kr' + k, 'cls', 'ready:' + (s.skillCds[k] <= 0 ? 1 : 0));
-    });
-    // labs
-    [this.p0, this.p1].forEach((p, i) => {
-      const sd = sim.sides[i];
-      const f = sd.labHp / sd.labMaxHp;
-      this.set(p.bar.firstChild, 'lhp' + i, 'w', (f * 100).toFixed(1) + '%');
-      this.set(p.bar.lastChild, 'lht' + i, 'text', `${Math.ceil(sd.labHp)}${sd.shield > 0 ? ' +🛡' + Math.ceil(sd.shield) : ''}`);
-      if (sd.labHp < this.lastHp[i]) {
-        p.bar.classList.add('flash');
-        clearTimeout(p.flashTO);
-        p.flashTO = setTimeout(() => p.bar.classList.remove('flash'), 80);
+    // commander
+    if (this.sig) {
+      const k = Math.min(1, s.sig);
+      this.sigChg.style.height = (k * 100).toFixed(1) + '%';
+      const ready = k >= 1 && !sim.over;
+      this.sig.classList.toggle('ready', ready);
+      this.sigPct.textContent = ready ? 'TAP!' : `${Math.floor(k * 100)}%`;
+      for (let i = 0; i < this.skillEls.length; i++) {
+        const se = this.skillEls[i];
+        const cd = Math.max(0, s.skillCds[i]);
+        se.el.classList.toggle('cool', cd > 0);
+        se.cdv.style.height = cd > 0 ? ((cd / se.sk.cd) * 100).toFixed(1) + '%' : '0%';
+        se.cdn.textContent = cd > 0 ? String(Math.ceil(cd)) : '';
       }
-      this.lastHp[i] = sd.labHp;
+    }
+    // minimap
+    const units = sim.units.filter((u) => !u.dead);
+    while (this.dots.length < units.length) {
+      const d = h('i', { class: 'dot' });
+      this.mini.appendChild(d);
+      this.dots.push(d);
+    }
+    this.dots.forEach((d, i) => {
+      const u = units[i];
+      if (!u) { d.style.display = 'none'; return; }
+      d.style.display = '';
+      d.className = `dot s${u.side}${u.size > 1.5 || u.boss ? ' big' : ''}`;
+      d.style.left = this.mx(u.x) + '%';
     });
-    const left = sim.timeLimit - sim.t;
-    this.set(this.timer, 'time', 'text', (sim.overtime ? 'OT ' : '') + fmtT(left));
-    this.set(this.timer, 'ot', 'cls', 'ot:' + (sim.overtime ? 1 : 0));
+    for (const t of this.miniTowers) t.el.classList.toggle('dead', !t.b.alive);
+    const v = this.view;
+    if (v.halfW) {
+      const l = this.mx(v.camX - v.halfW), r = this.mx(v.camX + v.halfW);
+      this.miniWin.style.left = Math.max(0, l) + '%';
+      this.miniWin.style.width = Math.max(4, Math.min(100, r) - Math.max(0, l)) + '%';
+    }
   }
 
-  hide() {
-    this.el.style.transition = 'opacity 0.3s';
-    this.el.style.opacity = '0';
-    this.el.style.pointerEvents = 'none';
+  setVisible(on) {
+    this.root.style.display = on ? '' : 'none';
   }
+  dispose() {
+    this.dragEnd();
+    this.root.remove();
+  }
+}
 
-  destroy() {
-    window.removeEventListener('keydown', this.keyHandler);
-    this.el.remove();
-  }
+// ---------------------------------------------------------------------------
+// VS intro: two team bands slam in with Commander portraits, names, trophies
+// and decks, then slide away.
+
+export async function vsIntro(parent, cfg, opts = {}) {
+  const band = (s, i) => {
+    const cmd = s.commander;
+    const por = cmd ? charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 160, eyes: i ? 'angry' : 'determined', mouth: 'grin' }) : opts.portraits?.[i];
+    return h('div', { class: `vs-band s${i}` },
+      por ? h('img', { class: 'por', src: por }) : null,
+      h('div', { class: 'info' },
+        h('div', { class: 'nm' }, s.name ?? (i ? 'Rival' : 'You')),
+        h('div', { class: 'meta' },
+          s.trophies !== undefined ? h('span', { class: 'row', style: { gap: '0.2em' } }, icon('trophy'), String(s.trophies)) : null,
+          s.labLevel ? h('span', { class: 'row', style: { gap: '0.2em' } }, icon('lab'), `Lv ${s.labLevel}`) : null,
+          s.clan ? h('span', { class: 'c-muted' }, s.clan) : null),
+        opts.showDecks !== false ? h('div', { class: 'deck' }, (s.deck || []).slice(0, 8).map((c) => {
+          const el = cardEl(c.id, { owned: { level: c.level }, size: 'mini', noLevel: true, cost: false });
+          el.style.width = 'calc(var(--u) * 7.4)';
+          return el;
+        })) : null));
+  };
+  const wrap = h('div', { class: 'vs-wrap' }, band(cfg.sides[1], 1), h('div', { class: 'vs-x' }, 'VS'), band(cfg.sides[0], 0));
+  parent.appendChild(wrap);
+  audio.play('whoosh', { pitch: 0.8 });
+  setTimeout(() => { audio.play('thud'); engine.shake(0.2); }, 380);
+  await new Promise((r) => setTimeout(r, opts.hold ?? 1900));
+  wrap.classList.add('out');
+  audio.play('whoosh', { pitch: 1.2 });
+  await new Promise((r) => setTimeout(r, 380));
+  wrap.remove();
+}
+
+/** Card definition helper used by the scene. */
+export function cardInfo(c) {
+  return cardDef(c.id);
 }

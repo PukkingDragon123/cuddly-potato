@@ -21,6 +21,7 @@ export class IslandViewScene {
     this.params = params;
     const I = (this.I = await makeBeastIsland());
     this.scene.add(I.root);
+    this.tris = countTris(I.root);
     this.scene.background = I.sky;
     this.scene.fog = new THREE.Fog(I.fog.color, I.fog.near, I.fog.far);
     const L = I.lights;
@@ -37,8 +38,10 @@ export class IslandViewScene {
     $ui().appendChild(this.hud);
     this.place();
     const warm = +(params.t ?? 0);
+    this.warmFrames = Math.ceil(warm * 30);
     for (let i = 0; i < warm * 30; i++) this.update(1 / 30);
     window.__island = I;
+    window.__islandId = Math.random();
   }
   /** Camera framing for zone k at the current aspect. */
   zoneCam(k) {
@@ -57,7 +60,11 @@ export class IslandViewScene {
   }
   place() {
     if (!this.I) return;
-    const c = this.mode === 'overview' ? this.overviewCam() : this.zoneCam(this.zone);
+    let c = this.mode === 'overview' ? this.overviewCam() : this.zoneCam(this.zone);
+    if (this.params.cam) {
+      const v = String(this.params.cam).split(',').map(Number);
+      c = { pos: new THREE.Vector3(v[0], v[1], v[2]), look: new THREE.Vector3(v[3], v[4], v[5]) };
+    }
     this.camera.position.copy(c.pos);
     this.camera.lookAt(c.look);
     this.fitShadow(c.look, this.mode === 'overview' ? 105 : 34);
@@ -81,6 +88,8 @@ export class IslandViewScene {
     this.t += dt;
     const I = this.I;
     if (!I) return;
+    this.frames = (this.frames ?? 0) + 1;
+    window.__islandFrames = this.frames - (this.warmFrames ?? 0);
     if (this.params.unlock !== undefined && !this._unlocked && this.t > 1) {
       this._unlocked = true;
       I.setLocked(I.zones[+this.params.unlock].id, false, { animate: true });
@@ -100,11 +109,27 @@ export class IslandViewScene {
     this._hudT = (this._hudT ?? 0) - dt;
     if (this._hudT <= 0) {
       this._hudT = 0.5;
-      const info = engine.renderer.info.render;
       const z = I.zones[this.zone];
-      this.hud.textContent = `beast island  ${this.mode}${this.mode === 'zone' ? ' ' + this.zone + ':' + z.id : ''}\ntris ${(info.triangles / 1000).toFixed(0)}k  calls ${info.calls}  fps ${engine.fps.toFixed(0)}`;
+      const T = this.tris;
+      this.hud.textContent = window.__islandHud = `beast island  ${this.mode}${this.mode === 'zone' ? ' ' + this.zone + ':' + z.id : ''}  fps ${engine.fps.toFixed(0)}\ntris ${(T.total / 1000).toFixed(0)}k (island ${(T.island / 1000).toFixed(0)}k, dioramas ${(T.dio / 1000).toFixed(0)}k)  meshes ${T.meshes}`;
     }
   }
+}
+
+/** Static triangle count (instances included) split into island vs dioramas. */
+function countTris(root) {
+  const out = { total: 0, island: 0, dio: 0, meshes: 0 };
+  root.traverseVisible((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry;
+    const n = (g.index ? g.index.count : g.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1);
+    let p = o, dio = false;
+    while (p) { if (p.name?.startsWith('arena:')) dio = true; p = p.parent; }
+    out.total += n;
+    out.meshes++;
+    if (dio) out.dio += n; else out.island += n;
+  });
+  return out;
 }
 
 const clampIdx = (v, n) => Math.max(0, Math.min(n - 1, v | 0));

@@ -287,7 +287,7 @@ export const Mats = {
   flashRed: new THREE.MeshBasicMaterial({ color: 0xff5050 }),
 };
 // Glow voxels render as HDR (> 1.0) so bloom picks up only emissive bits, not lit surfaces.
-Mats.glow.color.setScalar(2.1);
+Mats.glow.color.setScalar(2.6);
 Mats.pair = [Mats.solid, Mats.glow];
 Mats.toyPair = [Mats.toy, Mats.glow];
 Mats.toyGlossPair = [Mats.toyGloss, Mats.glow];

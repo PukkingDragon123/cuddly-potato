@@ -61,14 +61,14 @@ function anchor(K, name, x, y, z) {
 
 const tentGrid = (col) => () => {
   const g = new VoxGrid();
-  const dark = shade(col, -0.3), light = shade(col, 0.22), pole = 0x3a3846, inner = 0x4a3a56;
-  const RX = 8.6, RY = 8.2, RZ = 6.6;
-  for (let x = -9; x <= 8; x++) for (let y = 0; y <= 8; y++) for (let z = -7; z <= 6; z++) {
+  const dark = shade(col, -0.3), light = shade(col, 0.22), pole = shade(col, -0.22), inner = 0x4a3a56;
+  const RX = 8.6, RY = 10.2, RZ = 6.8;
+  for (let x = -9; x <= 8; x++) for (let y = 0; y <= 10; y++) for (let z = -7; z <= 6; z++) {
     const dx = (x + 0.5) / RX, dy = (y + 0.5) / RY, dz = (z + 0.5) / RZ;
     const d = dx * dx + dy * dy + dz * dz;
     if (d > 1) continue;
-    let c = y >= 6 ? light : y <= 0 ? dark : col;
-    if (y === 3 && d > 0.75) c = shade(col, -0.12); // rain-fly seam
+    let c = y >= 8 ? light : y <= 0 ? dark : col;
+    if ((y === 3 || y === 4) && d > 0.72) c = shade(col, -0.14); // rain-fly band
     g.set(x, y, z, c);
   }
   // two crossing poles hugging the dome surface
@@ -95,6 +95,25 @@ const tentGrid = (col) => () => {
     g.line(sx * 8, 5, 0, sx * 12, 0, 0, 0xd8d0c0);
     g.set(sx * 12, 0, 0, 0x8a8a96).set(sx * 12, 1, 0, 0x8a8a96);
   }
+  return g;
+};
+
+/** A-frame ridge tent: ridge along z, triangular door face on +z with a canopy flap. */
+const aframeGrid = (col) => () => {
+  const g = new VoxGrid();
+  const lit = shade(col, 0.16), dim = shade(col, -0.18), trim = 0xf4f0e6, inner = 0x4a3a56;
+  for (let z = -7; z <= 6; z++) for (let y = 0; y <= 9; y++) {
+    const hw = Math.round(7.5 * (1 - y / 10));
+    for (let x = -hw - 1; x <= hw; x++) {
+      const edge = x === -hw - 1 || x === hw;
+      g.set(x, y, z, y === 9 ? trim : z === 6 && edge ? trim : x < 0 ? lit : dim);
+    }
+  }
+  // door (zipped half open) + canopy flap held up by two poles
+  for (let y = 0; y <= 5; y++) for (let x = -2; x <= 1; x++) if (Math.abs(x + 0.5) < 3 - y * 0.35) { g.del(x, y, 6); g.set(x, y, 5, inner); }
+  for (let z = 7; z <= 10; z++) g.box(-5, 7 - Math.floor((z - 7) / 2), z, 4, 7 - Math.floor((z - 7) / 2), z, z === 10 ? trim : lit);
+  for (const x of [-5, 4]) g.box(x, 0, 10, x, 5, 10, 0x8a8a96);
+  for (const x of [-9, 8]) g.set(x, 0, -6, 0x8a8a96).set(x, 0, 5, 0x8a8a96);
   return g;
 };
 
@@ -328,7 +347,7 @@ const towerGrid = () => {
 
 /** Aluminium bleacher section (0.25 scale), front edge at z=0, rows rising to -z. */
 const BL_ROWS = 6;
-const bleacherGrid = (L) => () => {
+const bleacherGrid = (L, fans = false) => () => {
   const g = new VoxGrid();
   const alu = 0xd4dae2, foot = 0xb4bcc8, frame = 0x6b7386, skirt = [C.red, C.white, C.blue, C.white];
   for (let r = 0; r < BL_ROWS; r++) {
@@ -346,6 +365,18 @@ const bleacherGrid = (L) => () => {
   g.box(0, BL_ROWS * 2 + 4, zb, L - 1, BL_ROWS * 2 + 4, zb, alu);
   // bunting skirt along the front
   for (let x = 0; x < L; x++) g.set(x, 0, 1, skirt[Math.floor(x / 2) % 4]);
+  if (fans) {
+    // chunky voxel fans for the diorama (the battle view uses the pixel crowd)
+    for (let r = 0; r < BL_ROWS; r++) for (let x = 1; x < L - 2; x += 3) {
+      if (hash3(x, r, 5) < 0.2) continue;
+      const y = 2 + r * 2, z = -r * 3 - 2;
+      const shirt = SHIRT[Math.floor(hash3(x, r, 1) * SHIRT.length)], skin = SKIN[Math.floor(hash3(x, r, 2) * SKIN.length)];
+      g.box(x, y, z, x + 1, y + 1, z + 1, shirt);
+      g.box(x, y + 2, z, x + 1, y + 3, z + 1, skin);
+      g.box(x, y + 3, z, x + 1, y + 3, z, HAIR[Math.floor(hash3(x, r, 3) * HAIR.length)]);
+      if (hash3(x, r, 4) < 0.5) { g.box(x - 1, y + 1, z + 1, x - 1, y + 3, z + 1, shirt); g.box(x + 2, y + 1, z + 1, x + 2, y + 3, z + 1, shirt); }
+    }
+  }
   return g;
 };
 
@@ -679,7 +710,7 @@ export function buildBattle(K) {
 
   // ---- the camp inside the circle
   const tents = [[-8.6, -7.2, 0.35, 0], [-4.6, -9.8, -0.25, 1], [-11.2, -11.6, 0.15, 3], [5.0, -7.6, -0.3, 2], [9.4, -10.4, 0.2, 4], [12.4, -13.4, -0.1, 5]];
-  for (const [x, z, ry, ci] of tents) K.mesh('tent' + ci, tentGrid(GEAR[ci]), { scale: 0.1, ao: true }, x, 0, z, ry, 1, { shadow: true, receive: false });
+  tents.forEach(([x, z, ry, ci], i) => (i % 3 === 1 ? K.mesh('aframe' + ci, aframeGrid(GEAR[ci]), { scale: 0.1, ao: true }, x, 0, z, ry, 1, { shadow: true, receive: false }) : K.mesh('tent' + ci, tentGrid(GEAR[ci]), { scale: 0.1, ao: true }, x, 0, z, ry, 1, { shadow: true, receive: false })));
   const bags = [[-6.6, -5.3, 0.2, 6], [7.4, -5.2, -0.4, 1], [-2.2, -6.6, 1.3, 3], [2.6, -6.0, -1.1, 0], [-11.4, -6.4, 0.6, 2]];
   for (const [x, z, ry, ci] of bags) K.mesh('bag' + ci, bagGrid(GEAR[ci]), { scale: 0.1, ao: true }, x, 0, z, ry);
   K.inst('campChair', chairGrid(0xff8a2a), { scale: 0.1, ao: true }, [[-6.8, 0, -8.6, 0.6], [3.0, 0, -9.0, -0.5], [7.4, 0, -8.4, -0.9]], { shadow: true, receive: false });
@@ -728,7 +759,7 @@ export function buildBattle(K) {
 
   // ---- film crew: camera crane (swinging jib), drone, spotlight towers, video village
   {
-    const bx = 11.6, bz = -9.2;
+    const bx = 10.4, bz = -8.6;
     K.mesh('craneBase', craneBaseGrid, { scale: 0.1, ao: true }, bx, 0, bz, 0, 1, { shadow: true });
     const pivot = new THREE.Group();
     pivot.position.set(bx, 2.85, bz);
@@ -901,39 +932,48 @@ export function buildZone(K) {
     for (let x = -28; x <= 27; x++) for (let z = -28; z <= 27; z++) {
       const d = Math.hypot(x + 0.5, z + 0.5);
       if (d > R) continue;
-      const rr = Math.abs(d - 19);
-      const top = rr < 1.1 ? C.red : rr < 1.7 ? C.white : vnoise(x * 0.25, 3, z * 0.25) > 0.62 ? C.grassL : hash3(x, 1, z) < 0.25 ? C.grassD : C.grass;
+      const rr = Math.abs(d - 19.5);
+      const top = rr < 1.1 ? (hash3(x, 2, z) < 0.08 ? C.redD : C.red) : rr < 1.7 ? C.white : d < 18 && vnoise(x * 0.3, 9, z * 0.3) > 0.64 ? mixHex(C.grass, C.trampled, 0.5) : vnoise(x * 0.25, 3, z * 0.25) > 0.62 ? C.grassL : hash3(x, 1, z) < 0.25 ? C.grassD : C.grass;
       g.set(x, 0, z, top);
-      g.set(x, -1, z, 0x8a6a4a);
-      if (d < R - 1) g.set(x, -2, z, 0x6a4a30);
-      if (d < R - 2.5) g.set(x, -3, z, 0x5a3a24);
+      g.set(x, -1, z, d > R - 1 ? 0x7a5a3a : 0x8a6a4a);
+      if (d < R - 0.8) g.set(x, -2, z, 0x6a4a30);
+      if (d < R - 2) g.set(x, -3, z, 0x5a3a24);
+      if (d < R - 3.5) g.set(x, -4, z, 0x4a3020);
     }
     return g;
-  }, { scale: 0.25 }, 0, -0.25, 0);
-  // prize podium + cash + sign in the middle-back
-  K.mesh('podium', podiumGrid, { scale: 0.07 }, 0.6, 0, -1.6, 0, 1, { shadow: true });
-  K.mesh('prizeSign', prizeSignGrid, { scale: 0.06 }, 0.6, 0, -3.0, 0, 1, { shadow: true });
-  // tents, sleeping bags, coolers, chair
-  for (const [x, z, ry, ci] of [[-3.4, 0.2, 0.5, 0], [-2.2, -3.6, 0.2, 1], [3.8, 1.4, -0.6, 2]]) K.mesh('tent' + ci, tentGrid(GEAR[ci]), { scale: 0.12, ao: true }, x, 0, z, ry, 1, { shadow: true, receive: false });
-  K.mesh('bag6', bagGrid(GEAR[6]), { scale: 0.1, ao: true }, -1.6, 0, 2.4, 0.4);
-  K.mesh('bag3', bagGrid(GEAR[3]), { scale: 0.1, ao: true }, 1.4, 0, 3.4, -0.3);
-  K.mesh('cooler0', coolerGrid(C.red), { scale: 0.1, ao: true }, 2.6, 0, -0.2, 0.3, 1, { shadow: true });
-  K.mesh('chairZ', chairGrid(0x29b6f6), { scale: 0.1, ao: true }, 0.2, 0, 1.9, 0.2, 1, { shadow: true });
-  K.mesh('snacksZ', snackGrid(2), { scale: 0.1, ao: true }, -0.8, 0, -0.4, -0.3, 1, { shadow: true });
-  // bleachers with fans outside the circle (back left)
-  K.mesh('zoneBleachers', bleacherGrid(24), { scale: 0.18, pivot: [12, 0, 0] }, -2.8, 0, -4.7, 0.25, 1, { shadow: true });
-  // porta-potty, camera crane and a mini LAST TO LEAVE billboard
-  K.mesh('pottyZ', pottyGrid, { scale: 0.08, ao: true }, 5.2, 0, -2.6, -0.6, 1, { shadow: true });
-  K.mesh('craneBaseZ', craneBaseGrid, { scale: 0.08, ao: true }, 4.6, 0, 3.4, 0, 1, { shadow: true });
-  const pivot = new THREE.Group();
-  pivot.position.set(4.6, 2.28, 3.4);
-  K.add(pivot);
-  K.mesh('craneArmZ', craneArmGrid, { scale: 0.08, pivot: [0, 0, 0], ao: true }, 0, 0, 0, 0, 1, { parent: pivot, shadow: true });
-  K.onUpdate((dt, t) => { pivot.rotation.y = Math.PI * 0.85 + Math.sin(t * 0.4) * 0.5; });
-  K.mesh('zoneBillboard', () => signGrid('LAST TO LEAVE', { textScale: 1, pad: 2, legH: 14, bg: C.red, frame: 0xffffff, color: 0xffffff }), { scale: 0.12 }, 1.8, 0, -5.6, -0.15);
-  // trees + a tuft ring around the edge
-  K.inst('zoneTree', () => treeGrid('round', { seed: 3, leaf: 0x62b444 }), { scale: 1 }, [[-5.6, 0, -2.4, 0.3, 0.16], [6.0, 0, -0.6, 1, 0.14], [-5.2, 0, 3.4, 2, 0.13]], { shadow: true });
-  // Nolan's lost phone, dropped in the grass near the tents (tappable secret)
+  }, { scale: 0.25, pivot: [0, 1, 0] }, 0, 0, 0);
+  // the prize: podium + cash mountain + $500,000 sign with chasing bulbs
+  K.mesh('podium', podiumGrid, { scale: 0.12 }, 0.4, 0, -1.0, 0, 1, { shadow: true });
+  K.mesh('prizeSign', prizeSignGrid, { scale: 0.08 }, 0.4, 0, -3.5, 0, 1, { shadow: true });
+  // campers' gear
+  K.mesh('tent0', tentGrid(GEAR[0]), { scale: 0.16, ao: true }, -4.1, 0, 0.5, 0.7, 1, { shadow: true, receive: false });
+  K.mesh('aframe1', aframeGrid(GEAR[1]), { scale: 0.15, ao: true }, -3.3, 0, -2.9, 0.35, 1, { shadow: true, receive: false });
+  K.mesh('tent2', tentGrid(GEAR[2]), { scale: 0.15, ao: true }, 4.3, 0, 0.9, -0.8, 1, { shadow: true, receive: false });
+  K.mesh('bag6', bagGrid(GEAR[6]), { scale: 0.13, ao: true }, -2.7, 0, 2.8, 0.4, 1, { receive: false });
+  K.mesh('cooler0', coolerGrid(C.red), { scale: 0.13, ao: true }, 2.5, 0, 0.9, 0.3, 1, { shadow: true, receive: false });
+  K.mesh('chairZ', chairGrid(0x29b6f6), { scale: 0.13, ao: true }, -0.5, 0, 1.8, 0.3, 1, { shadow: true, receive: false });
+  K.mesh('snacksZ', snackGrid(2), { scale: 0.13, ao: true }, -2.0, 0, -0.6, -0.3, 1, { shadow: true, receive: false });
+  // bleachers full of fans behind the circle
+  K.mesh('zoneBleachers', bleacherGrid(30, true), { scale: 0.2, pivot: [15, 0, 0] }, -1.6, 0, -4.4, 0.12, 1, { shadow: true });
+  // porta-potty (door swings), camera crane and a mini LAST TO LEAVE billboard
+  K.mesh('pottyZ', pottyGrid, { scale: 0.1, ao: true }, 5.0, 0, -2.4, -0.7, 1, { shadow: true });
+  const door = new THREE.Group();
+  door.position.set(5.0, 0, -2.4);
+  door.rotation.y = -0.7;
+  K.add(door);
+  const dm = K.mesh('pottyDoorZ', pottyDoorGrid, { scale: 0.1, pivot: [0, 0, 0], ao: true }, -0.45, 0.1, 0.5, 0, 1, { parent: door });
+  K.onUpdate((dt, t) => { const k = (t * 0.15) % 1; dm.rotation.y = -(k < 0.15 ? Math.sin((k / 0.15) * Math.PI) : 0) * 1.5; });
+  K.inst('tripodZ', tripodGrid, { scale: 0.08, ao: true }, [[3.7, 0, 3.1, -0.7], [-1.7, 0, -2.4, 0.5]], { shadow: true, receive: false });
+  K.mesh('towerZ', towerGrid, { scale: 0.07, ao: true }, -5.0, 0, -2.6, 0.6, 1, { shadow: true });
+  K.mesh('zoneBillboard', () => signGrid('LAST TO LEAVE', { textScale: 1, pad: 2, legH: 16, bg: C.red, frame: 0xffd23f, color: 0xc4c0b8 }), { scale: 0.13 }, 3.6, 0, -5.4, -0.35);
+  // trees around the rim
+  K.inst('zoneTree', () => treeGrid('round', { seed: 3, leaf: 0x62b444 }), { scale: 1 }, [[-5.7, 0, -2.0, 0.3, 0.17], [6.0, 0, -0.2, 1, 0.14], [-5.4, 0, 3.4, 2, 0.14]], { shadow: true });
+  K.inst('zoneStake', () => {
+    const g = new VoxGrid();
+    for (let y = 0; y < 4; y++) g.box(0, y, 0, 1, y, 1, y & 1 ? C.white : C.red);
+    return g;
+  }, { scale: 0.1, ao: true }, Array.from({ length: 14 }, (_, i) => { const a = (i / 14) * Math.PI * 2 + 0.2; return [Math.cos(a) * 6.1, 0, Math.sin(a) * 6.1, a]; }).filter(([x, , z]) => !(z > 3 && x > -3.5 && x < 2.5)));
+  // Nolan's lost phone, dropped in the grass by the tents (tappable secret)
   K.mesh('nolanPhone', () => {
     const g = new VoxGrid();
     g.box(0, 0, 0, 3, 0, 6, C.black);
@@ -941,9 +981,9 @@ export function buildZone(K) {
     g.set(1, 1, 3, 0xffffff, true);
     g.box(0, 0, 7, 3, 0, 7, 0xff2e88);
     return g;
-  }, { scale: 0.07, ao: true }, -4.4, 0.01, 2.2, 0.7);
-  anchor(K, 'nolanPhone', -4.3, 0.1, 2.45);
+  }, { scale: 0.07, ao: true }, -4.5, 0.01, 2.4, 0.7);
+  anchor(K, 'nolanPhone', -4.4, 0.1, 2.65);
   anchor(K, 'npc', 1.6, 0, 4.2);
-  anchor(K, 'boss', -2.4, 0, 4.6);
+  anchor(K, 'boss', -2.0, 0, 4.6);
   return { focus: [0, 1.2, 0], radius: 7 };
 }

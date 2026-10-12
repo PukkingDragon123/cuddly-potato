@@ -219,8 +219,8 @@ export function yachtGrid() {
   g.box(0, 21, 15, 0, 23, 15, grey);
   g.box(0, 22, 12, 0, 23, 14, 0xff2e88);
   // name on the hull
-  text(g, 'MRBEAST', 8, 2, 8, '+x', 0xffffff, {});
-  text(g, 'MRBEAST', -9, 2, 30, '-x', 0xffffff, {});
+  text(g, 'MRBEAST', 7, 2, 32, '+x', 0xffffff, {});
+  text(g, 'MRBEAST', -8, 2, 4, '-x', 0xffffff, {});
   // railing on the bow deck
   for (let z = 31; z < L - 2; z++) { const hw = Math.floor(hwAt(z)); if (z % 2 === 0) { g.set(hw - 1, 7, z, grey); g.set(-hw, 7, z, grey); } }
   return g;
@@ -329,8 +329,8 @@ export function bridgeGrid(lenV, arch = 3) {
 // Giant MrBeast panther head carved in stone (voxel 0.25), facing +z.
 export function pantherHeadGrid() {
   const g = new VoxGrid();
-  const S = [0x8ea2c6, 0x9cb0d2, 0x8092b8, 0xa8bad8];
-  const stone = (x, y, z) => S[Math.floor(hash3(x >> 1, y >> 1, z >> 1) * 4) % 4];
+  const S = [0x6fa8e0, 0x7cb6ea, 0x619ad6, 0x88c0f0];
+  const stone = (x, y, z) => S[Math.floor(hash3(x >> 2, y >> 1, z >> 2) * 4) % 4];
   // rocky base + neck
   g.ellipsoid(0, 3, -2, 22, 7, 16, (x, y, z) => (hash3(x >> 1, y, z >> 1) < 0.5 ? 0x8a8478 : 0x9a9488));
   g.ellipsoid(0, 10, -2, 15, 9, 12, stone);
@@ -355,7 +355,7 @@ export function pantherHeadGrid() {
   // brow ridges (angry V)
   for (const s of [-1, 1]) for (let k = 0; k <= 12; k++) {
     const x = s * (2 + k), y = 23 + Math.round(k * 0.38);
-    g.box(Math.min(x, x + s), y, 9, Math.max(x, x + s), y + 2, 13, 0x7a8cb0);
+    g.box(Math.min(x, x + s), y, 9, Math.max(x, x + s), y + 2, 13, 0x4a7ec0);
   }
   // glowing eyes (slanted)
   for (const s of [-1, 1]) for (let k = 0; k <= 8; k++) {
@@ -392,12 +392,12 @@ export function pantherHeadGrid() {
     const x = s * dx;
     let zf = 18;
     while (zf > 0 && !g.has(x, dy, zf)) zf--;
-    g.set(x, dy, zf, 0x5c6c90);
+    g.set(x, dy, zf, 0x3a5a90);
   }
   // moss + weathering on upward faces
   g.paint((x, y, z, c) => {
     if (c === 0xff2e88 || c === 0x2e2a3a || c === 0xffffff || c === 0xff8ab4) return undefined;
-    if (!g.has(x, y + 1, z) && hash3(x >> 1, y, z >> 1) < 0.55 && y < 40) return hash3(x, y, z) < 0.3 ? 0x7ccc5a : 0x5cb84a;
+    if (!g.has(x, y + 1, z) && !g.has(x, y + 2, z) && hash3(x >> 2, y >> 1, z >> 2) < 0.3 && y < 40) return hash3(x, y, z) < 0.3 ? 0x7ccc5a : 0x5cb84a;
     return undefined;
   });
   return g;
@@ -538,3 +538,107 @@ export function tree(kind, o = {}) {
 }
 
 export { PAL, mixHex };
+
+// ---------------------------------------------------------------------------
+// Low-triangle vegetation for the island scatter (chunky voxels, colour bands
+// per layer so the greedy mesher merges whole faces). ~30-200 tris each.
+
+/** Rounded box: corners notched by `cut` voxels; colour(y, top, bottom) per layer. */
+function blob(g, x0, y0, z0, w, h, d, col, cut = 1) {
+  for (let x = x0; x < x0 + w; x++) for (let y = y0; y < y0 + h; y++) for (let z = z0; z < z0 + d; z++) {
+    const ex = Math.min(x - x0, x0 + w - 1 - x), ez = Math.min(z - z0, z0 + d - 1 - z);
+    if (ex < cut && ez < cut && ex + ez < cut * 2 - (y === y0 + h - 1 || y === y0 ? 0 : 1)) continue;
+    g.set(x, y, z, col(y - y0, h));
+  }
+}
+const band = (leaf) => (y, h) => (y === h - 1 ? shade(leaf, 0.22) : y === 0 ? shade(leaf, -0.2) : leaf);
+
+export const LOWPOLY = {
+  round(leaf = 0x4cba3a, seed = 1) {
+    const g = new VoxGrid();
+    g.box(-1, 0, -1, 0, 4, 0, (x, y) => (y === 0 ? 0x5a3418 : 0x7a4a26));
+    const s = Math.floor(hash3(seed, 2, 3) * 3);
+    blob(g, -5, 4, -5, 10, 4, 10, band(leaf), 2);
+    blob(g, -4 + s, 8, -4, 7, 2, 7, band(shade(leaf, 0.06)), 2);
+    blob(g, -6, 5, -2 + s, 3, 2, 4, band(leaf), 1);
+    return g;
+  },
+  palm(leaf = 0x4cba3a, seed = 1) {
+    const g = new VoxGrid();
+    const trunk = 0x9a6a3a, trunkD = 0x7a5028;
+    const lean = hash3(seed, 1, 1) < 0.5 ? 1 : -1;
+    let x = 0;
+    for (let y = 0; y < 16; y++) {
+      if (y === 6 || y === 11) x += lean;
+      g.box(x - 1, y, -1, x, y, 0, y % 4 === 3 ? trunkD : trunk);
+    }
+    const L = leaf, Ld = shade(leaf, -0.22), Ll = shade(leaf, 0.18);
+    g.box(x - 2, 16, -2, x + 1, 17, 1, Ld);
+    g.box(x - 1, 18, -1, x, 18, 0, Ll);
+    // four drooping fronds (axis aligned), two tones
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let k = 1; k <= 7; k++) {
+        const y = 17 - (k < 4 ? 0 : k < 6 ? 1 : 2);
+        const cx = x + (dx > 0 ? 1 : dx < 0 ? -2 : 0) + dx * k, cz = (dz > 0 ? 1 : dz < 0 ? -2 : 0) + dz * k;
+        const c = k > 5 ? Ld : k > 3 ? L : Ll;
+        if (dx) g.box(cx, y, -1, cx, y, 0, c);
+        else g.box(x - 1, y, cz, x, y, cz, c);
+      }
+    }
+    g.set(x, 15, 1, 0x6e4224).set(x - 2, 15, -1, 0x6e4224);
+    return g;
+  },
+  pine(leaf = 0x3fae4a, snow = false) {
+    const g = new VoxGrid();
+    g.box(-1, 0, -1, 0, 2, 0, 0x6e4224);
+    const tiers = [[5, 2], [4, 5], [3, 8], [2, 11], [1, 13]];
+    for (const [r, y0] of tiers) {
+      g.box(-r, y0, -r, r - 1, y0, r - 1, shade(leaf, -0.2));
+      g.box(-r, y0 + 1, -r, r - 1, y0 + (r > 1 ? 2 : 1), r - 1, (x, y) => (y === y0 + (r > 1 ? 2 : 1) ? (snow ? 0xffffff : shade(leaf, 0.16)) : leaf));
+    }
+    return g;
+  },
+  bush(leaf = 0x4fb441) {
+    const g = new VoxGrid();
+    blob(g, -3, 0, -2, 6, 3, 5, band(leaf), 1);
+    blob(g, -1, 2, -1, 4, 2, 3, band(shade(leaf, 0.08)), 1);
+    return g;
+  },
+  flowers(seed = 1) {
+    const g = new VoxGrid();
+    const cols = [0xff4a5a, 0xffd23f, 0xffffff, 0xff6fb8, 0xb88cff];
+    for (let i = 0; i < 6; i++) {
+      const x = Math.round((hash3(i, seed, 1) - 0.5) * 8), z = Math.round((hash3(i, seed, 2) - 0.5) * 8);
+      const h = 1 + Math.floor(hash3(i, seed, 3) * 2);
+      g.box(x, 0, z, x, h - 1, z, 0x3f9e3a);
+      g.set(x, h, z, cols[Math.floor(hash3(i, seed, 4) * cols.length)]);
+    }
+    return g;
+  },
+  tuft(c = 0x4fb441) {
+    const g = new VoxGrid();
+    for (const [x, z, h] of [[0, 0, 3], [1, 1, 2], [-1, 1, 2]]) for (let y = 0; y < h; y++) g.set(x, y, z, y === h - 1 ? shade(c, 0.25) : c);
+    return g;
+  },
+  cactus() {
+    const g = new VoxGrid();
+    const c = 0x3e9a40, cl = 0x5cbc52;
+    g.box(-1, 0, -1, 0, 11, 0, c);
+    g.box(-1, 12, -1, 0, 12, 0, cl);
+    g.box(1, 4, -1, 2, 5, 0, c);
+    g.box(2, 6, -1, 2, 8, 0, c);
+    g.set(2, 9, -1, cl).set(2, 9, 0, cl);
+    g.box(-3, 6, -1, -2, 7, 0, c);
+    g.box(-3, 8, -1, -3, 9, 0, c);
+    g.set(-3, 10, -1, cl).set(-3, 10, 0, cl);
+    g.set(0, 13, 0, 0xff6fb8);
+    return g;
+  },
+  rock(color = 0x9aa2b4, seed = 1) {
+    const g = new VoxGrid();
+    const s = Math.floor(hash3(seed, 5, 1) * 2);
+    blob(g, -3, 0, -3, 7, 2, 6, (y, h) => (y === h - 1 ? shade(color, 0.12) : shade(color, -0.08)), 2);
+    blob(g, -2 + s, 2, -2, 4, 2, 4, (y, h) => (y === h - 1 ? shade(color, 0.22) : color), 1);
+    return g;
+  },
+};

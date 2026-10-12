@@ -1,67 +1,75 @@
-// Battle scene: wires the simulation, AI, 3D view and HUD together.
-// Modes: tutorial (vs Jimmy), ranked (vs ghost player), practice, boss.
+// Battle scene: wires the simulation, AI / network, 3D view and HUD together.
+// Modes: tutorial (vs Jimmy), ranked (vs a ghost player), practice, boss, friend.
+//
+// Controls (Clash Royale style):
+//   * tap a card to select it, then tap the battlefield to drop it there
+//   * or drag a card straight onto the battlefield
+//   * double-tap a card to drop it right in front of your Lab
+//   * drag the battlefield to pan, pinch / mouse-wheel to zoom, tap the minimap to jump
+//   * keys: 1-4 select, Space/Enter drop at the Lab, Q signature, W/E skills, O overclock
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
-import { fx } from '../core/particles.js';
-import { animate, wait } from '../core/tween.js';
-import { h, icon, button, say, modal, bigBanner, pointAt, toast, $overlay, $ui, closeDialogue, floatText } from '../ui/ui.js';
-import { swarmThumb, charPortrait } from '../ui/thumbs.js';
-import { BattleSim, LAB_X } from '../game/battle/sim.js';
+import { h, say, modal, bigBanner, pointAt, toast, $ui, $overlay, closeDialogue, button } from '../ui/ui.js';
+import { charPortrait } from '../ui/thumbs.js';
+import { BattleSim } from '../game/battle/sim.js';
 import { BattleAI } from '../game/battle/ai.js';
 import { BattleView } from '../game/battle/view.js';
-import { BattleHUD } from '../game/battle/hud.js';
-import { state, deployInfo, perkBonuses, battleRewards, stat } from '../game/state.js';
+import { BattleHUD, vsIntro, EMOTES } from '../game/battle/hud.js';
+import { showResult } from '../game/battle/result.js';
+import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
-import { COMMANDERS } from '../data/commanders.js';
-import { CHARACTERS } from '../data/characters.js';
-import { CMD_SKINS, BANNERS } from '../data/season.js';
-import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arena.js';
-import { VIALS } from '../data/vials.js';
+import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
+import { STARTER_DECK } from '../data/cards.js';
 import { game } from '../game/game.js';
 import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
-import { commanderCfg, playerSide } from '../game/battle/loadout.js';
-import { fmt, clamp } from '../core/util.js';
+import { commanderCfg, playerSide, deckEntry } from '../game/battle/loadout.js';
 
-const JIMMY = () => ({ name: 'Jimmy', color: '#29b6f6', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) });
+const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
+const JIMMY = () => ({ name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) });
+const TAP_MOVE = 10;
 
 export class BattleScene {
   constructor() {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(34, engine.aspect, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 600);
     this.ended = false;
     this.ready = false;
+    this.sel = -1;
+    this.drag = null;
+    this.fieldPtr = null;
     this.pointers = new Map();
+    this.lastTap = { slot: -1, t: 0 };
   }
 
-  async enter(params) {
-    this.params = params;
-    const mode = (this.mode = params.mode ?? 'ranked');
+  // -------------------------------------------------------------------------
+  // Setup
+
+  buildConfig(params) {
+    const mode = this.mode;
     const p = state.p;
     const me = playerSide();
-    let enemy, theme = 'lab', arenaId = params.arena ?? currentArena(p.trophies).id, boss = null, aiOpts = {};
+    let enemy, arenaId = params.arena ?? currentArena(p.trophies).id, boss = null, aiOpts = {};
     if (mode === 'tutorial') {
-      theme = 'mansion';
-      arenaId = 'mansion';
+      arenaId = 'lab';
+      me.deck = STARTER_DECK.filter((id) => id !== 'moneyDrop').map((id) => deckEntry(id, 1));
+      me.labLevel = 1;
       enemy = {
-        name: 'Jimmy', deck: [{ id: 'panther', level: 1 }, { id: 'toiletRollRipper', level: 1 }], spells: [],
-        commander: commanderCfg('jimmy', 1), perks: {}, labStyle: 'mansion', banner: 'goldBars', labHp: 1500,
+        name: 'Jimmy', deck: ['panther', 'toiletRollRipper', 'cloggedToilet', 'trashedCan'].map((id) => deckEntry(id, 1)),
+        commander: commanderCfg('jimmy', 1), perks: {}, labStyle: 'mansion', labLevel: 1, hpMult: 0.55, clan: 'MrBeast Lab',
       };
-      me.labHp = 2400;
-      aiOpts = { difficulty: 0.08, maxLab: 2, noSpells: true, sigDelay: 9999 };
+      aiOpts = { difficulty: 0.05, maxLab: 0, noSpells: true, sigDelay: 9999 };
     } else if (mode === 'boss') {
       const b = BOSSES[params.bossId];
       arenaId = b.arena;
-      theme = arenaById(b.arena)?.theme ?? 'lab';
       enemy = {
-        name: b.name, deck: b.deck.map((id) => ({ id, level: b.level })), spells: b.commander ? [{ id: 'moneyDrop', level: b.level }] : [],
-        commander: b.commander ? commanderCfg(b.commander, Math.min(10, b.level)) : null, perks: {},
-        labStyle: b.lab ?? 'rival', banner: 'bossSkull', boss: true,
+        name: b.name, deck: b.deck.map((id) => deckEntry(id, b.level)), commander: b.commander ? commanderCfg(b.commander, Math.min(10, b.level)) : null,
+        perks: {}, labStyle: b.lab ?? 'rival', labLevel: b.level + 1, hpMult: 1.2, clan: 'BOSS CHALLENGE',
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
-      aiOpts = { difficulty: 0.55 + b.level * 0.04 };
+      aiOpts = { difficulty: Math.min(0.9, 0.5 + b.level * 0.05) };
     } else if (mode === 'friend') {
       const ar = arenaById(params.arena) ?? ARENAS[0];
       arenaId = ar.id;
@@ -69,192 +77,256 @@ export class BattleScene {
       this.opponentTrophies = enemy.trophies ?? 0;
     } else if (mode === 'practice') {
       enemy = {
-        name: 'Training Dummy', deck: [{ id: 'panther', level: 1 }, { id: 'trashedCan', level: 1 }, { id: 'cloggedToilet', level: 1 }], spells: [],
-        commander: null, perks: {}, labStyle: 'rival', banner: 'default',
+        name: 'Training Bot', deck: ['panther', 'trashedCan', 'cloggedToilet', 'pizzaSlicer', 'fryFiend', 'toiletRollRipper', 'foodThrow', 'moneyDrop'].map((id) => deckEntry(id, 1)),
+        commander: commanderCfg('recruit', 1), perks: {}, labStyle: 'rival', labLevel: 1, clan: 'Practice',
       };
-      aiOpts = { difficulty: 0.2, maxLab: 4 };
+      aiOpts = { difficulty: 0.25, maxLab: 1 };
     } else {
       const g = params.opponent ?? ghostOpponent(p.trophies, Date.now(), arenaId);
       enemy = {
-        name: g.name, deck: g.deck.map((id) => ({ id, level: g.level })), spells: g.spells.map((id) => ({ id, level: Math.max(1, g.level - 1) })),
-        commander: commanderCfg(g.commander, g.cmdLevel), perks: {}, labStyle: ['rival', 'martLab', 'chocoLab', 'default'][g.name.length % 4],
-        banner: g.banner, trophies: g.trophies, ghost: true,
+        name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), perks: {},
+        labStyle: ['rival', 'martLab', 'chocoLab', 'default'][g.name.length % 4], labLevel: g.labLevel, banner: g.banner, trophies: g.trophies, clan: g.clan, ghost: true,
       };
       this.opponentTrophies = g.trophies;
       aiOpts = { difficulty: g.difficulty };
     }
-    if (mode !== 'tutorial') theme = arenaById(arenaId)?.theme ?? theme;
     const arena = arenaById(arenaId) ?? ARENAS[0];
-    me.labHp = me.labHp ?? arena.labHp;
-    enemy.labHp = enemy.labHp ?? arena.labHp * (mode === 'boss' ? 1.3 : 1);
-    if (mode === 'boss' && enemy.labStyle === 'mart') theme = 'mart';
-    this.arenaId = arenaId;
-    this.cfg = { theme, sides: [me, enemy], boss };
+    this.arenaId = arena.id;
+    this.aiOpts = aiOpts;
+    return { theme: arena.theme, seed: (Date.now() & 0xffff) || 1, sides: [me, enemy], boss };
+  }
+
+  async enter(params) {
+    this.params = params;
+    this.mode = params.mode ?? (state.p.tutorial === 'done' ? 'ranked' : 'tutorial');
+    const cfg = (this.cfg = this.buildConfig(params));
+    const mode = this.mode;
+    // simulation (+ AI or network)
     if (mode === 'friend') {
-      me.labHp = enemy.labHp = arena.labHp;
-      const peer = net.peer;
-      this.peer = peer;
-      if (params.role === 'guest') {
-        this.sim = new RemoteSim({ sides: [me, enemy] }, peer);
-      } else {
-        this.sim = new BattleSim({ sides: [me, enemy], timeLimit: 150 });
+      const peer = (this.peer = net.peer);
+      if (params.role === 'guest') this.sim = new RemoteSim({ sides: cfg.sides }, peer);
+      else {
+        this.sim = new BattleSim({ sides: cfg.sides, seed: cfg.seed });
         this.hostSync = peer ? new HostSync(this.sim, peer) : null;
+        if (this.hostSync) this.hostSync.peerEmote = (i) => this.hud?.showEmote(1, i);
       }
-      this.ai = { update() {} };
+      this.ai = null;
       this.offClose = peer?.onClose(() => this.peerLost());
+      this.offMsg = peer?.on((m) => { if (m.t === 'emote' && params.role === 'guest') this.hud?.showEmote(1, m.e); });
     } else {
-      this.sim = new BattleSim({ sides: [me, enemy], boss, timeLimit: mode === 'tutorial' ? 600 : 150 });
-      this.ai = new BattleAI(this.sim, 1, aiOpts);
+      this.sim = new BattleSim({ sides: cfg.sides, boss: cfg.boss, seed: cfg.seed, timeLimit: mode === 'tutorial' ? 300 : undefined, noOvertime: mode === 'tutorial' });
+      this.ai = new BattleAI(this.sim, 1, this.aiOpts);
     }
-    this.view = new BattleView(this.sim, this.cfg);
-    this.scene = this.view.scene;
-    this.camera = this.view.camera;
-    this.shakeScale = state.p.settings.shake ? 1 : 0;
-    this.hud = new BattleHUD(this.sim, this.cfg, {
-      deploy: (i) => this.tryDeploy(i),
-      spell: (i) => this.toggleSpell(i),
+    this.sim.paused = true;
+    // 3D view (shares this scene object so particles attach correctly)
+    cfg.scene = this.scene;
+    cfg.camera = this.camera;
+    this.view = new BattleView(this.sim, cfg);
+    await this.view.load();
+    this.bloom = this.view.bloom;
+    this.shakeScale = state.p.settings.shake === false ? 0 : 1;
+    // HUD
+    this.hud = new BattleHUD(this.sim, this.view, cfg, {
+      press: (slot, e) => this.pressCard(slot, e),
       signature: () => this.trySignature(),
       skill: (k) => this.trySkill(k),
-      upgradeLab: () => this.tryUpgrade(),
+      overclock: () => this.tryOverclock(),
       pause: () => this.pauseMenu(),
+      emote: (i) => this.sendEmote(i),
+      minimap: (x) => this.view.focus(x, 4),
     });
-    this.sim.paused = true;
+    this.hud.mount($ui());
+    this.hud.setVisible(false);
+    this.view.on((ev) => this.onSimEvent(ev));
     if (params.dev) window.__battle = this;
     this.bindInput();
     audio.music(mode === 'boss' ? 'boss' : 'battle');
-    if (engine.width < engine.height) setTimeout(() => toast('Tip: rotate your phone for the best battle view!', { icon: 'swarm' }), 2600);
     this.intro();
   }
 
   // -------------------------------------------------------------------------
   async intro() {
-    const [me, en] = this.cfg.sides;
-    const por = (cmd, fallback) => (cmd ? charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 128 }) : fallback);
-    const deckRow = (d) => h('div', { class: 'deckrow' }, d.deck.map((c) => h('img', { src: swarmThumb(c.id, c.variant, c.skin, 64) })));
-    const side = (s, i) => h('div', { class: 'vs-side slide-up' },
-      h('img', { class: 'por px-box', src: por(s.commander, swarmThumb(this.cfg.boss?.unit ?? s.deck[0].id, 'base', null, 128)) }),
-      h('div', { class: 'bname outline-sm' + ((BANNERS[s.banner] || {}).animated ? ' anim-' + BANNERS[s.banner].animated : ''), style: { background: (BANNERS[s.banner] || BANNERS.default).css, fontSize: '1em' } }, s.name),
-      s.trophies !== undefined ? h('div', { class: 'row' }, icon('trophy'), String(s.trophies)) : null,
-      i === 1 && s.ghost ? h('div', { class: 'tiny muted' }, 'Ghost Player (AI-controlled)') : null,
-      deckRow(s));
-    const vs = h('div', { class: 'vs-screen fade-in' }, side(me, 0), h('div', { class: 'vs slam outline', style: { position: 'static', transform: 'none' } }, 'VS'), side(en, 1));
-    $overlay().appendChild(vs);
-    audio.play('whoosh');
-    await wait(this.mode === 'tutorial' ? 1.4 : 1.8);
-    vs.style.transition = 'opacity 0.3s';
-    vs.style.opacity = '0';
-    setTimeout(() => vs.remove(), 320);
+    const v = this.view;
+    // camera sweeps from the rival's Lab to yours while the VS bands play
+    v.autoFollow = false;
+    v.focus(20, 99);
+    v.updateCamera(0, true);
+    const vs = vsIntro($overlay(), this.cfg, { hold: this.mode === 'tutorial' ? 1500 : 2000, portraits: [null, this.cfg.boss ? null : null] });
+    await wait(0.6);
+    v.focus(-20, 99);
+    await vs;
+    if (this.dead) return;
+    v.manualT = 0;
+    v.autoFollow = true;
+    this.hud.setVisible(true);
     if (this.mode === 'tutorial') {
       this.ready = true;
       this.tutorial();
       return;
     }
-    if (this.mode === 'friend') {
-      if (this.params.role === 'guest') {
-        // keep pinging until the host's snapshots arrive
-        const iv = setInterval(() => {
-          if (this.ended || this.sim.t > 0 || !this.peer?.open) clearInterval(iv);
-          else this.peer.send({ t: 'ready' });
-        }, 400);
-      } else {
-        toast('Waiting for your friend...', { icon: 'clock' });
-        await new Promise((res) => {
-          const off = this.peer?.on((m) => { if (m.t === 'ready') { off(); res(); } });
-          setTimeout(res, 12000);
-        });
-      }
-    }
-    for (const n of ['3', '2', '1']) {
-      bigBanner(n, '', { dur: 0.5 });
-      audio.play('tick', { pitch: 0.5 });
-      await wait(0.6);
-    }
-    bigBanner(this.mode === 'boss' ? 'BOSS FIGHT!' : 'FIGHT!', '', { dur: 0.8, color: '#ffd23f' });
-    audio.play('bell');
+    if (this.mode === 'friend') await this.friendHandshake();
+    bigBanner(this.mode === 'boss' ? 'BOSS FIGHT!' : 'BATTLE!', '', { dur: 0.9, color: '#ffd84a' });
+    audio.play('go');
     if (!(this.mode === 'friend' && this.params.role === 'guest')) this.sim.paused = false;
     this.ready = true;
+    if (this.ai && this.mode === 'ranked' && Math.random() < 0.5) setTimeout(() => !this.ended && this.hud.showEmote(1, 0), 1500);
+  }
+
+  async friendHandshake() {
+    if (this.params.role === 'guest') {
+      const iv = setInterval(() => {
+        if (this.ended || this.sim.t > 0 || !this.peer?.open) clearInterval(iv);
+        else this.peer.send({ t: 'ready' });
+      }, 400);
+      return;
+    }
+    toast('Waiting for your friend...', { icon: 'clock' });
+    await new Promise((res) => {
+      const off = this.peer?.on((m) => { if (m.t === 'ready') { off(); res(); } });
+      setTimeout(res, 12000);
+    });
   }
 
   // -------------------------------------------------------------------------
-  // Player actions
-  tryDeploy(i) {
-    if (!this.ready || this.ended || this.sim.paused) return;
-    if (this.lockInput && this.lockInput !== 'deploy' + i && this.lockInput !== 'deploy') return;
-    const s = this.sim.sides[0];
-    if (!s.deck[i]) return;
-    if (this.sim.deploy(0, i)) {
-      audio.play('pop', { pitch: 1.1 });
-      this.onTut && this.onTut('deploy', i);
-    } else {
-      audio.play('deny');
-      const card = this.hud.cards[i]?.el;
-      if (card) {
-        card.classList.remove('shake-x');
-        void card.offsetWidth;
-        card.classList.add('shake-x');
-      }
-      if (s.energy < this.sim.cardCost(0, i)) toast('Not enough energy!', { icon: 'energy' });
-    }
+  // Card selection, drag & deploy
+
+  canAct() {
+    return this.ready && !this.ended && !this.sim.over && !(this.sim.paused && !(this.sim instanceof RemoteSim));
   }
-  toggleSpell(i) {
-    if (!this.ready || this.ended || this.sim.paused) return;
-    if (this.lockInput && this.lockInput !== 'spell') return;
-    if (!this.sim.sides[0].spells[i]) return;
-    if (this.hud.aiming === i) {
-      this.hud.setAiming(null);
+  allowed(what) {
+    return !this.lockInput || this.lockInput === what || (this.lockInput === 'deploy' && what.startsWith('deploy'));
+  }
+  card(slot) {
+    return this.sim.handCard(0, slot);
+  }
+
+  select(slot) {
+    if (slot === this.sel) return;
+    this.sel = slot;
+    this.hud.select(slot);
+    const c = slot >= 0 ? this.card(slot) : null;
+    if (c && !c.spell) this.view.showDeployZone(this.sim.deployRange(0));
+    else this.view.showDeployZone(null);
+    if (!c) { this.view.setGhost(null); this.view.setAim(null); }
+    if (c) audio.play('cardPick', { pitch: 1 + slot * 0.05 });
+  }
+
+  pressCard(slot, e) {
+    if (!this.canAct() || !this.allowed('deploy' + slot)) return;
+    const c = this.card(slot);
+    if (!c) return;
+    const now = performance.now();
+    // double tap: drop right in front of the Lab (spells: auto-target)
+    if (this.lastTap.slot === slot && now - this.lastTap.t < 320) {
+      this.lastTap = { slot: -1, t: 0 };
+      this.deploy(slot, null);
+      return;
+    }
+    this.lastTap = { slot, t: now };
+    const wasSel = this.sel === slot;
+    this.select(slot);
+    this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel, over: false, x: null };
+  }
+
+  /** Preview at a screen point for the selected card; returns the world x (or null). */
+  preview(cx, cy) {
+    const c = this.card(this.sel);
+    if (!c) return null;
+    const over = this.hud.isOverField(cx, cy);
+    if (!over) {
+      this.view.setGhost(null);
       this.view.setAim(null);
-      return;
+      this.view.setEdgePan(0);
+      return null;
     }
-    if (!this.sim.canCast(0, i)) {
-      audio.play('deny');
-      toast(this.sim.sides[0].spellCds[i] > 0 ? 'Spell recharging...' : 'Not enough energy!', { icon: 'energy' });
-      return;
+    let x = this.view.screenToX(cx, cy);
+    if (x === null) return null;
+    if (c.spell) this.view.setAim(c.unit, x);
+    else {
+      x = this.sim.clampDeploy(0, x);
+      this.view.setGhost(c.unit, x, true);
     }
-    audio.play('magic', { pitch: 1.4 });
-    this.hud.setAiming(i);
-    this.view.setAim(this.sim.sides[0].spells[i].id, this.view.camX);
-    this.aimX = this.view.camX;
+    const w = engine.width;
+    this.view.setEdgePan(cx < w * 0.08 ? -1 : cx > w * 0.92 ? 1 : 0);
+    return x;
   }
-  castAt(x) {
-    const i = this.hud.aiming;
-    if (i === null) return;
-    const ok = this.sim.castSpell(0, i, x);
-    this.hud.setAiming(null);
+
+  deploy(slot, x) {
+    if (!this.canAct()) return false;
+    const c = this.card(slot);
+    if (!c) return false;
+    const cost = this.sim.cardCost(0, slot);
+    if (this.sim.sides[0].energy < cost) {
+      this.hud.needEnergy(cost);
+      return false;
+    }
+    if (x !== null && !c.spell) x = this.sim.clampDeploy(0, x);
+    this.view.lastDropX = x ?? this.sim.sides[0].labX + 2;
+    const ok = this.sim.play(0, slot, x);
+    if (!ok) { audio.play('deny'); return false; }
+    audio.play('pop', { pitch: 1.1 });
+    if (c.spell) bigBanner((SPELLS[c.unit]?.name ?? c.unit).toUpperCase() + '!', '', { dur: 0.7, color: '#c99aff' });
+    this.select(-1);
+    this.view.setGhost(null);
     this.view.setAim(null);
-    if (ok) this.onTut && this.onTut('spell', i);
-    else audio.play('deny');
+    this.view.setEdgePan(0);
+    this.onTut && this.onTut('deploy', slot, c.id);
+    return true;
   }
+
+  // -------------------------------------------------------------------------
+  // Commander + overclock + emotes
+
   trySignature() {
-    if (!this.ready || this.ended || this.sim.paused) return;
-    if (this.lockInput && this.lockInput !== 'sig') return;
+    if (!this.canAct() || !this.allowed('sig')) return;
+    const s = this.sim.sides[0];
     if (this.sim.useSignature(0)) {
       audio.play('levelUp');
-      bigBanner(this.sim.sides[0].cmd.signature.name.toUpperCase() + '!', '', { dur: 1.1, color: '#ff2e88' });
+      bigBanner(s.cmd.signature.name.toUpperCase() + '!', '', { dur: 1.1, color: '#ff7ac0' });
       this.onTut && this.onTut('sig');
     } else {
       audio.play('deny');
-      toast('Commander still charging...', { icon: 'star' });
+      this.hud.hint(`${s.cmd?.name ?? 'Commander'} is charging...`);
     }
   }
   trySkill(k) {
-    if (!this.ready || this.ended || this.sim.paused || this.lockInput) return;
+    if (!this.canAct() || this.lockInput) return;
     const sk = this.sim.sides[0].skills[k];
     if (this.sim.useSkill(0, k)) {
       audio.play('magic');
-      bigBanner(sk.name.toUpperCase() + '!', '', { dur: 1, color: '#5fdc4a' });
-    } else audio.play('deny');
-  }
-  tryUpgrade() {
-    if (!this.ready || this.ended || this.sim.paused) return;
-    if (this.lockInput && this.lockInput !== 'lab') return;
-    if (this.sim.upgradeLab(0)) {
-      this.onTut && this.onTut('lab');
+      bigBanner(sk.name.toUpperCase() + '!', '', { dur: 1, color: '#a8f07a' });
     } else {
       audio.play('deny');
-      const s = this.sim.sides[0];
-      if (s.labLevel >= 8) toast('Lab is at MAX level!', { icon: 'flask' });
-      else toast('Need more energy to upgrade!', { icon: 'energy' });
+      this.hud.hint(`${sk?.name ?? 'Skill'} recharging...`);
     }
+  }
+  tryOverclock() {
+    if (!this.canAct() || !this.allowed('lab')) return;
+    if (this.sim.upgradeLab(0)) this.onTut && this.onTut('lab');
+    else {
+      const info = this.sim.overclockInfo(0);
+      if (info.cost === null) this.hud.hint('Lab fully overclocked!');
+      else this.hud.needEnergy(info.cost);
+    }
+  }
+  sendEmote(i) {
+    if (this.ended) return;
+    this.hud.showEmote(0, i);
+    if (this.mode === 'friend') {
+      if (this.params.role === 'guest') this.sim.emote?.(i);
+      else this.peer?.send({ t: 'emote', e: i });
+    } else if (this.ai && Math.random() < 0.45) {
+      const reply = i === 0 ? 0 : i === 1 ? 1 : i === 2 ? 2 : i === 5 ? 4 : 3;
+      setTimeout(() => !this.ended && this.hud.showEmote(1, reply), 900 + Math.random() * 900);
+    }
+  }
+
+  onSimEvent(ev) {
+    this.hud.onEvent(ev);
+    if (!this.ai || this.ended) return;
+    // the AI rival reacts with emotes now and then
+    if (ev.type === 'towerDown' && Math.random() < 0.7) setTimeout(() => !this.ended && this.hud.showEmote(1, ev.side === 1 ? 5 : 4), 1200);
+    else if (ev.type === 'signature' && ev.side === 1 && Math.random() < 0.4) setTimeout(() => !this.ended && this.hud.showEmote(1, 4), 600);
   }
 
   pauseMenu() {
@@ -263,89 +335,135 @@ export class BattleScene {
     const wasPaused = this.sim.paused;
     if (!online) this.sim.paused = true;
     this.pauseOpen = true;
+    const sound = () => (state.p.settings.muted ? 'Sound: OFF' : 'Sound: ON');
     const m = modal({
       title: 'PAUSED', size: 'narrow', color: 'purple',
       body: h('div', { class: 'col center' },
-        h('div', { class: 'muted small' }, 'Tip: tap your Lab to upgrade energy production. Keys: 1-6 deploy, Q/W spells, Space signature, U upgrade.'),
-        button('Resume', () => m.close(), 'green big'),
-        button(state.p.settings.muted ? 'Sound: OFF' : 'Sound: ON', (e) => {
+        h('div', { class: 't-sm c-muted center-t' }, 'Drag cards onto the battlefield, or tap a card then tap where to drop it. Double-tap a card to drop it at your Lab.'),
+        button('RESUME', () => m.close(), 'green lg'),
+        button(sound(), (e) => {
           state.p.settings.muted = !state.p.settings.muted;
           audio.setMuted(state.p.settings.muted);
           state.save();
-          e.currentTarget.querySelector('span').textContent = state.p.settings.muted ? 'Sound: OFF' : 'Sound: ON';
-        }, 'blue'),
-        this.mode !== 'tutorial' ? button('Surrender', () => { m.close(); this.sim.end(1); }, 'red') : null),
+          e.currentTarget.querySelector('span span').textContent = sound();
+        }, 'blue', { icon: 'sound' }),
+        this.mode !== 'tutorial' ? button('SURRENDER', () => { m.close(); this.surrender(); }, 'red', { icon: 'flag' }) : null),
       onClose: () => {
         this.pauseOpen = false;
-        if (!wasPaused && !online) this.sim.paused = false;
+        if (!wasPaused && !online && !this.ended) this.sim.paused = false;
       },
     });
   }
+  surrender() {
+    if (this.sim instanceof RemoteSim) this.sim.surrender?.();
+    else this.sim.end(1, { reason: 'surrender' });
+  }
 
   // -------------------------------------------------------------------------
+  // Input
+
   bindInput() {
     const c = engine.canvas;
-    const groundX = (e) => {
-      const p = engine.rayToPlane(e.clientX, e.clientY, 0, this.camera);
-      return p ? p.x : this.view.camX;
-    };
     this.onDown = (e) => {
       audio.unlock();
-      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() });
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.pointers.size === 2) {
         const [a, b] = [...this.pointers.values()];
         this.pinch = Math.hypot(a.x - b.x, a.y - b.y);
+        this.fieldPtr = null;
+        return;
       }
-      if (this.hud.aiming !== null) {
-        this.aimX = groundX(e);
-        this.view.setAim(this.sim.sides[0].spells[this.hud.aiming].id, this.aimX);
-      }
+      if (!this.ready) return;
+      this.fieldPtr = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, moved: false, aiming: this.sel >= 0 };
+      if (this.sel >= 0) this.fieldPtr.x = this.preview(e.clientX, e.clientY);
     };
     this.onMove = (e) => {
       const pt = this.pointers.get(e.pointerId);
-      if (this.hud.aiming !== null) {
-        this.aimX = groundX(e);
-        this.view.setAim(this.sim.sides[0].spells[this.hud.aiming].id, this.aimX);
-        if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
-        return;
-      }
-      if (!pt) return;
-      if (this.pointers.size === 2) {
-        pt.x = e.clientX;
-        pt.y = e.clientY;
+      if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
+      if (this.pointers.size === 2 && this.pinch) {
         const [a, b] = [...this.pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (this.pinch) this.view.zoomBy(this.pinch / d);
+        this.view.zoomBy(this.pinch / Math.max(1, d));
         this.pinch = d;
         return;
       }
-      const dx = e.clientX - pt.x;
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      if (Math.abs(pt.x - pt.sx) > 6) this.view.pan(dx);
-    };
-    this.onUp = (e) => {
-      const pt = this.pointers.get(e.pointerId);
-      this.pointers.delete(e.pointerId);
-      if (this.pointers.size < 2) this.pinch = null;
-      if (!pt) return;
-      const moved = Math.hypot(e.clientX - pt.sx, e.clientY - pt.sy);
-      if (this.hud.aiming !== null) {
-        if (moved < 30 || performance.now() - pt.t < 600) this.castAt(this.aimX);
+      // dragging a card from the hand
+      const d = this.drag;
+      if (d && e.pointerId === d.id) {
+        if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > TAP_MOVE) {
+          d.moved = true;
+          this.hud.dragStart(d.slot);
+        }
+        if (d.moved) {
+          d.over = this.hud.isOverField(e.clientX, e.clientY);
+          this.hud.dragMove(e.clientX, e.clientY, d.over);
+          d.x = this.preview(e.clientX, e.clientY);
+        }
         return;
       }
-      if (moved < 10) {
-        // tap: lab?
-        const hits = engine.raycast(e.clientX, e.clientY, [this.view.labs[0].root], this.camera);
-        if (hits.length) this.tryUpgrade();
+      const f = this.fieldPtr;
+      if (f && e.pointerId === f.id) {
+        if (Math.hypot(e.clientX - f.sx, e.clientY - f.sy) > TAP_MOVE) f.moved = true;
+        if (f.aiming && this.sel >= 0) f.x = this.preview(e.clientX, e.clientY);
+        else if (f.moved) this.view.pan(e.clientX - f.lx);
+        f.lx = e.clientX;
+        return;
+      }
+      // desktop hover preview for a selected card
+      if (e.pointerType === 'mouse' && this.sel >= 0 && !e.buttons) this.preview(e.clientX, e.clientY);
+    };
+    this.onUp = (e) => {
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinch = null;
+      const d = this.drag;
+      if (d && e.pointerId === d.id) {
+        this.drag = null;
+        this.hud.dragEnd();
+        this.view.setEdgePan(0);
+        if (d.moved) {
+          if (d.over && d.x !== null && d.x !== undefined) this.deploy(d.slot, d.x);
+          else { this.view.setGhost(null); this.view.setAim(null); }
+        } else if (d.wasSel) this.select(-1);
+        return;
+      }
+      const f = this.fieldPtr;
+      if (f && e.pointerId === f.id) {
+        this.fieldPtr = null;
+        this.view.setEdgePan(0);
+        if (this.sel >= 0 && (f.aiming || !f.moved)) {
+          const x = f.x ?? this.preview(e.clientX, e.clientY);
+          if (x !== null && x !== undefined && this.hud.isOverField(e.clientX, e.clientY)) this.deploy(this.sel, x);
+        }
       }
     };
-    this.onWheel = (e) => this.view.zoomBy(e.deltaY > 0 ? 1.08 : 0.92);
+    this.onWheel = (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) this.view.pan(-e.deltaX);
+      else this.view.zoomBy(e.deltaY > 0 ? 1.08 : 0.93);
+    };
+    this.onKey = (e) => {
+      if (e.repeat || !this.ready || this.ended) return;
+      const k = e.key.toLowerCase();
+      if (k >= '1' && k <= '4') {
+        const slot = +k - 1;
+        if (this.allowed('deploy' + slot)) this.select(this.sel === slot ? -1 : slot);
+      } else if ((k === ' ' || k === 'enter') && this.sel >= 0) {
+        e.preventDefault();
+        this.deploy(this.sel, null);
+      } else if (k === 'q') this.trySignature();
+      else if (k === 'w') this.trySkill(0);
+      else if (k === 'e') this.trySkill(1);
+      else if (k === 'o') this.tryOverclock();
+      else if (k === 'escape') { if (this.sel >= 0) this.select(-1); else this.pauseMenu(); }
+      else if (k === 'arrowleft' || k === 'a') this.view.pan(engine.width * 0.15);
+      else if (k === 'arrowright' || k === 'd') this.view.pan(-engine.width * 0.15);
+    };
     c.addEventListener('pointerdown', this.onDown);
     window.addEventListener('pointermove', this.onMove);
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onUp);
     c.addEventListener('wheel', this.onWheel, { passive: true });
+    window.addEventListener('keydown', this.onKey);
+    if ('ontouchstart' in window) document.body.classList.add('touch');
   }
 
   exit() {
@@ -356,14 +474,17 @@ export class BattleScene {
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onUp);
     c.removeEventListener('wheel', this.onWheel);
-    this.hud?.destroy();
+    window.removeEventListener('keydown', this.onKey);
+    this.hud?.dispose();
     this.view?.dispose();
     this.tutCleanup && this.tutCleanup();
     this.hostSync?.dispose();
     this.sim?.dispose?.();
     this.offClose && this.offClose();
+    this.offMsg && this.offMsg();
     this.offRematch && this.offRematch();
     engine.timeScale = 1;
+    if (window.__battle === this) window.__battle = null;
   }
 
   peerLost() {
@@ -372,7 +493,7 @@ export class BattleScene {
     if (this.sim instanceof RemoteSim) {
       this.sim.over = true;
       this.sim.winner = 0;
-    } else this.sim.end(0);
+    } else this.sim.end(0, { reason: 'forfeit' });
   }
 
   resize(w, hh) {
@@ -380,18 +501,19 @@ export class BattleScene {
   }
 
   update(dt, gdt) {
-    if (!this.sim) return;
-    if (!this.sim.paused) this.ai.update(gdt);
+    if (!this.sim || !this.view?.loaded) return;
+    if (this.ai && !this.sim.paused) this.ai.update(gdt);
     this.sim.update(gdt);
     this.hostSync && this.hostSync.update(dt);
     this.view.update(dt, this.sim.paused && !this.sim.over ? 0 : gdt);
-    this.hud.update();
+    this.hud.update(dt);
     this.tutTick && this.tutTick(dt);
     if (this.sim.over && !this.ended) this.finish();
   }
 
   // -------------------------------------------------------------------------
   // Tutorial battle vs Jimmy
+
   async tutorial() {
     const sim = this.sim;
     const J = JIMMY();
@@ -402,78 +524,85 @@ export class BattleScene {
     const waitFor = (fn) => new Promise((res) => {
       const prev = this.tutTick;
       this.tutTick = (dt) => {
-        if (fn(dt)) {
-          this.tutTick = prev;
-          res();
-        }
+        if (this.dead) return;
+        if (fn(dt)) { this.tutTick = prev; res(); }
       };
     });
     const talk = async (text, opts) => {
       if (this.dead) return new Promise(() => {});
       sim.paused = true;
       await say({ ...J, chibi: ch }, text, opts);
-      sim.paused = false;
+      if (!this.ended) sim.paused = false;
     };
-    this.view.focus(-8, 6);
-    if (ch) { ch.expr('happy', 'grin', 3); }
-    await talk("Welcome to my *Mansion Lab*! Your Lab is on the LEFT, mine's on the RIGHT. First to destroy the other's Lab wins!");
-    await talk('Your Swarms walk forward and fight *automatically*. Tap the *Panther* card to summon one!');
-    this.lockInput = 'deploy0';
-    sim.sides[0].energy = Math.max(sim.sides[0].energy, 60);
-    remove = pointAt(this.hud.cards[0].el, 'Tap!');
-    sim.paused = false;
-    await new Promise((res) => (this.onTut = (k, i) => k === 'deploy' && res()));
+    const until = (kind) => new Promise((res) => (this.onTut = (k, slot, id) => { if (k === kind) { this.onTut = null; res({ slot, id }); } }));
+    const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
+    if (ch) ch.expr('happy', 'grin', 3);
+    await talk("Welcome to the *Beast Lab* arena! Your Lab is on the LEFT, mine's on the RIGHT. Knock down my *Panther Cannon* turret, then smash my Lab!");
+    // 1) drag a Panther onto the field
+    let pslot = slotOf('panther');
+    if (pslot < 0) pslot = 0;
+    sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
+    await talk('Your Swarms march and fight *on their own*. *Drag* a card onto the battlefield to drop it in a lab vial. Try it!');
+    this.lockInput = 'deploy';
+    remove = pointAt(() => this.hud.slotEl(slotOf('panther') >= 0 ? slotOf('panther') : 0), 'Drag me up!');
+    await until('deploy');
     clearPtr();
     this.lockInput = null;
-    await wait(1.5);
-    await talk('Nice! Every summon costs *energy* ⚡, which refills over time. Now add a *Clogged Toilet* - it shoots from range!');
-    sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.cardCost(0, 1));
-    sim.sides[0].cds[1] = 0;
-    this.lockInput = 'deploy1';
-    remove = pointAt(this.hud.cards[1].el, 'Ranged!');
-    await new Promise((res) => (this.onTut = (k, i) => k === 'deploy' && i === 1 && res()));
+    await wait(2.2);
+    // 2) energy
+    await talk('Every card costs *energy* (the pink bar). It refills over time, so plan your pushes! The card on the left is your *NEXT* card.');
+    // 3) tap-to-place
+    sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
+    await talk("You can also *tap* a card, then *tap* where you want it. Drop a ranged Swarm *behind* your Panther!");
+    this.lockInput = 'deploy';
+    remove = pointAt(() => this.hud.slotEl(0), 'Tap!');
+    await until('deploy');
     clearPtr();
     this.lockInput = null;
-    // Lab upgrade
-    await waitFor(() => sim.sides[0].energy >= 70 || sim.t > 30);
-    sim.sides[0].energy = Math.max(sim.sides[0].energy, 70);
-    await talk('Pro tip: tap your *LAB* to upgrade it! A higher Lab level makes energy faster and holds more. Spend wisely: troops OR upgrades!');
-    this.lockInput = 'lab';
-    remove = pointAt(this.hud.labBtn, 'Upgrade!');
-    const labPtr = pointAt(this.view.labs[0].core, '');
-    await new Promise((res) => (this.onTut = (k) => k === 'lab' && res()));
-    labPtr();
-    clearPtr();
-    this.lockInput = null;
-    // Food Throw
-    await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.75) || sim.t > 45);
-    if (sim.sides[0].spells.length) {
-      sim.sides[0].energy = Math.max(sim.sides[0].energy, 140);
-      sim.sides[0].spellCds[0] = 0;
-      const front = sim.frontAllyX(0);
-      this.view.focus(front, 4);
-      await talk('Your Swarms are getting HANGRY! Use *Food Throw*: tap the spell, then tap near your troops. They heal and get *BIGGER*!');
-      this.lockInput = 'spell';
-      remove = pointAt(this.hud.spells[0].el, 'Spell!');
-      await new Promise((res) => (this.onTut = (k) => k === 'spell' && res()));
+    // 4) defend
+    await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);
+    await talk("Here come my Swarms! Your *turret* shoots anything close, but drop troops to *defend* too.");
+    // 5) Food Throw when troops are hurt
+    await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.7) || sim.t > 50);
+    const fslot = slotOf('foodThrow');
+    if (fslot >= 0 && !sim.over) {
+      sim.sides[0].energy = Math.max(sim.sides[0].energy, 4);
+      this.view.focus(sim.frontAllyX(0), 5);
+      await talk('Your Swarms are getting HANGRY! *Food Throw* heals them and makes them *BIGGER*. Drag it onto your troops!');
+      this.lockInput = 'deploy' + fslot;
+      remove = pointAt(() => this.hud.slotEl(slotOf('foodThrow')), 'Spell!');
+      await until('deploy');
       clearPtr();
       this.lockInput = null;
     }
-    // Signature
-    await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 70);
-    sim.sides[0].sig = 1;
-    await talk("Your Commander is fully charged - that's YOU sitting on your Lab! Tap your portrait to unleash *Beaker Barrage*!");
-    this.lockInput = 'sig';
-    remove = pointAt(this.hud.sig.el, 'Unleash!');
-    await new Promise((res) => (this.onTut = (k) => k === 'sig' && res()));
-    clearPtr();
-    this.lockInput = null;
-    this.onTut = null;
-    await wait(2);
-    await talk("Okay okay, not bad! Now let's see if you can actually smash my Lab. I'm not going easy! (I'm going a little easy.)");
-    // Jimmy shows off his giveaway when hurt
-    await waitFor(() => sim.sides[1].labHp < sim.sides[1].labMaxHp * 0.55 || sim.over);
+    // 6) overclock
+    await waitFor(() => sim.sides[0].energy >= 3 || sim.t > 70);
     if (!sim.over) {
+      sim.sides[0].energy = Math.max(sim.sides[0].energy, 3);
+      await talk('Pro tip: *OVERCLOCK* your Lab to make energy faster for the rest of the match. Spend wisely!');
+      this.lockInput = 'lab';
+      remove = pointAt(this.hud.ocBtn, 'Overclock!');
+      await until('lab');
+      clearPtr();
+      this.lockInput = null;
+    }
+    // 7) Commander signature
+    await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 85 || sim.over);
+    if (!sim.over) {
+      sim.sides[0].sig = 1;
+      await talk("That's YOU on top of your Lab - the *Commander*! Your ability is charged: tap your portrait for *Beaker Barrage*!");
+      this.lockInput = 'sig';
+      remove = pointAt(this.hud.sig, 'Unleash!');
+      await until('sig');
+      clearPtr();
+      this.lockInput = null;
+      await wait(2);
+      await talk("Okay, not bad! Now take down my turret and my Lab. I'm not going easy! (I'm going a little easy.)");
+    }
+    // Jimmy shows off his giveaway when his Lab is hurt
+    await waitFor(() => !sim.sides[1].turret.alive || sim.over);
+    if (!sim.over) {
+      await talk('My turret! You earned a *CROWN*. Each tower is a crown - my Lab is worth all 3!');
       sim.sides[1].sig = 1;
       sim.useSignature(1);
       await wait(1.6);
@@ -482,22 +611,31 @@ export class BattleScene {
   }
 
   // -------------------------------------------------------------------------
+  // End of battle
+
   async finish() {
     this.ended = true;
     const sim = this.sim;
-    const win = sim.winner === 0;
-    this.hud.setAiming(null);
-    this.view.setAim(null);
-    this.hud.hide();
+    const res = sim.draw ? 'draw' : sim.winner === 0 ? 'win' : 'loss';
+    const win = res === 'win';
+    this.select(-1);
+    this.hud.dragEnd();
     closeDialogue();
     this.tutCleanup && this.tutCleanup();
+    this.lockInput = null;
+    const labFell = !sim.sides[0].lab.alive || !sim.sides[1].lab.alive;
+    if (labFell) await wait(2.4);
+    else {
+      bigBanner(sim.draw ? "TIME'S UP!" : 'TIME!', sim.draw ? 'Too close to call!' : 'Most crowns wins!', { dur: 1.6, color: '#ffd84a' });
+      audio.play('bell');
+      await wait(1.6);
+    }
+    if (this.dead) return;
+    this.hud.setVisible(false);
     audio.stopMusic();
-    await this.view.labDestroyed(win ? 1 : 0);
-    this.view.celebrate(sim.winner);
-    audio.jingle(win ? 'victory' : 'defeat');
-    if (win) audio.play('cheer');
-    bigBanner(win ? 'VICTORY!' : 'DEFEAT', win ? 'Lab destroyed!' : 'Your Lab fell...', { dur: 2, color: win ? '#ffd23f' : '#ff4a4a' });
-    // record stats
+    if (!sim.draw) this.view.celebrate(sim.winner);
+    audio.jingle?.(win ? 'victory' : 'defeat');
+    // stats
     const st = sim.sides[0].stats;
     stat('deployed', st.deployed);
     for (const id in st.deployById) stat('deploy_' + id, st.deployById[id]);
@@ -505,89 +643,56 @@ export class BattleScene {
     stat('signatures', st.sigs);
     for (const k in st) if (k.startsWith('cast_')) stat('cast' + k.slice(5), st[k]);
     if (this.view.cartsSmashed) stat('cartsSmashed', this.view.cartsSmashed);
+    const crowns = [sim.sides[0].crowns, sim.sides[1].crowns];
+    const names = [this.cfg.sides[0].name, this.cfg.sides[1].name];
+    if (this.mode === 'tutorial') return this.tutorialEnd(win, crowns, names);
+    if (this.mode === 'friend') return this.friendEnd(res, crowns, names);
+    const rewards = battleRewards({ result: res, crowns: crowns[0], enemyCrowns: crowns[1], arenaId: this.arenaId, mode: this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
     state.save();
-    await wait(2.2);
-    if (this.mode === 'tutorial') return this.tutorialEnd(win);
-    if (this.mode === 'friend') return this.friendResults(win);
-    const res = battleRewards({ win, arenaId: this.arenaId, mode: this.mode === 'practice' ? 'practice' : this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
-    this.showResults(win, res);
+    const again = this.mode === 'boss' ? 'RETRY' : this.mode === 'practice' ? 'AGAIN' : null;
+    const btns = [{ id: 'ok', label: 'OK', color: 'blue' }];
+    if (again) btns.unshift({ id: 'again', label: again, color: 'yellow', icon: 'swords' });
+    const choice = await showResult($overlay(), { result: res, crowns, names, rewards, mode: this.mode, buttons: btns });
+    if (choice === 'again') game.go('battle', this.mode === 'boss' ? { mode: 'boss', bossId: this.params.bossId } : { mode: this.mode, arena: this.arenaId });
+    else game.go('home', { from: 'battle', rewards });
   }
 
-  async tutorialEnd(win) {
+  async tutorialEnd(win, crowns, names) {
     const J = JIMMY();
+    await showResult($overlay(), { result: win ? 'win' : 'loss', crowns, names, rewards: null, mode: 'tutorial', buttons: [{ id: 'ok', label: 'OK', color: 'blue' }] });
     if (!win) {
-      await say(J, "Oof! Happens to everyone. Let's run it back - remember to upgrade your Lab and use Food Throw!");
+      await say(J, "Oof! Happens to everyone. Let's run it back - drop a tanky Panther in front and ranged Swarms behind!");
       game.go('battle', { mode: 'tutorial' });
       return;
     }
-    await say({ ...J, portrait: charPortrait('jimmy', { eyes: 'shock', mouth: 'open' }) }, "NO WAY! You actually destroyed my Mansion Lab?! That's it... you've earned something SPECIAL.");
+    await say({ ...J, portrait: charPortrait('jimmy', { eyes: 'shock', mouth: 'open' }) }, "NO WAY! You actually beat me?! That's it... you've earned something SPECIAL.");
     state.p.tutorial = 'briefcase';
     state.save();
-    game.go('lab', { tutorial: 'briefcase' });
+    game.go('title', { tutorial: 'briefcase' });
   }
 
-  friendResults(win) {
+  async friendEnd(res, crowns, names) {
     const host = this.params.role !== 'guest';
     const peer = this.peer;
-    const status = h('div', { class: 'small muted' }, peer?.open ? (host ? 'Play again?' : 'Waiting for the host to start a rematch...') : 'Connection closed.');
-    const body = h('div', { class: 'result-panel' },
-      h('div', { class: 'display big ' + (win ? 'gold' : 'redt') }, win ? 'VICTORY!' : 'DEFEAT'),
-      h('div', { class: 'small' }, `Friendly battle vs ${this.cfg.sides[1].name}`),
-      status);
-    const foot = [button('Lab', () => { m.close(); net.clear(); game.go('lab'); }, 'blue', { icon: 'flask' })];
-    if (host && peer?.open) {
-      foot.push(button('Rematch', () => {
-        m.close();
-        const me = this.cfg.sides[0];
-        peer.send({ t: 'start', host: me, guest: this.params.remote, arena: this.arenaId });
-        game.go('battle', { mode: 'friend', role: 'host', remote: this.params.remote, arena: this.arenaId });
-      }, 'pink', { icon: 'sword' }));
-    }
-    const m = modal({ title: 'FRIEND BATTLE', color: win ? 'yellow' : 'purple', size: 'narrow', closable: false, body, foot });
+    const btns = [{ id: 'ok', label: 'OK', color: 'blue' }];
+    if (host && peer?.open) btns.unshift({ id: 'rematch', label: 'REMATCH', color: 'pink', icon: 'swords' });
     if (!host && peer) {
       this.offRematch = peer.on((msg) => {
         if (msg.t !== 'start') return;
-        m.close();
+        document.querySelector('.res-wrap')?.remove();
         game.go('battle', { mode: 'friend', role: 'guest', remote: msg.host, arena: msg.arena });
       });
     }
-  }
-
-  showResults(win, res) {
-    const p = state.p;
-    const rows = [];
-    const row = (ic, label, val, cls = '') => h('div', { class: 'result-row px-box light bounce-in ' + cls }, icon(ic), h('div', { class: 'v outline-sm' }, val), h('div', { class: 'tiny muted' }, label));
-    if (res.trophies) rows.push(row('trophy', 'Trophies', (res.trophies > 0 ? '+' : '') + res.trophies, res.trophies > 0 ? 'gold' : 'redt'));
-    rows.push(row('coin', 'Beast Coins', '+' + res.coins));
-    rows.push(row('calorie', 'Calories', '+' + res.calories));
-    if (res.cmdXp) rows.push(row('crown', 'Commander XP', '+' + res.cmdXp));
-    if (res.vial) rows.push(row('vial', VIALS[res.vial].name, 'NEW!', 'pinkt'));
-    rows.forEach((r, i) => (r.style.animationDelay = i * 0.12 + 's'));
-    const extra = [];
-    if (win && !res.vial && this.mode !== 'boss') extra.push(h('div', { class: 'small muted' }, 'Vial slots full! Open some vials to earn more.'));
-    if (res.passTiers > 0) extra.push(h('div', { class: 'gold small' }, `FOOD SEASON tier up! +${res.passTiers} tier${res.passTiers > 1 ? 's' : ''} - claim rewards in the Pass.`));
-    for (const lu of res.levelUps) extra.push(h('div', { class: 'greent small' }, `Commander reached level ${lu.level}! ${lu.reward?.text ?? ''}`));
-    if (res.bossResult) {
-      extra.push(h('div', { class: 'gold' }, res.bossResult.first ? 'BOSS DEFEATED! First-time rewards:' : 'Boss defeated again!'));
-      for (const r of res.bossResult.rewards) extra.push(h('div', { class: 'row small center' }, icon(r.icon), r.label));
+    const choice = await showResult($overlay(), { result: res, crowns, names, rewards: null, mode: 'friend', buttons: btns });
+    if (choice === 'rematch') {
+      const me = this.cfg.sides[0];
+      peer.send({ t: 'start', host: me, guest: this.params.remote, arena: this.arenaId });
+      game.go('battle', { mode: 'friend', role: 'host', remote: this.params.remote, arena: this.arenaId });
+    } else {
+      net.clear();
+      game.go('home');
     }
-    const body = h('div', { class: 'result-panel' },
-      h('div', { class: 'display big ' + (win ? 'gold' : 'redt') }, win ? 'VICTORY!' : 'DEFEAT'),
-      h('div', { class: 'row small muted' }, icon('trophy'), `${p.trophies} trophies`),
-      h('div', { class: 'result-rows' }, rows),
-      extra);
-    if (win) audio.play('chaching');
-    const again = this.mode === 'boss' ? 'Retry Boss' : this.mode === 'practice' ? 'Practice Again' : 'Battle Again';
-    const m = modal({
-      title: win ? 'BATTLE WON' : 'BATTLE LOST', color: win ? 'yellow' : 'purple', size: 'mid', closable: false, body,
-      foot: [
-        button('Lab', () => { m.close(); game.go('lab'); }, 'blue', { icon: 'flask' }),
-        button('Arena', () => { m.close(); game.go('arena', { from: 'battle' }); }, 'green', { icon: 'pin' }),
-        button(again, () => {
-          m.close();
-          game.go('battle', this.mode === 'boss' ? { mode: 'boss', bossId: this.params.bossId } : { mode: this.mode, arena: this.mode === 'ranked' ? undefined : this.arenaId });
-        }, 'pink', { icon: 'sword' }),
-      ],
-    });
   }
 }
+
+export { EMOTES };

@@ -98,7 +98,7 @@ export class Billboards {
           float bb2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
           float bb4(vec2 a) { return bb2(0.5 * a) * 0.25 + bb2(a); }`)
         .replace('#include <map_fragment>', `#include <map_fragment>
-          if (diffuseColor.a < 0.5 || vFade < bb4(gl_FragCoord.xy * 0.5)) discard;
+          if (diffuseColor.a < 0.5 || vFade < bb4(gl_FragCoord.xy * 0.34)) discard;
           diffuseColor.a = 1.0;`);
     };
     mat.customProgramCacheKey = () => 'pixelBillboard' + (opts.anchorBottom ? 'B' : '');
@@ -112,7 +112,12 @@ export class Billboards {
     this._p = new THREE.Vector3();
     this._s = new THREE.Vector3();
     this._q = new THREE.Quaternion();
-    for (let i = 0; i < count; i++) this.set(i, 0, -999, 0, 0.001, 0.001, 0, 0);
+    this._c = new THREE.Color();
+    for (let i = 0; i < count; i++) { this.set(i, 0, -999, 0, 0.001, 0.001, 0, 0); this.mesh.setColorAt(i, this._c.setHex(0xffffff)); }
+  }
+  setTint(i, hex) {
+    this.mesh.setColorAt(i, this._c.setHex(hex));
+    this.mesh.instanceColor.needsUpdate = true;
   }
   set(i, x, y, z, sx, sy, frame = 0, fade = 1, flip = false) {
     this._p.set(x, y, z);

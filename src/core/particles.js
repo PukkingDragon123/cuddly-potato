@@ -119,7 +119,7 @@ class Particles {
       cube: new Layer(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), 3500),
       glow: new Layer(
         box,
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 1.8, 1.8), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.4, 2.4), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
         1500,
       ),
       bubble: new Layer(

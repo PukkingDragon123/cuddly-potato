@@ -11,7 +11,7 @@ import {
 
 const C = {
   snow: 0xedf3fb, snow2: 0xe1eaf6, snowS: 0xc8d7ec, snowB: 0xb2c6e2, snowW: 0xf8fbff,
-  ice: 0xa6d8f0, iceL: 0xcdeefa, iceD: 0x5aa2d4, iceDD: 0x2a64a4, deep: 0x0d2a58,
+  ice: 0x8ed0f2, iceL: 0xc6ecfb, iceD: 0x4f9ad6, iceDD: 0x2a64a4, deep: 0x0d2a58,
   orange: 0xff7a1a, orangeD: 0xc4500c, orangeL: 0xffa04a, red: 0xe0402c, redD: 0xa2261c,
   blue: 0x4f8fd0, blueD: 0x2f62a0, ink: 0x1a1d2a, metal: 0xb8c0cc, metalL: 0xdde3ea, metalD: 0x6b7386, metalDD: 0x3d4352,
   wood: 0xa0673a, woodD: 0x6e4224, yellow: 0xffd23f, warm: 0xffcf7a, cyan: 0x7ff0ff, pink: 0xff2e88,
@@ -208,22 +208,23 @@ const iceCliffGrid = (seed, W, H, D) => () => {
   const g = new VoxGrid();
   for (let x = 0; x < W; x++) for (let z = -D; z <= 0; z++) {
     const ex = Math.min(x, W - 1 - x) / (W * 0.5);
-    const prof = Math.min(1, ex * 2.2) * (0.75 + 0.25 * (1 + z / D));
-    const bx = Math.floor((x + seed) / 3), bz = Math.floor(z / 3);
-    const hgt = Math.round(H * prof * (0.45 + 0.55 * hash3(bx, bz, seed)) + vnoise(x * 0.3, z * 0.3, seed) * 2);
+    const prof = Math.min(1, ex * 2.4) * (0.8 + 0.2 * (1 + z / D));
+    const bx = Math.floor((x + seed) / 5), bz = Math.floor((z + 40) / 4);
+    const hgt = Math.round(H * prof * (0.5 + 0.38 * vnoise(bx * 0.7, bz * 0.6, seed) + 0.12 * hash3(bx, bz, seed)));
     for (let y = 0; y < hgt; y++) {
       let c;
-      if (y >= hgt - 1) c = hash3(x, y, z) < 0.6 ? C.snowW : C.snow;
+      if (y >= hgt - 1) c = hash3(x, y, z) < 0.5 ? C.snowW : C.snow;
+      else if (y === hgt - 2 && hash3(x, 2, z) < 0.5) c = C.snow;
       else if (y < 2) c = C.iceD;
       else {
-        const band = vnoise(x * 0.35, y * 0.12, seed) + (hash3(x >> 1, 3, seed) - 0.5) * 0.25;
-        c = band > 0.62 ? C.iceL : band > 0.36 ? C.ice : 0x86c4e6;
-        if (hash3(x, 0, seed + 4) < 0.06 && y < hgt - 3) c = C.iceD;
+        const band = vnoise(x * 0.45, y * 0.07, seed);
+        c = band > 0.6 ? C.iceL : band > 0.38 ? C.ice : 0x6fb8e6;
+        if (hash3(x, 0, seed + 4) < 0.05 && y < hgt - 3) c = C.iceD;
       }
       g.set(x - (W >> 1), y, z, c);
     }
     // overhanging cornice + icicles on the front columns
-    if (z === 0 && hgt > 6 && hash3(x, 5, seed) < 0.55) {
+    if (z === 0 && hgt > 6 && hash3(x >> 1, 5, seed) < 0.6) {
       g.set(x - (W >> 1), hgt - 1, 1, C.snowW);
       for (let k = 2; k < 2 + Math.floor(hash3(x, 6, seed) * 3); k++) g.set(x - (W >> 1), hgt - k, 1, C.iceL);
     }
@@ -243,8 +244,8 @@ const bergGrid = (seed, kind) => () => {
     if (tab) hgt = Math.round(H * (r > 0.8 ? 1 - (r - 0.8) * 3 : 1) - (hash3(x >> 2, seed, z >> 2) < 0.2 ? 2 : 0));
     else hgt = Math.round(H * Math.pow(1 - r, 1.2) * (0.7 + 0.5 * vnoise(x * 0.4, z * 0.4, seed)));
     for (let y = -2; y < Math.max(1, hgt); y++) {
-      let c = y <= 0 ? C.iceD : y >= hgt - 1 ? C.snowW : hash3(x, Math.floor(y / 2), seed) < 0.3 ? C.iceL : C.ice;
-      if (y > 0 && y < hgt - 1 && hash3(x, 1, seed) < 0.08) c = 0x7ab8e0;
+      let c = y <= 0 ? C.ice : y >= hgt - 1 ? C.snowW : hash3(x, Math.floor(y / 2), seed) < 0.55 ? 0xe2f2fc : C.iceL;
+      if (y > 0 && y < hgt - 1 && hash3(x, 1, seed) < 0.08) c = C.ice;
       g.set(x, y, z, c);
     }
   }
@@ -331,8 +332,8 @@ const driftGrid = () => {
   for (let x = -7; x <= 7; x++) for (let z = -4; z <= 3; z++) {
     const r = (x / 7.5) ** 2 + ((z + 0.5) / 4) ** 2;
     if (r > 1) continue;
-    const hgt = Math.max(1, Math.round(3.2 * (1 - r) * (x < 0 ? 1 : 1 - x / 12)));
-    for (let y = 0; y < hgt; y++) g.set(x, y, z, y === hgt - 1 ? (x + z) % 5 === 0 ? C.snowW : C.snow : C.snowS);
+    const hgt = r < 0.35 && x < 4 ? 3 : r < 0.7 ? 2 : 1;
+    for (let y = 0; y < hgt; y++) g.set(x, y, z, y === hgt - 1 ? (hash3(x, y, z) < 0.3 ? C.snowW : C.snow) : C.snow2);
   }
   return g;
 };
@@ -495,7 +496,7 @@ function liveInst(K, id, gridFn, opts, n, o = {}) {
  * Waddling penguins. paths: [[xa, xb, z, speed, phase, scale, mode]] where mode
  * 'walk' paces between xa..xb, 'slide' toboggans on the belly, 'idle' stands.
  */
-function addPenguins(K, paths, scale = 0.04) {
+function addPenguins(K, paths, scale = 0.046) {
   const im = liveInst(K, 'penguin', penguinGrid, { scale, ao: true }, paths.length, { shadow: true });
   const st = paths.map(([xa, xb, z, sp, ph, s, mode]) => ({ xa, xb, z, sp, ph, s: s ?? 1, mode: mode ?? 'walk', x: xa + (xb - xa) * ((ph * 0.37) % 1), dir: ph % 2 < 1 ? 1 : -1, pause: 0, turn: 0 }));
   K.onUpdate((dt, t) => {
@@ -637,6 +638,21 @@ function addSea(K, o) {
   return m;
 }
 
+/**
+ * Keep the screen-space sky texture "cover"-fitted to the viewport so its
+ * pixels stay square in portrait (crops the sides instead of stretching).
+ */
+function fitSky(K, tex, texAspect = 16 / 9) {
+  let last = 0;
+  K.onUpdate(() => {
+    const a = typeof window !== 'undefined' ? window.innerWidth / Math.max(1, window.innerHeight) : texAspect;
+    if (Math.abs(a - last) < 1e-3) return;
+    last = a;
+    if (a < texAspect) { tex.repeat.set(a / texAspect, 1); tex.offset.set((1 - a / texAspect) / 2, 0); }
+    else { tex.repeat.set(1, texAspect / a); tex.offset.set(0, 1 - texAspect / a); }
+  });
+}
+
 // crevasse polylines (world x,z)
 const CREVASSES = [
   [[-22, 5.4], [-18.5, 6.6], [-15, 5.9], [-11.5, 7.2]],
@@ -681,6 +697,8 @@ export function buildBattle(K) {
     disc(ctx, w * 0.82 + 2, h * 0.1 - 1, 3, 0xdfe6f6);
     px(ctx, Math.round(w * 0.82) - 2, Math.round(h * 0.1) + 1, 1, 1, 0xc8d2e8);
   });
+
+  fitSky(K, sky);
 
   // ---- aurora ribbons (behind the mountains)
   addAurora(K, [
@@ -879,7 +897,7 @@ export function buildBattle(K) {
   for (let i = 0; i < 26; i++) {
     const x = K.rand(-44, 44), z = K.rand(LH + 1.6, 16);
     if (crevasse(x, z) < 2.5) continue;
-    drifts.push([x, 0, z, K.rand(-0.5, 0.5), [K.rand(0.08, 0.13), K.rand(0.07, 0.1), K.rand(0.08, 0.11)]]);
+    drifts.push([x, 0, z, K.rand(-0.5, 0.5), [K.rand(0.09, 0.14), K.rand(0.06, 0.08), K.rand(0.09, 0.12)]]);
   }
   K.inst('drift', driftGrid, { scale: 1 }, drifts);
   const chunks = [];
@@ -895,9 +913,9 @@ export function buildBattle(K) {
   return {
     sky,
     fog: { color: 0x2a5c84, near: 70, far: 230 },
-    lights: { sky: 0xa4bcec, ground: 0x4a5a84, hemi: 0.95, sun: 1.6, sunColor: 0xc8d8ff, dir: [-6, 14, 10], rim: 1.4, rimColor: 0x6affc4 },
+    lights: { sky: 0xa4bcec, ground: 0x4a5a84, hemi: 1.0, sun: 1.7, sunColor: 0xd0dcff, dir: [-6, 14, 10], rim: 0.85, rimColor: 0x8affd0 },
     dust: 0xf2f8ff,
-    bloom: { strength: 0.7, threshold: 9, radius: 0.5 },
+    bloom: { strength: 0.75, threshold: 1.16, radius: 0.5 },
   };
 }
 

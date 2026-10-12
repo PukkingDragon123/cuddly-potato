@@ -12,6 +12,7 @@ const loaders = {
   preview: () => import('../dev/preview.js').then((m) => m.PreviewScene),
   modellab: () => import('../dev/modelLab.js').then((m) => m.ModelLabScene),
   arenaview: () => import('../dev/arenaView.js').then((m) => m.ArenaViewScene),
+  islandview: () => import('../dev/islandView.js').then((m) => m.IslandViewScene),
   uibench: () => import('../dev/uiBench.js').then((m) => m.UiBenchScene),
 };
 

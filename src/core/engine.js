@@ -25,7 +25,13 @@ const QUALITY = {
   low: { dpr: 1, bloom: false, shadow: THREE.BasicShadowMap, shadowRes: 1024, aa: false },
 };
 const RETRO_TARGET = 360;
-const DEFAULT_BLOOM = { strength: 0.7, radius: 0.4, threshold: 1.12 };
+// Bloom picks pixels by their brightest channel (not luminance), so only HDR
+// glow voxels (Mats.glow renders at 2.6x) bloom while sunlit toy plastic and
+// white surfaces (max channel ~1.6) stay crisp. Scene thresholds below
+// MIN_BLOOM_THRESHOLD are clamped up to it.
+const DEFAULT_BLOOM = { strength: 0.45, radius: 0.12, threshold: 1.75 };
+const MIN_BLOOM_THRESHOLD = 1.7;
+const ENV_GAIN = 0.3;
 
 class Engine {
   constructor() {
@@ -61,8 +67,16 @@ class Engine {
     r.setClearColor(0x0b1230, 1);
 
     // Environment map: glossy toy plastic + chrome / silver / gold variants.
+    // RoomEnvironment is authored to light a scene on its own; our scenes already
+    // have sun + sky lights, so it is dimmed (ENV_GAIN) or toy plastic ends up
+    // ~4x brighter than the scenery (washed out, and blooming).
     const pmrem = new THREE.PMREMGenerator(r);
-    this.envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const room = new RoomEnvironment();
+    room.traverse((o) => {
+      if (o.isLight) o.intensity *= ENV_GAIN;
+      if (o.material && o.material.emissiveIntensity !== undefined && o.material.emissive?.getHex()) o.material.emissiveIntensity *= ENV_GAIN;
+    });
+    this.envMap = pmrem.fromScene(room, 0.04).texture;
     for (const k of ['chrome', 'silver', 'gold']) variantMaterials(k);
     for (const m of [...allVariantMaterials(), Mats.toy, Mats.toyGloss]) {
       m.envMap = this.envMap;
@@ -87,6 +101,9 @@ class Engine {
     this.composer = new EffectComposer(r, rt);
     this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(4, 4), DEFAULT_BLOOM.strength, DEFAULT_BLOOM.radius, DEFAULT_BLOOM.threshold);
+    const hp = this.bloomPass.materialHighPassFilter;
+    hp.fragmentShader = hp.fragmentShader.replace('float v = luminance( texel.xyz );', 'float v = max( texel.r, max( texel.g, texel.b ) );');
+    hp.needsUpdate = true;
     this.outputPass = new OutputPass();
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.bloomPass);
@@ -97,8 +114,8 @@ class Engine {
   setBloom(o = {}) {
     const b = { ...DEFAULT_BLOOM, ...o };
     this.bloomPass.strength = b.strength;
-    this.bloomPass.radius = b.radius;
-    this.bloomPass.threshold = b.threshold;
+    this.bloomPass.radius = Math.min(0.25, b.radius); // wide radii haze the whole screen around big neon signs
+    this.bloomPass.threshold = Math.max(MIN_BLOOM_THRESHOLD, b.threshold);
   }
 
   setQuality(q = 'high', retro = false) {
