@@ -21,8 +21,7 @@
 // the walk, raise + slam on attacks), legL/legR (stomp), tail; plus cape
 // (NecroClaw), antennaL/antennaR (Silver-Byte's fin ears, Cyber Glitch's
 // floating pixel debris) and spin (Silver-Byte's data ring).
-// eslint-disable-next-line no-unused-vars
-import { G, blob, rbox, capsule, chain, cyl, stamp, sym, glowWhere, gradY, n3, jp, shade, mixHex, frontZ, topY, sideX } from '../kit.js';
+import { G, blob, rbox, capsule, chain, cyl, stamp, glowWhere, gradY, n3, jp, shade, frontZ, topY, sideX } from '../kit.js';
 
 /**
  * World size of one voxel. The sculpts are ~80 voxels tall (2.5x the detail of

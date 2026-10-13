@@ -203,6 +203,9 @@ function placeEl(el, pos, dy = 0) {
 
 // ---------------------------------------------------------------------------
 
+/** The Commander shrinks a little on the tiny early bases so it doesn't dwarf the tent. */
+const cmdScale = (tier = 1) => [0.68, 0.8, 0.9, 1, 1, 1][Math.max(0, Math.min(5, tier - 1))];
+
 class UnitActor {
   constructor(view, u) {
     this.view = view;
@@ -493,6 +496,7 @@ export class BattleView {
       lab.seat.updateWorldMatrix(true, false);
       const wp = new THREE.Vector3().setFromMatrixPosition(lab.seat.matrixWorld);
       ch.root.position.copy(wp);
+      ch.root.scale.setScalar(cmdScale(lab.tier));
       ch.root.rotation.y = i === 0 ? 0.55 : -0.55;
       ch.home = wp.clone();
       scene.add(ch.root);
@@ -595,7 +599,12 @@ export class BattleView {
       const ch = this.cmds?.[i];
       nb.seat.updateWorldMatrix(true, false);
       const wp = new THREE.Vector3().setFromMatrixPosition(nb.seat.matrixWorld);
-      if (ch) ch.home = wp.clone();
+      if (ch) {
+        ch.home = wp.clone();
+        const s0 = ch.root.scale.x, s1 = cmdScale(tier);
+        if (quiet) ch.root.scale.setScalar(s1);
+        else animate(0.6, (e, kk) => ch.root.scale.setScalar(lerp(s0, s1, kk)));
+      }
       if (quiet) {
         if (ch && !ch.busy) ch.root.position.copy(wp);
         return;

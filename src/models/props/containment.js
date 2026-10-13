@@ -24,7 +24,7 @@
 // up to interior.topY).
 import * as THREE from 'three';
 import { Mats, makeMesh } from '../../core/voxel.js';
-import { G, blob, rbox, cyl, stamp, shade, n3 } from '../kit.js';
+import { G, blob, rbox, cyl, stamp, n3 } from '../kit.js';
 import { text, textW } from './common.js';
 
 const V = 0.065; // voxel size at the default 7-unit height
@@ -88,22 +88,25 @@ function baseGrid() {
   return g;
 }
 
-function strutGrid() {
+/** Strut angle (i = 0..3, on the diagonals) and its base centre in voxels. */
+const strutAt = (i) => {
+  const a = Math.PI / 4 + (i * Math.PI) / 2;
+  return { a, cx: Math.cos(a) * L.strutR - 0.5, cz: Math.sin(a) * L.strutR - 0.5 };
+};
+
+function strutGrid(i) {
   const g = G();
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
-    const cx = Math.cos(a) * L.strutR - 0.5, cz = Math.sin(a) * L.strutR - 0.5;
-    const ox = Math.cos(a), oz = Math.sin(a);
-    for (let y = L.baseTop + 1; y <= L.glassTop - 1; y++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-      const x = Math.round(cx + dx), z = Math.round(cz + dz);
-      // the outer face of the strut carries a magenta Mega-Tech stripe
-      const outer = (x + 0.5 - cx) * ox + (z + 0.5 - cz) * oz > 0.9;
-      const clamp = y <= L.baseTop + 3 || y >= L.glassTop - 3;
-      g.set(x, y, z, clamp ? METAL_DD : outer && y % 9 !== 0 ? MAG : METAL_D);
-    }
-    // clamp collars
-    for (const y of [L.baseTop + 2, L.glassTop - 2]) blob(g, cx, y, cz, 2.2, 1, 2.2, METAL);
+  const { a, cx, cz } = strutAt(i);
+  const ox = Math.cos(a), oz = Math.sin(a);
+  for (let y = L.baseTop + 1; y <= L.glassTop - 1; y++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    const x = Math.round(cx + dx), z = Math.round(cz + dz);
+    // the outer face of the strut carries a magenta Mega-Tech stripe
+    const outer = (x + 0.5 - cx) * ox + (z + 0.5 - cz) * oz > 0.9;
+    const clamp = y <= L.baseTop + 3 || y >= L.glassTop - 3;
+    g.set(x, y, z, clamp ? METAL_DD : outer && y % 9 !== 0 ? MAG : METAL_D);
   }
+  // clamp collars
+  for (const y of [L.baseTop + 2, L.glassTop - 2]) blob(g, cx, y, cz, 2.2, 1, 2.2, METAL);
   return g;
 }
 
@@ -140,7 +143,11 @@ let geoCache = null;
 function geos() {
   if (geoCache) return geoCache;
   const b = (g, n = 160) => g.build({ scale: V, pivot: [0, 0, 0], jitter: 0.02, maxSamples: n });
-  geoCache = { base: b(baseGrid(), 260), struts: b(strutGrid(), 80), lid: b(lidGrid(), 200) };
+  geoCache = {
+    base: b(baseGrid(), 260), lid: b(lidGrid(), 200),
+    // each strut pivots at its foot so it can topple outwards on the burst
+    struts: [0, 1, 2, 3].map((i) => { const { cx, cz } = strutAt(i); return strutGrid(i).build({ scale: V, pivot: [cx + 0.5, L.baseTop, cz + 0.5], jitter: 0.02, maxSamples: 30 }); }),
+  };
   return geoCache;
 }
 
@@ -278,8 +285,14 @@ class Containment {
     const base = makeMesh(g.base, Mats.toyPair);
     base.receiveShadow = true;
     this.body.add(base);
-    this.struts = makeMesh(g.struts, Mats.toyPair);
-    this.body.add(this.struts);
+    this.struts = g.struts.map((geo, i) => {
+      const { a, cx, cz } = strutAt(i);
+      const m = makeMesh(geo, Mats.toyPair);
+      m.position.set((cx + 0.5) * V, L.baseTop * V, (cz + 0.5) * V);
+      m.userData = { a };
+      this.body.add(m);
+      return m;
+    });
     // glowing seat ring + under-glow on the floor
     this.ringMat = this.mat(new THREE.MeshBasicMaterial({ color: this.accent, toneMapped: false, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide }));
     const ringGeo = this.geo(new THREE.RingGeometry(R - 0.05, R + 0.06, 48));
@@ -505,6 +518,8 @@ class Containment {
       out.push(this.lid);
     }
     this.shards = out;
+    // the cage breaks: struts topple outwards (flown by updateShards; not returned)
+    this.struts.forEach((m, i) => { m.userData.fall = { t: -0.05 * i - Math.random() * 0.1, w: 0, axis: new THREE.Vector3(-Math.sin(m.userData.a), 0, Math.cos(m.userData.a)) }; });
     this.glowTarget = Math.max(this.glowTarget, 1.2);
     return out;
   }
@@ -512,6 +527,17 @@ class Containment {
   /** Fly burst shards: gravity, a bounce on the ground, then shrink away. */
   updateShards(dt) {
     if (!this.selfPhysics || !this.shards?.length) return;
+    for (const m of this.struts) {
+      const f = m.userData.fall;
+      if (!f || !m.visible) continue;
+      f.t += dt;
+      if (f.t < 0) continue;
+      f.w += dt * 9; // angular acceleration
+      f.ang = Math.min(1.75, (f.ang ?? 0) + f.w * dt);
+      m.quaternion.setFromAxisAngle(f.axis, -f.ang);
+      if (f.t > 1.6) m.scale.multiplyScalar(0.88);
+      if (f.t > 2.1) m.visible = false;
+    }
     const g = 16 / this.scale; // world gravity in body-local units
     for (const m of this.shards) {
       const u = m.userData;

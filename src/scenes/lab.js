@@ -269,6 +269,19 @@ export class LabScene {
       l.position.set(i * 3.8, 7.3, -2);
       s.add(l);
     }
+    // neon trims along the walls (pink baseboard, cyan chair rail) for that bubbly lab glow
+    const trim = (w, y, col, x, z, ry) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, 0.05), glow(col, 2.1));
+      m.position.set(x, y, z);
+      m.rotation.y = ry;
+      s.add(m);
+    };
+    trim(19.6, 0.16, 0xff2e88, 0, -7.9, 0);
+    trim(19.6, 3.9, 0x29e0ff, 0, -7.9, 0);
+    for (const side of [-1, 1]) {
+      trim(15.6, 0.16, 0xff2e88, side * 9.9, -1, Math.PI / 2);
+      trim(15.6, 3.9, 0x29e0ff, side * 9.9, -1, Math.PI / 2);
+    }
     // glowing floor strip to the bench
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 7).rotateX(-Math.PI / 2), glow(0x29e0ff, 2.2, 0.85));
     strip.position.set(-0.9, 0.02, -1.6);
