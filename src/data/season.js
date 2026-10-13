@@ -48,12 +48,12 @@ export const SEASON_CHALLENGES = [
   { id: 'useFoodThrow', text: 'Use Food Throw {n} times', n: 4, cal: 100, stat: 'castfoodThrow' },
   { id: 'martBattles', text: 'Battle {n} times at Beast Mart', n: 2, cal: 120, stat: 'martBattles' },
   { id: 'openVials', text: 'Open {n} vials', n: 2, cal: 100, stat: 'vialsOpened' },
-  { id: 'destroyLabs', text: 'Destroy {n} enemy Labs', n: 2, cal: 130, stat: 'wins' },
+  { id: 'unleashMega', text: 'Unleash your MEGA {n} times', n: 2, cal: 160, stat: 'megasUsed' },
   { id: 'useSignature', text: 'Use your Commander signature {n} times', n: 4, cal: 110, stat: 'signatures' },
   { id: 'deployTroops', text: 'Deploy {n} troops', n: 40, cal: 110, stat: 'deployed' },
   { id: 'smashCarts', text: 'Smash {n} shopping carts', n: 6, cal: 90, stat: 'cartsSmashed' },
-  { id: 'crowns', text: 'Earn {n} crowns', n: 6, cal: 120, stat: 'crowns' },
-  { id: 'threeCrown', text: 'Win {n} battle with 3 crowns', n: 1, cal: 150, stat: 'threeCrowns' },
+  { id: 'bases', text: 'Destroy {n} rival bases', n: 3, cal: 120, stat: 'basesDestroyed' },
+  { id: 'baseUp', text: 'Upgrade your base {n} times', n: 6, cal: 150, stat: 'baseUpgrades' },
 ];
 
 export const BANNERS = {

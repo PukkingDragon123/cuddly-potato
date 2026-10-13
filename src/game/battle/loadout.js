@@ -1,6 +1,6 @@
 // Builds a battle side config (deck, Commander, perks, Lab Level, cosmetics)
 // from the player's profile. Shared by battles and the friend-battle lobby.
-import { state, deployInfo, perkBonuses, currentDeck, labLevel } from '../state.js';
+import { state, deployInfo, perkBonuses, currentDeck, labLevel, equippedMega } from '../state.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { CMD_SKINS } from '../../data/season.js';
 
@@ -28,7 +28,7 @@ export function playerSide() {
   const cs = p.commanders.owned[cid];
   const commander = commanderCfg(cid, cs?.level ?? 1, cs?.skin);
   return {
-    name: p.name, deck, commander, perks: perkBonuses(), labLevel: labLevel(),
+    name: p.name, deck, commander, perks: perkBonuses(), labLevel: labLevel(), mega: equippedMega(),
     labStyle: p.cosmetics.labSkin === 'default' ? 'default' : p.cosmetics.labSkin,
     banner: p.cosmetics.banner, trophies: p.trophies,
   };

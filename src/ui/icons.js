@@ -11,6 +11,7 @@ const C = {
   purple: '#a35cff', purpleL: '#d4aaff', purpleD: '#5e2aa8', orange: '#ff8a1f', orangeL: '#ffc06a', orangeD: '#c04a10',
   silver: '#cdd5ea', silverD: '#7e8aa8', brown: '#a0602e', brownD: '#653818', teal: '#3ff2c8', tealD: '#13a08a',
   skin: '#f2c4a2', choco: '#6a3a1e', gray: '#8a96b8', grayD: '#4e5878',
+  volt: '#3a6cff', voltL: '#5a9cff', voltD: '#2a2a9e',
 };
 
 class Pix {
@@ -128,11 +129,22 @@ def('crown', (p) => {
   p.circ(8, 3, 1.4, C.pink).circ(2.5, 5, 1.2, C.blue).circ(13.5, 5, 1.2, C.blue).circ(8, 9, 1.3, C.red);
   p.px(4, 9, C.goldL).px(5, 10, C.goldL);
 });
-def('energy', (p) => {
-  // Beast Energy drop (like elixir)
-  p.circ(8, 10, 5, C.mag).poly([[8, 1], [12.3, 8], [3.7, 8]], C.mag);
-  p.circ(8.6, 10.6, 3.2, C.pinkD).circ(8, 10, 3, C.mag);
-  p.rect(5, 8, 1, 3, C.pinkL).px(6, 6, C.pinkL).px(6, 7, C.white).px(5, 9, C.white);
+// POWER (the electric currency cards are played with): a charged energy cell
+// with a lightning bolt crackling through it.
+const powerCell = (p, boltCol, boltHi) => {
+  p.poly([[4.5, 1], [11.5, 1], [15, 4.5], [15, 11.5], [11.5, 15], [4.5, 15], [1, 11.5], [1, 4.5]], C.voltD);
+  p.poly([[5, 2.2], [11, 2.2], [13.8, 5], [13.8, 11], [11, 13.8], [5, 13.8], [2.2, 11], [2.2, 5]], C.volt);
+  p.poly([[5.4, 3.2], [10.6, 3.2], [12.8, 5.4], [12.8, 8], [3.2, 8], [3.2, 5.4]], C.voltL);
+  p.poly([[9.6, 0.6], [3.6, 9.2], [7.4, 9.2], [5.6, 15.4], [12.6, 6.4], [8.8, 6.4], [11.2, 0.6]], boltCol);
+  p.px(9, 3, boltHi).px(8, 4, boltHi).px(7, 5, boltHi).px(6, 6, boltHi).px(9, 8, boltHi).px(8, 10, boltHi).px(7, 12, boltHi);
+  for (const [x, y] of [[9, 3], [8, 4], [7, 5], [6, 6], [9, 8], [8, 10], [7, 12]]) p.flat(x, y);
+  p.px(3, 3, C.white).px(13, 12, C.cyan).px(2, 12, C.cyan);
+};
+def('power', (p) => powerCell(p, C.gold, C.white));
+def('energy', (p) => powerCell(p, C.gold, C.goldL)); // card cost badge (the number sits on top)
+def('powerBolt', (p) => {
+  p.poly([[10, 0.5], [3, 9.4], [7.6, 9.4], [5.4, 15.6], [13.2, 6.2], [8.8, 6.2], [11.8, 0.5]], C.gold);
+  for (const [x, y] of [[9, 2], [8, 3], [7, 5], [6, 7], [9, 8], [8, 10], [7, 12]]) p.px(x, y, C.white).flat(x, y);
 });
 def('vial', (p) => {
   p.rect(5, 1, 6, 3, C.pink).rect(4, 3, 8, 1, C.pinkD);

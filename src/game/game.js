@@ -14,6 +14,7 @@ const loaders = {
   islandview: () => import('../dev/islandView.js').then((m) => m.IslandViewScene),
   uibench: () => import('../dev/uiBench.js').then((m) => m.UiBenchScene),
   screenbench: () => import('../dev/screenBench.js').then((m) => m.ScreenBenchScene),
+  baseview: () => import('../dev/baseView.js').then((m) => m.BaseViewScene),
   vialopen: () => import('../scenes/vialOpen.js').then((m) => m.VialOpenScene),
 };
 

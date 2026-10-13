@@ -209,7 +209,7 @@ export function openCardInfo(id, ctx, opts = {}) {
           const list = [];
           if (coins) list.push({ type: 'coins', amount: coins });
           if (bucks) list.push({ type: 'bucks', amount: bucks });
-          showRewards(list, { title: `LAB LEVEL ${lu.level}!`, color: 'blue', hero: labBadge(lu.level, 'big mn-rw-hero'), note: 'Your Lab and turret got tougher: +7% HP and damage per level!', jingle: 'victory' });
+          showRewards(list, { title: `LAB LEVEL ${lu.level}!`, color: 'blue', hero: labBadge(lu.level, 'big mn-rw-hero'), note: 'Your base got tougher: +7% HP and damage per level!', jingle: 'victory' });
         }
       }, 1300);
     }, 520);

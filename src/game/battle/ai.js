@@ -1,11 +1,11 @@
 // Opponent AI for the card-cycle battle. Reads its hand like a player:
-// defends threats with counters dropped in front of its turret, saves energy
+// defends threats with counters dropped in front of its base, saves POWER
 // to build pushes (tank first, support behind), uses spells on clusters or to
-// finish towers, overclocks its Lab early and fires its Commander ability.
+// finish the base, upgrades its base, fires its Commander ability and its MEGA.
 // difficulty 0..1 controls reaction speed, patience and placement accuracy.
 import { SWARMS } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
-import { OVERCLOCK } from '../../data/labs.js';
+import { BASE_UPGRADES } from '../../data/labs.js';
 import { FIELD } from './field.js';
 
 const tankiness = (d) => d.hp * (1 + (d.traits?.armor ?? 0));
@@ -17,7 +17,7 @@ export class BattleAI {
     this.si = si;
     this.d = opts.difficulty ?? 0.5;
     this.thinkT = 1.6 - this.d * 0.8;
-    this.maxOverclock = opts.maxLab ?? opts.maxOverclock ?? 3;
+    this.maxOverclock = opts.maxLab ?? opts.maxOverclock ?? Math.round(1 + this.d * 4);
     this.noSpells = !!opts.noSpells;
     this.sigDelay = opts.sigDelay ?? 0;
     this.patience = 0.78 - this.d * 0.18; // how full energy should be before starting a push
@@ -46,7 +46,7 @@ export class BattleAI {
     this.thinkT = (1.05 - this.d * 0.7) * (0.7 + this.r() * 0.6);
     const si = this.si, s = sim.sides[si];
     const dir = s.dir;
-    const myFront = s.turret.alive ? s.turret : s.lab;
+    const myFront = s.lab;
     const enemies = sim.enemiesOf(si).filter((e) => e.state !== 'spawn');
     const allies = sim.alliesOf(si);
     // enemies close to (or past the centre towards) my buildings
@@ -62,9 +62,9 @@ export class BattleAI {
       this.defend(near, affordable, myFront);
       return;
     }
-    // overclock the Lab early when safe
-    const oc = OVERCLOCK[s.overclock];
-    if (oc.cost !== null && s.overclock < this.maxOverclock && sim.t < 70 + this.d * 40 && s.energy >= oc.cost + 2 && this.r() < 0.25 + this.d * 0.5) {
+    // upgrade the base when safe (smarter rivals invest earlier and further)
+    const oc = BASE_UPGRADES[s.overclock];
+    if (oc.cost !== null && s.overclock < this.maxOverclock && sim.t < 50 + s.overclock * 30 + this.d * 40 && s.energy >= oc.cost + 1 && this.r() < 0.2 + this.d * 0.5) {
       sim.upgradeLab(si);
       return;
     }
@@ -114,7 +114,7 @@ export class BattleAI {
       return v * (0.75 + this.r() * 0.5 * (1 - this.d));
     };
     const pick = troops.sort((a, b) => score(b) - score(a))[0];
-    // hold back slightly to let the turret help (smarter AIs wait for the enemy to reach turret range)
+    // hold back slightly to let the base cannon help (smarter AIs wait for the enemy to reach cannon range)
     const distToFront = (lead.x - myFront.x) * dir;
     if (distToFront > 8.5 && this.r() < this.d * 0.5) return;
     const range = pick.def.range ?? 1;
@@ -140,7 +140,7 @@ export class BattleAI {
         continue;
       }
       if (sp.id === 'labShield') {
-        const b = s.turret.alive ? s.turret : s.lab;
+        const b = s.lab;
         if (b.hp < b.maxHp * 0.5 && enemies.some((e) => Math.abs(e.x - b.x) < 4)) return sim.play(si, h.slot, b.x);
         continue;
       }
@@ -160,6 +160,14 @@ export class BattleAI {
 
   tryCommander(enemies, near) {
     const sim = this.sim, si = this.si, s = sim.sides[si];
+    // MEGA ultimate: save it for a real threat or a winning push
+    if (sim.canMega(si)) {
+      const allies = sim.alliesOf(si);
+      if ((near.length >= 3 || enemies.some((e) => e.boss || e.mega) || (allies.length >= 4 && enemies.length >= 2)) && this.r() < 0.4 + this.d * 0.5) {
+        sim.useMega(si);
+        return true;
+      }
+    }
     if (s.cmd && s.sig >= 1 && sim.t > this.sigDelay) {
       const worth = enemies.length >= 3 || near.length >= 2 || enemies.some((e) => e.boss);
       if (worth && this.r() < 0.35 + this.d * 0.6) {
@@ -173,7 +181,7 @@ export class BattleAI {
       const sk = s.skills[k];
       let use = false;
       if (['labRally', 'juanDance', 'lastToLeave'].includes(sk.id)) use = allies.length >= 3 && enemies.length >= 2;
-      else if (sk.id === 'emergencyRepair') { const b = s.turret.alive ? s.turret : s.lab; use = b.hp < b.maxHp * 0.6; }
+      else if (sk.id === 'emergencyRepair') use = s.lab.hp < s.lab.maxHp * 0.6;
       else if (['footballKick', 'subscribeSmash', 'complain'].includes(sk.id)) use = enemies.length >= 3 || near.length >= 2;
       else if (sk.id === 'luckyFail') use = this.r() < 0.5;
       if (use && this.r() < 0.3 + this.d * 0.6) {

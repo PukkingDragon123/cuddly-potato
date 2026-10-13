@@ -6,11 +6,12 @@
 // Also plays the arena-unlock cinematic when the player reaches a new arena.
 import * as THREE from 'three';
 import './home.css';
+import './home-mega.css';
 import { engine, addLights } from '../core/engine.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/particles.js';
 import { h, icon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
-import { charPortrait } from '../ui/thumbs.js';
+import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
 import { makeBeastIsland } from '../models/island/beastIsland.js';
 import { createSwarm } from '../models/swarmModels.js';
@@ -19,10 +20,11 @@ import { CHARACTERS } from '../data/characters.js';
 import { ARENAS, currentArena, bossOfArena, QUEST_NPC_ZONE, SECRETS } from '../data/arenas.js';
 import { VIALS, skipPrice } from '../data/vials.js';
 import { cardsOfArena, isSpell } from '../data/cards.js';
+import { MEGAS, MEGA_IDS } from '../data/megas.js';
 import { SWARMS } from '../data/swarms.js';
 import {
   state, labXpInfo, vialTimeLeft, isUnlocking, startUnlock, vialReady, skipVial, takeVial, freeVialStatus, claimFreeVial,
-  crownStatus, claimCrownVial, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
+  equipMega, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
 } from '../game/state.js';
 import { game } from '../game/game.js';
 
@@ -305,8 +307,8 @@ export class HomeScene {
     root.appendChild(h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill));
     // side buttons
     this.freeEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => this.openFree() }, vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
-    this.crownEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => this.openCrown() }, icon('crown'), h('div', { class: 't' }, 'CROWNS'), bar(0, 'gold', '0/10'));
-    root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.crownEl));
+    this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
+    root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl));
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only', { icon: 'gear' }),
       button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only', { icon: 'friends' }),
@@ -394,10 +396,15 @@ export class HomeScene {
     const fs = freeVialStatus();
     this.freeEl.classList.toggle('ready', fs.ready);
     this.freeEl.querySelector('.t').textContent = fs.ready ? `FREE${fs.count > 1 ? ' x' + fs.count : ''}` : fmtTime(fs.nextIn);
-    const cs = crownStatus();
-    this.crownEl.classList.toggle('ready', cs.ready);
-    this.crownEl.querySelector('.bar').set(cs.crowns / cs.goal, cs.claimed ? 'DONE' : `${cs.crowns}/${cs.goal}`);
-    this.crownEl.querySelector('.t').textContent = cs.ready ? 'OPEN!' : 'CROWNS';
+    const mg = state.p.megas;
+    const eq = mg?.equipped && MEGAS[mg.equipped];
+    if (eq && this.megaEl.dataset.id !== mg.equipped) {
+      this.megaEl.dataset.id = mg.equipped;
+      const img = h('img', { class: 'mg', src: swarmThumb(mg.equipped, mg.owned[mg.equipped].variant, null, 96) });
+      this.megaEl.querySelector('img')?.replaceWith(img);
+    }
+    this.megaEl.querySelector('.t').textContent = eq ? eq.name.toUpperCase() : 'MEGA';
+    this.megaEl.classList.toggle('locked', !eq);
   }
 
   updateSlots(force = false) {
@@ -552,10 +559,27 @@ export class HomeScene {
     claimFreeVial();
     this.openVial('free', null, 'free');
   }
-  openCrown() {
-    const cs = crownStatus();
-    if (cs.ready) { claimCrownVial(); this.openVial('crown', null, 'crown'); return; }
-    toast(cs.claimed ? 'Crown Case opened today - come back tomorrow!' : `Earn *${cs.goal - cs.crowns}* more crowns to open the Crown Case!`, { icon: 'crown' });
+  /** MEGA ultimates: the giant MEGA-TECH Mutator figures you unleash in battle. */
+  openMegas() {
+    const p = state.p;
+    const grid = h('div', { class: 'hm-megas' }, MEGA_IDS.map((id) => {
+      const M = MEGAS[id];
+      const own = p.megas.owned[id];
+      const eq = p.megas.equipped === id;
+      const el = h('div', { class: `hm-mega sk-panel-dark ${own ? '' : 'locked'} ${eq ? 'eq' : ''}` },
+        h('img', { src: swarmThumb(id, own?.variant ?? 'base', null, 160) }),
+        h('div', { class: 'nm t-d outline' }, M.name, own?.variant === 'gold' ? h('span', { class: 'c-gold' }, ' GOLD') : null),
+        h('div', { class: 'sp' }, icon('lightning'), M.special.name),
+        h('div', { class: 'ds' }, own ? M.desc : `Unlocks on the ${M.unlock}`),
+        own ? (eq ? h('div', { class: 'eqt t-d' }, 'EQUIPPED') : button('EQUIP', () => { equipMega(id); m.close(); this.refresh(); toast(`*${M.name}* is your MEGA ultimate!`, { icon: 'mega' }); }, 'green sm')) : h('div', { class: 'lk' }, icon('lock')));
+      return el;
+    }));
+    const m = modal({
+      title: 'MEGA ULTIMATES', color: 'pink', size: 'wide',
+      body: h('div', { class: 'col' },
+        h('div', { class: 'c-muted center-t t-sm' }, 'Charge your MEGA by fighting (damage + knockouts). Once your base is a *Trailer Lab* or better, unleash it ONCE per battle: it smashes out of its containment cup and stomps the lane!'),
+        grid),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -580,7 +604,7 @@ export class HomeScene {
     chibi.play('wave', { restart: true, dur: 1.2, then: 'idle' });
     audio.play('pop');
     if (!questNpc) {
-      const lines = ['This island is AMAZING. Jimmy built all of it!', 'Have you seen the Beast Tiger? It does NOT like being tapped.', 'Rumour says there are secrets hidden on every arena...', 'Win 3-crown victories to fill your Crown Case faster!'];
+      const lines = ['This island is AMAZING. Jimmy built all of it!', 'Have you seen the Beast Tiger? It does NOT like being tapped.', 'Rumour says there are secrets hidden on every arena...', 'Upgrade your base to a Trailer Lab to unlock your MEGA in battle!'];
       speech(chibi, lines[Math.floor(Math.random() * lines.length)], 3);
       return;
     }

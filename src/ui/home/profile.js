@@ -1,5 +1,5 @@
 // Profile modal: banner header with name/trophies/Lab Level, name editing,
-// career stats (wins, losses, 3-crown wins, best trophies, cards found,
+// career stats (wins, losses, bases destroyed, MEGAs, best trophies, cards found,
 // favourite card...), banner and Lab skin choice.
 import { h, icon, button, modal, sparkle, bump, clear } from '../ui.js';
 import { cardEl } from '../cards.js';
@@ -80,7 +80,8 @@ export function openProfile(ctx) {
     return h('div', { class: 'mn-pstats' },
       tile('check', 'Wins', fmtN(s.wins)),
       tile('x', 'Losses', fmtN(s.losses)),
-      tile('crown', 'Three-Crown Wins', fmtN(s.threeCrowns ?? 0)),
+      tile('lab', 'Bases Destroyed', fmtN(s.basesDestroyed ?? 0)),
+      tile('mega', 'MEGAs Unleashed', fmtN(s.megasUsed ?? 0)),
       tile('trophy', 'Best Trophies', fmtN(p.bestTrophies)),
       tile('cards', 'Cards Found', `${found}/${ALL_CARDS.length}`),
       tile('swords', 'Battles', fmtN(s.battles)),

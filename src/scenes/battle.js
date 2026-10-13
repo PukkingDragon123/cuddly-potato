@@ -6,7 +6,8 @@
 //   * or drag a card straight onto the battlefield
 //   * double-tap a card to drop it right in front of your Lab
 //   * drag the battlefield to pan, pinch / mouse-wheel to zoom, tap the minimap to jump
-//   * keys: 1-4 select, Space/Enter drop at the Lab, Q signature, W/E skills, O overclock
+//   * keys: 1-4 select, Space/Enter drop at the base, Q signature, W/E skills,
+//     O upgrade base, M / R unleash the MEGA ultimate
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
@@ -56,6 +57,8 @@ export class BattleScene {
       arenaId = 'lab';
       me.deck = STARTER_DECK.filter((id) => id !== 'moneyDrop').map((id) => deckEntry(id, 1));
       me.labLevel = 1;
+      // Jimmy lends you a MEGA-TECH Panthar for the finale
+      me.mega = { id: 'panthar', variant: 'base', level: 1 };
       enemy = {
         name: 'Jimmy', deck: ['panther', 'toiletRollRipper', 'cloggedToilet', 'trashedCan'].map((id) => deckEntry(id, 1)),
         commander: commanderCfg('jimmy', 1), perks: {}, labStyle: 'mansion', labLevel: 1, hpMult: 0.55, clan: 'MrBeast Lab',
@@ -84,7 +87,7 @@ export class BattleScene {
     } else {
       const g = params.opponent ?? ghostOpponent(p.trophies, Date.now(), arenaId);
       enemy = {
-        name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), perks: {},
+        name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), perks: g.perks ?? {}, hpMult: g.hpMult, mega: g.mega ?? null,
         labStyle: ['rival', 'martLab', 'chocoLab', 'default'][g.name.length % 4], labLevel: g.labLevel, banner: g.banner, trophies: g.trophies, clan: g.clan, ghost: true,
       };
       this.opponentTrophies = g.trophies;
@@ -131,6 +134,7 @@ export class BattleScene {
       signature: () => this.trySignature(),
       skill: (k) => this.trySkill(k),
       overclock: () => this.tryOverclock(),
+      mega: () => this.tryMega(),
       pause: () => this.pauseMenu(),
       emote: (i) => this.sendEmote(i),
       minimap: (x) => this.view.focus(x, 4),
@@ -191,7 +195,7 @@ export class BattleScene {
   // Card selection, drag & deploy
 
   canAct() {
-    return this.ready && !this.ended && !this.sim.over && !(this.sim.paused && !(this.sim instanceof RemoteSim));
+    return this.ready && !this.ended && !this.sim.over && !this.sim.cinematic && !(this.sim.paused && !(this.sim instanceof RemoteSim));
   }
   allowed(what) {
     return !this.lockInput || this.lockInput === what || (this.lockInput === 'deploy' && what.startsWith('deploy'));
@@ -275,7 +279,7 @@ export class BattleScene {
   }
 
   // -------------------------------------------------------------------------
-  // Commander + overclock + emotes
+  // Commander + base upgrade + MEGA + emotes
 
   trySignature() {
     if (!this.canAct() || !this.allowed('sig')) return;
@@ -305,9 +309,17 @@ export class BattleScene {
     if (this.sim.upgradeLab(0)) this.onTut && this.onTut('lab');
     else {
       const info = this.sim.overclockInfo(0);
-      if (info.cost === null) this.hud.hint('Lab fully overclocked!');
+      if (info.cost === null) this.hud.hint('Your base is MAXED: Mega HQ!');
       else this.hud.needEnergy(info.cost);
     }
+  }
+  tryMega() {
+    if (!this.canAct() || !this.allowed('mega')) return;
+    if (this.sim.canMega(0) && this.sim.useMega(0)) {
+      this.select(-1);
+      this.hud.dragEnd();
+      this.onTut && this.onTut('mega');
+    } else this.hud.megaDeny();
   }
   sendEmote(i) {
     if (this.ended) return;
@@ -323,6 +335,17 @@ export class BattleScene {
 
   onSimEvent(ev) {
     if (ev.type === 'end') this.endReason = ev.reason;
+    else if (ev.type === 'labUp' && ev.side === 0) this.baseUps = (this.baseUps ?? 0) + 1;
+    else if (ev.type === 'megaStart') {
+      if (ev.side === 0) this.megasUsed = (this.megasUsed ?? 0) + 1;
+      this.select(-1);
+      this.hud.dragEnd();
+      closeDialogue();
+      this.hud.setCinematic(true);
+    } else if (ev.type === 'megaLand') {
+      this.hud.setCinematic(false);
+      this.onTut && this.onTut('megaLand');
+    }
     this.hud.onEvent(ev);
     if (!this.ai || this.ended) return;
     // the AI rival reacts with emotes now and then
@@ -454,6 +477,7 @@ export class BattleScene {
       else if (k === 'w') this.trySkill(0);
       else if (k === 'e') this.trySkill(1);
       else if (k === 'o') this.tryOverclock();
+      else if (k === 'm' || k === 'r') this.tryMega();
       else if (k === 'escape') { if (this.sel >= 0) this.select(-1); else this.pauseMenu(); }
       else if (k === 'arrowleft' || k === 'a') this.view.pan(engine.width * 0.15);
       else if (k === 'arrowright' || k === 'd') this.view.pan(-engine.width * 0.15);
@@ -538,20 +562,20 @@ export class BattleScene {
     const until = (kind) => new Promise((res) => (this.onTut = (k, slot, id) => { if (k === kind) { this.onTut = null; res({ slot, id }); } }));
     const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
     if (ch) ch.expr('happy', 'grin', 3);
-    await talk("Welcome to the *Beast Lab* arena! Your Lab is on the LEFT, mine's on the RIGHT. Knock down my *Panther Cannon* turret, then smash my Lab!");
+    await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Tent*. Mine's on the RIGHT. *Smash my base to win!*");
     // 1) drag a Panther onto the field
     let pslot = slotOf('panther');
     if (pslot < 0) pslot = 0;
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
-    await talk('Your Swarms march and fight *on their own*. *Drag* a card onto the battlefield to drop it in a lab vial. Try it!');
+    await talk('Your Swarms march and fight *on their own*. *Drag* a card onto the battlefield to drop it. Try it!');
     this.lockInput = 'deploy';
     remove = pointAt(() => this.hud.slotEl(slotOf('panther') >= 0 ? slotOf('panther') : 0), 'Drag me up!');
     await until('deploy');
     clearPtr();
     this.lockInput = null;
     await wait(2.2);
-    // 2) energy
-    await talk('Every card costs *energy* (the pink bar). It refills over time, so plan your pushes! The card on the left is your *NEXT* card.');
+    // 2) power
+    await talk('Every card costs electric *POWER* (the yellow bar). It recharges by itself, so plan your pushes! The small card is your *NEXT* card.');
     // 3) tap-to-place
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
     await talk("You can also *tap* a card, then *tap* where you want it. Drop a ranged Swarm *behind* your Panther!");
@@ -562,7 +586,7 @@ export class BattleScene {
     this.lockInput = null;
     // 4) defend
     await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);
-    await talk("Here come my Swarms! Your *turret* shoots anything close, but drop troops to *defend* too.");
+    await talk("Here come my Swarms! Your base *zaps* anything close, but drop troops to *defend* too.");
     // 5) Food Throw when troops are hurt
     await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.7) || sim.t > 50);
     const fslot = slotOf('foodThrow');
@@ -576,38 +600,62 @@ export class BattleScene {
       clearPtr();
       this.lockInput = null;
     }
-    // 6) overclock
-    await waitFor(() => sim.sides[0].energy >= 3 || sim.t > 70);
+    // 6) base upgrade
+    await waitFor(() => sim.t > 40 || sim.over);
     if (!sim.over) {
-      sim.sides[0].energy = Math.max(sim.sides[0].energy, 3);
-      await talk('Pro tip: *OVERCLOCK* your Lab to make energy faster for the rest of the match. Spend wisely!');
+      sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
+      this.view.focus(sim.sides[0].labX + 6, 5);
+      await talk('That tent is kinda sad. Spend POWER to *UPGRADE YOUR BASE*: Tent, Shack, Trailer... all the way to *MEGA HQ*! Each tier = more HP, a stronger zapper and *more max POWER*.');
       this.lockInput = 'lab';
-      remove = pointAt(this.hud.ocBtn, 'Overclock!');
+      remove = pointAt(this.hud.ocBtn, 'Upgrade!');
       await until('lab');
       clearPtr();
       this.lockInput = null;
+      await wait(1.6);
     }
     // 7) Commander signature
-    await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 85 || sim.over);
+    await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
     if (!sim.over) {
       sim.sides[0].sig = 1;
-      await talk("That's YOU on top of your Lab - the *Commander*! Your ability is charged: tap your portrait for *Beaker Barrage*!");
+      await talk("That's YOU on top of your base - the *Commander*! Your ability is charged: tap your portrait for *Beaker Barrage*!");
       this.lockInput = 'sig';
       remove = pointAt(this.hud.sig, 'Unleash!');
       await until('sig');
       clearPtr();
       this.lockInput = null;
       await wait(2);
-      await talk("Okay, not bad! Now take down my turret and my Lab. I'm not going easy! (I'm going a little easy.)");
+      await talk("Okay, not bad! Now push into my base. I'm not going easy! (I'm going a little easy.)");
     }
-    // Jimmy shows off his giveaway when his Lab is hurt
-    await waitFor(() => !sim.sides[1].turret.alive || sim.over);
+    // Jimmy fights back with his giveaway when his base is hurt
+    const jLab = sim.sides[1].lab;
+    await waitFor(() => jLab.hp < jLab.maxHp * 0.8 || sim.t > 110 || sim.over);
     if (!sim.over) {
-      await talk('My turret! You earned a *CROWN*. Each tower is a crown - my Lab is worth all 3!');
       sim.sides[1].sig = 1;
       sim.useSignature(1);
-      await wait(1.6);
+      await wait(1.4);
       if (!sim.over) await talk("Ha! My *Mega Giveaway* distracts your Swarms with cash! Don't worry, Commanders recharge. Keep pushing!");
+    }
+    // 8) the MEGA ultimate (borrowed Panthar)
+    await waitFor(() => jLab.hp < jLab.maxHp * 0.6 || sim.t > 150 || sim.over);
+    const m = sim.sides[0].mega;
+    if (!sim.over && m && !m.used) {
+      await talk("Okay... you're ready. I'm lending you something *TOP SECRET*: a *MEGA-TECH MUTATOR* figure! It needs at least a *Trailer Lab*, so here's a free upgrade.");
+      while (sim.sides[0].overclock + 1 < 3 && !sim.over) {
+        sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 0);
+        sim.upgradeLab(0);
+        await wait(0.9);
+      }
+      m.charge = 1;
+      sim.emit('megaReady', { side: 0 });
+      await talk('Your *MEGA* charges up when you deal damage - and you only get ONE per battle. It\'s FULL right now. *Unleash it!*');
+      this.lockInput = 'mega';
+      remove = pointAt(this.hud.megaEl, 'MEGA!');
+      await until('mega');
+      clearPtr();
+      this.lockInput = null;
+      await until('megaLand');
+      await wait(1.5);
+      if (!sim.over) await talk("WHAT IS THAT THING?! Okay okay, it's yours for this fight! Earn your OWN Megas on the *Trophy Road*.");
     }
   }
 
@@ -628,10 +676,10 @@ export class BattleScene {
     if (labFell) await wait(2.4);
     else {
       const why = {
-        tiebreak: ['TIEBREAKER!', 'The most damaged tower loses'],
+        tiebreak: ['TIEBREAKER!', 'The most damaged base loses'],
         surrender: ['SURRENDER', win ? 'Your rival gave up!' : 'You gave up...'],
         forfeit: ['FORFEIT', 'Your rival left the battle'],
-      }[this.endReason] ?? (sim.draw ? ["TIME'S UP!", 'Too close to call!'] : ['TIME!', 'Most crowns wins!']);
+      }[this.endReason] ?? (sim.draw ? ["TIME'S UP!", 'Too close to call!'] : ["TIME'S UP!", 'The healthier base wins!']);
       bigBanner(why[0], why[1], { dur: 1.6, color: '#ffd84a' });
       audio.play('bell');
       await wait(1.6);
@@ -649,23 +697,30 @@ export class BattleScene {
     stat('signatures', st.sigs);
     for (const k in st) if (k.startsWith('cast_')) stat('cast' + k.slice(5), st[k]);
     if (this.view.cartsSmashed) stat('cartsSmashed', this.view.cartsSmashed);
-    const crowns = [sim.sides[0].crowns, sim.sides[1].crowns];
+    if (this.baseUps) stat('baseUpgrades', this.baseUps);
+    if (this.megasUsed) stat('megasUsed', this.megasUsed);
+    if (win && !sim.sides[1].lab.alive) stat('basesDestroyed');
+    // base report for the result screen: HP left + tier reached
+    const bases = [0, 1].map((i) => {
+      const b = sim.sides[i].lab;
+      return { frac: Math.max(0, b.hp / b.maxHp), alive: b.alive, tier: sim.sides[i].overclock };
+    });
     const names = [this.cfg.sides[0].name, this.cfg.sides[1].name];
-    if (this.mode === 'tutorial') return this.tutorialEnd(win, crowns, names);
-    if (this.mode === 'friend') return this.friendEnd(res, crowns, names);
-    const rewards = battleRewards({ result: res, crowns: crowns[0], enemyCrowns: crowns[1], arenaId: this.arenaId, mode: this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
+    if (this.mode === 'tutorial') return this.tutorialEnd(win, bases, names);
+    if (this.mode === 'friend') return this.friendEnd(res, bases, names);
+    const rewards = battleRewards({ result: res, margin: bases[0].frac, arenaId: this.arenaId, mode: this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
     state.save();
     const again = this.mode === 'boss' ? 'RETRY' : this.mode === 'practice' ? 'AGAIN' : null;
     const btns = [{ id: 'ok', label: 'OK', color: 'blue' }];
     if (again) btns.unshift({ id: 'again', label: again, color: 'yellow', icon: 'swords' });
-    const choice = await showResult($overlay(), { result: res, crowns, names, rewards, mode: this.mode, buttons: btns });
+    const choice = await showResult($overlay(), { result: res, bases, names, rewards, mode: this.mode, buttons: btns });
     if (choice === 'again') game.go('battle', this.mode === 'boss' ? { mode: 'boss', bossId: this.params.bossId } : { mode: this.mode, arena: this.arenaId });
     else game.go('home', { from: 'battle', rewards });
   }
 
-  async tutorialEnd(win, crowns, names) {
+  async tutorialEnd(win, bases, names) {
     const J = JIMMY();
-    await showResult($overlay(), { result: win ? 'win' : 'loss', crowns, names, rewards: null, mode: 'tutorial', buttons: [{ id: 'ok', label: 'OK', color: 'blue' }] });
+    await showResult($overlay(), { result: win ? 'win' : 'loss', bases, names, rewards: null, mode: 'tutorial', buttons: [{ id: 'ok', label: 'OK', color: 'blue' }] });
     if (!win) {
       await say(J, "Oof! Happens to everyone. Let's run it back - drop a tanky Panther in front and ranged Swarms behind!");
       game.go('battle', { mode: 'tutorial' });
@@ -677,7 +732,7 @@ export class BattleScene {
     game.go('title', { tutorial: 'briefcase' });
   }
 
-  async friendEnd(res, crowns, names) {
+  async friendEnd(res, bases, names) {
     const host = this.params.role !== 'guest';
     const peer = this.peer;
     const btns = [{ id: 'ok', label: 'OK', color: 'blue' }];
@@ -689,7 +744,7 @@ export class BattleScene {
         game.go('battle', { mode: 'friend', role: 'guest', remote: msg.host, arena: msg.arena });
       });
     }
-    const choice = await showResult($overlay(), { result: res, crowns, names, rewards: null, mode: 'friend', buttons: btns });
+    const choice = await showResult($overlay(), { result: res, bases, names, rewards: null, mode: 'friend', buttons: btns });
     if (choice === 'rematch') {
       const me = this.cfg.sides[0];
       peer.send({ t: 'start', host: me, guest: this.params.remote, arena: this.arenaId });

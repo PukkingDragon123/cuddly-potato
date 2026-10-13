@@ -1,16 +1,20 @@
-// Battle HUD (DOM), Clash Royale layout in the pixel-art skin:
-//   top    - your (blue) and the rival's (red) name banners with 3 crown slots,
-//            the match timer with 2x / overtime tags, a lane minimap
+// Battle HUD (DOM), Clash Royale layout in the bubbly lab skin:
+//   top    - your (blue) and the rival's (red) name banners with each base's
+//            HP bar + tier, the match timer with 2x / overtime tags, a lane
+//            minimap
 //   bottom - Commander portrait (signature charge) + skills, the hand of 4
-//            cards with the NEXT card, the segmented energy bar, the Lab
-//            overclock button and emotes.
+//            cards with the NEXT card, the segmented electric POWER bar (one
+//            cell per point; grows with the base tier), the BASE upgrade
+//            button, the MEGA ultimate button and emotes.
 // Input on cards is forwarded to the battle scene (tap/drag to deploy).
 import './battle.css';
 import { h, icon, iconURL, button, bigBanner, speech, sparkle, bump } from '../../ui/ui.js';
 import { cardEl } from '../../ui/cards.js';
 import { charPortrait } from '../../ui/thumbs.js';
 import { cardDef } from '../../data/cards.js';
-import { OVERCLOCK, ENERGY } from '../../data/labs.js';
+import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
+import { MEGAS } from '../../data/megas.js';
+import { swarmThumb } from '../../ui/thumbs.js';
 import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
 import { FIELD } from './field.js';
@@ -32,7 +36,7 @@ export const EMOTES = [
 
 export class BattleHUD {
   /**
-   * handlers: { press(slot, event), signature(), skill(k), overclock(), pause(), emote(i), minimap(x) }
+   * handlers: { press(slot, event), signature(), skill(k), overclock(), mega(), pause(), emote(i), minimap(x) }
    */
   constructor(sim, view, cfg, handlers) {
     this.sim = sim;
@@ -46,18 +50,20 @@ export class BattleHUD {
     // ------------------------------------------------------------ top
     const side = (i) => {
       const c = cfg.sides[i];
-      const crowns = [0, 1, 2].map(() => icon('crown'));
+      const fill = h('i', { class: 'f' }), ghost = h('i', { class: 'g' });
+      const tier = h('span', { class: 'tn' }, BASE_UPGRADES[0].name);
+      const hpv = h('span', { class: 'hv' }, '');
       const el = h('div', { class: `bh-side s${i}` },
         h('div', { class: 'bh-name' },
           h('span', { class: 'nm' }, c.name ?? (i ? 'Rival' : 'You')),
           c.trophies !== undefined ? h('span', { class: 'tr' }, icon('trophy'), String(c.trophies)) : null),
         c.clan || c.ghost ? h('div', { class: 'bh-sub' }, c.clan ?? '', c.ghost ? (c.clan ? ' - ' : '') + 'AI rival' : '') : null,
-        h('div', { class: 'bh-crowns' }, crowns));
-      return { el, crowns, shown: 0 };
+        h('div', { class: 'bh-base' }, icon('lab'), h('div', { class: 'bb' }, h('b', { class: 'bhp' }, ghost, fill, hpv), tier)));
+      return { el, fill, ghost, tier, hpv, ghostFrac: 1, lastHp: -1, lastTier: -1 };
     };
     this.sides = [side(0), side(1)];
     this.tm = h('div', { class: 'tm' }, fmtT(sim.timeLeft));
-    this.tag = h('div', { class: 'tag hidden' }, '2x ENERGY');
+    this.tag = h('div', { class: 'tag hidden' }, '2x POWER');
     this.timer = h('div', { class: 'bh-timer' }, h('div', { class: 'lbl' }, 'Time left'), this.tm, this.tag);
     root.appendChild(h('div', { class: 'bh-top' }, this.sides[0].el, this.timer, this.sides[1].el));
 
@@ -66,9 +72,9 @@ export class BattleHUD {
     this.miniWin = h('i', { class: 'win' });
     this.mini.appendChild(this.miniWin);
     this.miniTowers = [];
-    for (const si of [0, 1]) for (const kind of ['lab', 'turret']) {
-      const b = sim.sides[si][kind];
-      const el = h('i', { class: `twr ${kind} s${si}` });
+    for (const si of [0, 1]) {
+      const b = sim.sides[si].lab;
+      const el = h('i', { class: `twr lab s${si}` });
       el.style.left = this.mx(b.x) + '%';
       this.mini.appendChild(el);
       this.miniTowers.push({ el, b });
@@ -108,12 +114,30 @@ export class BattleHUD {
       });
       if (this.skillEls.length) this.cmdEl.appendChild(h('div', { class: 'bh-skills' }, this.skillEls.map((s) => s.el)));
     }
-    // right: emote + overclock
-    this.ocBtn = button(h('span', { class: 'oc' }, h('b', {}, 'OVERCLOCK'), h('span', { class: 'ocv' }, 'x1.0'), h('small', { class: 'occ' }, '')), () => handlers.overclock(), 'purple sm bh-oc', { icon: 'lab' });
-    this.ocV = this.ocBtn.querySelector('.ocv');
-    this.ocC = this.ocBtn.querySelector('.occ');
+    // right: emote + base upgrade + MEGA ultimate
+    this.ocV = h('span', { class: 'ocv' }, '');
+    this.ocC = h('small', { class: 'occ' }, '');
+    this.ocBtn = button(h('span', { class: 'oc' }, h('b', {}, 'UPGRADE BASE'), this.ocV, this.ocC), () => handlers.overclock(), 'purple sm bh-oc', { icon: 'lab' });
     this.emoteBtn = button('', () => this.toggleEmotes(), 'blue sm icon-only bh-emote', { icon: 'emote' });
-    this.rightEl = h('div', { class: 'bh-right' }, this.emoteBtn, this.ocBtn);
+    this.megaEl = null;
+    if (s0.mega) {
+      const def = MEGAS[s0.mega.id];
+      this.megaLiq = h('div', { class: 'liq' }, h('i', { class: 'bub' }), h('i', { class: 'bub' }), h('i', { class: 'bub' }));
+      this.megaPct = h('div', { class: 'pct' }, '0%');
+      this.megaLock = h('div', { class: 'lockt' }, icon('lock'), `Needs ${BASE_UPGRADES[MEGA.minTier - 1].name}`);
+      this.megaEl = h('div', { class: 'bh-mega hit', title: def?.name ?? 'MEGA', style: { '--mc': def?.color ?? '#ff2e88', '--mb': def?.bolt ?? '#ff2e88' } },
+        this.megaLiq,
+        h('img', { class: 'mg', src: swarmThumb(s0.mega.id, s0.mega.variant ?? 'base', null, 128), alt: '' }),
+        h('div', { class: 'tg' }, icon('mega'), 'MEGA'),
+        this.megaPct, this.megaLock);
+      this.megaEl.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        audio.unlock();
+        if (this.sim.canMega(0)) handlers.mega?.();
+        else this.megaDeny();
+      });
+    }
+    this.rightEl = h('div', { class: 'bh-right' }, this.emoteBtn, this.ocBtn, this.megaEl);
 
     // hand + next
     this.slots = [0, 1, 2, 3].map((i) => {
@@ -123,10 +147,11 @@ export class BattleHUD {
     });
     this.nextBox = h('div', { class: 'bh-next' }, h('div', { class: 'lbl' }, 'NEXT'));
     this.nextKey = null;
-    this.drop = h('div', { class: 'bh-drop', style: { backgroundImage: `url(${iconURL('energy')})` } }, '5');
-    this.segs = Array.from({ length: ENERGY.max }, () => h('div', { class: 'seg' }, h('i')));
+    this.drop = h('div', { class: 'bh-drop', style: { backgroundImage: `url(${iconURL('power')})` } }, '5');
+    this.segs = [];
     this.rate = h('span', { class: 'rate hidden' }, '');
-    this.ebar = h('div', { class: 'bh-ebar' }, this.segs, this.rate);
+    this.ebar = h('div', { class: 'bh-ebar' }, this.rate);
+    this.setSegs(sim.maxPower(0));
     this.energyRow = h('div', { class: 'bh-energy' }, this.drop, this.ebar);
     this.deck = h('div', { class: 'bh-deck' },
       h('div', { class: 'bh-row' }, this.nextBox, h('div', { class: 'bh-hand' }, this.slots.map((s) => s.el))),
@@ -139,6 +164,16 @@ export class BattleHUD {
 
   mount(parent) {
     parent.appendChild(this.root);
+  }
+
+  /** (Re)build the POWER cells: one per point of max power. */
+  setSegs(n) {
+    if (n === this.segs.length) return;
+    for (const seg of this.segs) seg.remove();
+    this.segs = Array.from({ length: n }, () => h('div', { class: 'seg' }, h('i')));
+    for (const seg of this.segs) this.ebar.insertBefore(seg, this.rate);
+    this.ebar.style.setProperty('--segs', n);
+    this.lastE = -1;
   }
 
   /** % position of a world x on the minimap. */
@@ -228,7 +263,7 @@ export class BattleHUD {
     setTimeout(() => el.remove(), 1400);
   }
   needEnergy(cost) {
-    this.hint(`Need ${cost} energy!`);
+    this.hint(`Need ${cost} power!`);
     this.energyRow.classList.remove('shake');
     void this.energyRow.offsetWidth;
     this.energyRow.classList.add('shake');
@@ -273,57 +308,44 @@ export class BattleHUD {
         if (ev.side === 0) this.refreshHand();
         break;
       case 'doubleEnergy':
-        bigBanner('2X ENERGY!', 'Last minute - spend it fast!', { dur: 1.6, color: '#ff7ac0' });
+        bigBanner('2X POWER!', 'Last minute - spend it fast!', { dur: 1.6, color: '#ffd84a' });
         audio.play('bell');
         break;
       case 'overtime':
-        bigBanner('OVERTIME!', 'Next tower down wins!', { dur: 1.8, color: '#ffb84a' });
+        bigBanner('OVERTIME!', 'Hit their base to win!', { dur: 1.8, color: '#ffb84a' });
         audio.play('alarm');
         break;
-      case 'towerDown':
-        this.flyCrown(ev);
+      case 'labUp': {
+        const sd = this.sides[ev.side];
+        bump(sd.el.querySelector('.bh-base'));
+        sparkle(sd.el.querySelector('.bh-base'), { count: 14, colors: ['#ffd84a', '#ffffff', '#8fd4ff'] });
+        if (ev.side === 0) {
+          bump(this.ocBtn);
+          bigBanner(ev.name.toUpperCase() + '!', `Base tier ${ev.tier} - more POWER, more HP`, { dur: 1.3, color: '#a35cff' });
+        }
         break;
-      case 'labUp':
-        if (ev.side === 0) bump(this.ocBtn);
+      }
+      case 'megaReady':
+        if (ev.side === 0 && this.megaEl) {
+          bump(this.megaEl);
+          sparkle(this.megaEl, { count: 24, colors: ['#ffd84a', '#ffffff', '#ff2e88'] });
+        }
         break;
       default:
         break;
     }
   }
 
-  /** A crown flies from the destroyed tower to the attacker's banner. */
-  flyCrown(ev) {
-    const atk = 1 - ev.side;
-    const from = this.view.towerScreen(ev.side, ev.kind);
-    const crowns = this.sides[atk].crowns;
-    const n = this.sim.sides[atk].crowns;
-    for (let k = this.sides[atk].shown; k < n; k++) {
-      const target = crowns[k];
-      const tr = target.getBoundingClientRect();
-      const el = h('img', { class: 'bh-flycrown', src: iconURL('crown') });
-      el.style.transform = `translate(${from.x}px, ${from.y}px)`;
-      this.root.appendChild(el);
-      const t0 = performance.now(), dur = 900 + (k - this.sides[atk].shown) * 150;
-      const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
-      const step = (now) => {
-        const q = Math.min(1, (now - t0) / dur);
-        const e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
-        const x = from.x + (tx - from.x) * e;
-        const y = from.y + (ty - from.y) * e - Math.sin(q * Math.PI) * engine.height * 0.18;
-        const s = 1.6 - q * 1.1;
-        el.style.transform = `translate(${x}px, ${y}px) scale(${s}) rotate(${(1 - q) * 360}deg)`;
-        if (q < 1) requestAnimationFrame(step);
-        else {
-          el.remove();
-          target.classList.add('on');
-          sparkle(target, { count: 16, colors: ['#ffd84a', '#ffffff', '#ffb84a'] });
-          audio.play('crown');
-        }
-      };
-      requestAnimationFrame(step);
-    }
-    this.sides[atk].shown = n;
-    if (ev.kind === 'turret') audio.play('cheer', { vol: 0.6 });
+  megaDeny() {
+    const s = this.sim.sides[0];
+    if (!s.mega || this.sim.over) return;
+    if (s.mega.used) this.hint('MEGA already used this battle!');
+    else if (s.overclock + 1 < MEGA.minTier) this.hint(`Upgrade your base to ${BASE_UPGRADES[MEGA.minTier - 1].name} first!`);
+    else if (s.mega.charge < 1) this.hint(`MEGA charging: ${Math.floor(s.mega.charge * 100)}% - deal damage!`);
+    this.megaEl.classList.remove('shake');
+    void this.megaEl.offsetWidth;
+    this.megaEl.classList.add('shake');
+    audio.play('deny');
   }
 
   update(dt) {
@@ -344,9 +366,10 @@ export class BattleHUD {
     this.timer.classList.toggle('urgent', tl <= 10 && !sim.over);
     this.timer.classList.toggle('ot', sim.overtime);
     if (sim.overtime) { this.tag.textContent = 'OVERTIME 3x'; this.tag.className = 'tag ot'; }
-    else if (sim.doubleEnergy) { this.tag.textContent = '2x ENERGY'; this.tag.className = 'tag'; }
+    else if (sim.doubleEnergy) { this.tag.textContent = '2x POWER'; this.tag.className = 'tag'; }
     else this.tag.className = 'tag hidden';
-    // energy
+    // power
+    this.setSegs(sim.maxPower(0));
     const e = s.energy;
     if (Math.abs(e - this.lastE) > 0.004) {
       this.lastE = e;
@@ -357,7 +380,7 @@ export class BattleHUD {
         seg.classList.toggle('full', f >= 1);
         seg.firstChild.style.width = f >= 1 ? '' : (f * 100).toFixed(1) + '%';
       });
-      this.ebar.classList.toggle('maxed', e >= ENERGY.max - 0.001);
+      this.ebar.classList.toggle('maxed', e >= sim.maxPower(0) - 0.001);
     }
     this.ebar.classList.toggle('x2', sim.doubleEnergy && !sim.overtime);
     this.ebar.classList.toggle('x3', sim.overtime);
@@ -368,15 +391,49 @@ export class BattleHUD {
       slot.el.classList.toggle('poor', poor);
       if (slot.dim) slot.dim.style.height = poor ? ((1 - e / cost) * 100).toFixed(1) + '%' : '0%';
     });
-    // overclock
-    const oc = OVERCLOCK[s.overclock];
-    this.ocV.textContent = `x${oc.regen.toFixed(2).replace(/0$/, '')}`;
-    if (oc.cost === null) {
-      this.ocC.textContent = 'MAX';
-      this.ocBtn.classList.add('disabled');
+    // base upgrade
+    const oc = BASE_UPGRADES[s.overclock];
+    const nx = BASE_UPGRADES[s.overclock + 1];
+    if (!nx) {
+      this.ocV.textContent = oc.name;
+      this.ocC.textContent = 'MAX TIER';
+      this.ocBtn.classList.add('disabled', 'max');
     } else {
-      this.ocC.textContent = `upgrade: ${oc.cost} energy`;
+      this.ocV.textContent = `> ${nx.name}`;
+      this.ocC.textContent = `${oc.cost} power`;
       this.ocBtn.classList.toggle('disabled', !sim.canUpgradeLab(0));
+      this.ocBtn.classList.toggle('afford', sim.canUpgradeLab(0));
+    }
+    // mega ultimate
+    if (this.megaEl) {
+      const m = s.mega;
+      const k = Math.min(1, m.charge);
+      const locked = s.overclock + 1 < MEGA.minTier;
+      const ready = sim.canMega(0);
+      this.megaLiq.style.height = (m.used ? 0 : k * 100).toFixed(1) + '%';
+      this.megaPct.textContent = m.used ? 'USED' : ready ? 'UNLEASH!' : k >= 1 ? 'READY' : `${Math.floor(k * 100)}%`;
+      this.megaEl.classList.toggle('ready', ready);
+      this.megaEl.classList.toggle('locked', locked && !m.used);
+      this.megaEl.classList.toggle('used', !!m.used);
+      this.megaEl.classList.toggle('full', k >= 1 && !m.used);
+    }
+    // base HP banners
+    for (let i = 0; i < 2; i++) {
+      const sd = this.sides[i], b = sim.sides[i].lab;
+      const frac = Math.max(0, b.hp / b.maxHp);
+      if (b.hp !== sd.lastHp) {
+        sd.lastHp = b.hp;
+        sd.fill.style.width = (frac * 100).toFixed(1) + '%';
+        sd.hpv.textContent = String(Math.max(0, Math.ceil(b.hp)));
+        sd.el.classList.toggle('low', frac < 0.3);
+      }
+      sd.ghostFrac = Math.max(frac, sd.ghostFrac + (frac - sd.ghostFrac) * Math.min(1, dt * 3));
+      sd.ghost.style.width = (sd.ghostFrac * 100).toFixed(1) + '%';
+      const t = sim.sides[i].overclock;
+      if (t !== sd.lastTier) {
+        sd.lastTier = t;
+        sd.tier.textContent = `T${t + 1} ${BASE_UPGRADES[t].name}`;
+      }
     }
     // commander
     if (this.sig) {
@@ -419,8 +476,15 @@ export class BattleHUD {
   setVisible(on) {
     this.root.style.display = on ? '' : 'none';
   }
+  /** Tuck the HUD away while a cutscene owns the screen. */
+  setCinematic(on) {
+    this.root.classList.toggle('cine', !!on);
+    document.body.classList.toggle('cine', !!on);
+    if (on) { this.dragEnd(); this.emotePop?.remove(); this.emotePop = null; }
+  }
   dispose() {
     this.dragEnd();
+    document.body.classList.remove('cine');
     this.root.remove();
   }
 }

@@ -1,6 +1,7 @@
 // Battle 3D view: renders the simulation inside a voxel arena with the
-// Battle Cats side-view camera — Labs (king towers) with their Commanders,
-// Panther Cannon guard turrets, Swarms dropped in from shattering vials,
+// Battle Cats side-view camera — each side's BASE (a tent that rebuilds into
+// a Mega HQ as it's upgraded) with its Commander, Swarms dropped in from
+// shattering vials, the MEGA ultimate cutscene,
 // team-coloured HP plates, tower projectiles, spells, Commander abilities and
 // lots of juice (hit-stop, shake, particles, slow-mo finishes).
 import * as THREE from 'three';
@@ -17,12 +18,18 @@ import { SPELLS } from '../../data/spells.js';
 import { createSwarm } from '../../models/swarmModels.js';
 import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
-import { makeTurret } from '../../models/props/turret.js';
+import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech } from '../../ui/ui.js';
 import { FIELD } from './field.js';
-import { LAB_X, LAB_HALF, TURRET_X } from './sim.js';
+import { LAB_X, LAB_HALF } from './sim.js';
+import { BASE_UPGRADES } from '../../data/labs.js';
+
+// base tier models (tent -> Mega HQ) come from props/base.js; until that module
+// exists the full Lab building stands in for every tier
+const BASE_MOD = import.meta.glob('../../models/props/base.js', { eager: true });
+const baseModule = Object.values(BASE_MOD)[0] ?? null;
 
 export const TEAM_COLORS = [0x2b9cff, 0xff3d55];
 const TEAM_LIGHT = [0x9fe0ff, 0xffb0bc];
@@ -220,7 +227,12 @@ class UnitActor {
     const lvl = h('i', { class: 'lv' }, String(u.level ?? 1));
     this.hpFill = h('i', { class: 'f' });
     this.hpGhost = h('i', { class: 'g' });
-    this.plate = h('div', { class: `uplate s${u.side}${u.boss ? ' boss' : ''}` }, lvl, h('b', { class: 'hpb' }, this.hpGhost, this.hpFill));
+    this.plate = h('div', { class: `uplate s${u.side}${u.boss ? ' boss' : ''}${u.mega ? ' boss mega' : ''}` }, lvl, h('b', { class: 'hpb' }, this.hpGhost, this.hpFill));
+    if (u.mega) {
+      this.lifeFill = h('i', { class: 'lf' });
+      this.plate.prepend(h('div', { class: 'mname' }, SWARMS[u.type]?.name ?? 'MEGA'));
+      this.plate.append(h('b', { class: 'life' }, this.lifeFill));
+    }
     view.plateLayer.appendChild(this.plate);
     this.showT = 1.6;
     this.ghostFrac = 1;
@@ -260,6 +272,24 @@ class UnitActor {
     p.z = damp(p.z, u.z, 10, dt);
     const hover = this.flying ? 0.9 + Math.sin(this.view.t * 3 + u.id) * 0.1 : 0;
     p.y = u.y + hover;
+    if (this.jump) {
+      // Mega pounce arc
+      const j = this.jump;
+      j.t += dt;
+      const k = Math.min(1, j.t / j.dur);
+      p.y += Math.sin(k * Math.PI) * j.h;
+      if (k >= 1) {
+        this.jump = null;
+        engine.shake(0.6);
+        fx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 20, scale: 2.4 });
+      }
+    }
+    if (this.glitchT > 0) {
+      // Cyber Glitch teleport flicker
+      this.glitchT -= dt;
+      rig.root.visible = this.glitchT <= 0 || Math.sin(this.view.t * 90) > -0.2;
+      p.x += (Math.random() - 0.5) * 0.5;
+    }
     // state
     if (this.danceT > 0) {
       this.danceT -= dt;
@@ -272,7 +302,8 @@ class UnitActor {
     // spawn pop-in (overshoot) + grow buff scale
     this.spawnT += dt;
     const target = u.size * (u.buffs.growScale ?? 1);
-    if (this.spawnT < 0.4) {
+    if (u.mega) rig.baseScale = damp(rig.baseScale, target, 8, dt);
+    else if (this.spawnT < 0.4) {
       const k = this.spawnT / 0.4;
       rig.baseScale = target * (k < 0.6 ? (k / 0.6) * 1.28 : 1.28 - ((k - 0.6) / 0.4) * 0.28);
     } else rig.baseScale = damp(rig.baseScale, target, 8, dt);
@@ -298,7 +329,8 @@ class UnitActor {
     // HP plate: shown briefly after landing (level badge) and whenever damaged
     const frac = Math.max(0, u.hp / u.maxHp);
     this.showT -= dt;
-    const show = this.showT > 0 || frac < 0.999 || u.boss;
+    const show = this.showT > 0 || frac < 0.999 || u.boss || u.mega;
+    if (this.lifeFill) this.lifeFill.style.width = (Math.max(0, u.life ?? 0) / 24 * 100).toFixed(1) + '%';
     this.plate.classList.toggle('hide', !show);
     this.hpFill.style.width = (frac * 100).toFixed(1) + '%';
     this.ghostFrac = Math.max(frac, damp(this.ghostFrac, frac, 3.5, dt));
@@ -343,7 +375,7 @@ class UnitActor {
 }
 
 // ---------------------------------------------------------------------------
-// Towers: Lab (king tower, sleeps until hit or a turret falls) + guard turret
+// Base HP plate
 
 class TowerPlate {
   constructor(layer, side, kind, b, name) {
@@ -421,7 +453,7 @@ export class BattleView {
     this.zone = null;
   }
 
-  /** Build the arena, Labs, turrets and Commanders (async: arena modules are code-split). */
+  /** Build the arena, bases and Commanders (async: arena modules are code-split). */
   async load() {
     const cfg = this.cfg, scene = this.scene;
     const A = await makeArenaBattle(this.theme, { seed: cfg.seed ?? 1 });
@@ -441,40 +473,12 @@ export class BattleView {
     this.dustColor = A.dust;
     this.breakables = (A.breakables || []).map((b) => ({ ...b, alive: true }));
 
-    // Labs + turrets
-    this.labs = [0, 1].map((i) => {
-      const style = cfg.sides[i].labStyle || (i === 0 ? 'default' : 'rival');
-      let lab;
-      try {
-        lab = makeLabBuilding({ style, flip: i === 1 });
-      } catch (e) {
-        console.warn('lab style failed', style, e);
-        lab = makeLabBuilding({ style: i === 0 ? 'default' : 'rival', flip: i === 1 });
-      }
-      lab.root.position.set(i === 0 ? -LAB_X : LAB_X, 0, 0);
-      scene.add(lab.root);
-      lab.style = style;
-      lab.shakeT = 0;
-      lab.setLevel(1);
-      lab.onChunk = (mesh) => {
-        fx.shatter(mesh, { force: 5, dirX: i === 0 ? 0.4 : -0.4, life: 2 });
-        audio.play('crunch', { pitch: 0.6, gap: 0.1 });
-        engine.shake(0.25);
-      };
-      return lab;
-    });
-    this.turrets = [0, 1].map((i) => {
-      const t = makeTurret({ side: i });
-      t.root.position.set(i === 0 ? -TURRET_X : TURRET_X, 0, 0);
-      for (const m of t.meshes) m.castShadow = true;
-      scene.add(t.root);
-      t.shakeT = 0;
-      return t;
-    });
-    // tower HP plates
+    // bases: every battle starts in a tent
+    this.labs = [0, 1].map((i) => this.makeBaseFor(i, (this.sim.sides[i].overclock ?? 0) + 1));
+    for (const lab of this.labs) scene.add(lab.root);
+    // base HP plates
     this.towerPlates = [0, 1].map((i) => ({
       lab: new TowerPlate(this.plateLayer, i, 'lab', this.sim.sides[i].lab, cfg.sides[i].name),
-      turret: new TowerPlate(this.plateLayer, i, 'turret', this.sim.sides[i].turret),
     }));
     // Commanders sit on the Lab roofs
     this.cmds = [0, 1].map((i) => {
@@ -515,6 +519,96 @@ export class BattleView {
     scene.add(this.ghostRing);
     this.loaded = true;
     this.updateCamera(0, true);
+  }
+
+  /** Build the base model for a side at an upgrade tier (1 = tent ... 6 = Mega HQ). */
+  makeBaseFor(i, tier) {
+    const cfg = this.cfg;
+    const style = cfg.sides[i].labStyle || (i === 0 ? 'default' : 'rival');
+    let lab = null;
+    try {
+      if (baseModule?.makeBase) lab = baseModule.makeBase(tier, { side: i, flip: i === 1, style });
+    } catch (e) {
+      console.warn('base tier failed', tier, e);
+    }
+    if (!lab) {
+      try {
+        lab = makeLabBuilding({ style, flip: i === 1 });
+      } catch (e) {
+        lab = makeLabBuilding({ style: i === 0 ? 'default' : 'rival', flip: i === 1 });
+      }
+      lab.setLevel?.(Math.min(8, tier + 1));
+    }
+    lab.root.position.set(i === 0 ? -LAB_X : LAB_X, 0, 0);
+    for (const m of lab.meshes ?? []) m.castShadow = true;
+    lab.style = style;
+    lab.tier = tier;
+    lab.shakeT = 0;
+    lab.onChunk = (mesh) => {
+      fx.shatter(mesh, { force: 5, dirX: i === 0 ? 0.4 : -0.4, life: 2 });
+      audio.play('crunch', { pitch: 0.6, gap: 0.1 });
+      engine.shake(0.25);
+    };
+    const b = this.sim.sides[i].lab;
+    lab.setDamage?.(1 - b.hp / b.maxHp);
+    return lab;
+  }
+
+  /** Upgrade animation: scaffolding rises, the old base collapses into dust and the new one pops up. */
+  swapBase(i, tier) {
+    const old = this.labs[i];
+    const nb = this.makeBaseFor(i, tier);
+    const x = old.root.position.x;
+    const w = Math.max(old.width ?? 3.4, nb.width ?? 3.4);
+    const hgt = Math.max(old.height ?? 3, nb.height ?? 3);
+    let scaffold = null;
+    try { scaffold = baseModule?.makeScaffold ? baseModule.makeScaffold(w + 0.6, hgt + 0.6) : null; } catch (e) { scaffold = null; }
+    if (scaffold) {
+      scaffold.root.position.set(x, 0, 0);
+      this.scene.add(scaffold.root);
+    }
+    audio.play('drum', { pitch: 1.2 });
+    const sparkle = () => fx.sparkle(new THREE.Vector3(x + rand(-w / 2, w / 2), rand(0.4, hgt), rand(-0.6, 0.8)), { count: 3, colors: [0xffd23f, 0xffffff], speed: 3, life: 0.4 });
+    let t = 0;
+    const dur = 1.1;
+    const z = {
+      done: false,
+      update: (dt) => {
+        t += dt;
+        const k = Math.min(1, t / dur);
+        scaffold?.setProgress?.(k);
+        scaffold?.update?.(dt);
+        if (Math.random() < dt * 14) { sparkle(); audio.play('tick', { pitch: 1.6 + Math.random(), gap: 0.08 }); }
+        old.root.scale.set(1 + k * 0.05, Math.max(0.02, 1 - k * k), 1 + k * 0.05);
+        if (t >= dur && !z.swapped) {
+          z.swapped = true;
+          this.scene.remove(old.root);
+          this.labs[i] = nb;
+          this.scene.add(nb.root);
+          nb.root.scale.set(1.25, 0.05, 1.25);
+          tween(nb.root.scale, { x: 1, y: 1, z: 1 }, 0.7, { ease: 'outElastic' });
+          fx.dust(new THREE.Vector3(x, 0, 0.5), { count: 26, scale: 2.4 });
+          fx.confetti(new THREE.Vector3(x, (nb.height ?? 3) + 1, 0), { count: 50, spread: 1.6 });
+          fx.shockwave(new THREE.Vector3(x, 0.05, 0), { radius: 3.6, color: TEAM_COLORS[i] });
+          engine.shake(0.35);
+          audio.play('levelUp');
+          // the Commander climbs onto the new roof
+          const ch = this.cmds?.[i];
+          if (ch) {
+            nb.seat.updateWorldMatrix(true, false);
+            const wp = new THREE.Vector3().setFromMatrixPosition(nb.seat.matrixWorld);
+            ch.home = wp.clone();
+            if (!ch.busy) {
+              const from = ch.root.position.clone();
+              animate(0.6, (e, kk) => ch.root.position.set(lerp(from.x, wp.x, kk), lerp(from.y, wp.y, kk) + Math.sin(kk * Math.PI) * 1.4, lerp(from.z, wp.z, kk)));
+            }
+          }
+          if (scaffold) setTimeout(() => this.scene.remove(scaffold.root), 300);
+        }
+        if (t >= dur + 0.4) z.done = true;
+      },
+    };
+    this.zones.push(z);
   }
 
   on(fn) {
@@ -711,22 +805,8 @@ export class BattleView {
         lab.shakeT -= dt;
         lab.root.position.x = (i === 0 ? -LAB_X : LAB_X) + (lab.shakeT > 0 ? Math.sin(this.t * 70) * 0.04 : 0);
       }
-      const tur = this.turrets[i];
-      tur.update(gdt);
-      if (tur.shakeT > 0) {
-        tur.shakeT -= dt;
-        tur.root.position.x = (i === 0 ? -TURRET_X : TURRET_X) + (tur.shakeT > 0 ? Math.sin(this.t * 80) * 0.035 : 0);
-      }
-      if (tur.dead) {
-        tur.smokeT = (tur.smokeT ?? 0) - gdt;
-        if (tur.smokeT <= 0) {
-          tur.smokeT = 0.25;
-          fx.smoke(new THREE.Vector3(tur.root.position.x + rand(-0.3, 0.3), 1.0, rand(-0.3, 0.3)), { count: 1, scale: 0.7, life: 1.2, color: 0x6a6a7a });
-        }
-      }
       const tp = this.towerPlates[i];
-      tp.lab.update(dt, _v.set(lab.root.position.x, lab.height + 0.55, 0));
-      tp.turret.update(dt, _v.set(tur.root.position.x, tur.height + 0.35, 0));
+      tp.lab.update(dt, _v.set(lab.root.position.x, (lab.height ?? 3) + 0.55, 0));
     }
     if (this.ghost?.rig.root.visible) this.ghost.rig.update(dt);
     if (this.arena?.update && !this.arenaBroken) {
@@ -746,7 +826,11 @@ export class BattleView {
       this.zoneEdge.material.opacity = 0.6 + Math.sin(this.t * 8) * 0.35;
       this.zone.material.map.offset.x = -this.t * 0.4;
     }
-    this.updateCamera(dt);
+    if (this.cine && !this.cine.done && this.cine.ownsCamera) this.cine.update(dt);
+    else {
+      if (this.cine?.done) this.cine = null;
+      this.updateCamera(dt);
+    }
   }
 
   updateCommanders(dt) {
@@ -760,7 +844,7 @@ export class BattleView {
         if (s.sig >= 1) {
           ch.play('sitCheer');
           ch.expr('star', 'grin');
-        } else if (s.lab.hp < s.lab.maxHp * 0.35 || !s.turret.alive) {
+        } else if (s.lab.hp < s.lab.maxHp * 0.35) {
           ch.play('sitWorried');
           ch.expr('shock', 'wobble');
         } else {
@@ -840,7 +924,8 @@ export class BattleView {
   // Event handling
 
   buildingObj(side, kind) {
-    return kind === 'lab' ? this.labs[side] : this.turrets[side];
+    void kind;
+    return this.labs[side];
   }
   /** Screen position of a tower (for HUD crown flights). */
   towerScreen(side, kind) {
@@ -951,16 +1036,9 @@ export class BattleView {
         this.addProjectile(ev.proj);
         break;
       case 'towerShoot': {
-        if (ev.kind === 'turret') {
-          const t = this.turrets[ev.side];
-          const tgt = ev.proj.target;
-          if (tgt) t.aim(tgt.x, tgt.z ?? 0);
-          t.fire();
-        } else {
-          const lab = this.labs[ev.side];
-          lab.root.scale.set(1.03, 0.97, 1.03);
-          tween(lab.root.scale, { x: 1, y: 1, z: 1 }, 0.25, { ease: 'outElastic' });
-        }
+        const lab = this.labs[ev.side];
+        lab.root.scale.set(1.03, 0.97, 1.03);
+        tween(lab.root.scale, { x: 1, y: 1, z: 1 }, 0.25, { ease: 'outElastic' });
         this.addProjectile(ev.proj);
         break;
       }
@@ -1011,8 +1089,25 @@ export class BattleView {
         break;
       }
       case 'towerDown':
-        if (ev.kind === 'turret') this.turretDestroyed(ev.side);
-        else this.labDestroyed(ev.side);
+        this.labDestroyed(ev.side);
+        break;
+      case 'megaReady': {
+        const lab = this.labs[ev.side];
+        fx.rise(new THREE.Vector3(lab.root.position.x, 0.2, 0.4), { count: 26, colors: [0xff2e88, 0xffd84a, 0x9ff2ff], radius: 1.6 });
+        if (ev.side === 0) { audio.play('magic', { pitch: 0.7 }); audio.play('alarm', { vol: 0.4 }); }
+        break;
+      }
+      case 'megaStart':
+        this.cine = playMegaCutscene(this, ev);
+        break;
+      case 'megaLand':
+        this.cine?.finish?.(ev);
+        break;
+      case 'megaSpecial':
+        megaSpecialFx(this, ev);
+        break;
+      case 'megaEnd':
+        megaEndFx(this, ev);
         break;
       case 'shieldHit': {
         const lab = this.buildingObj(ev.side, ev.kind ?? 'lab');
@@ -1021,18 +1116,15 @@ export class BattleView {
       }
       case 'labUp': {
         const lab = this.labs[ev.side];
-        lab.setLevel(ev.level * 2 - 1);
-        lab.core.updateWorldMatrix(true, false);
-        const p = new THREE.Vector3().setFromMatrixPosition(lab.core.matrixWorld);
-        fx.sparkle(p, { count: 24, colors: [0x29b6f6, 0xff2e88, 0xffd23f], speed: 4, radius: 2 });
-        fx.rise(p.clone().setY(0.2), { count: 20, colors: [0x29b6f6, 0x9ff2ff], radius: 1.4 });
+        const x = lab.root.position.x;
+        fx.rise(new THREE.Vector3(x, 0.2, 0.3), { count: 24, colors: [0x29b6f6, 0x9ff2ff, 0xffd84a], radius: 1.8 });
+        this.swapBase(ev.side, ev.tier ?? ev.level);
+        const name = BASE_UPGRADES[(ev.tier ?? ev.level) - 1]?.name ?? 'BASE UP';
+        floatText(new THREE.Vector3(x, (lab.height ?? 3) + 1.6, 0), `${name.toUpperCase()}!`, 'big', { life: 1.8, rise: 40 });
         if (ev.side === 0) {
-          floatText(p.clone().setY(p.y + 1.6), `OVERCLOCK ${ev.level}!`, 'big', { life: 1.4, rise: 40 });
           audio.play('upgrade');
-          this.react(0, 'sitCheer', 'star', 'grin', 1);
+          this.react(0, 'sitCheer', 'star', 'grin', 1.2, pick(['Upgrade!', 'Way better!', 'Now THAT is a base!']));
         }
-        lab.root.scale.set(1.06, 0.94, 1.06);
-        tween(lab.root.scale, { x: 1, y: 1, z: 1 }, 0.4, { ease: 'outElastic' });
         break;
       }
       case 'grow': {
@@ -1127,7 +1219,7 @@ export class BattleView {
   }
 
   towerHitFx(ev) {
-    const b = ev.kind === 'lab' ? this.sim.sides[ev.side].lab : this.sim.sides[ev.side].turret;
+    const b = this.sim.sides[ev.side].lab;
     const obj = this.buildingObj(ev.side, ev.kind);
     obj.shakeT = 0.12;
     const frac = 1 - b.hp / b.maxHp;
@@ -1143,38 +1235,13 @@ export class BattleView {
     if (Math.random() < 0.12) this.react(ev.side, 'sitWorried', 'shock', 'shout', 0.9, ev.side === 1 ? pick(['Hey!', 'My Lab!', 'Not the Lab!', 'OUCH!']) : null);
   }
 
-  turretDestroyed(side) {
-    const t = this.turrets[side];
-    t.dead = true;
-    const p = t.root.position.clone().setY(1.6);
-    engine.shake(0.8);
-    engine.hitstop(0.12);
-    audio.play('explode', { pitch: 0.75 });
-    audio.play('crunch', { pitch: 0.5 });
-    fx.burst(p, { count: 40, colors: [0xffd23f, 0xff8a2a, 0xffffff, TEAM_COLORS[side]], size: 0.14, speed: 8 });
-    fx.fire(p, { count: 18, radius: 1.6, scale: 1.3 });
-    fx.smoke(p, { count: 14, scale: 1.8 });
-    fx.shockwave(p.clone().setY(0.05), { radius: 4, color: 0xffffff });
-    for (const m of t.meshes) fx.shatter(m, { force: 7, dirX: side === 0 ? -0.5 : 0.5, life: 2.4, fraction: m === t.meshes[0] ? 0.55 : 1 });
-    // leave a smoking stump
-    t.head.visible = false;
-    const body = t.meshes[0];
-    animate(0.35, (e) => body.scale.set(1, 1 - e * 0.62, 1), { ease: 'outQuad' });
-    this.smashNear(t.root.position.x, 2.4, 1 - side);
-    this.react(side, 'sitWorried', 'shock', 'shout', 1.4, side === 1 ? pick(['NOOO my turret!', 'Ouch!!', 'Not fair!']) : null);
-    this.react(1 - side, 'sitCheer', 'star', 'grin', 1.4);
-  }
+
 
   // -------------------------------------------------------------------------
   // Projectiles (troop shots + tower bolts / Lab cannon balls)
 
   projStart(p) {
     if (p.tower) {
-      if (p.src.kind === 'turret') {
-        const t = this.turrets[p.side];
-        t.muzzle.updateWorldMatrix(true, false);
-        return new THREE.Vector3().setFromMatrixPosition(t.muzzle.matrixWorld);
-      }
       return this.labTop(p.side).add(new THREE.Vector3(p.side === 0 ? 0.6 : -0.6, -1.2, 0));
     }
     const a = this.actors.get(p.src.id);
@@ -1514,7 +1581,6 @@ export class BattleView {
           this.zones.push(z);
         };
         mk(this.labs[side], sd.lab, 3.4, 1.8);
-        if (sd.turret.alive) mk(this.turrets[side], sd.turret, 1.9, 1.5);
         break;
       }
       default:
@@ -1569,6 +1635,24 @@ export class BattleView {
         engine.shake(0.7);
         engine.hitstop(0.08);
         this.smashNear(ev.x, ev.radius, ev.side);
+        break;
+      case 'megaSlam':
+        fx.impact(p, { radius: ev.radius * 1.6, colors: [0xd8c4a0, 0xffffff, 0xffd84a] });
+        fx.shockwave(p, { radius: ev.radius * 1.8, color: 0xffd84a });
+        fx.burst(p.clone().setY(0.5), { count: 30, colors: [0xffd84a, 0xffffff, 0xff7a1a], speed: 9, size: 0.12 });
+        audio.play('thud', { pitch: 0.55 });
+        audio.play('explode', { pitch: 0.7 });
+        engine.shake(0.85);
+        engine.hitstop(0.1);
+        this.smashNear(ev.x, ev.radius, ev.side);
+        break;
+      case 'glitch':
+        fx.burst(p.clone().setY(1.2), { count: 50, colors: [0xff2ea8, 0x29e0ff, 0xffffff], speed: 8, size: 0.14 });
+        fx.shockwave(p, { radius: ev.radius * 1.4, color: 0x29e0ff });
+        audio.play('zap', { pitch: 0.5 });
+        audio.play('laser', { pitch: 1.4 });
+        engine.shake(0.6);
+        engine.hitstop(0.08);
         break;
       default:
         fx.impact(p, { radius: ev.radius });
@@ -1929,7 +2013,7 @@ export class BattleView {
   dispose() {
     for (const a of this.actors.values()) a.dispose();
     this.actors.clear();
-    for (const tp of this.towerPlates ?? []) { tp.lab.dispose(); tp.turret.dispose(); }
+    for (const tp of this.towerPlates ?? []) tp.lab.dispose();
     this.plateLayer.remove();
     this.listeners.clear();
     // free GPU memory held by the arena (cached geometry simply re-uploads if reused)

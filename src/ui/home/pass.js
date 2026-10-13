@@ -17,7 +17,7 @@ import { openBoss } from './boss.js';
 
 const CH_ICON = {
   wins: 'swords', deployFood: 'burger', castfoodThrow: 'burger', martBattles: 'cart', vialsOpened: 'vial', signatures: 'star',
-  deployed: 'swarm', cartsSmashed: 'cart', crowns: 'crown', threeCrowns: 'crown',
+  deployed: 'swarm', cartsSmashed: 'cart', basesDestroyed: 'lab', baseUpgrades: 'up', megasUsed: 'mega',
 };
 const NPC_NAME = { jimmy: 'Jimmy', nolan: 'Nolan', juan: 'Juan' };
 

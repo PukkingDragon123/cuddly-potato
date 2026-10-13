@@ -1,0 +1,71 @@
+/* MEGA ultimate cutscene overlay: letterbox, breach alarm, flash, name slam. */
+.mc-wrap {
+  position: absolute; inset: 0; pointer-events: none; z-index: 60; overflow: hidden;
+  --mc: #ff2e88; --mb: #ff2e88;
+}
+.mc-bar {
+  position: absolute; left: 0; right: 0; height: 13%; background: #05030c;
+  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.mc-bar.top { top: 0; transform: translateY(-101%); box-shadow: 0 4px 0 var(--mb); }
+.mc-bar.bot { bottom: 0; transform: translateY(101%); box-shadow: 0 -4px 0 var(--mb); }
+.mc-wrap.in .mc-bar { transform: none; }
+.mc-wrap.out .mc-bar { transition-duration: 0.6s; }
+.mc-wrap.out .mc-bar.top { transform: translateY(-101%); }
+.mc-wrap.out .mc-bar.bot { transform: translateY(101%); }
+
+/* hazard-striped alarm strip across the top letterbox */
+.mc-warn {
+  position: absolute; left: 0; right: 0; top: 13%; margin-top: 10px; padding: 6px 0;
+  text-align: center; font-family: var(--font-d); font-size: clamp(14px, 3.6vw, 26px); letter-spacing: 0.12em; color: #fff;
+  text-shadow: var(--outline-thin, 0 2px 0 #000);
+  background: repeating-linear-gradient(-45deg, rgba(255, 194, 26, 0.92) 0 18px, rgba(18, 12, 36, 0.92) 18px 36px);
+  opacity: 0; transform: scaleY(0);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.mc-warn.on { opacity: 1; transform: none; animation: mc-blink 0.5s steps(2) infinite; }
+@keyframes mc-blink { 50% { filter: brightness(1.6) saturate(1.4); } }
+
+.mc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+.mc-flash.go { animation: mc-flash 0.9s ease-out forwards; }
+@keyframes mc-flash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+
+/* name slam */
+.mc-title {
+  position: absolute; left: 0; right: 0; bottom: 15%; display: flex; flex-direction: column; align-items: center;
+  font-family: var(--font-d); color: #fff; text-align: center; opacity: 0;
+}
+.mc-title small {
+  font-size: clamp(12px, 2.8vw, 20px); letter-spacing: 0.3em; padding: 3px 14px; background: var(--mb);
+  box-shadow: 0 0 0 3px #05030c, 0 0 0 5px #fff; text-shadow: 0 2px 0 #05030c; margin-bottom: 8px;
+}
+.mc-title span {
+  font-size: clamp(38px, 11vw, 96px); line-height: 0.9; letter-spacing: 0.04em;
+  color: #fff; -webkit-text-stroke: 3px #05030c; paint-order: stroke fill;
+  text-shadow: 0 6px 0 #05030c, 0 0 24px var(--mc), 0 0 60px var(--mb);
+  background: linear-gradient(180deg, #fff 0 45%, var(--mc) 46% 100%); -webkit-background-clip: text; background-clip: text;
+}
+.mc-title em {
+  font-style: normal; font-size: clamp(13px, 3vw, 22px); letter-spacing: 0.12em; margin-top: 6px; color: var(--gold, #ffd84a);
+  text-shadow: 0 2px 0 #05030c, 0 0 12px var(--mb);
+}
+.mc-title.go { animation: mc-slam 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) forwards; }
+.mc-title.go span { animation: mc-shine 1.4s 0.3s linear infinite; }
+@keyframes mc-slam {
+  0% { opacity: 0; transform: scale(3) rotate(-6deg); filter: blur(6px); }
+  60% { opacity: 1; transform: scale(0.92) rotate(1deg); filter: none; }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes mc-shine { 50% { filter: brightness(1.35) drop-shadow(0 0 10px var(--mc)); } }
+
+/* speed lines behind the title */
+.mc-wrap::before {
+  content: ''; position: absolute; inset: -20%; opacity: 0; transition: opacity 0.3s;
+  background: repeating-conic-gradient(from 0deg at 50% 60%, rgba(255, 255, 255, 0.0) 0 6deg, rgba(255, 255, 255, 0.12) 6deg 8deg);
+}
+.mc-wrap.in:has(.mc-title.go)::before { opacity: 1; animation: mc-spin 6s linear infinite; }
+.mc-wrap.out::before { opacity: 0; }
+@keyframes mc-spin { to { transform: rotate(20deg); } }
+
+/* HUD tucks away while the cutscene owns the screen */
+body.cine .bhud, body.cine #world-ui { opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s; }

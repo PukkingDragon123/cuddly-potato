@@ -81,7 +81,7 @@ export const TROPHY_ROAD = [
   { t: 160, reward: { type: 'vial', id: 'labPack' } },
   { t: 200, reward: { type: 'coins', amount: 400 } },
   { t: 250, reward: { type: 'card', id: 'steelPanther', copies: 1 } },
-  { t: 300, arena: 'circle', reward: { type: 'vial', id: 'labPack' } },
+  { t: 300, arena: 'circle', reward: { type: 'mega', id: 'panthar' } },
   { t: 360, reward: { type: 'coins', amount: 500 } },
   { t: 420, reward: { type: 'card', id: 'mutantMailbox', copies: 5 } },
   { t: 480, reward: { type: 'bucks', amount: 40 } },
@@ -97,7 +97,7 @@ export const TROPHY_ROAD = [
   { t: 1160, reward: { type: 'card', id: 'circuitShark', copies: 5 } },
   { t: 1240, reward: { type: 'vial', id: 'hyperchrome' } },
   { t: 1320, reward: { type: 'card', id: 'hyperchargePanther', copies: 1 } },
-  { t: 1400, arena: 'redlight', reward: { type: 'vial', id: 'megaLab' } },
+  { t: 1400, arena: 'redlight', reward: { type: 'mega', id: 'silverByte' } },
   { t: 1500, reward: { type: 'coins', amount: 1500 } },
   { t: 1600, reward: { type: 'card', id: 'midnightPanther', copies: 5 } },
   { t: 1700, reward: { type: 'bucks', amount: 80 } },
@@ -106,14 +106,14 @@ export const TROPHY_ROAD = [
   { t: 2000, reward: { type: 'card', id: 'stoneHybrid', copies: 1 } },
   { t: 2100, reward: { type: 'vial', id: 'megaLab' } },
   { t: 2200, reward: { type: 'bucks', amount: 100 } },
-  { t: 2300, arena: 'reactor', reward: { type: 'vial', id: 'megaLab' } },
+  { t: 2300, arena: 'reactor', reward: { type: 'mega', id: 'necroClaw' } },
   { t: 2450, reward: { type: 'coins', amount: 3000 } },
   { t: 2600, reward: { type: 'card', id: 'reactorRex', copies: 1 } },
   { t: 2700, reward: { type: 'labSkin', id: 'goldVault' } },
   { t: 2800, arena: 'pyramid', reward: { type: 'vial', id: 'cashCase' } },
   { t: 3000, reward: { type: 'coins', amount: 5000 } },
   { t: 3200, reward: { type: 'card', id: 'beastTiger', copies: 1 } },
-  { t: 3400, arena: 'island', reward: { type: 'vial', id: 'cashCase' } },
+  { t: 3400, arena: 'island', reward: { type: 'mega', id: 'cyberGlitch' } },
   { t: 3600, reward: { type: 'bucks', amount: 250 } },
   { t: 3800, reward: { type: 'card', id: 'hyperFusionPanther', copies: 1 } },
   { t: 4000, reward: { type: 'banner', id: 'animGoldenTicket' } },
@@ -243,8 +243,18 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
   return {
     name, trophies: Math.max(0, trophies + Math.floor((rng() - 0.5) * 60)), deck, level, labLevel, commander,
     clan: CLAN[Math.floor(rng() * CLAN.length)],
-    banner: bannerIds[Math.floor(rng() * bannerIds.length)], difficulty: Math.min(1, 0.3 + trophies / 3200), ghost: true,
+    banner: bannerIds[Math.floor(rng() * bannerIds.length)], difficulty: Math.min(0.95, 0.08 + trophies / 2600), ghost: true,
+    // early rivals have flimsy bases so new players get satisfying wins
+    hpMult: Math.min(1, 0.45 + trophies / 1800),
+    // ...and slower POWER (negative surge) until ~700 trophies
+    perks: { energySurge: Math.min(0, -40 + trophies / 17) },
     cmdLevel: Math.max(1, Math.min(8, Math.floor(trophies / 450) + 1)),
+    // rivals past the Panthar unlock may bring a MEGA of their own
+    mega: (() => {
+      const ms = TROPHY_ROAD.filter((r) => r.reward?.type === 'mega' && r.t <= trophies + 200).map((r) => r.reward.id);
+      if (!ms.length || rng() > Math.min(0.75, (trophies - 250) / 1200)) return null;
+      return { id: ms[Math.floor(rng() * ms.length)], variant: rng() < 0.08 ? 'gold' : 'base', level: Math.max(1, labLevel) };
+    })(),
   };
 }
 

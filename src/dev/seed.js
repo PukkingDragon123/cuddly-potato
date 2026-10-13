@@ -1,6 +1,7 @@
 // Dev helper: ?seed=1 (fresh player past the tutorial), ?seed=mid (~900 trophies)
 // or ?seed=all (everything unlocked) gives a populated profile for testing.
-import { state, grantCard, grantCommander, addVial, unlockMega, setDeck } from '../game/state.js';
+import { state, grantCard, grantCommander, addVial, unlockMega, setDeck, grantMega, equipMega } from '../game/state.js';
+import { MEGA_IDS } from '../data/megas.js';
 import { ALL_CARDS, STARTER_DECK } from '../data/cards.js';
 
 export function seedProfile(level = '1') {
@@ -24,6 +25,10 @@ export function seedProfile(level = '1') {
     p.commanders.owned.jimmy.level = 6;
     p.commanders.equipped = 'jimmy';
     if (level === 'all') unlockMega('feastablesPanther');
+    // MEGA-TECH figures: Panthar at mid, the whole set (one Metallic Gold) at all
+    if (level === 'mid') grantMega('panthar', 'base');
+    else MEGA_IDS.forEach((id, i) => grantMega(id, i === 1 ? 'gold' : 'base'));
+    equipMega('panthar');
     setDeck(['panther', 'cloggedToilet', 'steelPanther', 'fryFiend', 'beastTiger', 'pizzaSlicer', 'foodThrow', 'moneyDrop'].filter((id) => p.cards[id]));
     addVial('labPack');
     addVial('megaLab');

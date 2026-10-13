@@ -1,28 +1,38 @@
 // Victory / defeat / draw screen (Clash Royale style): the rival's and your
-// banner with crowns slamming in one by one, a WINNER tag, then the rewards
-// (trophies, coins, the vial you won, crown-vial progress, XP, calories)
-// popping in with roll-up numbers. Resolves with the button pressed.
+// banner with each base's HP draining to what was left (or a BASE DESTROYED
+// stamp), a WINNER tag, then the rewards (trophies, coins, the vial you won,
+// XP, calories) popping in with roll-up numbers. Resolves with the button
+// pressed.
 import { h, icon, button, panel, bar, rollNumber, sparkle } from '../../ui/ui.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { VIALS } from '../../data/vials.js';
+import { BASE_UPGRADES } from '../../data/labs.js';
 import { fx } from '../../core/particles.js';
 import * as THREE from 'three';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * opts: { result: 'win'|'loss'|'draw', crowns: [mine, theirs], names: [mine, theirs], rewards (battleRewards result | null),
+ * opts: { result: 'win'|'loss'|'draw', bases: [{ frac, alive, tier }] x2 (mine, theirs), names: [mine, theirs], rewards (battleRewards result | null),
  *         mode, buttons: [{ id, label, color }], vialThumb?: (type) => url }
  */
 export async function showResult(parent, opts) {
-  const { result, crowns, names } = opts;
+  const { result, names } = opts;
+  const bases = opts.bases ?? [{ frac: 1, alive: true, tier: 0 }, { frac: 1, alive: true, tier: 0 }];
   const r = opts.rewards;
   const title = result === 'win' ? 'VICTORY!' : result === 'draw' ? 'DRAW' : 'DEFEAT';
   const team = (i) => {
-    const cs = [0, 1, 2].map(() => icon('crown'));
+    const b = bases[i];
+    const fill = h('i', { class: 'f' });
+    const pct = h('span', { class: 'pc' }, '100%');
     const winner = (result === 'win' && i === 0) || (result === 'loss' && i === 1);
-    return { el: h('div', { class: `res-team s${i}${winner ? ' winner' : ''}` }, h('div', { class: 'res-crowns' }, cs), h('div', { class: 'rn' }, names[i])), cs };
+    const el = h('div', { class: `res-team s${i}${winner ? ' winner' : ''}` },
+      h('div', { class: 'res-base' },
+        h('div', { class: 'tn' }, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base'),
+        h('b', { class: 'rb' }, fill, pct)),
+      h('div', { class: 'rn' }, names[i]));
+    return { el, fill, pct, b };
   };
   const t1 = team(1), t0 = team(0);
   const wrap = h('div', { class: 'res-wrap' }, h('div', { class: `res-title ${result}` }, title), t1.el, h('div', { class: 'res-vs' }, 'VS'), t0.el);
@@ -33,15 +43,31 @@ export async function showResult(parent, opts) {
     fx.confetti(new THREE.Vector3(0, 6, 0), { count: 60, spread: 3 });
   }
   await wait(450);
-  // crowns slam in one at a time
-  for (const [t, n] of [[t1, crowns[1]], [t0, crowns[0]]]) {
-    for (let k = 0; k < n; k++) {
-      t.cs[k].classList.add('on');
-      sparkle(t.cs[k], { count: 10, colors: ['#ffd84a', '#ffffff'] });
-      audio.play('crown');
-      engine.shake?.(0.05);
-      await wait(260);
+  // each base's HP drains to what was left; a destroyed base gets stamped
+  for (const t of [t1, t0]) {
+    const to = Math.max(0, t.b.frac);
+    const t0ms = performance.now(), dur = 520;
+    await new Promise((res) => {
+      const step = (now) => {
+        const q = Math.min(1, (now - t0ms) / dur);
+        const v = 1 - (1 - to) * (1 - Math.pow(1 - q, 3));
+        t.fill.style.width = (v * 100).toFixed(1) + '%';
+        t.pct.textContent = Math.round(v * 100) + '%';
+        if (q < 1) requestAnimationFrame(step);
+        else res();
+      };
+      requestAnimationFrame(step);
+    });
+    if (!t.b.alive) {
+      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp' }, 'BASE DESTROYED!'));
+      audio.play('stamp');
+      engine.shake?.(0.12);
+    } else if (t.b.frac >= 0.999) {
+      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp good' }, 'FLAWLESS!'));
+      sparkle(t.el, { count: 14, colors: ['#ffd84a', '#ffffff'] });
+      audio.play('stamp', { pitch: 1.2 });
     }
+    await wait(200);
   }
   await wait(250);
 
@@ -72,12 +98,6 @@ export async function showResult(parent, opts) {
       audio.play('coin', { pitch: 1 + items.indexOf(it) * 0.08 });
       await wait(170);
     }
-    if (r.crownProgress) {
-      const cp = r.crownProgress;
-      const have = cp.crowns ?? 0, need = cp.goal ?? 10;
-      const b = bar(Math.min(1, have / need), 'gold', `Crown Vial ${Math.min(have, need)}/${need}`, { icon: 'crown', cls: 'res-bar' });
-      wrap.appendChild(b);
-    }
     for (const lu of r.levelUps ?? []) wrap.appendChild(h('div', { class: 't-d outline c-gold' }, `Commander level ${lu.level ?? lu}!`));
     for (const lu of r.labUps ?? []) wrap.appendChild(h('div', { class: 't-d outline c-blue' }, `Lab Level ${lu.level ?? lu}!`));
   }
@@ -88,4 +108,4 @@ export async function showResult(parent, opts) {
   });
 }
 
-export { panel };
+export { panel, bar };

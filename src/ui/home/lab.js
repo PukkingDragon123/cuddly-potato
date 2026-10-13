@@ -292,10 +292,8 @@ export function mount(el, ctx) {
         bar(info.max ? 1 : info.xp / Math.max(1, info.need), 'blue', info.max ? 'MAX LEVEL' : `${fmtN(info.xp)} / ${fmtN(info.need)} XP`, { cls: 'mn-labxp' }),
         h('span', { class: 't-xs c-muted' }, 'Earn Lab XP by upgrading cards and winning battles.')));
     const stats = h('div', { class: 'mn-labstats' },
-      stat('hp', 'Lab Hitpoints', TOWERS.lab.hp, pw, pn),
-      stat('sword', 'Lab Damage', TOWERS.lab.dmg, pw, pn),
-      stat('tower', 'Turret Hitpoints', TOWERS.turret.hp, pw, pn),
-      stat('sword', 'Turret Damage', TOWERS.turret.dmg, pw, pn));
+      stat('hp', 'Base Hitpoints', TOWERS.lab.hp, pw, pn),
+      stat('sword', 'Base Zapper Damage', TOWERS.lab.dmg, pw, pn));
     const road = h('div', { class: 'mn-labroad scroll-x' });
     for (let lv = 2; lv <= LAB_MAX_LEVEL; lv++) {
       const r = LAB_LEVEL_REWARDS(lv);
@@ -310,7 +308,7 @@ export function mount(el, ctx) {
       if (nx) road.scrollLeft = nx.offsetLeft - road.clientWidth / 2 + nx.offsetWidth / 2;
     }, 0);
     const how = h('div', { class: 'mn-labhow' },
-      h('div', {}, icon('up', 's'), h('span', {}, 'Each Lab Level: *+7%* Lab & turret HP and damage')),
+      h('div', {}, icon('up', 's'), h('span', {}, 'Each Lab Level: *+7%* base HP, zapper damage and MEGA power')),
       h('div', {}, icon('cards', 's'), h('span', {}, 'Upgrade cards: big Lab XP')),
       h('div', {}, icon('swords', 's'), h('span', {}, 'Win battles: +6 Lab XP')));
     how.querySelectorAll('span').forEach((s) => (s.innerHTML = rich(s.textContent)));

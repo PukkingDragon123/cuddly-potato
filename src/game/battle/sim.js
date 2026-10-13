@@ -1,20 +1,22 @@
 // Battle simulation: pure game logic (no rendering).
 //
-// Clash Royale rules inside a Battle Cats side-view lane:
-//   * energy 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
+// Clash Royale card play inside a Battle Cats side-view lane:
+//   * electric POWER 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
 //   * an 8-card deck cycling through a hand of 4 (+ a "next" card)
-//   * troops are dropped anywhere in your half (or tapped out at your Lab)
+//   * troops are dropped anywhere in your half (or tapped out at your base)
 //     and then march forward and fight automatically
-//   * each side has a guard turret (princess tower) and a Lab (king tower);
-//     turret = 1 crown, Lab = 3 crowns and instant victory
-//   * 3:00 regulation, sudden-death overtime, then lowest-tower tiebreak
-//   * Commanders on the Lab with a charged signature + skills, in-battle Lab
-//     overclock (spend energy for faster energy), bosses for boss battles.
+//   * each side has ONE base: it starts as a tent and can be upgraded mid-battle
+//     (6 tiers: more POWER regen, bigger POWER tank, more HP, stronger cannon);
+//     destroy the enemy base to win
+//   * 3:00 regulation, overtime, then the base with more HP% wins
+//   * Commanders on the base with a charged signature + skills, bosses, and the
+//     MEGA ultimate: charged by fighting, unleashed once per battle in a cinematic.
 // Fixed time-step with its own seeded RNG (host-authoritative friend battles).
 import { SWARMS, swarmStats } from '../../data/swarms.js';
 import { SPELLS, spellPower } from '../../data/spells.js';
 import { COMMANDERS, cmdPower } from '../../data/commanders.js';
-import { TOWERS, ENERGY, OVERCLOCK, labPower } from '../../data/labs.js';
+import { TOWERS, ENERGY, BASE_UPGRADES, MEGA, labPower } from '../../data/labs.js';
+import { MEGAS } from '../../data/megas.js';
 import { mulberry32 } from '../../core/util.js';
 import { FIELD } from './field.js';
 
@@ -66,11 +68,14 @@ export class BattleSim {
     const pow = labPower(s.labLevel ?? 1) * (s.hpMult ?? 1);
     const mk = (kind, x, half, T, hpMult = 1) => ({
       building: true, kind, side: i, x, half, hp: Math.round(T.hp * pow * hpMult), maxHp: Math.round(T.hp * pow * hpMult),
-      dmg: T.dmg * labPower(s.labLevel ?? 1) * (kind === 'turret' ? 1 + (perks.quickHands ?? 0) / 100 : 1),
-      atk: T.atk, range: T.range, cool: 0.6, alive: true, active: kind === 'turret', shield: 0, shieldT: 0, radius: half, dead: false, id: UID++,
+      dmg: T.dmg * labPower(s.labLevel ?? 1),
+      atk: T.atk, range: T.range, cool: 0.6, alive: true, active: true, shield: 0, shieldT: 0, radius: half, dead: false, id: UID++,
     });
     const lab = mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF, TOWERS.lab, 1 + (perks.thickWalls ?? 0) / 100);
-    const turret = mk('turret', i === 0 ? -TURRET_X : TURRET_X, FIELD.TURRET_HALF, TOWERS.turret, 1 + (perks.thickWalls ?? 0) / 100);
+    lab.active = true;
+    lab.baseHp = lab.maxHp;
+    lab.baseDmg = lab.dmg * (1 + (perks.quickHands ?? 0) / 100);
+    this.applyTier(lab, 0);
     const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
     const lvl = s.commander?.level ?? 1;
     const skills = cmd ? cmd.skills.filter((k) => lvl >= k.level) : [];
@@ -85,12 +90,28 @@ export class BattleSim {
       i, dir, labX: lab.x, name: s.name, deck,
       hand: order.slice(0, handSize), queue: order.slice(handSize),
       energy: Math.min(ENERGY.max, ENERGY.start + (perks.headStart ?? 0)), overclock: 0,
-      lab, turret, crowns: 0,
+      lab, turret: null,
+      mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
       cmd, cmdLevel: lvl, sig: 0.15, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
       perks, buffs: { rally: 0, dance: 0, immortal: 0 },
       stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       power: cmdPower(lvl),
     };
+  }
+
+  /** Base stats for upgrade tier index k (0 = tent). */
+  applyTier(b, k) {
+    const T = BASE_UPGRADES[k];
+    const oldMax = b.maxHp;
+    b.maxHp = Math.round(b.baseHp * T.hp);
+    if (k > 0) b.hp = Math.min(b.maxHp, b.hp + (b.maxHp - oldMax) + b.maxHp * 0.06);
+    b.dmg = b.baseDmg * T.dmg;
+    b.range = T.range;
+  }
+  /** Max POWER for a side (grows with the base tier). */
+  maxPower(si) {
+    const s = this.sides[si];
+    return BASE_UPGRADES[s.overclock].max;
   }
 
   emit(type, data = {}) {
@@ -110,12 +131,12 @@ export class BattleSim {
 
   buildings(si) {
     const s = this.sides[si];
-    return [s.turret, s.lab].filter((b) => b.alive);
+    return s.lab.alive ? [s.lab] : [];
   }
-  /** The enemy building currently facing side si's troops (turret first). */
+  /** The enemy base facing side si's troops. */
   frontBuilding(si) {
     const en = this.sides[1 - si];
-    return en.turret.alive ? en.turret : en.lab.alive ? en.lab : null;
+    return en.lab.alive ? en.lab : null;
   }
   /** x of the face of a building that troops of side `fromSide` hit. */
   faceX(b, fromSide) {
@@ -139,21 +160,24 @@ export class BattleSim {
     return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
   overclockInfo(si) {
-    return OVERCLOCK[this.sides[si].overclock];
+    return BASE_UPGRADES[this.sides[si].overclock];
   }
   canUpgradeLab(si) {
     const s = this.sides[si];
-    const info = OVERCLOCK[s.overclock];
+    const info = BASE_UPGRADES[s.overclock];
     return !this.over && info.cost !== null && s.energy >= info.cost;
+  }
+  canMega(si) {
+    const s = this.sides[si];
+    return !this.over && !this.cinematic && !!s.mega && !s.mega.used && s.mega.charge >= 1 && s.overclock + 1 >= MEGA.minTier;
   }
   /** Allowed deploy range [min, max] in x for a side's troops. */
   deployRange(si) {
     const s = this.sides[si];
     const en = this.sides[1 - si];
     const back = s.labX + s.dir * (LAB_HALF + 0.2);
-    let front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX; // own half up to the centre line
-    // CR pocket: after you take the enemy turret you may drop troops up to it
-    if (!en.turret.alive) front = en.turret.x - s.dir * 1.6;
+    const front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX; // own half up to the centre line
+    void en;
     return si === 0 ? [back, front] : [front, back];
   }
   clampDeploy(si, x) {
@@ -215,7 +239,7 @@ export class BattleSim {
       if (s.energy < cost) return false;
       s.energy -= cost;
       if (s.perks.bargain && this.rand() * 100 < s.perks.bargain) {
-        s.energy = Math.min(ENERGY.max, s.energy + 1);
+        s.energy = Math.min(this.maxPower(si), s.energy + 1);
         this.emit('refund', { side: si });
       }
     }
@@ -255,10 +279,137 @@ export class BattleSim {
   upgradeLab(si) {
     if (!this.canUpgradeLab(si)) return false;
     const s = this.sides[si];
-    s.energy -= OVERCLOCK[s.overclock].cost;
+    s.energy -= BASE_UPGRADES[s.overclock].cost;
     s.overclock++;
-    this.emit('labUp', { side: si, level: s.overclock + 1 });
+    this.applyTier(s.lab, s.overclock);
+    this.emit('labUp', { side: si, level: s.overclock + 1, tier: s.overclock + 1, name: BASE_UPGRADES[s.overclock].name });
     return true;
+  }
+
+  // -------------------------------------------------------------------------
+  // MEGA ultimate
+
+  addMegaCharge(si, amt) {
+    const m = this.sides[si]?.mega;
+    if (!m || m.used || m.charge >= 1) return;
+    m.charge = Math.min(1, m.charge + amt);
+    if (m.charge >= 1) this.emit('megaReady', { side: si });
+  }
+  /** Unleash the Mega: a cinematic (the battle freezes), then it breaks out. */
+  useMega(si) {
+    if (!this.canMega(si)) return false;
+    const s = this.sides[si];
+    s.mega.used = true;
+    this.cinematic = MEGA.cinematic;
+    this.cinematicSide = si;
+    this.emit('megaStart', { side: si, id: s.mega.id, variant: s.mega.variant, x: s.labX + s.dir * (LAB_HALF + 2.2) });
+    return true;
+  }
+  megaArrive(si) {
+    const s = this.sides[si];
+    const def = MEGAS[s.mega.id];
+    const x = s.labX + s.dir * (LAB_HALF + 2.2);
+    const u = this.spawnUnit(si, { id: s.mega.id, unit: s.mega.id, level: s.mega.level, variant: s.mega.variant }, { x, z: 0, delay: 0, kb: 1, hpMult: labPower(s.mega.level) });
+    u.mega = true;
+    u.life = MEGA.life;
+    u.specT = 2.2;
+    u.z = 0;
+    // breakout shockwave: everything nearby is blasted back and stunned
+    for (const e of this.enemiesOf(si)) {
+      if (Math.abs(e.x - x) > 9) continue;
+      e.buffs.stun = Math.max(e.buffs.stun, e.boss ? 0.8 : 2);
+      this.damage(e, 300 * labPower(s.mega.level), u, { kind: 'slam' });
+      if (!e.dead) this.knock(e, 6);
+    }
+    this.emit('megaLand', { unit: u, side: si, id: def.id, x });
+  }
+  megaSpecial(u) {
+    const def = MEGAS[u.type];
+    const sp = def.special;
+    const s = this.sides[u.side];
+    const pw = labPower(s.mega?.level ?? 1);
+    const es = this.enemiesOf(u.side).filter((e) => e.state !== 'spawn');
+    switch (sp.id) {
+      case 'pounce': {
+        // leap onto the densest crowd within 7
+        let best = null, bc = 0;
+        for (const e of es) {
+          if ((e.x - u.x) * s.dir < -1 || Math.abs(e.x - u.x) > 7) continue;
+          let c = 0;
+          for (const o of es) if (Math.abs(o.x - e.x) < sp.radius) c++;
+          if (c > bc) { bc = c; best = e.x; }
+        }
+        if (best === null) return false;
+        const tx = best;
+        this.emit('megaSpecial', { unit: u, id: sp.id, from: u.x, x: tx });
+        this.later(0.55, () => {
+          if (u.dead) return;
+          u.x = tx;
+          this.clampUnit(u);
+          this.areaDamage(u.side, tx, sp.radius, sp.dmg * pw, { kind: 'slam', knock: 5, building: 0.5, src: u });
+          for (const e of this.enemiesOf(u.side)) if (Math.abs(e.x - tx) <= sp.radius) e.buffs.stun = Math.max(e.buffs.stun, sp.stun);
+          this.emit('impact', { x: tx, radius: sp.radius, kind: 'megaSlam', side: u.side });
+        });
+        return true;
+      }
+      case 'beam': {
+        if (!es.some((e) => (e.x - u.x) * s.dir > 0 && Math.abs(e.x - u.x) < sp.length)) {
+          const fb = this.frontBuilding(u.side);
+          if (!fb || Math.abs(this.faceX(fb, u.side) - u.x) > sp.length) return false;
+        }
+        this.emit('megaSpecial', { unit: u, id: sp.id, from: u.x, x: u.x + s.dir * sp.length });
+        this.later(0.6, () => {
+          if (u.dead) return;
+          for (const e of this.enemiesOf(u.side)) {
+            const d = (e.x - u.x) * s.dir;
+            if (d < -0.5 || d > sp.length) continue;
+            this.damage(e, sp.dmg * pw, u, { kind: 'laser' });
+            if (!e.dead) e.buffs.stun = Math.max(e.buffs.stun, sp.stun);
+          }
+          const fb = this.frontBuilding(u.side);
+          if (fb && (this.faceX(fb, u.side) - u.x) * s.dir <= sp.length) this.damageBuilding(fb, sp.dmg * pw * 0.6, u);
+        });
+        return true;
+      }
+      case 'drain': {
+        if (!es.some((e) => Math.abs(e.x - u.x) < sp.radius + 1)) return false;
+        this.emit('megaSpecial', { unit: u, id: sp.id, x: u.x });
+        this.later(0.5, () => {
+          if (u.dead) return;
+          let dealt = 0;
+          for (const e of this.enemiesOf(u.side)) {
+            if (Math.abs(e.x - u.x) > sp.radius) continue;
+            const before = e.hp;
+            this.damage(e, sp.dmg * pw, u, { kind: 'acid' });
+            dealt += before - Math.max(0, e.hp);
+            if (!e.dead) this.knock(e, 3);
+          }
+          this.heal(u, dealt * sp.heal);
+          this.emit('impact', { x: u.x, radius: sp.radius, kind: 'acid', side: u.side });
+        });
+        return true;
+      }
+      case 'glitch': {
+        if (!es.length) return false;
+        const ahead = es.filter((e) => (e.x - u.x) * s.dir > 0).sort((a, b) => (a.x - b.x) * s.dir)[0];
+        const tx = ahead ? ahead.x - s.dir * 1 : u.x + s.dir * sp.blink;
+        this.emit('megaSpecial', { unit: u, id: sp.id, from: u.x, x: tx });
+        this.later(0.35, () => {
+          if (u.dead) return;
+          u.x = tx;
+          this.clampUnit(u);
+          for (const e of this.enemiesOf(u.side)) {
+            if (Math.abs(e.x - u.x) > sp.radius) continue;
+            this.damage(e, sp.dmg * pw, u, { kind: 'zap' });
+            if (!e.dead) e.buffs.stun = Math.max(e.buffs.stun, sp.stun * (e.boss ? 0.4 : 1));
+          }
+          this.emit('impact', { x: tx, radius: sp.radius, kind: 'glitch', side: u.side });
+        });
+        return true;
+      }
+      default:
+        return false;
+    }
   }
 
   castSpell(si, card, x) {
@@ -357,7 +508,7 @@ export class BattleSim {
             e.buffs.stun = Math.max(e.buffs.stun, sg.stun * (e.boss ? 0.4 : 1));
             this.damage(e, sg.dmg * pw, null, { kind: 'money' });
           }
-          s.energy = Math.min(ENERGY.max, s.energy + sg.energy);
+          s.energy = Math.min(this.maxPower(si), s.energy + sg.energy);
           this.emit('energyGain', { side: si, amount: sg.energy });
         });
         break;
@@ -399,7 +550,7 @@ export class BattleSim {
         this.emit('skill', { side: si, id: sk.id });
         break;
       case 'emergencyRepair': {
-        const b = s.turret.alive ? s.turret : s.lab;
+        const b = s.lab;
         const amt = b.maxHp * sk.heal * pw;
         b.hp = Math.min(b.maxHp, b.hp + amt);
         this.emit('skill', { side: si, id: sk.id, amount: amt, kind: b.kind });
@@ -588,6 +739,18 @@ export class BattleSim {
     const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1);
     const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1);
 
+    if (u.mega) {
+      u.life -= dt;
+      if (u.life <= 0) {
+        this.emit('megaEnd', { unit: u });
+        this.kill(u, null, { silent: true });
+        return;
+      }
+      u.specT -= dt;
+      if (u.specT <= 0 && u.atkPhase <= 0) {
+        u.specT = this.megaSpecial(u) ? MEGAS[u.type].special.every : 0.6;
+      }
+    }
     if (u.boss) {
       u.slamT -= dt;
       if (u.slamT <= 0) {
@@ -741,6 +904,7 @@ export class BattleSim {
 
   knock(e, power) {
     if (e.dead || e.state === 'spawn') return;
+    if (e.mega) return;
     if (e.boss || e.siege) power *= 0.3;
     const dir = this.sides[e.side].dir;
     e.state = 'kb';
@@ -764,7 +928,10 @@ export class BattleSim {
     const before = e.hp;
     e.hp -= d;
     if (e.hp <= 0 && def.buffs.immortal > 0) e.hp = 1;
-    if (src && src.side !== undefined) this.sides[src.side].stats.dmg += Math.min(before, d);
+    if (src && src.side !== undefined) {
+      this.sides[src.side].stats.dmg += Math.min(before, d);
+      if (!src.mega) this.addMegaCharge(src.side, Math.min(before, d) / MEGA.chargeDmg);
+    }
     if (!o.silent) this.emit('hit', { unit: e, amount: Math.round(d), kind: o.kind ?? 'melee', src, crit: d >= e.maxHp * 0.3 });
     if (e.hp <= 0) {
       this.kill(e, src);
@@ -791,7 +958,10 @@ export class BattleSim {
     const killerSide = 1 - e.side;
     const ks = this.sides[killerSide];
     ks.stats.kills++;
-    ks.sig = Math.min(1, ks.sig + 0.03);
+    if (!o.silent) {
+      ks.sig = Math.min(1, ks.sig + 0.03);
+      if (!src?.mega) this.addMegaCharge(killerSide, MEGA.killBonus * (e.boss ? 5 : 1));
+    }
     this.emit('death', { unit: e, killerSide, silent: !!o.silent });
     const tr = e.st.traits;
     if (tr.split) {
@@ -821,10 +991,7 @@ export class BattleSim {
     const atk = 1 - b.side;
     this.sides[atk].stats.dmg += d;
     this.sides[atk].stats.towerDmg += d;
-    if (b.kind === 'lab' && !b.active) {
-      b.active = true;
-      this.emit('labActivate', { side: b.side });
-    }
+    if (!src?.mega) this.addMegaCharge(atk, (d * MEGA.baseDmgMult) / MEGA.chargeDmg);
     this.emit('towerHit', { side: b.side, kind: b.kind, amount: Math.round(d), src, spell: !!o.spell });
     if (b.hp <= 0) this.destroyBuilding(b);
   }
@@ -833,18 +1000,8 @@ export class BattleSim {
     b.hp = 0;
     b.alive = false;
     b.dead = true;
-    const atk = this.sides[1 - b.side];
-    const own = this.sides[b.side];
-    if (b.kind === 'turret') {
-      atk.crowns = Math.min(3, atk.crowns + 1);
-      if (!own.lab.active) { own.lab.active = true; this.emit('labActivate', { side: b.side }); }
-      this.emit('towerDown', { side: b.side, kind: 'turret', crowns: atk.crowns });
-      if (this.overtime) this.end(1 - b.side);
-    } else {
-      atk.crowns = 3;
-      this.emit('towerDown', { side: b.side, kind: 'lab', crowns: 3 });
-      this.end(1 - b.side);
-    }
+    this.emit('towerDown', { side: b.side, kind: 'lab' });
+    this.end(1 - b.side, { reason: 'base' });
   }
 
   updateBuilding(b, dt) {
@@ -866,7 +1023,7 @@ export class BattleSim {
     const dist = Math.abs(best.x - b.x);
     const p = {
       id: UID++, side: b.side, src: b, x0: b.x, x: b.x, tx: best.x, t: 0, flight: 0.15 + dist / 22, target: best,
-      kind: b.kind === 'lab' ? 'labCannon' : 'turretBolt', dmg: b.dmg, height: b.kind === 'lab' ? 3.4 : 2.6, tower: true,
+      kind: 'labCannon', dmg: b.dmg, height: 3.4, tower: true,
     };
     this.projectiles.push(p);
     this.emit('towerShoot', { side: b.side, kind: b.kind, proj: p });
@@ -877,13 +1034,13 @@ export class BattleSim {
     this.over = true;
     this.winner = winner;
     this.draw = winner < 0;
-    this.emit('end', { winner, draw: this.draw, reason: o.reason ?? 'crowns' });
+    this.emit('end', { winner, draw: this.draw, reason: o.reason ?? 'base' });
   }
 
-  /** Lowest-tower tiebreak (Clash Royale): the side whose weakest tower has more HP% wins. */
+  /** Tiebreak: the base with more HP% left wins. */
   tiebreak() {
-    const weakest = (si) => Math.min(...[this.sides[si].turret, this.sides[si].lab].map((b) => (b.alive ? b.hp / b.maxHp : 0)));
-    const a = weakest(0), b = weakest(1);
+    const frac = (si) => { const b = this.sides[si].lab; return b.alive ? b.hp / b.maxHp : 0; };
+    const a = frac(0), b = frac(1);
     if (Math.abs(a - b) < 1e-4) return -1;
     return a > b ? 0 : 1;
   }
@@ -903,10 +1060,19 @@ export class BattleSim {
 
   energyRate(si) {
     const s = this.sides[si];
-    return ENERGY.perSec * OVERCLOCK[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1);
+    return ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1);
   }
 
   tick(dt) {
+    // Mega cinematic: the battle freezes while the containment breaks open
+    if (this.cinematic > 0) {
+      this.cinematic -= dt;
+      if (this.cinematic <= 0) {
+        this.cinematic = 0;
+        this.megaArrive(this.cinematicSide);
+      }
+      return;
+    }
     this.t += dt;
     if (this.timers.length) {
       const due = this.timers.filter((tm) => tm.at <= this.t);
@@ -916,11 +1082,10 @@ export class BattleSim {
       }
     }
     for (const s of this.sides) {
-      s.energy = Math.min(ENERGY.max, s.energy + this.energyRate(s.i) * dt);
+      s.energy = Math.min(this.maxPower(s.i), s.energy + this.energyRate(s.i) * dt);
       for (let k = 0; k < s.skillCds.length; k++) if (s.skillCds[k] > 0) s.skillCds[k] -= dt;
       if (s.cmd && s.sig < 1) s.sig = Math.min(1, s.sig + dt / (s.cmd.signature.charge * (1 - (s.perks.hypeMan ?? 0) / 100)));
       for (const k in s.buffs) if (s.buffs[k] > 0) s.buffs[k] -= dt;
-      this.updateBuilding(s.turret, dt);
       this.updateBuilding(s.lab, dt);
     }
     // zones
@@ -992,16 +1157,12 @@ export class BattleSim {
       this.emit('doubleEnergy');
     }
     if (this.t < this.timeLimit) return;
-    const [a, b] = [this.sides[0].crowns, this.sides[1].crowns];
-    if (!this.overtime) {
-      if (a !== b) return this.end(a > b ? 0 : 1, { reason: 'time' });
-      if (this.noOvertime) return this.end(this.tiebreak(), { reason: 'tiebreak' });
+    if (!this.overtime && !this.noOvertime) {
       this.overtime = true;
       this.timeLimit = this.regulation + OT_LEN;
       this.emit('overtime');
       return;
     }
-    if (a !== b) return this.end(a > b ? 0 : 1, { reason: 'time' });
     this.end(this.tiebreak(), { reason: 'tiebreak' });
   }
 

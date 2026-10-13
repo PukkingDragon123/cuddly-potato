@@ -28,6 +28,9 @@ export const SERIES = {
   food: { id: 'food', name: 'Snack Squad', color: '#ff4fa3', desc: 'FOOD SEASON: snacks that bite back.' },
   labBrats: { id: 'labBrats', name: 'Lab Brats', color: '#9dff3a', desc: 'Lab equipment and mutated experiments.' },
   creepyCritters: { id: 'creepyCritters', name: 'Creepy Critters', color: '#8a5cff', desc: 'Bugs, snakes and night prowlers.' },
+  megaTech: { id: 'megaTech', name: 'Mega-Tech', color: '#3d8bff', desc: 'Micro Beasts in futuristic Mega-Tech armour.' },
+  fireIce: { id: 'fireIce', name: 'Fire & Ice', color: '#ff6a3d', desc: 'Lava-hot and ice-cold beasts from the Fire & Ice packs.' },
+  battleFusion: { id: 'battleFusion', name: 'Battle Fusion', color: '#b45cff', desc: 'Super-mutants fused in the Lab for one thing: battle.' },
 };
 
 // role: melee | ranged | tank | swarm | support | kamikaze | flying | siege
@@ -230,6 +233,73 @@ export const SWARMS = {
     name: 'Melon Mauler', series: 'food', rarity: 'epic', role: 'tank', arena: 'factory',
     elixir: 6, hp: 2800, dmg: 120, atk: 1.5, range: 1.0, speed: 0.9, kb: 2, size: 1.5,
     traits: { split: 3, area: true }, season: 1, desc: 'Bursts into 3 seedlings when it pops.',
+  },
+
+  // ----- Wave 2: Mega-Tech, Fire & Ice, Battle Fusion + more Home Horrors
+  hardHeadPanther: {
+    name: 'Hard Head Panther', series: 'originals', rarity: 'rare', role: 'tank', arena: 'factory',
+    elixir: 4, hp: 1450, dmg: 92, atk: 1.4, range: 0.85, speed: 1.15, kb: 1, size: 1.15,
+    traits: { knock: true },
+    desc: 'SPECIAL EDITION! A Panther in a steel battering-ram helmet. Every headbutt sends enemies flying.',
+  },
+  voltBat: {
+    name: 'Volt Bat', series: 'megaTech', rarity: 'rare', role: 'flying', arena: 'mart',
+    elixir: 4, hp: 460, dmg: 88, atk: 1.4, range: 3.0, speed: 1.85, kb: 2, size: 0.95,
+    traits: { flying: true, chain: 2 }, projectile: 'zap',
+    desc: 'A Mega-Tech bat with tesla-coil wings. Flies over the brawl and zaps lightning that jumps to a second enemy.',
+  },
+  mechaMantis: {
+    name: 'Mecha Mantis', series: 'megaTech', rarity: 'epic', role: 'melee', arena: 'redlight',
+    elixir: 4, hp: 940, dmg: 72, atk: 0.55, range: 1.0, speed: 1.9, kb: 2, size: 1.1,
+    traits: { pierce: true },
+    desc: 'Chrome scythe arms that slash twice a second, slicing through EVERY enemy in reach.',
+  },
+  cyberCroc: {
+    name: 'Cyber Croc', series: 'megaTech', rarity: 'epic', role: 'tank', arena: 'reactor',
+    elixir: 6, hp: 2400, dmg: 270, atk: 1.8, range: 1.0, speed: 0.95, kb: 1, size: 1.45,
+    traits: { armor: 0.2, stun: { chance: 0.25, dur: 0.8 } },
+    desc: 'A Mega-Tech armoured croc with hydraulic jaws. Shrugs off 20% damage and its death-roll bite can stun.',
+  },
+  pixelPups: {
+    name: 'Pixel Pups', series: 'megaTech', rarity: 'common', role: 'swarm', arena: 'lab',
+    elixir: 2, hp: 140, dmg: 46, atk: 0.8, range: 0.6, speed: 2.1, kb: 1, size: 0.75, count: 3,
+    desc: 'Three glitchy 8-bit puppies that escaped a Lab game console. Cheap, fast, LOUD.',
+  },
+  emberWolf: {
+    name: 'Ember Wolf', series: 'fireIce', rarity: 'rare', role: 'melee', arena: 'antarctica',
+    elixir: 3, hp: 680, dmg: 84, atk: 0.9, range: 0.8, speed: 2.0, kb: 2, size: 1.05,
+    traits: { burn: { dps: 24, dur: 3 } },
+    desc: 'A lava-cracked wolf with a mane of fire. Its fangs leave enemies burning.',
+  },
+  iceBeetle: {
+    name: 'Ice Beetle', series: 'fireIce', rarity: 'common', role: 'ranged', arena: 'antarctica',
+    elixir: 3, hp: 440, dmg: 78, atk: 1.2, range: 4.4, speed: 1.05, kb: 2, size: 0.95,
+    traits: { slow: { amt: 0.3, dur: 1.5 } }, projectile: 'ice',
+    desc: 'Fires ice shards from its crystal horn. Every hit chills enemies and slows them down.',
+  },
+  magmaMole: {
+    name: 'Magma Mole', series: 'fireIce', rarity: 'epic', role: 'siege', arena: 'pyramid',
+    elixir: 5, hp: 1650, dmg: 150, atk: 1.3, range: 0.8, speed: 1.5, kb: 1, size: 1.2,
+    traits: { siege: true, ambush: 3 },
+    desc: 'Tunnels under the fight with molten drill claws and erupts at a tower. Its first strike deals TRIPLE damage.',
+  },
+  sludgeKraken: {
+    name: 'Sludge Kraken', series: 'battleFusion', rarity: 'legendary', role: 'ranged', arena: 'island',
+    elixir: 7, hp: 2600, dmg: 190, atk: 2.1, range: 4.0, speed: 0.85, kb: 2, size: 1.6,
+    traits: { area: true, slow: { amt: 0.3, dur: 1.5 }, burn: { dps: 30, dur: 3, poison: true } }, projectile: 'acid',
+    desc: 'A Battle Fusion kraken from the Lab sewers. Tentacle-slams toxic sludge that splashes, slows and poisons.',
+  },
+  boomBox: {
+    name: 'Boom Box', series: 'homeHorrors', rarity: 'rare', role: 'ranged', arena: 'circle',
+    elixir: 4, hp: 760, dmg: 96, atk: 1.6, range: 2.6, speed: 1.05, kb: 2, size: 1.1,
+    traits: { area: true, stun: { chance: 0.2, dur: 0.6 } },
+    desc: 'A possessed speaker that drops the bass. Every BOOM hits a whole area and can stun.',
+  },
+  mutantMop: {
+    name: 'Mutant Mop', series: 'homeHorrors', rarity: 'common', role: 'melee', arena: 'circle',
+    elixir: 3, hp: 760, dmg: 78, atk: 1.1, range: 1.0, speed: 1.2, kb: 2, size: 1.05,
+    traits: { slow: { amt: 0.35, dur: 1.5 } },
+    desc: 'A filthy mop with a bucket for a body. Slaps enemies with soggy slime that slows them down.',
   },
 
   // ----- Mega Forms (not collectable directly; unlocked with a Mega Serum)

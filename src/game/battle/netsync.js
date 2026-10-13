@@ -4,16 +4,17 @@
 import { SWARMS, swarmStats } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
 import { COMMANDERS } from '../../data/commanders.js';
-import { OVERCLOCK, ENERGY } from '../../data/labs.js';
+import { BASE_UPGRADES, ENERGY, MEGA } from '../../data/labs.js';
+import { MEGAS } from '../../data/megas.js';
 import { FIELD } from './field.js';
-import { LAB_X, LAB_HALF, TURRET_X } from './sim.js';
+import { LAB_X, LAB_HALF } from './sim.js';
 
 const STATES = ['walk', 'attack', 'kb', 'stun', 'frozen', 'spawn'];
 const SEND_HZ = 15;
 
 const unitFull = (u) => ({
   i: u.id, s: u.side, ty: u.type, cd: u.card, m: u.model ?? null, sk: u.skin ?? null, v: u.variant, x: +u.x.toFixed(3), y: +u.y.toFixed(3), z: +u.z.toFixed(3),
-  hp: Math.round(u.hp), mh: Math.round(u.maxHp), sz: u.size, b: u.boss ? 1 : 0, c: u.cost, lv: u.st.level, gs: u.buffs.growScale ?? 1, st: u.state, sp: u.spawnT ?? 0,
+  hp: Math.round(u.hp), mh: Math.round(u.maxHp), sz: u.size, b: u.boss ? 1 : 0, mg: u.mega ? 1 : 0, c: u.cost, lv: u.st.level, gs: u.buffs.growScale ?? 1, st: u.state, sp: u.spawnT ?? 0,
 });
 const bref = (b) => ({ bk: b.kind, bs: b.side });
 
@@ -56,6 +57,7 @@ export class HostSync {
     switch (msg.a) {
       case 'play': sim.play(1, msg.slot, msg.x === null ? null : -msg.x); break;
       case 'sig': sim.useSignature(1); break;
+      case 'mega': sim.useMega(1); break;
       case 'skill': sim.useSkill(1, msg.k); break;
       case 'lab': sim.upgradeLab(1); break;
       case 'emote': this.peerEmote && this.peerEmote(msg.e); break;
@@ -69,7 +71,9 @@ export class HostSync {
     return {
       t: 's', time: +sim.t.toFixed(2), tl: sim.timeLimit, ot: sim.overtime ? 1 : 0, de: sim.doubleEnergy ? 1 : 0, p: sim.paused ? 1 : 0,
       sides: sim.sides.map((s) => [+s.energy.toFixed(2), s.overclock, +s.sig.toFixed(3), s.hand, s.queue, s.skillCds.map((c) => +c.toFixed(2)),
-        [+s.buffs.rally.toFixed(2), +s.buffs.dance.toFixed(2), +s.buffs.immortal.toFixed(2)], tw(s.turret), tw(s.lab), s.crowns]),
+        [+s.buffs.rally.toFixed(2), +s.buffs.dance.toFixed(2), +s.buffs.immortal.toFixed(2)], null, tw(s.lab),
+        s.mega ? [+s.mega.charge.toFixed(3), s.mega.used ? 1 : 0] : null]),
+      cin: +(sim.cinematic ?? 0).toFixed(2),
       u: sim.units.filter((u) => !u.dead).map((u) => [u.id, +u.x.toFixed(3), +u.y.toFixed(3), Math.round(u.hp), Math.round(u.maxHp), Math.max(0, STATES.indexOf(u.state)), u.buffs.growScale ?? 1,
         (u.buffs.burnT > 0 ? 1 : 0) | (u.buffs.slowT > 0 && u.buffs.slow > 0 ? 2 : 0)]),
       mv: sim.movers.map((m) => [m.id, +m.x.toFixed(3)]),
@@ -120,11 +124,12 @@ export class RemoteSim {
       const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
       const lvl = s.commander?.level ?? 1;
       const deck = (s.deck || []).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
-      const mk = (kind, x, half) => ({ building: true, kind, side: i, x, half, hp: 1, maxHp: 1, alive: true, active: kind === 'turret', shield: 0, radius: half, dead: false });
+      const mk = (kind, x, half) => ({ building: true, kind, side: i, x, half, hp: 1, maxHp: 1, alive: true, active: true, shield: 0, radius: half, dead: false });
       return {
         i, dir: i === 0 ? 1 : -1, labX: i === 0 ? -LAB_X : LAB_X, name: s.name, deck, hand: deck.slice(0, 4).map((_, k) => k), queue: deck.slice(4).map((_, k) => k + 4),
-        energy: ENERGY.start, overclock: 0, sig: 0, crowns: 0,
-        lab: mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF), turret: mk('turret', i === 0 ? -TURRET_X : TURRET_X, FIELD.TURRET_HALF),
+        energy: ENERGY.start, overclock: 0, sig: 0,
+        lab: mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF), turret: null,
+        mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: 0, used: false } : null,
         cmd, cmdLevel: lvl, skills: cmd ? cmd.skills.filter((k) => lvl >= k.level) : [], skillCds: [], perks: s.perks || {},
         buffs: { rally: 0, dance: 0, immortal: 0 }, stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       };
@@ -136,7 +141,7 @@ export class RemoteSim {
   bld(r) {
     if (!r) return null;
     const s = this.sides[mSide(r.bs)];
-    return r.bk === 'lab' ? s.lab : s.turret;
+    return s.lab;
   }
 
   onMsg(msg) {
@@ -147,18 +152,18 @@ export class RemoteSim {
     this.overtime = !!msg.ot;
     this.doubleEnergy = !!msg.de;
     this.paused = !!msg.p;
+    this.cinematic = msg.cin ?? 0;
     msg.sides.forEach((arr, hs) => {
       const s = this.sides[mSide(hs)];
       [s.energy, s.overclock, s.sig, s.hand, s.queue, s.skillCds] = arr;
       [s.buffs.rally, s.buffs.dance, s.buffs.immortal] = arr[6];
-      for (const [b, a] of [[s.turret, arr[7]], [s.lab, arr[8]]]) {
-        [b.hp, b.maxHp] = a;
-        b.alive = !!a[2];
-        b.dead = !b.alive;
-        b.active = !!a[3];
-        b.shield = a[4];
-      }
-      s.crowns = arr[9];
+      const b = s.lab, a = arr[8];
+      [b.hp, b.maxHp] = a;
+      b.alive = !!a[2];
+      b.dead = !b.alive;
+      b.active = !!a[3];
+      b.shield = a[4];
+      if (s.mega && arr[9]) { s.mega.charge = arr[9][0]; s.mega.used = !!arr[9][1]; }
     });
     const alive = new Set();
     for (const a of msg.u) {
@@ -192,7 +197,7 @@ export class RemoteSim {
       id: d.i, side: mSide(d.s), type: d.ty, card: d.cd, model: d.m ?? undefined, skin: d.sk, variant: d.v ?? 'base', st,
       x: mX(d.x), y: d.y, z: -d.z, hp: d.hp, maxHp: d.mh, size: d.sz, boss: !!d.b, cost: d.c ?? def.elixir, state: d.st ?? 'walk', spawnT: d.sp ?? 0,
       buffs: { growScale: d.gs ?? 1, burnT: 0, slowT: 0, slow: 0 }, radius: 0.3 * d.sz, dead: false, _born: performance.now(),
-      flying: !!def.traits?.flying, level: d.lv ?? 1,
+      flying: !!def.traits?.flying, level: d.lv ?? 1, mega: !!d.mg,
     };
     this.unitMap.set(d.i, u);
     this.units.push(u);
@@ -292,18 +297,24 @@ export class RemoteSim {
     return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
   overclockInfo(si) {
-    return OVERCLOCK[this.sides[si].overclock];
+    return BASE_UPGRADES[this.sides[si].overclock];
+  }
+  maxPower(si) {
+    return BASE_UPGRADES[this.sides[si].overclock].max;
   }
   canUpgradeLab(si) {
     const s = this.sides[si];
-    const info = OVERCLOCK[s.overclock];
+    const info = BASE_UPGRADES[s.overclock];
     return !this.over && info.cost !== null && s.energy >= info.cost;
   }
+  canMega(si) {
+    const s = this.sides[si];
+    return !this.over && !this.cinematic && !!s.mega && !s.mega.used && s.mega.charge >= 1 && s.overclock + 1 >= MEGA.minTier;
+  }
   deployRange(si) {
-    const s = this.sides[si], en = this.sides[1 - si];
+    const s = this.sides[si];
     const back = s.labX + s.dir * (LAB_HALF + 0.2);
-    let front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX;
-    if (!en.turret.alive) front = en.turret.x - s.dir * 1.6;
+    const front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX;
     return si === 0 ? [back, front] : [front, back];
   }
   clampDeploy(si, x) {
@@ -312,7 +323,7 @@ export class RemoteSim {
   }
   frontBuilding(si) {
     const en = this.sides[1 - si];
-    return en.turret.alive ? en.turret : en.lab.alive ? en.lab : null;
+    return en.lab.alive ? en.lab : null;
   }
   enemiesOf(si) {
     return this.units.filter((u) => !u.dead && u.side !== si);
@@ -376,6 +387,12 @@ export class RemoteSim {
   upgradeLab() {
     if (!this.canUpgradeLab(0)) return false;
     this.send('lab');
+    return true;
+  }
+  useMega() {
+    if (!this.canMega(0)) return false;
+    this.send('mega');
+    this.sides[0].mega.used = true;
     return true;
   }
   emote(id) {

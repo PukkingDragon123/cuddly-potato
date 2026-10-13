@@ -13,7 +13,7 @@ export const SPELLS = {
   },
   labShield: {
     name: 'Lab Shield', icon: 'shield', color: '#29b6f6', rarity: 'rare', arena: 'circle', elixir: 3, radius: 0,
-    desc: 'A bubble shield around your Lab and turret absorbs 30% of their max HP for 10s.',
+    desc: 'A bubble shield around your base absorbs 30% of their max HP for 10s.',
     shield: 0.3, dur: 10, self: true,
   },
   sodaRocket: {

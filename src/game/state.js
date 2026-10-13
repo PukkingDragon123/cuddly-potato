@@ -11,6 +11,7 @@ import {
   ARENAS, arenaById, currentArena, cardPool, trophyFloor, TROPHY_ROAD, QUESTS, QUEST_CHAINS, SECRETS, BOSSES,
 } from '../data/arenas.js';
 import { labLevelFor, LAB_XP, LAB_MAX_LEVEL, LAB_LEVEL_REWARDS } from '../data/labs.js';
+import { MEGAS } from '../data/megas.js';
 import { mulberry32, hashString, todayKey, randInt } from '../core/util.js';
 
 const KEY = 'mbswarmers.save.v1';
@@ -36,6 +37,7 @@ function defaultProfile() {
     deckIdx: 0,
     commanders: { owned: { recruit: { level: 1, xp: 0, perks: [null, null, null], skin: null } }, equipped: 'recruit' },
     megaUnlocked: {},
+    megas: { owned: {}, equipped: null },
     vials: { slots: Array(VIAL_SLOTS).fill(null), storage: [], cycle: 0, freeNext: 0, freeStock: 1, crowns: 0, crownDay: '', crownClaimed: false },
     shop: { day: '', bought: {}, freeClaimed: false },
     pass: { premium: false, free: {}, premium_: {} },
@@ -139,6 +141,9 @@ function migrate(d) {
 
 /** Repair anything inconsistent (unknown cards, short decks after the tutorial...). */
 function sanitize(p) {
+  if (!p.megas || typeof p.megas !== 'object') p.megas = { owned: {}, equipped: null };
+  p.megas.owned = p.megas.owned || {};
+  if (p.megas.equipped && !p.megas.owned[p.megas.equipped]) p.megas.equipped = null;
   for (const id of Object.keys(p.cards)) if (!CARDS[id]) delete p.cards[id];
   if (!Array.isArray(p.decks) || !p.decks.length) p.decks = [[], [], []];
   while (p.decks.length < DECK_PRESETS) p.decks.push([]);
@@ -481,6 +486,36 @@ export function claimFreeVial() {
   state.emit('vials');
   return true;
 }
+// ---------------------------------------------------------------------------
+// MEGA ultimates (MEGA-TECH Mutator figures)
+
+/** Grant a Mega. Like the real toy, there's a 1-in-8 Metallic Gold chance. */
+export function grantMega(id, variant) {
+  const p = P();
+  if (!MEGAS[id]) return { isNew: false, variant: 'base' };
+  const v = variant ?? (Math.random() < 1 / 8 ? 'gold' : 'base');
+  const had = p.megas.owned[id];
+  const isNew = !had;
+  if (!had) p.megas.owned[id] = { variant: v, found: Date.now() };
+  else if (v === 'gold') had.variant = 'gold';
+  if (!p.megas.equipped) p.megas.equipped = id;
+  state.emit('megas');
+  return { isNew, variant: p.megas.owned[id].variant };
+}
+export function equipMega(id) {
+  if (!P().megas.owned[id]) return false;
+  P().megas.equipped = id;
+  state.emit('megas');
+  return true;
+}
+/** The equipped Mega for battles: { id, variant, level } or null. */
+export function equippedMega() {
+  const p = P();
+  const id = p.megas?.equipped;
+  if (!id || !p.megas.owned[id]) return null;
+  return { id, variant: p.megas.owned[id].variant ?? 'base', level: labLevel() };
+}
+
 /** Crown case: 10 crowns per day. */
 export function crownStatus() {
   const v = P().vials;
@@ -603,6 +638,11 @@ export function grantReward(r) {
       const g = grantCard(r.id, r.copies ?? 1);
       const d = cardDef(r.id);
       push({ icon: d?.kind === 'spell' ? 'magic' : 'swarm', label: `${d?.name ?? r.id}${(r.copies ?? 1) > 1 ? ' x' + r.copies : ''}`, kind: 'card', id: r.id, copies: r.copies ?? 1, isNew: g.isNew });
+      break;
+    }
+    case 'mega': {
+      const g = grantMega(r.id, r.variant);
+      push({ icon: 'mega', label: `MEGA: ${MEGAS[r.id]?.name ?? r.id}${g.variant === 'gold' ? ' (Metallic Gold!)' : ''}`, kind: 'mega', id: r.id, variant: g.variant });
       break;
     }
     case 'commander': grantCommander(r.id); push({ icon: 'crown', label: `Commander: ${COMMANDERS[r.id].name}`, kind: 'commander', id: r.id }); break;
@@ -824,7 +864,7 @@ export function markBought(key) { P().shop.bought[key] = true; state.emit('shop'
  * Apply the result of a battle.
  * result: 'win' | 'loss' | 'draw'; crowns: crowns you earned (0-3); enemyCrowns.
  */
-export function battleRewards({ result, crowns = 0, enemyCrowns = 0, arenaId, mode = 'ranked', opponentTrophies = 0, bossId = null }) {
+export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0, arenaId, mode = 'ranked', opponentTrophies = 0, bossId = null }) {
   const p = P();
   const win = result === 'win';
   const arenaIdx = Math.max(0, ARENAS.findIndex((a) => a.id === arenaId));
@@ -836,16 +876,14 @@ export function battleRewards({ result, crowns = 0, enemyCrowns = 0, arenaId, mo
   const ranked = mode === 'ranked';
   p.stats.battles++;
   if (arenaId === 'mart') p.stats.martBattles++;
-  if (crowns) {
-    stat('crowns', crowns);
-    if (crowns >= 3) stat('threeCrowns');
-    if (ranked || mode === 'boss') addCrowns(crowns);
-  }
+  // (crowns were removed from battles: `margin` = your base HP% left on a win)
+  if (crowns) stat('crowns', crowns);
+  if (result === 'win' && margin >= 0.999) stat('flawless');
   if (win) {
     p.stats.wins++;
     p.stats.winStreak = (p.stats.winStreak ?? 0) + 1;
     p.stats.bestStreak = Math.max(p.stats.bestStreak ?? 0, p.stats.winStreak);
-    res.coins = Math.round((18 + arenaIdx * 6) * (1 + crowns * 0.2) * coinMag);
+    res.coins = Math.round((18 + arenaIdx * 6) * (1.2 + margin * 0.6) * coinMag);
     if (ranked) res.trophies = Math.max(24, Math.min(36, 30 + Math.round((opponentTrophies - p.trophies) / 25)));
     res.calories = arenaId === 'mart' ? 160 : 100;
     res.cmdXp = 70;
@@ -878,7 +916,7 @@ export function battleRewards({ result, crowns = 0, enemyCrowns = 0, arenaId, mo
   res.passTiers = addCalories(res.calories);
   res.levelUps = addCmdXp(p.commanders.equipped, res.cmdXp);
   if (res.labXp) res.labUps = addLabXp(res.labXp);
-  res.crownProgress = crownStatus();
+  res.crownProgress = null;
   state.emit('battle');
   return res;
 }

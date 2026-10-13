@@ -68,7 +68,7 @@ export function clearUI() {
   clear($overlay());
   clear($world());
   floaters.length = 0;
-  bubbles.length = 0;
+  speechBubbles.length = 0;
   pointers.length = 0;
   activeDialogue = null;
 }
@@ -352,7 +352,7 @@ export function closeDialogue() {
 // World-anchored elements: speech bubbles, floating text, pointers
 
 const floaters = [];
-const bubbles = [];
+const speechBubbles = [];
 const pointers = [];
 const _v = new THREE.Vector3();
 
@@ -374,7 +374,7 @@ export function speech(target, text, dur = 2.2, opts = {}) {
   const el = h('div', { class: 'speech' }, h('span', { class: 'speech-b pop-in', html: rich(text) }));
   $world().appendChild(el);
   const b = { el, target, t: 0, dur, offsetY: opts.offsetY ?? 0 };
-  bubbles.push(b);
+  speechBubbles.push(b);
   return { close: () => { b.t = b.dur; } };
 }
 
@@ -464,12 +464,12 @@ export function updateWorldUI(dt) {
     f.el.style.transform = `translate(${s.x + f.dx * k}px, ${s.y - f.rise * Math.sqrt(k)}px) translate(-50%,-50%) scale(${pop})`;
     f.el.style.opacity = k > 0.72 ? String(1 - (k - 0.72) / 0.28) : '1';
   }
-  for (let i = bubbles.length - 1; i >= 0; i--) {
-    const b = bubbles[i];
+  for (let i = speechBubbles.length - 1; i >= 0; i--) {
+    const b = speechBubbles[i];
     b.t += dt;
     if (b.t >= b.dur) {
       b.el.remove();
-      bubbles.splice(i, 1);
+      speechBubbles.splice(i, 1);
       continue;
     }
     let wp;
@@ -526,6 +526,82 @@ export function rollNumber(el, from, to, dur = 0.6, f = fmt) {
     if (k < 1) el._roll = requestAnimationFrame(step);
   };
   el._roll = requestAnimationFrame(step);
+}
+
+// ---------------------------------------------------------------------------
+// Lab fizz: CSS-animated bubble particles (transform/opacity only, composited)
+
+/**
+ * Inject rising bubbles into an element (decorative, pointer-events none).
+ * o: { count, size (1 = small pixel bubbles), dur (s), rise (px, default element height), cls }
+ * Returns the bubble layer (re-calling replaces it).
+ */
+export function bubbles(el, o = {}) {
+  if (!el) return null;
+  for (const old of el.querySelectorAll(':scope > .lab-fizz')) old.remove();
+  const layer = h('div', { class: 'lab-fizz ' + (o.cls ?? ''), 'aria-hidden': 'true' });
+  const n = o.count ?? 6;
+  for (let i = 0; i < n; i++) {
+    const b = h('i');
+    const s = Math.round((o.size ?? 1) * (2 + Math.random() * 2.6));
+    const st = b.style;
+    st.setProperty('--x', (6 + ((i + Math.random() * 0.8) / n) * 86).toFixed(1) + '%');
+    st.setProperty('--s', `calc(var(--px) * ${s})`);
+    st.setProperty('--d', ((o.dur ?? 2.4) * (0.75 + Math.random() * 0.6)).toFixed(2) + 's');
+    st.setProperty('--dl', (-Math.random() * 3).toFixed(2) + 's');
+    st.setProperty('--a', (0.55 + Math.random() * 0.4).toFixed(2));
+    layer.appendChild(b);
+  }
+  el.prepend(layer);
+  const setRise = () => layer.style.setProperty('--h', (o.rise ?? Math.max(24, el.offsetHeight || 60)) + 'px');
+  setRise();
+  if (!o.rise) requestAnimationFrame(setRise);
+  return layer;
+}
+
+// Auto-fizz: elements matching these selectors get bubbles when they enter the
+// DOM (so screens opt in from CSS class names alone, no JS changes needed).
+// Add the class `fizz` to any element to opt in; `[data-fizz="N"]` sets the count.
+export const FIZZ_SELECTORS = ['.fizz', '[data-fizz]', '.hm-battle', '.hm-slot.ready', '.hm-mini.ready', '.hm-tabbtn.on', '.vo-sum-ok'];
+let fizzObs = null;
+function fizzHit(el) {
+  if (el.querySelector(':scope > .lab-fizz')) return;
+  const n = +el.dataset?.fizz || (el.classList.contains('hm-battle') ? 9 : 5);
+  const layer = bubbles(el, { count: n });
+  if (layer) layer.dataset.auto = '1';
+}
+function fizzScan(root, deep) {
+  if (!(root instanceof Element) || !root.isConnected) return;
+  const sel = FIZZ_SELECTORS.join(',');
+  if (root.matches(sel)) fizzHit(root);
+  else if (!deep) root.querySelector(':scope > .lab-fizz[data-auto]')?.remove(); // lost its fizz class
+  if (deep) for (const el of root.querySelectorAll(sel)) fizzHit(el);
+}
+function startAutoFizz() {
+  if (fizzObs || typeof MutationObserver === 'undefined') return;
+  const targets = [document.getElementById('ui'), document.getElementById('overlay')].filter(Boolean);
+  if (!targets.length) return;
+  let added = new Set(), changed = new Set();
+  let raf = 0;
+  fizzObs = new MutationObserver((muts) => {
+    for (const m of muts) {
+      if (m.type === 'attributes') changed.add(m.target);
+      else for (const n of m.addedNodes) if (n.nodeType === 1 && !n.classList.contains('lab-fizz')) added.add(n);
+    }
+    if ((added.size || changed.size) && !raf) raf = requestAnimationFrame(() => {
+      raf = 0;
+      const a = added, c = changed;
+      added = new Set();
+      changed = new Set();
+      for (const n of a) fizzScan(n, true);
+      for (const n of c) if (!a.has(n)) fizzScan(n, false);
+    });
+  });
+  for (const t of targets) fizzObs.observe(t, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-fizz'] });
+}
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startAutoFizz, { once: true });
+  else startAutoFizz();
 }
 
 // ---------------------------------------------------------------------------
