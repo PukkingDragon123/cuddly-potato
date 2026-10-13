@@ -679,7 +679,7 @@ function necroClaw() {
     fur: 0x2e2244, furD: 0x170f24, furL: 0x4a3a66, muzzle: 0xe6dcbc, inner: 0x6a2a5a, nose: 0x0a0710, claw: 0xe6dcbc, joint: 0x241a33,
     bone: 0xe8dfc2, boneL: 0xf6f0dc, boneD: 0xb6a885, boneDD: 0x77694c, void: 0x0c0814,
     toxic: 0x8cff3a, toxicD: 0x3f9a2a, toxicHot: 0xe2ffb0,
-    shroud: 0x3b2a55, shroudD: 0x241835, shroudL: 0x56407a,
+    shroud: 0x4c2f6e, shroudD: 0x2a1842, shroudL: 0x6c4c98,
   };
   const furFn = (x, y, z) => { const v = n3(x, y, z, 21); return v < 0.14 ? K.furD : v > 0.95 ? K.furL : K.fur; };
   const boneCol = (x, y, z) => { const v = n3(x, y, z, 23); return v < 0.06 ? K.boneD : v > 0.94 ? K.boneL : K.bone; };
@@ -762,7 +762,8 @@ function necroClaw() {
       if (y < hem) continue;
       if (n3(x, y, 0, 33) < 0.035 && y < 40) continue;
       const z = Math.round(zc + u * u * 3.2 + Math.sin(x * 0.9) * 0.6);
-      const c = y <= hem + 1 ? K.shroudD : (x + 40) % 5 === 0 ? K.shroudL : K.shroud;
+      const fold = (x + 40) % 5;
+      const c = y <= hem + 1 ? K.shroudD : fold === 0 ? K.shroudL : fold === 2 ? K.shroudD : K.shroud;
       cape.set(x, y, z, c);
       cape.set(x, y, z + 1, K.shroudD);
     }

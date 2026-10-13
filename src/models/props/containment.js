@@ -16,8 +16,10 @@
 //   update(dt), setFill(k 0..1), setCrack(k 0..1), setGlow(k 0..1+), setRumble(k 0..1),
 //   burst(opts) -> shard meshes (flown by update() unless opts.physics === false), dispose()
 // }
-// opts: { height = 7 (world units, everything scales with it), accent (bolt /
-// glow colour), liquid (water colour), beacon (beacon colour) }
+// opts: { height (exact total height in world units; natural size 7.45 tall,
+// 4.3 wide with a 5.6-unit interior), fitHeight (alternatively: size the vessel
+// so a figure this tall just fits inside), accent (seat ring / glow / beacon
+// colour), liquid (water colour), beacon (beacon colour), seed (crack pattern) }
 //
 // Model space: y = 0 is the ground, the vessel is centred on x/z and its logos
 // face +Z. The figure stands at interior.floorY (inside radius interior.radius,
@@ -27,13 +29,13 @@ import { Mats, makeMesh } from '../../core/voxel.js';
 import { G, blob, rbox, cyl, stamp, n3 } from '../kit.js';
 import { text, textW } from './common.js';
 
-const V = 0.065; // voxel size at the default 7-unit height
-const H0 = 7; // design height
+const V = 0.065; // voxel size at the natural (scale 1) size
 const INK = 0x15121f, MAG = 0xff1f9e, YEL = 0xffd23f, WHITE = 0xf4f6fa;
 const METAL = 0xb9c3d6, METAL_L = 0xdfe5ef, METAL_D = 0x6f7a92, METAL_DD = 0x3c4356, RUBBER = 0x1b1d26, NAVY = 0x1e2547;
 
 // layout in voxels (V)
 const L = {
+  // (natural total height = (glassTop + lidH + 3) * V + beacon)
   baseTop: 9, // glass seats here; the figure stands on this floor
   glassTop: 96, // lid starts here
   glassR: 31, // glass radius
@@ -266,7 +268,8 @@ export function makeContainment(opts = {}) {
 class Containment {
   constructor(opts) {
     this.opts = opts;
-    const S = (opts.height ?? H0) / H0;
+    const natH = (L.glassTop + L.lidH + 3) * V + 0.36, natInner = (L.glassTop - L.baseTop - 1) * V;
+    const S = opts.fitHeight ? (opts.fitHeight + 0.2) / natInner : opts.height ? opts.height / natH : 1;
     this.scale = S;
     this.accent = new THREE.Color(opts.accent ?? 0xff3fc0);
     this.liquid = new THREE.Color(opts.liquid ?? 0x52d6ff);
@@ -408,7 +411,7 @@ class Containment {
     this.light.position.set(0, 2.2, 0.6);
     this.body.add(this.light);
 
-    this.height = ((L.glassTop + L.lidH + 3) * V + 0.36) * S;
+    this.height = natH * S;
     this.interior = { floorY: glassY0 * S, topY: glassY1 * S, radius: R * S };
     this.t = 0;
     this.fill = 0;
@@ -590,7 +593,7 @@ class Containment {
     }
     // water: surface wobble, bubbles, pour stream
     if (this.water.visible) {
-      const { glassY0, glassY1, R } = this.dims;
+      const { glassY0, R } = this.dims;
       const top = this.surface.position.y;
       this.surface.rotation.z = Math.sin(t * 2.3) * 0.02;
       this.surface.rotation.y = Math.sin(t * 1.7) * 0.02;
@@ -606,7 +609,6 @@ class Containment {
         this.bubbles.setMatrixAt(i, dummy.matrix);
       });
       this.bubbles.instanceMatrix.needsUpdate = true;
-      void glassY1;
     }
     this.pourT = Math.max(0, this.pourT - dt);
     const pouring = this.pourT > 0 && !this.burst_ && this.fill < 0.999;

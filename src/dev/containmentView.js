@@ -1,6 +1,7 @@
 // Containment vessel check: ?dev=containment[&id=panthar][&variant=gold]
 //   static:  &fill=0..1 &crack=0..1 &glow=0..1 [&burst=1]
 //   auto:    &auto=1 loops the breakout (slam, pour, glow, crack, burst, roar); &t=sec warms up to a moment, &freeze=1 holds it
+//   size:    &fig=5.8 (figure height; the vessel is fitted around it) or &height= (exact vessel height)
 //   camera:  &cam=front|side|high  &zoom=1
 // Places a MEGA figure inside the vessel scaled to the interior, like the ultimate cutscene does.
 import * as THREE from 'three';
@@ -35,12 +36,12 @@ export class ContainmentViewScene {
     const id = params.id ?? 'panthar';
     this.id = id;
     const col = ACCENTS[id] ?? ACCENTS.panthar;
-    this.vessel = makeContainment({ accent: col.accent, liquid: col.liquid, height: +(params.height ?? 7) });
+    this.vessel = makeContainment(this.vesselOpts(col));
     this.scene.add(this.vessel.root);
     // fit the figure to the interior (like the cutscene)
     const probe = createSwarm(id, { variant: params.variant ?? 'base' });
     const I = this.vessel.interior;
-    const want = Math.min(+(params.fig ?? 5.5), I.topY - I.floorY - 0.12);
+    const want = Math.min(+(params.fig ?? 5.8), I.topY - I.floorY - 0.12);
     this.figScale = want / probe.height;
     this.rig = createSwarm(id, { variant: params.variant ?? 'base', scale: this.figScale });
     this.rig.root.position.y = I.floorY;
@@ -61,14 +62,21 @@ export class ContainmentViewScene {
     this.frozen = !!params.freeze;
   }
 
+  /** Size the vessel like the cutscene would: exact &height=, or fitted to &fig= (default 5.8). */
+  vesselOpts(col) {
+    const p = this.params;
+    return { accent: col.accent, liquid: col.liquid, ...(p.height ? { height: +p.height } : { fitHeight: +(p.fig ?? 5.8) }) };
+  }
+
   place() {
     const mode = this.params?.cam ?? 'front';
     const z = +(this.params?.zoom ?? 1);
     const cam = this.camera;
-    if (mode === 'side') cam.position.set(16 * z, 5, 3 * z);
-    else if (mode === 'high') cam.position.set(4 * z, 12 * z, 13 * z);
-    else cam.position.set(2.5 * z, 4.6, 15.5 * z);
-    cam.lookAt(0, 3.4, 0);
+    const H = this.vessel?.height ?? 7.5;
+    if (mode === 'side') cam.position.set(2.15 * H * z, 0.67 * H, 0.4 * H * z);
+    else if (mode === 'high') cam.position.set(0.54 * H * z, 1.6 * H * z, 1.75 * H * z);
+    else cam.position.set(0.34 * H * z, 0.62 * H, 2.08 * H * z);
+    cam.lookAt(0, 0.46 * H, 0);
   }
 
   resize(w, hh) {
@@ -110,7 +118,7 @@ export class ContainmentViewScene {
     this.scene.remove(this.vessel.root);
     this.vessel.dispose();
     const col = ACCENTS[this.id] ?? ACCENTS.panthar;
-    this.vessel = makeContainment({ accent: col.accent, liquid: col.liquid, height: +(this.params.height ?? 7) });
+    this.vessel = makeContainment(this.vesselOpts(col));
     this.scene.add(this.vessel.root);
   }
 
