@@ -361,7 +361,7 @@ function voltBat() {
   const wingR = flipX(wing);
 
   return {
-    gait: 'float', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'float', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('body', body, BODYJ),
       jp('legL', foot, [-2.5, 7, -1], BODYJ, { parent: 'body' }),
@@ -1287,7 +1287,7 @@ function mutantMop() {
   blob(handle, 2.7, 33.6, -6.8, 1.4, 1, 1.4, INK);
 
   return {
-    gait: 'slide', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'slide', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('body', body, BODYJ),
       jp('wheelFL', wheel(-7, 4.5), [-7.5, 1.6, 4.5]), jp('wheelFR', wheel(7, 4.5), [6.5, 1.6, 4.5]),

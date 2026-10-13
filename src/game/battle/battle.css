@@ -337,6 +337,9 @@ body.touch .bh-slot .key { display: none; }
 .bh-mega .lockt .pi { width: 2.4em; height: 2.4em; }
 .bh-mega.locked.full .lockt, .bh-mega.locked .lockt { display: flex; }
 .bh-mega.used { filter: grayscale(1) brightness(0.6); }
+.bh-mega.none { background: repeating-linear-gradient(-45deg, #1a2050 0 8px, #141a44 8px 16px); }
+.bh-mega.none .lockt b { display: flex; align-items: center; gap: 0.2em; font-family: var(--font-d); font-size: 1.5em; color: var(--gold); }
+.bh-mega.none .lockt b .pi { width: 1em; height: 1em; }
 .bh-mega.full:not(.locked) { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1.2) #fff, 0 0 0 calc(var(--px) * 2.4) var(--mb), 0 0 calc(var(--u) * 5) var(--mb); }
 .bh-mega.full:not(.locked) .liq { background: var(--tx-bubbles) 0 0 / var(--tx-bub-size), var(--tx-zap) 0 30% / calc(16 * var(--px)) calc(5 * var(--px)) repeat-x, linear-gradient(color-mix(in srgb, var(--mc) 50%, #fff) 0 calc(var(--px) * 1.5), var(--mc) calc(var(--px) * 1.5) 70%, color-mix(in srgb, var(--mc) 60%, #000) 100%); animation: megaGooFull 1.6s steps(16) infinite; }
 @keyframes megaGooFull { to { background-position: 0 calc(-32 * var(--px)), calc(-16 * var(--px)) 30%, 0 0; } }

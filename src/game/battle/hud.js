@@ -136,6 +136,16 @@ export class BattleHUD {
         if (this.sim.canMega(0)) handlers.mega?.();
         else this.megaDeny();
       });
+    } else if (!cfg.sides[0].noMegaTeaser) {
+      // no MEGA yet: a locked teaser cell pointing at the Trophy Road
+      this.megaEl = h('div', { class: 'bh-mega locked none hit', title: 'MEGA' },
+        h('div', { class: 'tg' }, icon('mega'), 'MEGA'),
+        h('div', { class: 'lockt' }, icon('lock'), 'Trophy Road', h('b', {}, icon('trophy'), '300')));
+      this.megaEl.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        this.hint('Win a MEGA-TECH figure on the Trophy Road at 300 trophies!');
+        audio.play('deny');
+      });
     }
     this.rightEl = h('div', { class: 'bh-right' }, this.emoteBtn, this.ocBtn, this.megaEl);
 
@@ -338,7 +348,7 @@ export class BattleHUD {
 
   megaDeny() {
     const s = this.sim.sides[0];
-    if (!s.mega || this.sim.over) return;
+    if (!s.mega || this.sim.over || !this.megaEl) return;
     if (s.mega.used) this.hint('MEGA already used this battle!');
     else if (s.overclock + 1 < MEGA.minTier) this.hint(`Upgrade your base to ${BASE_UPGRADES[MEGA.minTier - 1].name} first!`);
     else if (s.mega.charge < 1) this.hint(`MEGA charging: ${Math.floor(s.mega.charge * 100)}% - deal damage!`);
@@ -405,7 +415,7 @@ export class BattleHUD {
       this.ocBtn.classList.toggle('afford', sim.canUpgradeLab(0));
     }
     // mega ultimate
-    if (this.megaEl) {
+    if (this.megaEl && s.mega) {
       const m = s.mega;
       const k = Math.min(1, m.charge);
       const locked = s.overclock + 1 < MEGA.minTier;
