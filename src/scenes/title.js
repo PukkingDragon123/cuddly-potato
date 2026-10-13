@@ -1,10 +1,10 @@
 // Title screen + first-time flow.
 //
 // The stage is the Beast Lab diorama (the first arena of Beast Island) with
-// the starter Swarms dancing in front of it and Jimmy waving. New players:
-//   start      -> Jimmy's intro -> tutorial battle (scenes/battle.js)
-//   briefcase  -> (won the tutorial) Jimmy hands over the Starter Tube -> vial opening
-//   starterDone-> "those Swarms are yours" -> Beast Island home (tutorial 'home')
+// the starter Swarms dancing in front of it and Jimmy waving. TAP TO PLAY:
+//   new players -> inside the Lab (scenes/lab.js): Jimmy, your name, your
+//                  FIRST PACK, then the tutorial battle and back to the Lab
+//   everyone else -> Beast Island home
 import * as THREE from 'three';
 import { engine, addLights } from '../core/engine.js';
 import { audio } from '../core/audio.js';
@@ -14,10 +14,8 @@ import { CHARACTERS } from '../data/characters.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { makeArenaZone } from '../models/arenas/index.js';
 import { skyTexture, paintClouds, paintSun, paintRidge, coverFit } from '../models/arenas/kit.js';
-import { h, $ui, say, icon, closeDialogue } from '../ui/ui.js';
-import { charPortrait } from '../ui/thumbs.js';
-import { state, rollVial, applyVial, setDeck } from '../game/state.js';
-import { STARTER_DECK } from '../data/cards.js';
+import { h, $ui, icon, closeDialogue } from '../ui/ui.js';
+import { state } from '../game/state.js';
 import { game } from '../game/game.js';
 
 const CSS = `
@@ -101,11 +99,8 @@ export class TitleScene {
         h('div', { class: 'tt-disc' }, 'Unofficial fan-made game. Not affiliated with MrBeast or Moose Toys. MrBeast Lab Swarms are toys by Moose Toys.')));
     $ui().appendChild(this.ui);
     audio.music('title');
-    // where in the first-time flow are we?
-    const p = state.p;
-    // (story steps start after the scene transition finishes - never await them inside enter())
-    if (params.tutorial === 'starterDone' || (params.from === 'vial' && p.tutorial === 'briefcase')) { this.ui.style.display = 'none'; this.camMode = 'jimmy'; setTimeout(() => this.starterDone(), 450); return; }
-    if (params.tutorial === 'briefcase' || p.tutorial === 'briefcase') { this.ui.style.display = 'none'; this.camMode = 'jimmy'; setTimeout(() => this.briefcase(), 450); return; }
+    // a tutorial that was interrupted after the battle picks up in the Lab
+    if (state.p.tutorial === 'briefcase') { this.ui.style.display = 'none'; setTimeout(() => game.go('lab', { step: 'won' }), 300); return; }
     this.onTap = (e) => {
       e.preventDefault();
       engine.canvas.removeEventListener('pointerdown', this.onTap);
@@ -141,52 +136,14 @@ export class TitleScene {
       game.go('home');
       return;
     }
-    // first time: Jimmy's welcome, then the tutorial battle
+    // first time: into the Lab to meet Jimmy and open your first pack
     this.ui.style.display = 'none';
     this.camMode = 'jimmy';
     this.jimmy.play('wave');
-    this.jimmy.expr('happy', 'grin', 4);
-    const J = { name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }), chibi: this.jimmy };
-    await wait(0.8);
-    await say(J, "Hey! Welcome to the *MrBeast Lab*! I'm Jimmy. We've been growing something AMAZING in here...");
-    this.jimmy.play('point');
-    await say(J, "*Lab Swarms*! Tiny mutant toy monsters that come out of these test tubes. Each one is different, and they LOVE to battle.");
-    await say(J, "You look like you could be a great *Commander*. Let's see what you've got - I challenge you to a battle!");
-    this.jimmy.play('cheer');
-    await wait(0.4);
-    p.tutorial = 'start';
-    state.save();
-    game.go('battle', { mode: 'tutorial' });
-  }
-
-  async briefcase() {
-    this.ui.style.display = 'none';
-    this.camMode = 'jimmy';
-    this.jimmy.play('holdUp');
-    this.jimmy.expr('shock', 'open', 3);
-    const J = { name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'star', mouth: 'grin' }), chibi: this.jimmy };
-    await wait(0.8);
-    await say(J, "That was INSANE! Okay, a deal's a deal. You won, so you get your very own *Starter Tube* full of Swarms!");
-    await say(J, 'Add water, give it a shake... and meet your new team!');
-    const res = rollVial('starter', { fixed: { cards: STARTER_DECK.map((id, i) => ({ id, copies: i < 4 ? 3 : 2, variant: 'base' })) } });
-    game.go('vialopen', { type: 'starter', result: res, source: 'reward', back: 'title', backParams: { tutorial: 'starterDone' } });
-  }
-
-  async starterDone() {
-    const p = state.p;
-    // make sure the starter deck is owned even if the vial screen was skipped
-    if (!STARTER_DECK.every((id) => p.cards[id])) applyVial(rollVial('starter', { fixed: { cards: STARTER_DECK.map((id) => ({ id, copies: 2, variant: 'base' })) } }));
-    setDeck(STARTER_DECK.slice());
-    this.ui.style.display = 'none';
-    this.camMode = 'jimmy';
-    this.jimmy.play('cheer');
-    this.jimmy.expr('happy', 'grin', 4);
-    const J = { name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }), chibi: this.jimmy };
-    await wait(0.6);
-    await say(J, "They're all yours! Those 8 cards are your first *deck*. Now come with me - I want to show you *BEAST ISLAND*...");
-    p.tutorial = 'home';
-    state.save();
-    game.go('home');
+    this.jimmy.expr('happy', 'grin', 2);
+    audio.play('whoosh');
+    await wait(0.5);
+    game.go('lab');
   }
 
   resize(w, hh) {

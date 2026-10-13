@@ -64,14 +64,20 @@ export function playMegaCutscene(view, ev) {
   const rig = createSwarm(ev.id, { variant: ev.variant, scale: def?.size ?? 3.4 });
   const H = Math.max(2, rig.height || 6);
   // vessel, scaled so the full-grown figure just fits inside
+  const wantH = H * 1.18 + 1.4;
   let vessel;
-  try { vessel = containmentModule?.makeContainment ? containmentModule.makeContainment({ side, color: def?.color, bolt: def?.bolt }) : fallbackVessel(); } catch (e) { console.warn('containment failed', e); vessel = fallbackVessel(); }
-  const vs = Math.max(0.6, (H * 1.15 + 0.8) / (vessel.height ?? 7.3));
+  try {
+    vessel = containmentModule?.makeContainment
+      ? containmentModule.makeContainment({ height: wantH, accent: hexOf(def?.bolt ?? '#ff2e88') })
+      : fallbackVessel();
+  } catch (e) { console.warn('containment failed', e); vessel = fallbackVessel(); }
+  const vs = vessel.interior ? 1 : Math.max(0.6, wantH / (vessel.height ?? 7.3));
   vessel.root.scale.setScalar(vs);
+  const floorY = (vessel.interior?.floorY ?? 0.45) * vs;
   const dropH = 10 + H * 1.5;
   vessel.root.position.set(x, dropH, 0);
   scene.add(vessel.root);
-  rig.root.position.set(x, 0.45, 0);
+  rig.root.position.set(x, floorY, 0);
   rig.root.rotation.y = dir > 0 ? Math.PI / 2 - 0.5 : -Math.PI / 2 + 0.5;
   rig.baseScale = (def?.size ?? 3.4) * 0.3;
   rig.setState('idle');
@@ -160,6 +166,7 @@ export function playMegaCutscene(view, ev) {
       const q = (T - 2.4) / 1.3;
       vessel.setCrack?.(q);
       vessel.setGlow?.(0.6 + q * 0.4);
+      vessel.setRumble?.(q);
       if (!step.crack) { step.crack = true; audio.play('heartbeat'); audio.play('rattle', { pitch: 0.6 }); }
       if (Math.random() < dt * 6) { rig.attack(0.4); rig.boing(0.3); audio.play('crunch', { pitch: 0.5 + q, gap: 0.12 }); engine.shake(0.15 + q * 0.2); }
       if (Math.random() < dt * 10) fx.sparkle(new THREE.Vector3(x + (Math.random() - 0.5) * H * 0.6, Math.random() * H, H * 0.3), { count: 2, colors: [0xffffff, 0x9ff2ff], speed: 3, life: 0.3 });
@@ -168,8 +175,10 @@ export function playMegaCutscene(view, ev) {
     if (T >= 3.7 && !step.burst) {
       step.burst = true;
       let shards = [];
-      try { shards = vessel.burst?.() ?? []; } catch (e) { shards = []; }
-      for (const m of shards) { m.updateMatrixWorld?.(true); if (m.isMesh) fx.shatter(m, { force: 10, life: 2.2 }); }
+      vessel.setRumble?.(0);
+      try { shards = vessel.burst?.({ force: 10 }) ?? []; } catch (e) { shards = []; }
+      // (the containment model flies its own shards; the stand-in vessel uses voxel shatter)
+      if (!vessel.interior) for (const m of shards) { m.updateMatrixWorld?.(true); if (m.isMesh) fx.shatter(m, { force: 10, life: 2.2 }); }
       const c = new THREE.Vector3(x, H * 0.5, 0);
       fx.slime(c, { count: 60, color: hexOf(def?.color ?? '#29b6f6'), speed: 9 });
       fx.bubbles(c, { count: 40, color: 0xcff2ff, radius: 3, speed: 4 });

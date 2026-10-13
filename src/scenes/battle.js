@@ -726,10 +726,9 @@ export class BattleScene {
       game.go('battle', { mode: 'tutorial' });
       return;
     }
-    await say({ ...J, portrait: charPortrait('jimmy', { eyes: 'shock', mouth: 'open' }) }, "NO WAY! You actually beat me?! That's it... you've earned something SPECIAL.");
     state.p.tutorial = 'briefcase';
     state.save();
-    game.go('title', { tutorial: 'briefcase' });
+    game.go('lab', { step: 'won' });
   }
 
   async friendEnd(res, bases, names) {

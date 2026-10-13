@@ -257,6 +257,8 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
   animation: liquid 4.8s steps(32) infinite;
 }
 .panel.sk-panel-dark::after { --liq-h: clamp(calc(var(--u) * 3), 14%, calc(var(--u) * 7)); opacity: 0.8; }
+/* modals scroll content over the goo: keep it a low, calmer pool */
+.modal > .panel::after { --liq-h: clamp(calc(var(--u) * 4), 9%, calc(var(--u) * 8)); opacity: 0.85; }
 @keyframes liquid {
   to {
     background-position: calc(-32 * var(--px)) 0, 0 calc(-28 * var(--px)), 0 0;
@@ -516,7 +518,7 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
 /* boot: the lab warming up */
 #boot {
   position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; transition: opacity 0.45s;
-  background: var(--tx-grid, none) 50% 50% / 48px 48px, radial-gradient(ellipse at 50% 40%, #2b3cb0, #0b1230 70%);
+  background: radial-gradient(ellipse at 50% 40%, rgba(43, 60, 176, 0.35), rgba(11, 18, 48, 0.75) 70%), var(--tx-grid, none) 50% 50% / 32px 32px, radial-gradient(ellipse at 50% 40%, #2b3cb0, #0b1230 70%);
 }
 #boot.hide { opacity: 0; pointer-events: none; }
 #boot .boot-logo { font-family: var(--font-d); font-size: 64px; line-height: 0.85; text-align: center; color: #fff; text-shadow: -3px -3px 0 #120c24, 3px -3px 0 #120c24, -3px 3px 0 #120c24, 3px 3px 0 #120c24, 0 7px 0 #120c24, 0 0 18px rgba(127, 230, 255, 0.55); }

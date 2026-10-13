@@ -15,19 +15,23 @@ src/
     audio.js           procedural SFX (audio.play) + music tracks (audio.music) + jingles
     tween.js, util.js  animation helpers, rng, colour + math helpers
   data/                pure data: swarms, spells, cards (unified catalogue), commanders, vials, arenas (+ trophy
-                       road, bosses, quests, secrets, ghost opponents), labs (towers, energy, overclock), season
+                       road, bosses, quests, secrets, ghost opponents), labs (base, POWER, BASE_UPGRADES tiers,
+                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season
   game/
     state.js           profile v2 persistence + every economy operation (cards, decks, vials, trophies, pass...)
-    game.js            scene router: game.go('title' | 'home' | 'battle' | 'vialopen' | dev scenes, params)
+    game.js            scene router: game.go('title' | 'lab' | 'home' | 'battle' | 'vialopen' | dev scenes, params)
     battle/
       field.js         lane geometry shared by sim, view and arenas
-      sim.js           deterministic battle logic (CR rules in a side-view lane), events
-      ai.js            opponent AI (reads its hand, defends, builds pushes, spells, overclock, abilities)
+      sim.js           deterministic battle logic (one base per side, POWER, base tiers, MEGA ultimate
+                       with a frozen cinematic window), events
+      ai.js            opponent AI (reads its hand, defends, builds pushes, spells, base upgrades, MEGA)
       netsync.js       friend battles: HostSync streams state, RemoteSim mirrors it for the guest
       loadout.js       the player's battle side config from the profile
-      view.js          3D battle presentation (arena, Labs, turrets, units, plates, projectiles, spells, camera)
-      hud.js           battle HUD (banners/crowns/timer, minimap, hand + next, energy, Commander, emotes, VS intro)
-      result.js        victory / defeat / draw screen with rewards
+      view.js          3D battle presentation (arena, bases + tier swaps, units, plates, projectiles, spells, camera)
+      megaCutscene.js  MEGA breakout cutscene (containment vessel, camera shots, overlay) + Mega special fx
+      hud.js           battle HUD (base HP banners, timer, minimap, hand + next, POWER cells, Commander, base
+                       upgrade + MEGA buttons, emotes, VS intro)
+      result.js        victory / defeat / draw screen with base HP and rewards
   net/p2p.js           WebRTC data channel with copy/paste "battle code" signalling (no server)
   models/
     kit.js             high-res toy modelling kit (blob, rbox, cyl, capsule, pixel-art stamping, joints)
@@ -35,9 +39,12 @@ src/
     swarmModels.js     createSwarm(id, {variant, skin, scale, model}) registry; models in swarms/*.js by series
     arenas/            battle arenas + Beast Island zone dioramas (kit.js ArenaKit, one module per arena)
     island/            Beast Island world: terrain, water, sky, props, makeBeastIsland()
-    props/             Lab buildings (lab.js), guard turret (turret.js), vials (vials.js), misc props
+    props/             base tiers tent -> Mega HQ (base.js), MEGA containment vessel (containment.js), legacy Lab
+                       buildings (lab.js), vials (vials.js), lab interior + misc props
   scenes/
-    title.js           title stage + first-time flow (Jimmy intro -> tutorial battle -> starter tube -> home)
+    title.js           title stage (TAP TO PLAY -> the Lab for new players, home for everyone else)
+    lab.js             the Beast Lab: first-time flow (Jimmy, your name, first pack -> tutorial battle ->
+                       MEGA tube -> Beast Island) and later visits
     home.js            Beast Island home lobby (top bar, vial slots, battle, nav tabs, unlock cinematic)
     battle.js          battle scene: modes (tutorial/ranked/practice/boss/friend), input, tutorial, finish
     vialOpen.js        vial opening + card reveal
@@ -54,7 +61,7 @@ src/
 
 ## Conventions
 
-* World units: battle lane along X (your Lab at x = -12, rival at +12, guard turrets at ±7.2). Swarms are modelled at
+* World units: battle lane along X (your base at x = -12, rival at +12). Swarms are modelled at
   0.05 units per voxel, face **+Z**, y = 0 is the ground.
 * Colours are `0xRRGGBB` ints. Glow voxels (`grid.set(x, y, z, color, true)`) render unlit at 2.6x HDR and are the
   only thing that blooms (bloom selects by brightest channel, threshold 1.75) - keep them to small accents.

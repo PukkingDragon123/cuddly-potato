@@ -6,6 +6,7 @@ import { state } from './state.js';
 
 const loaders = {
   title: () => import('../scenes/title.js').then((m) => m.TitleScene),
+  lab: () => import('../scenes/lab.js').then((m) => m.LabScene),
   home: () => import('../scenes/home.js').then((m) => m.HomeScene),
   battle: () => import('../scenes/battle.js').then((m) => m.BattleScene),
   preview: () => import('../dev/preview.js').then((m) => m.PreviewScene),
@@ -16,6 +17,7 @@ const loaders = {
   screenbench: () => import('../dev/screenBench.js').then((m) => m.ScreenBenchScene),
   baseview: () => import('../dev/baseView.js').then((m) => m.BaseViewScene),
   vialopen: () => import('../scenes/vialOpen.js').then((m) => m.VialOpenScene),
+  containmentview: () => import('../dev/containmentView.js').then((m) => m.ContainmentViewScene),
 };
 
 let transitioning = false;

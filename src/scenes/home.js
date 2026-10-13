@@ -308,7 +308,8 @@ export class HomeScene {
     // side buttons
     this.freeEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => this.openFree() }, vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
     this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
-    root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl));
+    this.labEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => game.go('lab', { visit: true }) }, icon('flask'), h('div', { class: 't' }, 'LAB'));
+    root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl, this.labEl));
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only', { icon: 'gear' }),
       button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only', { icon: 'friends' }),

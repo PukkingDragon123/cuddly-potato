@@ -140,7 +140,7 @@ const MEGA_FACE_L = [
 
 /**
  * K: { fur, furL, furD, muzzle, inner, nose, claw, joint, pawPad }
- * o: { furFn, face: false to skip the face stamp, brow, bolt, eyeW, pupil, glint, earTorn }
+ * o: { furFn, face: false to skip the face stamp, fist: false to leave the hands to the caller, brow, bolt, eyeW, pupil, glint }
  * Returns grids (left limbs only) + joints.
  */
 function megaBeast(K, o = {}) {
@@ -224,10 +224,11 @@ function megaBeast(K, o = {}) {
   blob(arm, -19.3, 39.5, 2.6, 4, 4.2, 3.2, furCol); // bicep
   blob(arm, -20.3, 34.2, 1.2, 3.8, 3.8, 3.8, K.joint); // elbow ball joint
   capsule(arm, [-20.5, 33, 1.5], [-21, 25, 3.5], 4.6, 5.2, furCol); // forearm
-  blob(arm, -21.3, 20.2, 5, 5.3, 4.9, 5.5, furCol, { p: 2.3 }); // fist
-  // knuckles
-  for (const dx of [-3.4, -1.1, 1.1, 3.4]) blob(arm, -21.3 + dx, 19.4, 9.8, 1.3, 2, 1.5, K.furL);
-  capsule(arm, [-16.8, 20, 7.5], [-16.2, 17, 9.5], 1.5, 1, K.furL); // thumb
+  if (o.fist !== false) {
+    blob(arm, -21.3, 20.2, 5, 5.3, 4.9, 5.5, furCol, { p: 2.3 }); // fist
+    for (const dx of [-3.4, -1.1, 1.1, 3.4]) blob(arm, -21.3 + dx, 19.4, 9.8, 1.3, 2, 1.5, K.furL); // knuckles
+    capsule(arm, [-16.8, 20, 7.5], [-16.2, 17, 9.5], 1.5, 1, K.furL); // thumb
+  }
 
   // ------------------------------------------------------------ leg (left)
   const H = J.hip;
@@ -420,11 +421,11 @@ function glitchStreaks(g, isA, cols, p = 0.012, seed = 5) {
 
 function silverByte() {
   const K = {
-    chrome: 0xdbe2ec, chromeL: 0xf6f9fd, chromeD: 0xa3adc1, chromeDD: 0x5e6880,
-    suit: 0x232838, suitL: 0x384058, visor: 0x0b1222, joint: 0x2e3346,
-    cyan: 0x3ef0ff, cyanD: 0x1a8fb8, cyanHot: 0xd2fdff, tooth: 0xf2f6fb, gum: 0x1a1e2e,
+    chrome: 0xaab4c5, chromeL: 0xdde4ef, chromeD: 0x7c879e, chromeDD: 0x474f66,
+    suit: 0x232838, suitL: 0x384058, visor: 0x0b1222, joint: 0x2e3346, gun: 0x4a5268, gunL: 0x66708c,
+    cyan: 0x3ef0ff, cyanD: 0x1a8fb8, cyanHot: 0xd2fdff, tooth: 0xd4dbe6, gum: 0x1a1e2e,
   };
-  const chromeCol = (x, y, z) => { const v = n3(x, y, z, 11); return v < 0.1 ? K.chromeD : v > 0.93 ? K.chromeL : K.chrome; };
+  const chromeCol = (x, y, z) => { const v = n3(x, y, z, 11); return v < 0.08 ? K.chromeD : v > 0.9 ? K.chromeL : K.chrome; };
   const isChrome = (c) => c === K.chrome || c === K.chromeL || c === K.chromeD;
   const isSuit = (c) => c === K.suit || c === K.suitL;
   const isMetal = (c) => isChrome(c) || c === K.chromeDD;
@@ -440,20 +441,22 @@ function silverByte() {
   for (const y of [28.5, 31.5, 34.5]) blob(body, -0.5, y, 0, 8.4 + (y - 28.5) * 0.15, 0.75, 7.6, (x, yy) => (yy === Math.ceil(y) ? K.chromeL : K.chrome), { p: 2.4, clip: (x, yy, z) => z < -1 });
   body.paint((x, y, z, c) => (isSuit(c) && (y === 30 || y === 33) && z >= 4 && Math.abs(x + 0.5) <= 5 ? K.cyanD : undefined));
   // hip faulds + belt with a glowing chip buckle
-  blob(body, -0.5, 25, 0, 10, 2.8, 7.4, chromeCol, { p: 2.8, clip: (x, y, z) => z < -2 || y > 27 });
+  blob(body, -0.5, 25, 0, 10, 2.8, 7.4, (x, y) => (y >= 26 ? K.gunL : K.gun), { p: 2.8, clip: (x, y, z) => z < -2 || y > 27 });
   blob(body, -0.5, 27.6, 0, 9.6, 0.8, 7.2, K.suitL, { p: 2.6 });
   rbox(body, -3, 23, 7, 2, 27, 8, 0, K.chromeDD);
   body.set(-1, 25, 9, K.cyan, true); body.set(0, 25, 9, K.cyan, true);
   // chest: center seam, the Mega-Tech bolt and a glowing data core
   body.paint((x, y, z, c) => (isChrome(c) && Math.abs(x + 0.5) === 0.5 && y >= 36 && y <= 48 && z > 4 ? K.chromeDD : undefined));
+  body.paint((x, y, z, c) => (isChrome(c) && (y === 37 || (y === 47 && z > 2)) && exposed(body, x, y, z) ? K.chromeDD : undefined));
+  body.paint((x, y, z, c) => (isChrome(c) && y <= 36 && exposed(body, x, y, z) ? K.gun : undefined)); // lower chest band
   stamp(body, MEGA_BOLT, { M: { c: MAG, raise: 1 }, W: { c: K.visor, raise: 1 }, C: { c: K.cyan, raise: 1, glow: true } }, { axis: 'z', x: -5, y: 46, zmin: 4 });
   // side vents with LEDs
   for (const s of [-1, 1]) for (const y of [38, 40, 42]) for (let z = -2; z <= 3; z++) {
     const sx = sideX(body, y, z, s);
-    if (sx !== null) body.set(sx, y, z, z === 3 ? K.cyan : K.chromeDD, z === 3);
+    if (sx !== null) body.set(sx, y, z, z === 3 ? (y === 40 ? K.cyan : K.cyanD) : K.chromeDD, z === 3 && y === 40);
   }
   // server-tower backpack: drive bays with LEDs, antenna masts
-  rbox(body, -8, 32, -14, 7, 50, -8, 2, (x, y) => (y >= 49 ? K.chromeL : K.chromeD));
+  rbox(body, -8, 32, -14, 7, 50, -8, 2, (x, y) => (y >= 49 ? K.chromeL : y <= 33 ? K.chromeD : K.gun));
   for (let y = 34; y <= 47; y += 3) for (let x = -6; x <= 5; x++) {
     body.set(x, y, -15, x === 5 ? K.cyan : K.suit, x === 5);
     if (x === -6 || x === 5) continue;
@@ -501,11 +504,13 @@ function silverByte() {
   head.paint((x, y, z, c) => (isChrome(c) && y >= 62 && y <= 65 && z >= 9 && Math.abs(x + 0.5) <= 10 && exposed(head, x, y, z) ? K.visor : undefined));
   const EYE_L = ['EE......', 'EEEE....', '.EEHHEE.', '...EEEEE'];
   stamp(head, EYE_L, { E: { c: K.cyan, glow: true }, H: { c: K.cyanHot, glow: true } }, { axis: 'z', x: -10, y: 65, mirror: true, zmin: 8 });
+  // swept-back crest blade
+  fin(head, [-1.5, 68, 7], [-1.5, 72.5, -7], 2.6, 2, (t, k) => (k > 0.55 ? MAG : t > 0.8 ? K.chromeL : K.chrome));
   // V-shaped angry brow ridge over the visor
   for (const s of [-1, 1]) capsule(head, [-0.5 + s * 10.4, 68.6, 7.5], [-0.5 + s * 1.4, 66, 13.2], 1.7, 1.4, K.chromeL);
   // cheek plates with vents
   for (const s of [-1, 1]) {
-    blob(head, -0.5 + s * 10, 58.5, 7, 2.2, 3.6, 4.2, chromeCol, { p: 3 });
+    blob(head, -0.5 + s * 10, 58.5, 7, 2.2, 3.6, 4.2, K.gun, { p: 3 });
     for (const y of [57, 59]) for (let z = 5; z <= 9; z++) head.set(s < 0 ? -13 : 12, y, z, K.chromeDD);
   }
   // upper teeth: a serrated row under the snout, big front fangs
@@ -533,7 +538,7 @@ function silverByte() {
       const ax = Math.abs(x + 0.5);
       if (ax > hw + 0.3 || y < bot || y > top) continue;
       if (ax > hw - 1.2 && y < bot + 1.2) continue;
-      jaw.set(x, y, z, y <= bot + 1 ? K.chromeD : chromeCol(x, y, z));
+      jaw.set(x, y, z, y <= bot + 1.5 ? K.gun : chromeCol(x, y, z));
     }
   }
   // hollow mouth with a dark floor, glowing throat, serrated lower teeth
@@ -555,7 +560,7 @@ function silverByte() {
   // ------------------------------------------------------------ fin ears (antennas)
   const AJ = [-7.5, 66, 2];
   const ear = G();
-  fin(ear, [-8.5, 65, 3], [-12.5, 77, -5], 3, 2, (t, k) => (t > 0.86 ? { c: K.cyan, glow: true } : Math.abs(k) < 0.3 ? MAG : t < 0.15 ? K.chromeD : K.chrome));
+  fin(ear, [-8.5, 64, 3], [-13.5, 78, -6], 4.4, 2, (t, k) => (t > 0.9 ? { c: K.cyan, glow: true } : Math.abs(k) < 0.28 ? MAG : t < 0.12 || k < -0.75 ? K.chromeD : K.chrome));
   blob(ear, -7.8, 66, 2, 2.4, 2.4, 2.4, K.chromeDD);
   const earR = flipX(ear);
 
@@ -567,9 +572,10 @@ function silverByte() {
   for (const [y, dx] of [[42, 0.6], [38.5, 1.6]]) blob(arm, -18.6 - dx, y, 0.4, 5, 0.9, 5, K.chromeD, { p: 2.2 }); // armour bands
   blob(arm, -20.6, 34, 1.2, 3.6, 3.6, 3.6, K.joint); // elbow
   capsule(arm, [-21.4, 34, -1.5], [-23.4, 33, -5.5], 1.6, 0.4, K.chromeL); // elbow spike
-  blob(arm, -21.1, 28.8, 2.4, 5.6, 5, 5.9, chromeCol, { p: 3 }); // gauntlet
-  for (let y = 26; y <= 31; y++) { const sx = sideX(arm, y, 2, -1); if (sx !== null) arm.set(sx, y, 2, K.cyan, true); }
-  stamp(arm, bitsArt('101'), { X: K.chromeDD }, { axis: 'z', x: -27, y: 31, zmin: 4 });
+  blob(arm, -21.1, 28.8, 2.4, 5.6, 5, 5.9, (x, y) => (y <= 25 ? K.gun : chromeCol(x, y, 0)), { p: 3 }); // gauntlet
+  arm.paint((x, y, z, c) => (isChrome(c) && y === 29 && exposed(arm, x, y, z) && x < -15 ? K.chromeDD : undefined));
+  for (let y = 25; y <= 32; y++) for (const z of [1, 2]) { const sx = sideX(arm, y, z, -1); if (sx !== null) arm.set(sx, y, z, y === 31 ? K.cyan : K.cyanD, y === 31); }
+  stamp(arm, bitsArt('10'), { X: K.chromeD }, { axis: 'z', x: -25, y: 31, zmin: 4 });
   blob(arm, -21.1, 23.6, 3.4, 5.4, 1, 5.6, K.chromeDD, { p: 2.4 }); // wrist ring
   // robotic claw hand: palm, three talon fingers and a thumb
   blob(arm, -21.3, 20, 4.4, 4.6, 3.6, 4.6, K.chromeD, { p: 3 });
@@ -582,9 +588,9 @@ function silverByte() {
   chain(arm, [[-17.2, 19.5, 6], [-16.2, 17, 8.5], [-16.6, 14.5, 9.5]], [1.2, 1, 0.3], K.chromeL);
   // layered blade pauldron with a magenta edge
   blob(arm, -18.4, 49.6, 0, 7.6, 3.2, 8, (x, y) => (y <= 47 ? MAG : chromeCol(x, y, 0)), { p: 3.2, clip: (x, y) => y < 46.5 || x > -11 });
-  blob(arm, -20.2, 46.2, 0, 6.6, 2.4, 7.2, K.chromeD, { p: 3, clip: (x, y) => y > 46.5 || y < 44 || x > -13 });
+  blob(arm, -20.2, 46.2, 0, 6.6, 2.4, 7.2, K.gun, { p: 3, clip: (x, y) => y > 46.5 || y < 44 || x > -13 });
   blob(arm, -21.6, 43.6, 0, 5.4, 2, 6.4, chromeCol, { p: 3, clip: (x, y) => y > 44 || y < 41.5 || x > -15 });
-  stamp(arm, bitsArt('01'), { X: K.chromeDD }, { axis: '-x', y: 52, z: 3 });
+  stamp(arm, bitsArt('01'), { X: K.chromeD }, { axis: '-x', y: 52, z: 3 });
   gradY(arm, 12, 54, -0.12, 0.05, (x, y, z, c) => isChrome(c));
   glitchStreaks(arm, isChrome, [K.cyanD, MAG], 0.01, 9);
 
@@ -594,15 +600,16 @@ function silverByte() {
   blob(leg, LJ[0], LJ[1], LJ[2], 4.2, 4.2, 4.2, K.joint);
   capsule(leg, [-8, 25, 0], [-8.4, 15.6, 1], 5.4, 4.2, K.suit); // thigh
   blob(leg, -8.8, 21, 1, 6.2, 4.8, 5.8, chromeCol, { p: 3, clip: (x, y, z) => z < -1 || x > -5 }); // thigh plate
-  stamp(leg, bitsArt('10'), { X: K.chromeDD }, { axis: '-x', y: 24, z: 4 });
+  leg.paint((x, y, z, c) => (isChrome(c) && (y === 18 || x + z === -2) && exposed(leg, x, y, z) ? K.chromeDD : undefined));
+  stamp(leg, bitsArt('1101'), { X: K.chromeD }, { axis: '-x', y: 24, z: 7 });
   blob(leg, -8.4, 14.6, 1, 3.6, 3.6, 3.6, K.joint); // knee joint
   blob(leg, -8.4, 15.6, 4.6, 3.8, 4.4, 2.6, K.chromeL, { p: 3 }); // knee cap
   capsule(leg, [-8.4, 17, 6.5], [-8.4, 20.5, 8.5], 1.4, 0.3, K.chromeL); // knee spike
-  blob(leg, -8.4, 9.6, 1.6, 4.6, 4.2, 4.8, chromeCol, { p: 3 }); // greave
-  for (let y = 8; y <= 11; y++) { const fz = frontZ(leg, -9, y); if (fz !== null) { leg.set(-9, y, fz, K.cyan, true); leg.set(-8, y, fz, K.cyan, true); } }
+  blob(leg, -8.4, 9.6, 1.6, 4.6, 4.2, 4.8, (x, y) => (y <= 7 ? K.gun : chromeCol(x, y, 0)), { p: 3 }); // greave
+  for (let y = 7; y <= 12; y++) for (const x of [-9, -8]) { const fz = frontZ(leg, x, y); if (fz !== null) leg.set(x, y, fz, y === 11 ? K.cyan : K.cyanD, y === 11); }
   cyl(leg, 'y', -8.4, -3.6, 5, 13, 1.1, 1.1, K.chromeDD); // calf piston
   // robot paw: foot block, three talon toes, heel spur
-  rbox(leg, -13, 0, -4, -4, 4, 6, 1.5, K.chromeD);
+  rbox(leg, -13, 0, -4, -4, 4, 6, 1.5, (x, y) => (y <= 0 ? K.suit : K.gun));
   rbox(leg, -12, 4, -3, -5, 5, 4, 1, K.suit);
   for (const dx of [-3, 0, 3]) {
     rbox(leg, Math.round(-8.4 + dx - 0.5), 0, 6, Math.round(-8.4 + dx + 0.5), 3, 9, 0.5, K.chrome);
@@ -637,7 +644,7 @@ function silverByte() {
       jp('armR', armR, R(SJ), [-0.5, 0, 0], { parent: 'body' }),
       jp('spin', ring, RJ, [-0.5, 0, 0], { parent: 'body' }),
       jp('head', head, NJ),
-      jp('jaw', jaw, JJ, NJ, { parent: 'head', rot: [0.2, 0, 0] }),
+      jp('jaw', jaw, JJ, NJ, { parent: 'head', rot: [0.3, 0, 0] }),
       jp('antennaL', ear, AJ, NJ, { parent: 'head' }),
       jp('antennaR', earR, R(AJ), NJ, { parent: 'head' }),
       jp('tail', tail, TJ),
@@ -646,7 +653,379 @@ function silverByte() {
   };
 }
 
+// ===========================================================================
+// NECROCLAW: a nightmare, shroud-corrupted Panthar. Midnight-violet fur under
+// bleached bone armour: a cracked skull mask with deep sockets and toxic-green
+// eyes, curling horns, a ribcage cuirass with the toxic core glowing between
+// the ribs, a bone mantle with spikes and a tattered shroud cape bearing a
+// torn Mega-Tech bolt, huge hooked bone claws, bone greaves, and a scorpion
+// tail tipped with venom.
+function necroClaw() {
+  const K = {
+    fur: 0x2e2244, furD: 0x170f24, furL: 0x4a3a66, muzzle: 0xe6dcbc, inner: 0x6a2a5a, nose: 0x0a0710, claw: 0xe6dcbc, joint: 0x241a33,
+    bone: 0xe8dfc2, boneL: 0xf6f0dc, boneD: 0xb6a885, boneDD: 0x77694c, void: 0x0c0814,
+    toxic: 0x8cff3a, toxicD: 0x3f9a2a, toxicHot: 0xe2ffb0,
+    shroud: 0x3b2a55, shroudD: 0x241835, shroudL: 0x56407a,
+  };
+  const furFn = (x, y, z) => { const v = n3(x, y, z, 21); return v < 0.14 ? K.furD : v > 0.95 ? K.furL : K.fur; };
+  const boneCol = (x, y, z) => { const v = n3(x, y, z, 23); return v < 0.06 ? K.boneD : v > 0.94 ? K.boneL : K.bone; };
+  const isBone = (c) => c === K.bone || c === K.boneL || c === K.boneD;
+  const m = megaBeast(K, { furFn, face: false, fist: false });
+  const { body, head, jaw, arm, leg, tail } = m;
+  const C = J.head;
+
+  // ------------------------------------------------------------ head: skull mask, sockets, horns
+  // bone skull mask over the upper face
+  blob(head, C[0], C[1] + 2.4, C[2] + 3.6, 11.4, 7.6, 7.2, boneCol, { p: 2.3, clip: (x, y, z) => z < C[2] + 2 || y < C[1] - 3 });
+  // deep angry eye sockets with toxic eyes
+  const SOCK_L = [
+    'VV.......',
+    'VVVV.....',
+    'VVVVVV...',
+    '.VVEEVVV.',
+    '.VVEHEVVV',
+    '..VVEEVV.',
+    '...VVVV..',
+  ];
+  stamp(head, SOCK_L, { V: { c: K.void, carve: true }, E: { c: K.toxic, glow: true, carve: true }, H: { c: K.toxicHot, glow: true, carve: true } }, { axis: 'z', x: -11, y: C[1] + 6, mirror: true, zmin: C[2], carveDepth: 2 });
+  for (const s of [-1, 1]) {
+    // heavy V brow ridge
+    capsule(head, [-0.5 + s * 11, C[1] + 8.4, C[2] + 5], [-0.5 + s * 1.6, C[1] + 5.6, C[2] + 10.6], 1.8, 1.5, K.boneL);
+    // curling horns
+    chain(head, [[-0.5 + s * 7, C[1] + 7.5, C[2] + 2], [-0.5 + s * 12, C[1] + 12.5, C[2] - 1], [-0.5 + s * 13.5, C[1] + 18, C[2] - 6], [-0.5 + s * 11.5, C[1] + 21, C[2] - 11]], [2.8, 2.2, 1.3, 0.3],
+      (x, y, z, t) => (Math.floor(t * 9) % 3 === 0 ? K.boneD : K.bone));
+  }
+  // nasal cavity, cracks and the corrupted Mega-Tech bolt on the brow
+  stamp(head, ['VVVVVV', '.VVVV.', '..VV..'], { V: K.void }, { axis: 'z', x: -3, y: C[1] - 1, zmin: C[2] + 6 });
+  stamp(head, ['...MMM', '..MMM.', '.MMM..', 'MMMMMM', '..MMM.', '..MM..', '.MM...', '.M....'], { M: { c: MAG, raise: 1 } }, { axis: 'z', x: -3, y: C[1] + 14, zmin: C[2] });
+  for (const [x, y, gl] of [[4, 66, false], [5, 65, false], [5, 64, true], [6, 63, false], [-7, 67, false], [-8, 66, false], [-8, 65, false]]) {
+    const z = frontZ(head, x, y, C[2]);
+    if (z !== null) head.set(x, y, z, gl ? K.toxic : K.boneDD, gl);
+  }
+  // torn left ear
+  head.carve((x, y, z) => x <= -9 && x >= -12 && y >= C[1] + 11 && y <= C[1] + 13 && z <= C[2] - 2);
+  gradY(head, C[1] - 12, C[1] + 20, -0.12, 0.06, (x, y, z, c) => isBone(c));
+
+  // ------------------------------------------------------------ jaw: bone jaw, jagged fangs, venom drool
+  jaw.paint((x, y, z, c) => (c === TONGUE ? K.toxicD : undefined));
+  for (const [x, z, n] of [[-4, C[2] + 13, 3], [3, C[2] + 11, 4], [-1, C[2] + 15, 2]]) {
+    for (let i = 0; i < n; i++) jaw.set(x, C[1] - 18 - i, z, i === n - 1 ? K.toxic : K.toxicD, i >= n - 2);
+  }
+  for (const x of [-4, 3]) for (let y = C[1] - 12; y <= C[1] - 9; y++) jaw.set(x, y, C[2] + 14, TOOTH);
+
+  // ------------------------------------------------------------ body: ribcage cuirass, toxic core, bone mantle, belt
+  // shroud-dark chest under the ribs with toxic glow seeping between them
+  body.paint((x, y, z) => (y >= 33 && y <= 47 && z >= 6 && Math.abs(x + 0.5) <= 9 ? K.void : undefined));
+  for (let i = 0; i < 4; i++) {
+    const y = 46 - i * 3.5;
+    for (const s of [-1, 1]) {
+      chain(body, [[-0.5 + s * 1.5, y, 10], [-0.5 + s * 5, y - 0.6, 10], [-0.5 + s * 9.5, y - 1.4, 8.4], [-0.5 + s * 13.4, y - 2.6, 4]], [1.3, 1.2, 1.1, 0.8], boneCol);
+    }
+  }
+  rbox(body, -2, 33, 9, 1, 48, 11, 1, boneCol); // sternum
+  for (const [x, y] of [[-5, 44], [4, 44], [-6, 40], [5, 40], [-5, 37], [4, 37]]) { const z = frontZ(body, x, y, 4); if (z !== null && body.get(x, y, z) === K.void) body.set(x, y, z, K.toxic, true); }
+  for (const [x, y] of [[-7, 44], [6, 44], [-3, 41], [2, 41], [-8, 37], [7, 37]]) { const z = frontZ(body, x, y, 4); if (z !== null && body.get(x, y, z) === K.void) body.set(x, y, z, K.toxicD); }
+  // bone mantle around the shoulders with back spikes
+  blob(body, -0.5, 48.6, -1, 11, 2.2, 8.4, boneCol, { p: 2.4 });
+  for (const [x, z, h] of [[-6, -6, 6], [5, -6, 6], [-0.5, -8, 8], [-9, -2, 5], [8, -2, 5]]) capsule(body, [x, 49, z], [x * 1.15, 49 + h, z - 4], 1.6, 0.3, (xx, yy, zz, t) => (t > 0.7 ? K.boneL : K.bone));
+  // belt of bone plates + skull-ish buckle
+  blob(body, -0.5, 24.5, 0, 10.4, 1.6, 7.6, (x) => ((x + 40) % 4 === 0 ? K.boneDD : K.boneD), { p: 2.6 });
+  blob(body, -0.5, 24.5, 7.6, 3, 2.6, 1.6, boneCol);
+  for (const x of [-2, 1]) body.set(x, 25, frontZ(body, x, 25) ?? 9, K.void);
+  gradY(body, 21, 51, -0.12, 0.05, (x, y, z, c) => c === K.fur || c === K.furD || c === K.furL);
+
+  // ------------------------------------------------------------ shroud cape (tattered, with a torn magenta bolt)
+  const CJ = [-0.5, 48, -6];
+  const cape = G();
+  for (let y = 48; y >= 16; y--) {
+    const t = (48 - y) / 32;
+    const hw = 10 + t * 4.5;
+    const zc = -8.5 - t * 6 - Math.sin(t * Math.PI) * 1.2;
+    for (let x = Math.floor(-0.5 - hw); x <= Math.ceil(-0.5 + hw); x++) {
+      const u = (x + 0.5) / hw; // -1..1 across
+      // tattered hem: ragged lengths per column, plus a few holes
+      const hem = 16 + Math.floor(n3(x, 0, 0, 31) * 7) + (Math.abs(u) > 0.85 ? 4 : 0);
+      if (y < hem) continue;
+      if (n3(x, y, 0, 33) < 0.035 && y < 40) continue;
+      const z = Math.round(zc + u * u * 3.2 + Math.sin(x * 0.9) * 0.6);
+      const c = y <= hem + 1 ? K.shroudD : (x + 40) % 5 === 0 ? K.shroudL : K.shroud;
+      cape.set(x, y, z, c);
+      cape.set(x, y, z + 1, K.shroudD);
+    }
+  }
+  stamp(cape, MEGA_BOLT, { M: { c: MAG }, W: { c: K.shroudD }, C: { c: K.toxic, glow: true } }, { axis: '-z', x: -5, y: 40, zmin: -30, zmax: 0 });
+
+  // ------------------------------------------------------------ arms: bone vambraces, pauldrons, giant hooked claws
+  const isFur = (c) => c === K.fur || c === K.furD || c === K.furL;
+  capsule(arm, [-20.6, 32.5, 1.5], [-21, 25.5, 3.5], 4.9, 5.3, boneCol, { clip: (x) => x > -23 }); // outer bone vambrace
+  for (const y of [27, 30]) for (let z = -3; z <= 9; z++) { const sx = sideX(arm, y, z, -1); if (sx !== null && isBone(arm.get(sx, y, z))) arm.set(sx, y, z, K.boneDD); }
+  for (const [y, z] of [[31, 0], [28, 1], [25, 2]]) capsule(arm, [-25, y, z], [-29.5, y + 3, z - 3.5], 1.3, 0.3, K.boneL);
+  for (const [x, y] of [[-18, 30], [-17, 29], [-17, 27], [-18, 26]]) { const z = frontZ(arm, x, y); if (z !== null) arm.set(x, y, z, K.toxic, y === 29 || y === 27); }
+  // claw hand: dark palm + three huge hooked bone claws + a thumb claw
+  blob(arm, -21.3, 21, 4.6, 4.9, 4.2, 5, furFn, { p: 2.4 });
+  for (const dx of [-3.4, 0, 3.4]) {
+    const fx = -21.3 + dx;
+    blob(arm, fx, 20.6, 8.8, 1.7, 1.9, 1.7, K.furD); // knuckle
+    chain(arm, [[fx, 20.8, 9.6], [fx, 20.4, 13.8], [fx, 18.4, 17.6], [fx, 14.6, 20], [fx, 10.6, 19.6]], [1.3, 1.15, 0.9, 0.55, 0.15],
+      (x, y, z, t) => (z >= 19 && y < 15 ? K.boneDD : z >= 17 ? K.boneL : K.bone));
+  }
+  chain(arm, [[-16.6, 20.5, 6], [-14.6, 18.6, 10], [-14.8, 15, 12.8], [-15.6, 12.6, 12.6]], [1.2, 0.9, 0.5, 0.15], boneCol);
+  // bone pauldron with three spikes
+  blob(arm, -18.4, 48.6, 0, 7, 4.8, 7.4, boneCol, { p: 2.3, clip: (x, y) => y < 46 || x > -11 });
+  for (const [a, b] of [[[-21, 52, -3], [-24.5, 58.5, -6.5]], [[-23.5, 50.5, 1], [-29.5, 54, 1.5]], [[-19, 53, 3.5], [-20, 59.5, 6]]]) capsule(arm, a, b, 1.8, 0.3, (x, y, z, t) => (t > 0.6 ? K.boneL : K.bone));
+  arm.paint((x, y, z, c) => (isBone(c) && (y === 46 || y === 47) && !arm.has(x, y - 1, z) ? K.boneDD : undefined));
+  gradY(arm, 12, 56, -0.1, 0.05, (x, y, z, c) => isFur(c));
+
+  // ------------------------------------------------------------ legs: bone greaves + kneecaps, bone toe claws
+  blob(leg, -8.4, 10, 3.2, 4.4, 4.6, 3, boneCol, { p: 2.4, clip: (x, y, z) => z < 2 });
+  blob(leg, -8.4, 15.2, 4.6, 3.6, 3.6, 2.4, K.boneL, { p: 2.3 });
+  capsule(leg, [-8.4, 16, 6.5], [-8.4, 19.5, 9.5], 1.3, 0.3, K.bone);
+  for (const y of [8, 11]) for (let x = -12; x <= -5; x++) { const z = frontZ(leg, x, y); if (z !== null && isBone(leg.get(x, y, z))) leg.set(x, y, z, K.boneDD); }
+  for (const dx of [-3, 0, 3]) chain(leg, [[-8.4 + dx, 2, 10], [-8.4 + dx, 1.4, 12.6], [-8.4 + dx, 0, 14]], [1, 0.7, 0.2], boneCol);
+  gradY(leg, 0, 27, -0.14, 0.04, (x, y, z, c) => isFur(c));
+
+  // ------------------------------------------------------------ tail: bone vertebrae + venom stinger
+  for (const [y, z] of [[26.5, -12], [25.6, -16], [27, -19.5], [30, -22], [34, -22.6]]) blob(tail, -0.5, y + 1.6, z, 1.4, 1.2, 1.6, K.bone);
+  chain(tail, [[-0.5, 38, -21], [-0.5, 42.5, -17.5], [-0.5, 44, -13], [-0.5, 42.5, -10]], [2.2, 1.6, 0.9, 0.2], (x, y, z, t) => (t > 0.85 ? K.toxic : K.bone));
+  glowWhere(tail, (x, y, z, c) => c === K.toxic);
+
+  return packBeast(m, { parts: [jp('cape', cape, CJ, [-0.5, 0, 0], { parent: 'body' })] });
+}
+
+// ===========================================================================
+// CYBER GLITCH: a glitching digital monster built from a "unique fusion of
+// materials": chunky indigo pixel-mosaic plastic, RGB-split magenta/cyan
+// edges where horizontal slices of its body have glitched sideways, a right
+// forearm that has de-rendered into a cyan hologram wireframe, a wide pixel
+// grin, one angry eye and one corrupted double-image eye, stair-stepped pixel
+// ears and crest, floating pixel debris and a tail of shrinking cubes ending
+// in a magenta bolt.
+
+/** Shift horizontal bands of a grid sideways and paint RGB-split edges on them. bands: [[y0, y1, dx]] */
+function glitchShift(g, bands, lead = MAG, trail = 0x22e6ff) {
+  const moved = [];
+  g.forEach((x, y, z, c, gl) => {
+    for (const [y0, y1, dx] of bands) if (y >= y0 && y <= y1) { moved.push([x, y, z, c, gl, dx]); break; }
+  });
+  for (const [x, y, z] of moved) g.del(x, y, z);
+  for (const [x, y, z, c, gl, dx] of moved) g.set(x + dx, y, z, c, gl);
+  // RGB split: the leading edge of each shifted row turns magenta, the trailing edge cyan
+  const rows = new Map();
+  for (const [x, y, z, , , dx] of moved) {
+    const k = y + ',' + z;
+    const r = rows.get(k) ?? { y, z, lo: Infinity, hi: -Infinity, dx };
+    r.lo = Math.min(r.lo, x + dx); r.hi = Math.max(r.hi, x + dx);
+    rows.set(k, r);
+  }
+  for (const r of rows.values()) {
+    if (!isFinite(r.lo)) continue;
+    const [a, b] = r.dx > 0 ? [lead, trail] : [trail, lead];
+    if (g.has(r.hi, r.y, r.z)) g.set(r.hi, r.y, r.z, a);
+    if (g.has(r.lo, r.y, r.z)) g.set(r.lo, r.y, r.z, b);
+  }
+  return g;
+}
+
+/** Replace the voxels of a grid inside box [x0..x1, y0..y1, z0..z1] by a wireframe of their surface. */
+function hologram(g, [x0, y0, z0, x1, y1, z1], step, col) {
+  const inside = new Set();
+  const key = (x, y, z) => x + ',' + y + ',' + z;
+  g.forEach((x, y, z) => { if (x >= x0 && x <= x1 && y >= y0 && y <= y1 && z >= z0 && z <= z1) inside.add(key(x, y, z)); });
+  const isIn = (x, y, z) => inside.has(key(x, y, z));
+  const keep = [];
+  for (const k of inside) {
+    const [x, y, z] = k.split(',').map(Number);
+    const ox = !isIn(x + 1, y, z) || !isIn(x - 1, y, z), oy = !isIn(x, y + 1, z) || !isIn(x, y - 1, z), oz = !isIn(x, y, z + 1) || !isIn(x, y, z - 1);
+    if (!ox && !oy && !oz) continue;
+    const m = (v) => ((v % step) + step) % step === 0;
+    let on = false;
+    if (oz) on = on || m(x) || m(y);
+    if (ox) on = on || m(y) || m(z);
+    if (oy) on = on || m(x) || m(z);
+    if (on) keep.push([x, y, z]);
+  }
+  for (const k of inside) { const [x, y, z] = k.split(',').map(Number); g.del(x, y, z); }
+  for (const [x, y, z] of keep) g.set(x, y, z, typeof col === 'function' ? col(x, y, z) : col);
+  return g;
+}
+
+function cyberGlitch() {
+  const K = {
+    base: 0x35257a, baseL: 0x4e3aa4, baseD: 0x21164e, mag: 0xff2ea6, magL: 0xff92d4, cyan: 0x22e6ff, cyanL: 0xa6f8ff, cyanD: 0x1690c0,
+    white: 0xf4f0ff, black: 0x0a0818, joint: 0x15102e, tongue: 0xff4fb8,
+  };
+  // pixel mosaic: 2x2x2 cells of three tones + rare dead pixels
+  const pix = (x, y, z) => {
+    const v = n3(Math.floor((x + 64) / 2), Math.floor((y + 64) / 2), Math.floor((z + 64) / 2), 41);
+    if (v > 0.985) return v > 0.9925 ? K.mag : K.cyan;
+    return v < 0.25 ? K.baseD : v > 0.8 ? K.baseL : K.base;
+  };
+  const isBase = (c) => c === K.base || c === K.baseL || c === K.baseD;
+  const C = J.head;
+
+  // ------------------------------------------------------------ body (boxy)
+  const body = G();
+  blob(body, -0.5, 26, 0, 9.4, 4.8, 6.8, pix, { p: 3.6 }); // pelvis
+  blob(body, -0.5, 32, 0.5, 9, 5.4, 7, pix, { p: 3.6 }); // waist
+  blob(body, -0.5, 41, 0, 14.4, 7.8, 9.2, pix, { p: 4 }); // chest
+  blob(body, -0.5, 47.5, -1.5, 10, 4, 7, pix, { p: 3.6 }); // traps
+  // pixel abs grid
+  body.paint((x, y, z, c) => {
+    if (y < 27 || y > 36 || z < 5 || Math.abs(x + 0.5) > 6.6) return undefined;
+    return (y === 30 || y === 33 || Math.abs(x + 0.5) < 0.6) ? K.baseD : K.baseL;
+  });
+  // the Mega-Tech bolt as pixel art with a cyan RGB ghost offset behind it
+  stamp(body, MEGA_BOLT, { M: { c: K.cyan, raise: 1 }, W: { c: K.cyan, raise: 1 }, C: { c: K.cyan, raise: 1 } }, { axis: 'z', x: -6, y: 46, zmin: 4 });
+  stamp(body, MEGA_BOLT, { M: { c: K.mag, raise: 2 }, W: { c: K.white, raise: 2 }, C: { c: K.cyanL, raise: 2, glow: true } }, { axis: 'z', x: -5, y: 45, zmin: 4 });
+  // chunky pixel belt
+  blob(body, -0.5, 24.5, 0, 10.2, 1.4, 7.4, (x) => ((x + 40) % 4 < 2 ? K.mag : K.black), { p: 4 });
+  // glitch slices + floating pixel debris
+  glitchShift(body, [[37, 38, 2], [43, 43, -2], [29, 29, 1]]);
+  for (const [x, y, z, s] of [[-17, 30, 6, 1], [16, 34, 5, 1], [-14, 52, -6, 0], [13, 50, -8, 1], [-6, 54, -11, 0]]) {
+    rbox(body, x, y, z, x + s, y + s, z + s, 0, s ? K.mag : K.cyan);
+  }
+  gradY(body, 21, 51, -0.12, 0.06, (x, y, z, c) => isBase(c));
+
+  // ------------------------------------------------------------ head (blocky beast, wide pixel grin)
+  const head = G();
+  blob(head, C[0], C[1], C[2], 12.4, 9.2, 9.4, pix, { p: 4.2 });
+  blob(head, C[0], C[1] - 5.5, C[2] + 3, 11.4, 4.6, 7.4, pix, { p: 4 }); // jowls
+  // stair-stepped pixel ears with magenta inners
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 6; i++) {
+      const w = 4 - Math.floor(i * 0.7), cx = -0.5 + s * (8.6 + i * 0.55);
+      rbox(head, Math.round(cx - w), C[1] + 6 + i * 2, C[2] - 5, Math.round(cx + w), C[1] + 7 + i * 2, C[2] + 1, 0, i >= 4 ? K.cyan : pix);
+      if (i < 4) rbox(head, Math.round(cx - w + 1), C[1] + 6 + i * 2, C[2] + 2, Math.round(cx + w - 1), C[1] + 7 + i * 2, C[2] + 2, 0, K.mag);
+    }
+  }
+  // pixel crest along the top
+  for (let i = 0; i < 6; i++) {
+    const z = C[2] + 6 - i * 3, h = 2 + (i % 3);
+    const top = topY(head, -1, z) ?? C[1] + 8;
+    rbox(head, -2, top + 1, z - 1, 1, top + h, z, 0, i % 2 ? K.cyan : K.mag);
+  }
+  // wide grin: blocky mouth with 2x2 teeth and a pixel tongue
+  const mT = C[1] - 2, mB = C[1] - 9;
+  head.carve((x, y, z) => y >= mB && y <= mT && Math.abs(x + 0.5) <= 9 && z >= C[2] + 4);
+  for (let x = -10; x <= 9; x++) for (let y = mB; y <= mT; y++) {
+    if (Math.abs(x + 0.5) > 9) continue;
+    head.set(x, y, C[2] + 4, K.black);
+  }
+  for (let x = -9; x <= 8; x += 3) {
+    const fz = frontZ(head, x, mT + 1, C[2]) ?? C[2] + 11;
+    head.box(x, mT - 1, fz - 1, x + 1, mT, fz, K.white);
+  }
+  head.carve((x, y, z) => y < mB && z >= C[2] + 2);
+  // eyes: left angry, right corrupted (double image)
+  const EYE_L = [
+    'BB.......',
+    'BBBB.....',
+    'WWBBBB...',
+    'WWWWWBBB.',
+    'WWWWWWWBB',
+    'WWWWWPPPW',
+    'WWWWWPPPW',
+    '.WWWWPPPW',
+    '..WWWWWW.',
+  ];
+  stamp(head, EYE_L, { B: { c: K.mag, raise: 1 }, W: K.white, P: { c: K.cyan, glow: true } }, { axis: 'z', x: -11, y: C[1] + 8, zmin: C[2] });
+  const EYE_R = rev(EYE_L);
+  stamp(head, EYE_R.map((r) => r.replace(/[WP]/g, 'G')), { G: { c: K.cyanD } }, { axis: 'z', x: 3, y: C[1] + 7, zmin: C[2] });
+  stamp(head, EYE_R, { B: { c: K.mag, raise: 1 }, W: K.white, P: { c: K.mag, glow: true } }, { axis: 'z', x: 1, y: C[1] + 9, zmin: C[2] });
+  glitchShift(head, [[C[1] + 2, C[1] + 3, -2], [C[1] - 4, C[1] - 4, 2]]);
+  gradY(head, C[1] - 12, C[1] + 12, -0.1, 0.08, (x, y, z, c) => isBase(c));
+
+  // ------------------------------------------------------------ jaw: block jaw with up-teeth
+  const JJ = [-0.5, C[1] - 9, C[2] + 2];
+  const jaw = G();
+  blob(jaw, -0.5, C[1] - 12.5, C[2] + 6.5, 9.4, 3.2, 6.4, pix, { p: 4 });
+  jaw.carve((x, y, z) => y >= C[1] - 10 && z >= C[2] + 3 && Math.abs(x + 0.5) <= 7.6);
+  for (let x = -8; x <= 7; x++) for (let z = C[2] + 3; z <= C[2] + 12; z++) if (jaw.has(x, C[1] - 11, z)) jaw.set(x, C[1] - 11, z, Math.abs(x + 0.5) <= 3 && z <= C[2] + 9 ? K.tongue : K.black);
+  for (let x = -8; x <= 7; x += 3) {
+    const fz = frontZ(jaw, x, C[1] - 11, C[2]) ?? C[2] + 12;
+    jaw.box(x, C[1] - 10, fz - 1, x + 1, C[1] - 9, fz, K.white);
+  }
+
+  // ------------------------------------------------------------ arm (left: solid; right: hologram forearm)
+  const S = J.shoulder;
+  const arm = G();
+  blob(arm, S[0], S[1], S[2], 4.4, 4.4, 4.4, K.joint);
+  blob(arm, -18.6, 40, 0.6, 5, 5.6, 5, pix, { p: 3.4 }); // upper arm
+  blob(arm, -20.3, 34.2, 1.2, 3.6, 3.6, 3.6, K.joint); // elbow
+  blob(arm, -21, 29, 2.6, 5.6, 5.2, 5.8, pix, { p: 3.6 }); // forearm
+  blob(arm, -21.3, 20.4, 4.8, 5.4, 4.6, 5.6, pix, { p: 4 }); // block fist
+  for (const dx of [-3.5, -0.5, 2.5]) {
+    const fx = Math.round(-21.3 + dx);
+    arm.box(fx - 1, 18, 10, fx, 20, 11, K.baseL);
+    arm.box(fx - 1, 16, 12, fx, 18, 13, K.white); // pixel claws
+    arm.box(fx - 1, 14, 13, fx, 15, 14, K.white);
+  }
+  // shoulder: stacked cube pauldron (RGB)
+  for (const [x, y, z, w, c] of [[-19, 49, -3, 3, K.mag], [-22, 47, 0, 3, K.baseL], [-19, 49, 2, 3, K.cyan], [-15, 51, -1, 2, K.baseL], [-23, 50, -4, 2, K.cyan], [-22, 50, 4, 2, K.mag]]) {
+    rbox(arm, x - w, y - w, z - w, x + w, y + w, z + w, 0, c);
+  }
+  glitchShift(arm, [[30, 31, -2], [22, 22, 1]]);
+  gradY(arm, 14, 54, -0.1, 0.06, (x, y, z, c) => isBase(c));
+  const armR = flipX(arm);
+  hologram(armR, [13, 13, -6, 30, 32, 16], 2, (x, y) => (y % 4 === 0 ? K.cyanL : K.cyan));
+  for (const [x, y, z] of [[22, 25, 10], [19, 28, 9], [24, 21, 4]]) armR.set(x, y, z, K.cyanL, true);
+
+  // ------------------------------------------------------------ leg (left)
+  const H = J.hip;
+  const leg = G();
+  blob(leg, H[0], H[1], H[2], 4.3, 4.3, 4.3, K.joint);
+  blob(leg, -8.4, 20.4, 0.8, 5.6, 5.8, 5.6, pix, { p: 3.6 }); // thigh
+  blob(leg, -8.4, 14.6, 1.4, 3.7, 3.7, 3.7, K.joint);
+  blob(leg, -8.4, 9.6, 1.4, 4.6, 4.6, 4.6, pix, { p: 3.8 }); // shin
+  rbox(leg, -14, 0, -4, -3, 4, 8, 1, pix); // block foot
+  for (const dx of [-3, 0, 3]) leg.box(Math.round(-8.4 + dx) - 1, 0, 9, Math.round(-8.4 + dx), 2, 11, K.white);
+  rbox(leg, -12, 12, 4, -5, 16, 6, 0, K.mag); // knee block
+  rbox(leg, -11, 13, 7, -6, 15, 7, 0, K.white);
+  glitchShift(leg, [[18, 19, -2], [6, 6, 1]]);
+  gradY(leg, 0, 27, -0.12, 0.05, (x, y, z, c) => isBase(c));
+  const legR = flipX(leg);
+
+  // ------------------------------------------------------------ tail: shrinking cubes ending in a pixel bolt
+  const TJ = J.tail;
+  const tail = G();
+  const tpts = [[-0.5, 28, -7], [-0.5, 25, -12], [-0.5, 25.5, -17], [-0.5, 29, -21], [-0.5, 34, -22.5], [-0.5, 38.5, -21]];
+  tpts.forEach(([x, y, z], i) => {
+    const w = Math.max(1, 3 - Math.floor(i * 0.45));
+    rbox(tail, Math.round(x - w), Math.round(y - w), Math.round(z - w), Math.round(x + w - 1), Math.round(y + w - 1), Math.round(z + w - 1), 0, i % 2 ? K.baseL : K.base);
+  });
+  const TB = ['..MM', '.MM.', 'MMMM', '.MM.', 'MM..'];
+  TB.forEach((row, r) => [...row].forEach((ch, u) => { if (ch === 'M') for (const x of [-1, 0]) tail.set(x, 45 - r, -21 + u - 1, K.mag); }));
+
+  // ------------------------------------------------------------ floating pixel debris (sways)
+  const AJ = [-14, 56, -2];
+  const bits = G();
+  for (const [x, y, z, s, c, gl] of [[-18, 60, -2, 1, K.mag, false], [-15, 64, 1, 0, K.cyan, true], [-21, 56, 3, 0, K.cyanL, false], [-12, 61, -6, 1, K.cyan, false], [-23, 62, -4, 0, K.mag, true]]) {
+    for (let dx = 0; dx <= s; dx++) for (let dy = 0; dy <= s; dy++) for (let dz = 0; dz <= s; dz++) bits.set(x + dx, y + dy, z + dz, c, gl);
+  }
+  const bitsR = flipX(bits);
+
+  for (const g of [body, head, jaw, arm, armR, leg, legR, tail]) hollowOut(g, 1);
+  const R = (p) => [-1 - p[0], p[1], p[2]];
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'toy', mega: true,
+    parts: [
+      jp('legL', leg, H), jp('legR', legR, R(H)),
+      jp('body', body, [-0.5, 0, 0]),
+      jp('armL', arm, S, [-0.5, 0, 0], { parent: 'body' }),
+      jp('armR', armR, R(S), [-0.5, 0, 0], { parent: 'body' }),
+      jp('head', head, J.neck),
+      jp('jaw', jaw, JJ, J.neck, { parent: 'head', rot: [0.18, 0, 0] }),
+      jp('antennaL', bits, AJ, [-0.5, 0, 0], { parent: 'body' }),
+      jp('antennaR', bitsR, R(AJ), [-0.5, 0, 0], { parent: 'body' }),
+      jp('tail', tail, TJ),
+    ],
+    muzzle: [-0.5, C[1] - 6, C[2] + 14],
+  };
+}
+
 export const MEGA_MODELS = {
   panthar,
   silverByte,
+  necroClaw,
+  cyberGlitch,
 };
