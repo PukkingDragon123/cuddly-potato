@@ -14,7 +14,7 @@
 // makeContainment(opts) -> {
 //   root, height, interior: { floorY, topY, radius },
 //   update(dt), setFill(k 0..1), setCrack(k 0..1), setGlow(k 0..1+), setRumble(k 0..1),
-//   burst(opts) -> shard meshes, dispose()
+//   burst(opts) -> shard meshes (flown by update() unless opts.physics === false), dispose()
 // }
 // opts: { height = 7 (world units, everything scales with it), accent (bolt /
 // glow colour), liquid (water colour), beacon (beacon colour) }
@@ -457,14 +457,19 @@ class Containment {
   }
 
   /**
-   * Shatter the glass. Hides the glass, cracks and water and returns shard
-   * meshes (children of this.body, in its local space) for the caller's
-   * physics: each has userData { kind: 'glass' | 'lid', vel: Vector3 (units/s),
-   * spin: Vector3 (rad/s) }. o.lid (default true) also launches the lid.
+   * Shatter the glass. Hides the glass, cracks and water and returns the shard
+   * meshes (children of this.body, in its local space). Each has userData
+   * { kind: 'glass' | 'lid', vel: Vector3 (local units/s), spin: Vector3 (rad/s) }.
+   * By default update() flies them (gravity, bounce on the ground, then they
+   * shrink away); pass o.physics = false to drive them yourself (e.g. with
+   * fx.shatter). o.force ~ outward speed (default 6), o.count (44),
+   * o.lid (default true) also launches the lid.
    */
   burst(o = {}) {
     if (this.burst_) return [];
     this.burst_ = true;
+    this.selfPhysics = o.physics !== false;
+    const F = (o.force ?? 6) / 6;
     this.glassGroup.visible = false;
     this.water.visible = this.surface.visible = this.bubbles.visible = this.stream.visible = false;
     const { glassY0, glassY1, R } = this.dims;
@@ -485,26 +490,55 @@ class Containment {
       m.position.set(Math.cos(a) * R, y, Math.sin(a) * R);
       m.rotation.set(0, Math.PI / 2 - a, (Math.random() - 0.5) * 1.5);
       m.renderOrder = 6;
-      const out_ = 3.5 + Math.random() * 5.5;
+      const out_ = (3.5 + Math.random() * 5.5) * F;
       m.userData = {
-        kind: 'glass',
-        vel: new THREE.Vector3(Math.cos(a) * out_, 1.5 + Math.random() * 4.5 + (y - glassY0) * 0.5, Math.sin(a) * out_),
+        kind: 'glass', life: 1.8 + Math.random() * 1.4,
+        vel: new THREE.Vector3(Math.cos(a) * out_, (1.5 + Math.random() * 4.5) * Math.sqrt(F) + (y - glassY0) * 0.5, Math.sin(a) * out_),
         spin: new THREE.Vector3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14),
       };
       this.body.add(m);
       out.push(m);
     }
     if (o.lid !== false) {
-      this.lid.userData = { kind: 'lid', vel: new THREE.Vector3((Math.random() - 0.5) * 2, 7.5, 1.2 + Math.random()), spin: new THREE.Vector3(2.4 + Math.random() * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3) };
+      this.lid.userData = { kind: 'lid', life: 3.5, vel: new THREE.Vector3((Math.random() - 0.5) * 2, 7.5 * Math.sqrt(F), 1.2 + Math.random()), spin: new THREE.Vector3(2.4 + Math.random() * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3) };
       out.push(this.lid);
     }
+    this.shards = out;
     this.glowTarget = Math.max(this.glowTarget, 1.2);
     return out;
+  }
+
+  /** Fly burst shards: gravity, a bounce on the ground, then shrink away. */
+  updateShards(dt) {
+    if (!this.selfPhysics || !this.shards?.length) return;
+    const g = 16 / this.scale; // world gravity in body-local units
+    for (const m of this.shards) {
+      const u = m.userData;
+      if (!u.vel || m.parent !== this.body) continue;
+      u.age = (u.age ?? 0) + dt;
+      u.vel.y -= g * dt;
+      m.position.addScaledVector(u.vel, dt);
+      const floor = u.kind === 'lid' ? 0.25 : 0.03;
+      if (m.position.y < floor) {
+        m.position.y = floor;
+        u.vel.set(u.vel.x * 0.45, Math.abs(u.vel.y) * 0.32, u.vel.z * 0.45);
+        u.spin.multiplyScalar(0.55);
+      }
+      m.rotation.x += u.spin.x * dt; m.rotation.y += u.spin.y * dt; m.rotation.z += u.spin.z * dt;
+      const left = u.life - u.age;
+      if (left < 0.4) {
+        const k = Math.max(0, left / 0.4);
+        if (u.kind === 'lid') m.scale.setScalar(k);
+        else m.scale.multiplyScalar(k > 0 ? 0.9 : 0);
+        if (left <= 0) { this.body.remove(m); m.visible = false; }
+      }
+    }
   }
 
   update(dt) {
     this.t += dt;
     const t = this.t;
+    this.updateShards(dt);
     // glow eases with a little flicker
     this.glow += (this.glowTarget - this.glow) * (1 - Math.exp(-dt * 6));
     const g0 = this.glow;

@@ -180,8 +180,8 @@ const pole = (g, x, y0, y1, z, col = WOOD) => g.box(x, y0, z, x, y1, z, col);
 // ---------------------------------------------------------------------------
 // Grid processing (hollowing, battle damage, rubble)
 
-/** Remove voxels buried deeper than `d` (keeps a skin; cheaper builds/damage). */
-function hollow(g, d = 2) {
+/** Remove voxels buried deeper than `d` (keeps a skin; cheaper damage processing). `inner` collects the removed cells. */
+function hollow(g, d = 2, inner = null) {
   const kill = [];
   g.forEach((x, y, z) => {
     for (let i = 1; i <= d; i++) {
@@ -198,11 +198,33 @@ function hollow(g, d = 2) {
       if (c !== undefined && c !== INNER) g.set(x + dx, y + dy, z + dz, INNER);
     }
   }
+  if (inner) for (const v of kill) inner.push(v);
   return g;
 }
 
-/** Progressive battle damage: scorch, cracks, bitten-out chunks. Deterministic per stage. */
-function damageGrid(src, stage, seed = 7) {
+/** Bite predicate shared by damageGrid and refill (true = carved away). */
+const bitten = (bites, x, y, z) => {
+  for (const [cx, cy, cz, r] of bites) {
+    const d = (x - cx) ** 2 + (y - cy) ** 2 * 1.2 + (z - cz) ** 2;
+    if (d < r * r + hash3(x, y, z) * 2.2) return true;
+  }
+  return false;
+};
+/**
+ * Bake a hollowed grid with its cavity filled back in (dark interior), so no
+ * never-visible cavity faces are emitted; cells carved by bites stay empty.
+ */
+function bakeSolid(g, inner, bites, opts) {
+  const s = g.clone();
+  for (let i = 0; i < inner.length; i += 3) {
+    const x = inner[i], y = inner[i + 1], z = inner[i + 2];
+    if (!s.has(x, y, z) && !(bites.length && bitten(bites, x, y, z))) s.set(x, y, z, INNER);
+  }
+  return s.build(opts);
+}
+
+/** Progressive battle damage: scorch, cracks, bitten-out chunks. Deterministic per stage. Fills `outBites`. */
+function damageGrid(src, stage, seed = 7, outBites = []) {
   const g = src.clone();
   const b = g.bounds();
   const H = b.maxY - b.minY;
@@ -249,6 +271,7 @@ function damageGrid(src, stage, seed = 7) {
   for (let i = 0; i < nB && i < bites.length; i++) {
     const [[cx, cy, cz], r0] = bites[i];
     const r = r0 * (0.7 + stage * 0.35);
+    outBites.push([cx, cy, cz, r]);
     const rr = r * r, ro = (r + 1.6) * (r + 1.6);
     for (let x = Math.floor(cx - r - 2); x <= cx + r + 2; x++)
       for (let y = Math.floor(cy - r - 2); y <= cy + r + 2; y++)
@@ -483,8 +506,8 @@ function tier2(P, m) {
   }
   for (let x = RX0; x <= RX1; x += 6) b.set(x, yr(x) + 2, RZ1, METAL_DD);
   // seat cushion (old couch cushion) on the roof
-  b.box(6, yr(9) + 2, -3, 12, yr(9) + 2, 2, P.md);
-  b.box(6, yr(9) + 3, -3, 12, yr(9) + 3, 2, (x, y, z) => ((x + z) % 3 === 0 ? P.md : P.m));
+  b.box(8, yr(11) + 2, -3, 14, yr(11) + 2, 2, P.md);
+  b.box(8, yr(11) + 3, -3, 14, yr(11) + 3, 2, (x, y, z) => ((x + z) % 3 === 0 ? P.md : P.m));
   // extension cords from the generator
   sagLine(b, [16, 1, 10], [5, 0, 13], ORANGE, 0);
   sagLine(b, [5, 0, 13], [-3, 0, 11], ORANGE, 0);
@@ -493,11 +516,12 @@ function tier2(P, m) {
   b.box(4, 0, 12, 6, 0, 14, 0xf4f6fa).set(5, 1, 13, PAL.red, true); // power strip
   for (let x = X0; x <= X1; x++) b.set(x, yr(x) - 1, RZ1, INK); // fairy-light wire
 
-  // plank sign "LAB" above the door (stage 2)
+  // hand-painted plywood "LAB" sign propped up on the roof, with marquee bulbs (stage 2)
   const sign = new VoxGrid();
-  sign.box(-12, Y1 - 2, Z1 + 1, 0, Y1 + 2, Z1 + 1, (x, y) => (y === Y1 - 2 || y === Y1 + 2 ? WOOD_D : (x + y) % 5 === 0 ? WOOD : WOOD_L));
-  paint(sign, 'LAB', -7, Y1 - 1, Z1 + 2, '+z', P.bolt, { center: true, mirror: m, wobble: 1, seed: 9 });
-  sign.set(-12, Y1, Z1 + 2, METAL_DD).set(0, Y1, Z1 + 2, METAL_DD);
+  const SX0 = -10, SX1 = 2, SZ = -1, SY0 = yr(SX0) + 3, SY1 = SY0 + 6;
+  for (const lx of [SX0 + 1, SX1 - 1]) sign.box(lx, yr(lx) + 1, SZ - 1, lx, SY0, SZ - 1, WOOD_D);
+  sign.box(SX0, SY0, SZ, SX1, SY1, SZ, (x, y) => (y === SY0 || y === SY1 || x === SX0 || x === SX1 ? WOOD_D : (x + y) % 5 === 0 ? WOOD : WOOD_L));
+  paint(sign, 'LAB', (SX0 + SX1 + 1) >> 1, SY0 + 1, SZ + 1, '+z', P.bolt, { center: true, mirror: m, wobble: 1, seed: 9 });
   // ladder leaning on the left wall (stage 1)
   const lad = new VoxGrid();
   for (const z of [3, 7]) lad.line(X0 - 7, 0, z, X0 - 1, yr(X0) + 1, z, WOOD_L);
@@ -511,7 +535,7 @@ function tier2(P, m) {
   drum.set(X0 - 3, 8, 13, METAL_L);
   // frying-pan satellite dish (anim)
   const R = 3.5, tilt = 0.7, ct = Math.cos(tilt), st = Math.sin(tilt);
-  const pan = dishGrid({ r: R, col: 0x6c6c7c, back: 0x3a3a46, rim: 0xb4b4c4, post: WOOD_L, tip: P.glow, tilt });
+  const pan = dishGrid({ r: R, col: 0xc4ccd8, back: 0x3a3a46, rim: 0x2a2a34, post: WOOD_L, tip: P.glow, tilt });
   for (let i = 1; i <= 5; i++) {
     const dx = -(R + i), dy = R / 1.6;
     pan.set(Math.round(dx * ct + dy * st), Math.round(6 - dx * st + dy * ct), 0, i > 2 ? 0x1a1a22 : 0x2a2a34);
@@ -531,7 +555,6 @@ function tier2(P, m) {
   gen.set(-1, 2, 4, ORANGE).set(0, 2, 4, ORANGE);
   gen.set(1, 4, 4, P.glow, true).set(2, 3, 4, PAL.red);
   gen.box(-1, 7, -3, 0, 8, -2, METAL_D).set(-1, 9, -3, METAL_DD);
-  const yRoof = yr(-7);
   return {
     body: b,
     chunks: [
@@ -540,16 +563,19 @@ function tier2(P, m) {
       { name: 'drum', grid: drum, stage: 2 },
     ],
     anims: [
-      { name: 'pan', type: 'spin', axis: 'y', speed: 0.9, grid: pan, at: [-6.5, yRoof + 2, -4.5], stage: 2 },
+      { name: 'pan', type: 'spin', axis: 'y', speed: 0.9, grid: pan, at: [-12.5, yr(-12) + 2, -6.5], stage: 2 },
       { name: 'generator', type: 'jitter', amp: 0.35, grid: gen, at: [17.5, 0, 5.5], stage: 9 },
     ],
-    lights: Array.from({ length: 6 }, (_, i) => {
-      const x = X0 + 1 + i * 4;
-      return { at: [x + 0.5, yr(x) - 1.6, RZ1 + 0.5], color: [WARM, P.boltL, P.glow, 0x9dff7a][i % 4], mode: 'blink', rate: 0.9, duty: 0.7, phase: i * 0.21, size: 1.3, stage: 1 };
-    }),
+    lights: [
+      ...Array.from({ length: 6 }, (_, i) => {
+        const x = X0 + 1 + i * 4;
+        return { at: [x + 0.5, yr(x) - 1.6, RZ1 + 0.5], color: [WARM, P.boltL, P.glow, 0x9dff7a][i % 4], mode: 'blink', rate: 0.9, duty: 0.7, phase: i * 0.21, size: 1.3, stage: 1 };
+      }),
+      ...Array.from({ length: 5 }, (_, i) => ({ at: [SX0 + 1.5 + i * 2.5, SY1 + 1.2, SZ + 0.5], color: WARM, mode: 'blink', rate: 1.6, duty: 0.6, phase: i * 0.2, size: 1.1, stage: 2 })),
+    ],
     puffs: [{ at: [16.5, 9.5, 2.5], color: 0x8a8a96, rate: 2.2, rise: 0.55, s0: 0.06, s1: 0.22, life: 1.1, op: 0.5, vx: -0.15, until: 4 }],
     core: [18, 3.5, 5.5],
-    seat: [9.5, yr(9) + 4, -0.5],
+    seat: [11.5, yr(11) + 4, -0.5],
     fires: [[-6, yr(-6) + 1, 5], [4, yr(4) + 1, -4], [10, 10, Z1 + 1]],
     sparks: [[16, 6, 10], [3, 14, Z1 + 1], [-7, Y1, Z1 + 2]],
     smoke: [[-2, yr(-2) + 1, 0], [16.5, 9, 3]],
@@ -1004,11 +1030,11 @@ function tier6(P, m) {
   const RZ = 14;
   for (const RX of [-27, 15]) {
     cyl(b, 'y', RX, RZ, Y0, 12, 5.4, 5.4, (x, y, z) => (y === 11 ? HZ(x, y, z) : y === 12 ? P.m : y === Y0 ? DK : (Math.floor((Math.atan2(z - RZ, x - RX) * 4) / Math.PI) & 1 ? AR : AR2)));
-    ring(b, RX, RZ, 12, 12, 5.8, P.glow, true);
+    ring(b, RX, RZ, 12, 12, 5.4, P.glow, true);
     for (const [dx, dz] of [[-5, 0], [5, 0], [0, -5]]) b.box(RX + dx, 13, RZ + dz, RX + dx, 33, RZ + dz, DK);
     for (const y of [18, 28]) for (const [dx, dz] of [[-5, 0], [5, 0], [0, -5]]) b.set(RX + dx, y, RZ + dz, P.glow, true);
     cyl(b, 'y', RX, RZ, 34, 38, 5.4, 5.4, (x, y) => (y === 35 ? P.m : y === 38 ? AR2 : AR));
-    ring(b, RX, RZ, 37, 37, 5.8, P.bolt);
+    ring(b, RX, RZ, 37, 37, 5.4, P.bolt);
     cyl(b, 'y', RX, RZ, 39, 40, 3, 3, DK);
     pipe(b, 'z', Z1 - 4, RZ - 4, RX, 36, DK, P.m, 1, 3);
   }
@@ -1124,8 +1150,9 @@ function tierDef(tier, side, flip) {
   const mir = (g) => (flip ? mirrorGrid(g) : g);
   const W = (p) => [sx * p[0] * V, p[1] * V, p[2] * V];
   const P0 = { scale: V, pivot: [0, 0, 0], maxSamples: 420 };
-  const bodyGrid = hollow(mir(d.body));
-  const bodyGeos = [bodyGrid.build(P0)];
+  const inner = [];
+  const bodyGrid = hollow(mir(d.body), 2, inner);
+  const bodyGeos = [bakeSolid(bodyGrid, inner, [], P0)];
   const bb = bodyGrid.bounds();
   const all = { ...bb };
   const grow = (g, off = [0, 0, 0]) => {
@@ -1148,7 +1175,10 @@ function tierDef(tier, side, flip) {
   const def = {
     tier, side, flip, P,
     bodyGeo(s) {
-      if (!bodyGeos[s]) bodyGeos[s] = hollow(damageGrid(bodyGrid, s, 11 + tier * 7)).build(P0);
+      if (!bodyGeos[s]) {
+        const bites = [];
+        bodyGeos[s] = bakeSolid(damageGrid(bodyGrid, s, 11 + tier * 7, bites), inner, bites, P0);
+      }
       return bodyGeos[s];
     },
     rubbleGeo() {
@@ -1190,19 +1220,34 @@ function prewarm(def) {
 }
 
 const LAB_SKINS = new Set(['mansion', 'martLab', 'mart', 'chocoLab', 'goldVault']);
+/** The landscape battle camera shows ~6.8 units above the lane: keep HP plates below this. */
+const PLATE_MAX_Y = 6.25;
+
+/**
+ * Build (and cache) a tier's geometry ahead of time, e.g. when an upgrade starts,
+ * so the swap at the end of the transformation does not hitch. Runs on idle.
+ */
+export function prewarmBase(tier, { side = 0, flip = false } = {}) {
+  tier = clamp(Math.round(tier) || 1, 1, BUILDERS.length);
+  const ric = typeof requestIdleCallback === 'function' ? requestIdleCallback : (f) => setTimeout(f, 50);
+  ric(() => prewarm(tierDef(tier, side, flip)));
+}
 
 /**
  * In-battle Base at an upgrade tier (1..6).
  * @param {number} tier 1 Camp Tent .. 6 Mega HQ
  * @param {{side?: 0|1, flip?: boolean, style?: string}} o side 1 = rival colours; flip mirrors it
  *   for the right-hand side; style = an equipped Lab skin (mansion, goldVault, ...) used at tier 5.
- * @returns {{root, seat, core, meshes, height, width, tier, front, bounds, setDamage(f), update(dt), onChunk, setLevel(n)}}
+ * @returns {{root, seat, core, meshes, height, width, tier, name, front, bounds, centerX, plateY, setDamage(f), update(dt), onChunk, setLevel(n)}}
+ *   front = signed x of the front face (troops hit it); bounds = local footprint {x0,x1,z0,z1};
+ *   centerX = local x centre of the footprint (place makeScaffold() there); plateY = suggested HP-plate height.
  */
 export function makeBase(tier = 1, { side = 0, flip = false, style } = {}) {
   tier = clamp(Math.round(tier) || 1, 1, BUILDERS.length);
   if (tier === 5 && style && LAB_SKINS.has(style)) {
     const lab = makeLabBuilding({ style, flip });
-    return Object.assign(lab, { tier, name: BASE_TIERS[4].name, front: (flip ? -1 : 1) * 1.7, bounds: { x0: -lab.width / 2, x1: lab.width / 2, z0: -1.4, z1: 1.6 } });
+    const bounds = flip ? { x0: -1.7, x1: 2.2, z0: -1.4, z1: 1.9 } : { x0: -2.2, x1: 1.7, z0: -1.4, z1: 1.9 };
+    return Object.assign(lab, { tier, name: BASE_TIERS[4].name, front: (flip ? -1 : 1) * 1.7, bounds, centerX: (bounds.x0 + bounds.x1) / 2, plateY: Math.min(lab.height + 0.55, PLATE_MAX_Y) });
   }
   const D = tierDef(tier, side, flip);
   prewarm(D);
@@ -1365,6 +1410,8 @@ export function makeBase(tier = 1, { side = 0, flip = false, style } = {}) {
     root, seat, core, meshes, tier, side, flip,
     name: BASE_TIERS[tier - 1].name,
     height: D.height, width: D.width, front: D.front, bounds: D.bounds,
+    centerX: (D.bounds.x0 + D.bounds.x1) / 2,
+    plateY: Math.min(D.height + 0.55, PLATE_MAX_Y),
     level: 1, damage: 0, stage: 0,
     onChunk: null,
     setLevel(n) {
@@ -1549,8 +1596,8 @@ function scaffoldGeos(Wv, Hv, flip) {
     g.box(x0, yb - 1, z1, x1, yb - 1, z1, POLE_C).box(x0, yb - 1, z0, x1, yb - 1, z0, POLE_C);
     for (const x of px) g.box(x, yb - 1, z0, x, yb - 1, z1, POLE_D);
     // front walkway planks + hazard toe board
-    g.box(x0, yb, z1 - 4, x1, yb, z1, (x) => (Math.floor(x / 7) % 2 ? WOOD_L : WOOD));
-    g.box(x0, yb + 1, z1 + 1, x1, yb + 2, z1 + 1, hazardC(PAL.yellow, INK, 2));
+    g.box(x0, yb, z1 - 3, x1, yb, z1, (x) => (Math.floor(x / 7) % 2 ? WOOD_L : WOOD));
+    g.box(x0, yb + 1, z1 + 1, x1, yb + 1, z1 + 1, hazardC(PAL.yellow, INK, 2));
     // cross braces on the front and back faces
     for (let j = 0; j < px.length - 1; j++) {
       const [a, b2] = j % 2 ? [px[j + 1], px[j]] : [px[j], px[j + 1]];

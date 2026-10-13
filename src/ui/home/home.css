@@ -963,3 +963,7 @@
 .mn-boss-locked b { color: var(--gold); }
 
 .mn-rw-hero { margin: calc(var(--u) * -1) auto calc(var(--u) * 1.4); animation: hmPop 0.5s cubic-bezier(.2, 1.4, .4, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mn-screen::after, .mn-sub::before, .mn-offer::before, .mn-vtile::after, .mn-ctile, .mn-switch.on, .mn-track::after, .mn-tr-fill { animation: none !important; }
+}

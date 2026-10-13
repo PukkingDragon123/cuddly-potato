@@ -250,7 +250,7 @@ export const SWARMS = {
   },
   mechaMantis: {
     name: 'Mecha Mantis', series: 'megaTech', rarity: 'epic', role: 'melee', arena: 'redlight',
-    elixir: 4, hp: 940, dmg: 72, atk: 0.55, range: 1.0, speed: 1.9, kb: 2, size: 1.1,
+    elixir: 4, hp: 1000, dmg: 74, atk: 0.55, range: 1.0, speed: 1.9, kb: 2, size: 1.1,
     traits: { pierce: true },
     desc: 'Chrome scythe arms that slash twice a second, slicing through EVERY enemy in reach.',
   },
@@ -285,7 +285,7 @@ export const SWARMS = {
   },
   sludgeKraken: {
     name: 'Sludge Kraken', series: 'battleFusion', rarity: 'legendary', role: 'ranged', arena: 'island',
-    elixir: 7, hp: 2600, dmg: 190, atk: 2.1, range: 4.0, speed: 0.85, kb: 2, size: 1.6,
+    elixir: 7, hp: 2500, dmg: 180, atk: 2.1, range: 4.0, speed: 0.85, kb: 2, size: 1.6,
     traits: { area: true, slow: { amt: 0.3, dur: 1.5 }, burn: { dps: 30, dur: 3, poison: true } }, projectile: 'acid',
     desc: 'A Battle Fusion kraken from the Lab sewers. Tentacle-slams toxic sludge that splashes, slows and poisons.',
   },
@@ -297,7 +297,7 @@ export const SWARMS = {
   },
   mutantMop: {
     name: 'Mutant Mop', series: 'homeHorrors', rarity: 'common', role: 'melee', arena: 'circle',
-    elixir: 3, hp: 760, dmg: 78, atk: 1.1, range: 1.0, speed: 1.2, kb: 2, size: 1.05,
+    elixir: 3, hp: 820, dmg: 82, atk: 1.1, range: 1.0, speed: 1.2, kb: 2, size: 1.05,
     traits: { slow: { amt: 0.35, dur: 1.5 } },
     desc: 'A filthy mop with a bucket for a body. Slaps enemies with soggy slime that slows them down.',
   },

@@ -142,7 +142,8 @@
 .hm-slot .sn { position: relative; z-index: 2; font-size: 0.55em; color: var(--muted); text-shadow: var(--outline-thin); white-space: nowrap; margin-top: calc(var(--u) * 0.3); }
 .hm-slot.empty { opacity: 0.6; --lh: 14%; }
 .hm-slot.empty .st { color: var(--muted); font-family: var(--font-b); font-size: 0.6em; }
-.hm-slot.locked { --liq: #6a5aff; --liq2: #2a1a8a; }
+.hm-slot.locked { --liq: #6a5aff; --liq2: #2a1a8a; --lh: 19%; }
+.hm-slot .sn { color: #dfe6ff; }
 .hm-slot.unlocking { --liq: #ffd84a; --liq2: #c86a0e; --lh: 42%; }
 .hm-slot.unlocking .st { color: var(--gold); text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(255, 216, 74, 0.8); }
 .hm-slot.ready { animation: readyBob 0.9s ease-in-out infinite; --liq: #7aff4a; --liq2: #1d9a3a; --lh: 62%; filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.7)); }
@@ -162,8 +163,8 @@
 }
 /* hazard stripe trim along the top of the lab console */
 .hm-nav::before {
-  content: ''; position: absolute; left: 0; right: 0; top: calc(var(--px) * -6); height: calc(var(--px) * 3); pointer-events: none;
-  background: var(--tx-hazard) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)); box-shadow: 0 calc(var(--px) * -1) 0 var(--ink);
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--px) * 2); pointer-events: none;
+  background: var(--tx-hazard) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)); box-shadow: 0 var(--px) 0 var(--ink);
 }
 .hm-tabbtn {
   position: relative; flex: 1 1 0; max-width: calc(var(--u) * 24); height: calc(var(--u) * 12); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 0.2);
@@ -234,3 +235,7 @@ body.landscape .hm-slot img.vt { width: calc(var(--u) * 13); height: calc(var(--
 body.landscape .hm-tabbtn { height: calc(var(--u) * 10.5); }
 body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
 .hm-mid { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-mini::after, .hm-slot::after, .hm-play::before { animation: none !important; }
+}

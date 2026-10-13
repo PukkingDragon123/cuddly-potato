@@ -337,7 +337,7 @@ body.touch .bh-slot .key { display: none; }
 .bh-mega .lockt .pi { width: 2.4em; height: 2.4em; }
 .bh-mega.locked.full .lockt, .bh-mega.locked .lockt { display: flex; }
 .bh-mega.used { filter: grayscale(1) brightness(0.6); }
-.bh-mega.none { background: repeating-linear-gradient(-45deg, #1a2050 0 8px, #141a44 8px 16px); }
+.bh-mega.none { background: var(--tx-grid) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)), repeating-linear-gradient(-45deg, #1a2050 0 8px, #141a44 8px 16px); }
 .bh-mega.none .lockt b { display: flex; align-items: center; gap: 0.2em; font-family: var(--font-d); font-size: 1.5em; color: var(--gold); }
 .bh-mega.none .lockt b .pi { width: 1em; height: 1em; }
 .bh-mega.full:not(.locked) { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1.2) #fff, 0 0 0 calc(var(--px) * 2.4) var(--mb), 0 0 calc(var(--u) * 5) var(--mb); }
@@ -497,3 +497,7 @@ body.landscape .vs-band .por { width: calc(var(--u) * 21); height: calc(var(--u)
 .uplate.mega .lv { background: #ff2e88; }
 .uplate.mega .life { display: block; position: relative; width: calc(var(--u) * 18); height: calc(var(--u) * 0.9); margin: calc(var(--u) * 0.5) 0 0 calc(var(--u) * 3); background: #10173f; box-shadow: 0 0 0 calc(var(--px) * 0.5) var(--ink); }
 .uplate.mega .life .lf { position: absolute; left: 0; top: 0; bottom: 0; display: block; background: linear-gradient(90deg, #ffd84a, #ff2e88); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bh-base .bhp .f, .bh-sig .chg, .bh-mega .liq, .bh-ebar.maxed::before, .res-base .rb .f, .vs-x::before { animation: none !important; }
+}

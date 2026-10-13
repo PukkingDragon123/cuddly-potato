@@ -78,7 +78,7 @@ export class ContainmentViewScene {
   }
 
   doBurst() {
-    this.shards = this.vessel.burst();
+    this.shards = this.vessel.burst({ force: 10 }); // the vessel flies its own shards
     this.rig.attack(0.9);
   }
 
@@ -100,22 +100,12 @@ export class ContainmentViewScene {
       if (s >= 4.6 && !this.shards.length) this.doBurst();
       this.rig.setState(s > 5.8 && s < 8 ? 'walk' : 'idle');
     }
-    // shard physics
-    for (const m of this.shards) {
-      const u = m.userData;
-      if (!u.vel) continue;
-      u.vel.y -= 14 * dt;
-      m.position.addScaledVector(u.vel, dt);
-      if (m.position.y < 0.05) { m.position.y = 0.05; u.vel.multiplyScalar(0.3); u.vel.y = Math.abs(u.vel.y) * 0.3; u.spin.multiplyScalar(0.5); }
-      m.rotation.x += u.spin.x * dt; m.rotation.y += u.spin.y * dt; m.rotation.z += u.spin.z * dt;
-    }
     v.update(dt);
     this.rig.update(dt);
   }
 
   reset() {
     // rebuild the vessel for the next loop
-    for (const m of this.shards) if (m.userData.kind !== 'lid') m.parent?.remove(m);
     this.shards = [];
     this.scene.remove(this.vessel.root);
     this.vessel.dispose();

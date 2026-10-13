@@ -485,7 +485,7 @@ function mechaMantis() {
   const legFL = leg(0, 2, 4), legBL = leg(-6, -8, -12);
 
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('legFL', legFL, [-3, 10, 0]), jp('legFR', flipX(legFL), [2, 10, 0]),
       jp('legBL', legBL, [-3, 10, -6]), jp('legBR', flipX(legBL), [2, 10, -6]),
@@ -603,7 +603,7 @@ function cyberCroc() {
   tail.paint((x, y, z, c) => (y <= 9 && isSkin(c) ? K.belly : undefined));
 
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('legFL', legFL, [-6, 11, 4]), jp('legFR', flipX(legFL), [5, 11, 4]),
       jp('legBL', legBL, [-6, 11, -8]), jp('legBR', flipX(legBL), [5, 11, -8]),
@@ -710,7 +710,7 @@ function pixelPups() {
   rbox(tail, -1, 16, -12, 0, 18, -10, 0, K.cream);
 
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.015, finish: 'gloss',
+    gait: 'walk', voxel: 0.05, jitter: 0.015,
     parts: [
       jp('legFL', legFL, [-3.5, 7, 0.5]), jp('legFR', flipX(legFL), [2.5, 7, 0.5]),
       jp('legBL', legBL, [-3.5, 7, -7.5]), jp('legBR', flipX(legBL), [2.5, 7, -7.5]),
@@ -824,7 +824,7 @@ function emberWolf() {
   flame(tail, -0.5, 24, -15.5, 6, { w: 1.6, lean: -0.3, glow: true });
 
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('legFL', legFL, [-3.8, 11, 4.5]), jp('legFR', flipX(legFL), [2.8, 11, 4.5]),
       jp('legBL', legBL, [-3.8, 11, -8]), jp('legBR', flipX(legBL), [2.8, 11, -8]),
@@ -913,7 +913,7 @@ function iceBeetle() {
   const legFL = leg(3, 5, 7), legML = leg(-2, -2, -2), legBL = leg(-7, -9, -11);
 
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('legFL', legFL, [-4.5, 6.5, 3]), jp('legFR', flipX(legFL), [3.5, 6.5, 3]),
       jp('legL', legML, [-4.5, 6.5, -2]), jp('legR', flipX(legML), [3.5, 6.5, -2]),
@@ -1016,7 +1016,7 @@ function magmaMole() {
   capsule(tail, [-0.5, 6, -9], [-0.5, 7.5, -13], 1.3, 0.8, K.skin);
 
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('legL', foot, [-4.5, 5, -1]), jp('legR', flipX(foot), [3.5, 5, -1]),
       jp('body', body, BODYJ),
@@ -1098,8 +1098,8 @@ function sludgeKraken() {
 
   // ------------------------------------------------------------ raised slam tentacles (arms)
   const arm = G();
-  tentacle(arm, [[-6, 10, 4], [-10, 13, 7], [-12.5, 18, 8.5], [-12.5, 24, 7.5], [-10.5, 27.5, 5.5], [-8.5, 27, 4]], [3.2, 2.8, 2.4, 1.8, 1.2, 0.6], [1, 0, 0.5], TC);
-  arm.set(-9, 26, 4, K.goo, true);
+  tentacle(arm, [[-6.5, 10, 2], [-10.5, 13, 4], [-13, 18, 5], [-13, 24, 4], [-11, 27.5, 2], [-9, 27, 0.5]], [3.2, 2.8, 2.4, 1.8, 1.2, 0.6], [1, 0, 0.5], TC);
+  arm.set(-9, 26, 1, K.goo, true);
   const armR = flipX(arm);
 
   // ------------------------------------------------------------ back tentacle (tail, sways)
@@ -1108,13 +1108,13 @@ function sludgeKraken() {
   tentacle(tail, [[-0.5, 7, -8], [-0.5, 5, -13], [-0.5, 6, -17.5], [-0.5, 10, -20], [-0.5, 14, -19], [-0.5, 15, -16.5]], [3, 2.6, 2.1, 1.6, 1, 0.5], [0, -0.4, 1], TC);
 
   return {
-    gait: 'slide', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'slide', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('body', body, BODYJ),
       jp('tail', tail, TJ),
       jp('head', head, HJ),
-      jp('armL', arm, [-6, 10, 4]),
-      jp('armR', armR, [5, 10, 4]),
+      jp('armL', arm, [-6.5, 10, 2]),
+      jp('armR', armR, [5.5, 10, 2]),
     ],
     muzzle: [-0.5, 12, 9],
   };
@@ -1195,7 +1195,7 @@ function boomBox() {
   blob(arm, -16.2, 11.4, 4.2, 0.8, 0.8, 0.8, WHITE);
 
   return {
-    gait: 'hop', voxel: 0.05, jitter: 0.02, finish: 'gloss',
+    gait: 'hop', voxel: 0.05, jitter: 0.02,
     parts: [
       jp('legL', leg, [-6, 6, 0]), jp('legR', flipX(leg), [5, 6, 0]),
       jp('body', body, BODYJ),

@@ -10,13 +10,28 @@
 // The rare Metallic Gold variant is the game's 'gold' variant (createSwarm(id, { variant: 'gold' })).
 //
 // Conventions as the rest of the Swarms (see ../kit.js, ./panthers.js): model
-// faces +Z, y = 0 is the ground, x symmetric around -0.5, HI voxels (0.05).
-// They stand ~70 voxels (3.5 units) tall at the kit scale; battle scales them
-// up ~1.6x into 5-6 unit giants. Parts are modelled in absolute coordinates and
-// attached with jp() at their joints. Glow voxels (the only thing that blooms)
-// are kept to small accents: eyes, cores, vents.
+// faces +Z, y = 0 is the ground, x symmetric around -0.5, modelled with the kit
+// primitives. They are ~80 voxels tall with finer voxels (MEGA_VOXEL) so they
+// are ~1.7 units at scale 1 and become 5.5-6.5 unit giants at the battle scale
+// (MEGAS[id].size). Parts are modelled in absolute coordinates and attached
+// with jp() at their joints. Glow voxels (the only thing that blooms) are kept
+// to small accents: eyes, cores, vents. Defs carry mega: true.
+//
+// Rig parts (all four): body, head, jaw (opens on attacks), armL/armR (swing on
+// the walk, raise + slam on attacks), legL/legR (stomp), tail; plus cape
+// (NecroClaw), antennaL/antennaR (Silver-Byte's fin ears, Cyber Glitch's
+// floating pixel debris) and spin (Silver-Byte's data ring).
 // eslint-disable-next-line no-unused-vars
 import { G, blob, rbox, capsule, chain, cyl, stamp, sym, glowWhere, gradY, n3, jp, shade, mixHex, frontZ, topY, sideX } from '../kit.js';
+
+/**
+ * World size of one voxel. The sculpts are ~80 voxels tall (2.5x the detail of
+ * a normal Swarm), so at the kit's HI size (0.05) they would be ~4 units tall.
+ * Instead each voxel is 0.0215 so a Mega is ~1.7 units at scale 1 (a normal
+ * Swarm's height) and the battle's MEGAS[id].size (~3.4) makes it a 5.5-6.5
+ * unit giant with fine voxel detail.
+ */
+export const MEGA_VOXEL = 0.0215;
 
 const MAG = 0xff1f9e; // MrBeast / Mega-Tech magenta
 const MAG_L = 0xff7ccc;
@@ -258,7 +273,7 @@ function packBeast(m, extra = {}) {
   const armR = flipX(g.arm), legR = flipX(g.leg);
   const R = (p) => [-1 - p[0], p[1], p[2]];
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: extra.finish ?? 'toy', mega: true,
+    gait: 'walk', voxel: MEGA_VOXEL, jitter: 0.02, finish: extra.finish ?? 'toy', mega: true,
     parts: [
       jp('legL', g.leg, j.hip), jp('legR', legR, R(j.hip)),
       jp('body', g.body, [-0.5, 0, 0]),
@@ -282,7 +297,7 @@ function packBeast(m, extra = {}) {
 // glowing cells on its back, and visible action-figure joints.
 function panthar() {
   const K = {
-    fur: 0x52c4ff, furD: 0x2b84dc, furL: 0xa8e4ff, muzzle: 0xeef9ff, inner: 0xff59b8, nose: INK, claw: INK, joint: 0x3a3f58, brow: 0x1b3f8c,
+    fur: 0x4cbcf2, furD: 0x2b84dc, furL: 0x9cd8f2, muzzle: 0xdcebf5, inner: 0xff59b8, nose: INK, claw: INK, joint: 0x3a3f58, brow: 0x1b3f8c,
     plate: 0x2b3560, plateD: 0x1c2242, plateL: 0x45558c, edge: 0x6676b4, trim: 0xd2dbec, trimD: 0x8f9ab4,
     glow: 0xff4fc8, glowHot: 0xffd2f0,
   };
@@ -322,7 +337,7 @@ function panthar() {
     head.set(Math.round(ex + s * 4.4) + (s > 0 ? -1 : 0), Math.round(C[1] + 7.6), Math.round(C[2] - 2), K.glow, true);
   }
   trim(head, isPlate, K.trim);
-  gradY(head, C[1] - 12, C[1] + 12, -0.1, 0.07, (x, y, z, c) => c !== K.muzzle && !isPlate(c) && c !== TOOTH && c !== MOUTH && c !== MAG && c !== 0xffffff && c !== INK);
+  gradY(head, C[1] - 12, C[1] + 12, -0.12, 0.02, (x, y, z, c) => c !== K.muzzle && !isPlate(c) && c !== TOOTH && c !== MOUTH && c !== MAG && c !== 0xffffff && c !== INK);
 
   // ------------------------------------------------------------ arm armour
   // domed pauldron with a racing stripe + a lower tier
@@ -421,9 +436,9 @@ function glitchStreaks(g, isA, cols, p = 0.012, seed = 5) {
 
 function silverByte() {
   const K = {
-    chrome: 0xaab4c5, chromeL: 0xdde4ef, chromeD: 0x7c879e, chromeDD: 0x474f66,
+    chrome: 0x929cb0, chromeL: 0xbfc8d6, chromeD: 0x6c778e, chromeDD: 0x3e4659,
     suit: 0x232838, suitL: 0x384058, visor: 0x0b1222, joint: 0x2e3346, gun: 0x4a5268, gunL: 0x66708c,
-    cyan: 0x3ef0ff, cyanD: 0x1a8fb8, cyanHot: 0xd2fdff, tooth: 0xd4dbe6, gum: 0x1a1e2e,
+    cyan: 0x3ef0ff, cyanD: 0x1a8fb8, cyanHot: 0xd2fdff, tooth: 0xc4ccd8, gum: 0x1a1e2e,
   };
   const chromeCol = (x, y, z) => { const v = n3(x, y, z, 11); return v < 0.08 ? K.chromeD : v > 0.9 ? K.chromeL : K.chrome; };
   const isChrome = (c) => c === K.chrome || c === K.chromeL || c === K.chromeD;
@@ -636,7 +651,7 @@ function silverByte() {
   const armR = flipX(arm), legR = flipX(leg);
   const R = (p) => [-1 - p[0], p[1], p[2]];
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.015, finish: 'metal', mega: true,
+    gait: 'walk', voxel: MEGA_VOXEL, jitter: 0.015, finish: 'gloss', mega: true,
     parts: [
       jp('legL', leg, LJ), jp('legR', legR, R(LJ)),
       jp('body', body, [-0.5, 0, 0]),
@@ -1007,7 +1022,7 @@ function cyberGlitch() {
   for (const g of [body, head, jaw, arm, armR, leg, legR, tail]) hollowOut(g, 1);
   const R = (p) => [-1 - p[0], p[1], p[2]];
   return {
-    gait: 'walk', voxel: 0.05, jitter: 0.02, finish: 'toy', mega: true,
+    gait: 'walk', voxel: MEGA_VOXEL, jitter: 0.02, finish: 'toy', mega: true,
     parts: [
       jp('legL', leg, H), jp('legR', legR, R(H)),
       jp('body', body, [-0.5, 0, 0]),
