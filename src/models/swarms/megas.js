@@ -557,7 +557,7 @@ function silverByte() {
   }
   // hollow mouth with a dark floor, glowing throat, serrated lower teeth
   jaw.carve((x, y, z) => y >= 51 && z >= 6 && z <= 20 && Math.abs(x + 0.5) <= 4.6 - Math.max(0, z - 15) * 0.25);
-  for (let z = 6; z <= 20; z++) for (let x = -5; x <= 4; x++) if (jaw.has(x, 50, z)) jaw.set(x, 50, z, z <= 7 ? K.cyan : K.gum, z <= 7);
+  for (let z = 6; z <= 20; z++) for (let x = -5; x <= 4; x++) if (jaw.has(x, 50, z)) jaw.set(x, 50, z, z <= 7 ? (Math.abs(x + 0.5) <= 1.5 ? K.cyan : K.cyanD) : K.gum, z <= 7 && Math.abs(x + 0.5) <= 1.5);
   for (let z = 8; z <= 21; z++) {
     const t = (z - 3) / 19, hw = 7.6 - t * 2.4;
     for (const s of [-1, 1]) {
@@ -644,7 +644,7 @@ function silverByte() {
     const p = a.map((v, k) => v + (b[k] - v) * u);
     blob(tail, p[0], p[1], p[2], 2.5 - t * 0.8, 2.5 - t * 0.8, 2.5 - t * 0.8, i % 2 ? K.chrome : K.chromeD);
   }
-  fin(tail, [-1.5, 36.5, -22], [-1.5, 42, -18.5], 2.2, 2, (t, k) => (t > 0.75 ? { c: K.cyan, glow: true } : Math.abs(k) < 0.35 ? MAG : K.chromeL));
+  fin(tail, [-1.5, 36.5, -22], [-1.5, 42, -18.5], 2.2, 2, (t, k) => (t > 0.86 ? { c: K.cyan, glow: true } : Math.abs(k) < 0.35 ? MAG : K.chromeL));
 
   for (const g of [body, head, jaw, arm, leg, tail]) hollowOut(g, 1);
   const armR = flipX(arm), legR = flipX(leg);
