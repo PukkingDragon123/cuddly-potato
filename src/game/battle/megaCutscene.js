@@ -106,8 +106,8 @@ export function playMegaCutscene(view, ev) {
   const portrait = cam.aspect < 1 ? 1.35 : 1;
   const shots = {
     high: { pos: new THREE.Vector3(x - dir * H * 0.8, H * 1.6, H * 2.4 * portrait), look: new THREE.Vector3(x, H * 0.45, 0) },
-    low: { pos: new THREE.Vector3(x + dir * H * 0.9, H * 0.18, H * 1.9 * portrait), look: new THREE.Vector3(x, H * 0.62, 0) },
-    close: { pos: new THREE.Vector3(x + dir * H * 0.6, H * 0.72, H * 1.45 * portrait), look: new THREE.Vector3(x, H * 0.7, 0) },
+    low: { pos: new THREE.Vector3(x + dir * H * 0.95, H * 0.2, H * 2.2 * portrait), look: new THREE.Vector3(x, H * 0.62, 0) },
+    close: { pos: new THREE.Vector3(x + dir * H * 0.6, H * 0.7, H * 1.65 * portrait), look: new THREE.Vector3(x, H * 0.66, 0) },
   };
   let T = 0;
   const ctl = { done: false, ownsCamera: true };

@@ -301,7 +301,7 @@ class UnitActor {
     else if (u.state === 'stun') rig.setState('stun');
     else rig.setState('idle');
     rig.frozen = u.state === 'frozen';
-    rig.walkRate = ((u.st?.speed ?? 1.5) / 1.5) * (this.view.sim.sides[u.side].buffs.dance > 0 ? 1.35 : 1) * (u.buffs.slowT > 0 ? 1 - (u.buffs.slow ?? 0) : 1);
+    rig.walkRate = ((u.st?.speed ?? 1.5) / 1.5) * (this.view.sim.sides[u.side].buffs.dance > 0 ? 1.35 : 1) * (u.buffs.slowT > 0 ? 1 - (u.buffs.slow ?? 0) : 1) * (u.mega ? 0.55 : 1);
     // spawn pop-in (overshoot) + grow buff scale
     this.spawnT += dt;
     const target = u.size * (u.buffs.growScale ?? 1);
