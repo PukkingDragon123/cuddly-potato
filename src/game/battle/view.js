@@ -476,6 +476,8 @@ export class BattleView {
     // bases: every battle starts in a tent
     this.labs = [0, 1].map((i) => this.makeBaseFor(i, (this.sim.sides[i].overclock ?? 0) + 1));
     for (const lab of this.labs) scene.add(lab.root);
+    // build the next tier's geometry while idle so the first upgrade doesn't hitch
+    for (let i = 0; i < 2; i++) this.prewarm(i, this.labs[i].tier + 1);
     // base HP plates
     this.towerPlates = [0, 1].map((i) => ({
       lab: new TowerPlate(this.plateLayer, i, 'lab', this.sim.sides[i].lab, cfg.sides[i].name),
@@ -554,60 +556,88 @@ export class BattleView {
     return lab;
   }
 
+  prewarm(i, tier) {
+    if (tier > 6 || !baseModule?.prewarmBase) return;
+    try { baseModule.prewarmBase(tier, { side: i, flip: i === 1 }); } catch (e) { /* optional */ }
+  }
+
   /** Upgrade animation: scaffolding rises, the old base collapses into dust and the new one pops up. */
   swapBase(i, tier) {
+    // a quick double upgrade: snap the previous swap to its end first
+    this.pendingSwap ??= [null, null];
+    this.pendingSwap[i]?.finishNow();
     const old = this.labs[i];
     const nb = this.makeBaseFor(i, tier);
     const x = old.root.position.x;
     const w = Math.max(old.width ?? 3.4, nb.width ?? 3.4);
     const hgt = Math.max(old.height ?? 3, nb.height ?? 3);
     let scaffold = null;
-    try { scaffold = baseModule?.makeScaffold ? baseModule.makeScaffold(w + 0.6, hgt + 0.6) : null; } catch (e) { scaffold = null; }
+    try { scaffold = baseModule?.makeScaffold ? baseModule.makeScaffold(w + 0.6, hgt + 0.6, { flip: i === 1, progress: 0 }) : null; } catch (e) { scaffold = null; }
     if (scaffold) {
-      scaffold.root.position.set(x, 0, 0);
+      scaffold.root.position.set(x + (nb.centerX ?? old.centerX ?? 0), 0, 0);
       this.scene.add(scaffold.root);
     }
     audio.play('drum', { pitch: 1.2 });
     const sparkle = () => fx.sparkle(new THREE.Vector3(x + rand(-w / 2, w / 2), rand(0.4, hgt), rand(-0.6, 0.8)), { count: 3, colors: [0xffd23f, 0xffffff], speed: 3, life: 0.4 });
     let t = 0;
     const dur = 1.1;
+    const removeScaffold = () => { if (scaffold) { this.scene.remove(scaffold.root); scaffold = null; } };
+    const swap = (quiet = false) => {
+      if (z.swapped) return;
+      z.swapped = true;
+      this.scene.remove(old.root);
+      old.root.scale.set(1, 1, 1);
+      setTimeout(() => old.dispose?.(), 0);
+      this.labs[i] = nb;
+      this.scene.add(nb.root);
+      this.prewarm(i, tier + 1);
+      // the Commander climbs onto the new roof
+      const ch = this.cmds?.[i];
+      nb.seat.updateWorldMatrix(true, false);
+      const wp = new THREE.Vector3().setFromMatrixPosition(nb.seat.matrixWorld);
+      if (ch) ch.home = wp.clone();
+      if (quiet) {
+        if (ch && !ch.busy) ch.root.position.copy(wp);
+        return;
+      }
+      nb.root.scale.set(1.25, 0.05, 1.25);
+      tween(nb.root.scale, { x: 1, y: 1, z: 1 }, 0.7, { ease: 'outElastic' });
+      fx.dust(new THREE.Vector3(x, 0, 0.5), { count: 26, scale: 2.4 });
+      fx.confetti(new THREE.Vector3(x, Math.min(6, nb.height ?? 3) + 1, 0), { count: 50, spread: 1.6 });
+      fx.shockwave(new THREE.Vector3(x, 0.05, 0), { radius: 3.6, color: TEAM_COLORS[i] });
+      engine.shake(0.35);
+      audio.play('levelUp');
+      if (ch && !ch.busy) {
+        const from = ch.root.position.clone();
+        animate(0.6, (e, kk) => ch.root.position.set(lerp(from.x, wp.x, kk), lerp(from.y, wp.y, kk) + Math.sin(kk * Math.PI) * 1.4, lerp(from.z, wp.z, kk)));
+      }
+      setTimeout(removeScaffold, 300);
+    };
     const z = {
       done: false,
+      swapped: false,
+      finishNow: () => {
+        swap(true);
+        removeScaffold();
+        z.done = true;
+        if (this.pendingSwap[i] === z) this.pendingSwap[i] = null;
+      },
       update: (dt) => {
+        if (z.done) return;
         t += dt;
         const k = Math.min(1, t / dur);
         scaffold?.setProgress?.(k);
         scaffold?.update?.(dt);
         if (Math.random() < dt * 14) { sparkle(); audio.play('tick', { pitch: 1.6 + Math.random(), gap: 0.08 }); }
-        old.root.scale.set(1 + k * 0.05, Math.max(0.02, 1 - k * k), 1 + k * 0.05);
-        if (t >= dur && !z.swapped) {
-          z.swapped = true;
-          this.scene.remove(old.root);
-          this.labs[i] = nb;
-          this.scene.add(nb.root);
-          nb.root.scale.set(1.25, 0.05, 1.25);
-          tween(nb.root.scale, { x: 1, y: 1, z: 1 }, 0.7, { ease: 'outElastic' });
-          fx.dust(new THREE.Vector3(x, 0, 0.5), { count: 26, scale: 2.4 });
-          fx.confetti(new THREE.Vector3(x, (nb.height ?? 3) + 1, 0), { count: 50, spread: 1.6 });
-          fx.shockwave(new THREE.Vector3(x, 0.05, 0), { radius: 3.6, color: TEAM_COLORS[i] });
-          engine.shake(0.35);
-          audio.play('levelUp');
-          // the Commander climbs onto the new roof
-          const ch = this.cmds?.[i];
-          if (ch) {
-            nb.seat.updateWorldMatrix(true, false);
-            const wp = new THREE.Vector3().setFromMatrixPosition(nb.seat.matrixWorld);
-            ch.home = wp.clone();
-            if (!ch.busy) {
-              const from = ch.root.position.clone();
-              animate(0.6, (e, kk) => ch.root.position.set(lerp(from.x, wp.x, kk), lerp(from.y, wp.y, kk) + Math.sin(kk * Math.PI) * 1.4, lerp(from.z, wp.z, kk)));
-            }
-          }
-          if (scaffold) setTimeout(() => this.scene.remove(scaffold.root), 300);
+        if (!z.swapped) old.root.scale.set(1 + k * 0.05, Math.max(0.02, 1 - k * k), 1 + k * 0.05);
+        if (t >= dur) swap();
+        if (t >= dur + 0.4) {
+          z.done = true;
+          if (this.pendingSwap[i] === z) this.pendingSwap[i] = null;
         }
-        if (t >= dur + 0.4) z.done = true;
       },
     };
+    this.pendingSwap[i] = z;
     this.zones.push(z);
   }
 
@@ -806,7 +836,7 @@ export class BattleView {
         lab.root.position.x = (i === 0 ? -LAB_X : LAB_X) + (lab.shakeT > 0 ? Math.sin(this.t * 70) * 0.04 : 0);
       }
       const tp = this.towerPlates[i];
-      tp.lab.update(dt, _v.set(lab.root.position.x, (lab.height ?? 3) + 0.55, 0));
+      tp.lab.update(dt, _v.set(lab.root.position.x + (lab.centerX ?? 0), lab.plateY ?? (lab.height ?? 3) + 0.55, 0));
     }
     if (this.ghost?.rig.root.visible) this.ghost.rig.update(dt);
     if (this.arena?.update && !this.arenaBroken) {
@@ -1120,7 +1150,7 @@ export class BattleView {
         fx.rise(new THREE.Vector3(x, 0.2, 0.3), { count: 24, colors: [0x29b6f6, 0x9ff2ff, 0xffd84a], radius: 1.8 });
         this.swapBase(ev.side, ev.tier ?? ev.level);
         const name = BASE_UPGRADES[(ev.tier ?? ev.level) - 1]?.name ?? 'BASE UP';
-        floatText(new THREE.Vector3(x, (lab.height ?? 3) + 1.6, 0), `${name.toUpperCase()}!`, 'big', { life: 1.8, rise: 40 });
+        floatText(new THREE.Vector3(x, Math.min(5.4, (lab.plateY ?? lab.height ?? 3) + 0.9), 0), `${name.toUpperCase()}!`, 'big', { life: 1.8, rise: 40 });
         if (ev.side === 0) {
           audio.play('upgrade');
           this.react(0, 'sitCheer', 'star', 'grin', 1.2, pick(['Upgrade!', 'Way better!', 'Now THAT is a base!']));

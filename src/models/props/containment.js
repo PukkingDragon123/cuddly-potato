@@ -172,7 +172,7 @@ function crackSegments(R, y0, y1, seed = 1) {
         const na = a + (Math.cos(dir) * step) / R, ny = y + Math.sin(dir) * step;
         if (ny < y0 + 0.05 || ny > y1 - 0.05) break;
         d += step;
-        segs.push([a, y, na, ny, imp.delay + (d / 3) * (1 - imp.delay), 0.045 * (1 - d / (len + 0.4)) + 0.012]);
+        segs.push([a, y, na, ny, imp.delay + (d / 3) * (1 - imp.delay), 0.03 * (1 - d / (len + 0.4)) + 0.009]);
         pts.push([na, ny, d]);
         a = na; y = ny;
         // side branches
@@ -185,7 +185,7 @@ function crackSegments(R, y0, y1, seed = 1) {
             const na2 = ba + (Math.cos(bd) * st) / R, ny2 = by + Math.sin(bd) * st;
             if (ny2 < y0 + 0.05 || ny2 > y1 - 0.05) break;
             bl += st;
-            segs.push([ba, by, na2, ny2, imp.delay + ((d + bl) / 3) * (1 - imp.delay), 0.016]);
+            segs.push([ba, by, na2, ny2, imp.delay + ((d + bl) / 3) * (1 - imp.delay), 0.011]);
             ba = na2; by = ny2;
           }
         }
@@ -199,7 +199,7 @@ function crackSegments(R, y0, y1, seed = 1) {
         if (!A || !B || rnd() < 0.25) continue;
         const ma = (A[0] + B[0]) / 2 + (rnd() - 0.5) * 0.02, my = (A[1] + B[1]) / 2 + (rnd() - 0.5) * 0.08;
         const rv = imp.delay + (ring / 3) * (1 - imp.delay) + 0.04;
-        segs.push([A[0], A[1], ma, my, rv, 0.014], [ma, my, B[0], B[1], rv + 0.02, 0.014]);
+        segs.push([A[0], A[1], ma, my, rv, 0.01], [ma, my, B[0], B[1], rv + 0.02, 0.01]);
       }
     }
   }
@@ -304,7 +304,7 @@ class Containment {
     const wg = this.geo(new THREE.CylinderGeometry(R - 0.035, R - 0.035, 1, 40, 1, true));
     wg.translate(0, 0.5, 0);
     this.waterMat = this.mat(new THREE.MeshStandardMaterial({
-      color: this.liquid, emissive: this.liquid, emissiveIntensity: 0.12, transparent: true, opacity: 0.32, roughness: 0.08, metalness: 0, depthWrite: false, side: THREE.DoubleSide,
+      color: this.liquid, emissive: this.liquid, emissiveIntensity: 0.08, transparent: true, opacity: 0.24, roughness: 0.08, metalness: 0, depthWrite: false, side: THREE.DoubleSide,
     }));
     this.water = new THREE.Mesh(wg, this.waterMat);
     this.water.position.y = glassY0;
@@ -343,10 +343,10 @@ class Containment {
       new THREE.Vector2(R - 0.02, glassY0), new THREE.Vector2(R + 0.02, glassY0), new THREE.Vector2(R + 0.02, glassY1), new THREE.Vector2(R - 0.02, glassY1),
     ];
     const glassGeo = this.geo(new THREE.LatheGeometry(pts, 56));
-    this.glassMat = this.mat(new THREE.MeshStandardMaterial({ color: 0xe2f4ff, transparent: true, opacity: 0.16, roughness: 0.04, metalness: 0.1, envMapIntensity: 2.2, depthWrite: false }));
+    this.glassMat = this.mat(new THREE.MeshStandardMaterial({ color: 0xe2f4ff, transparent: true, opacity: 0.1, roughness: 0.04, metalness: 0.1, envMapIntensity: 1.8, depthWrite: false }));
     this.glassInMat = this.mat(this.glassMat.clone());
     this.glassInMat.side = THREE.BackSide;
-    this.glassInMat.opacity = 0.09;
+    this.glassInMat.opacity = 0.06;
     const em = Mats.toy.envMap;
     if (em) for (const m of [this.glassMat, this.glassInMat]) m.envMap = em;
     const gOut = new THREE.Mesh(glassGeo, this.glassMat), gIn = new THREE.Mesh(glassGeo, this.glassInMat);
@@ -451,9 +451,9 @@ class Containment {
     const k = this.glow;
     this.ringMat.color.copy(this.accent).multiplyScalar(0.7 + Math.min(1.5, k) * 1.3);
     this.light.intensity = Math.min(1.5, k) * 3.2;
-    this.waterMat.emissiveIntensity = 0.12 + Math.min(1, k) * 0.35;
+    this.waterMat.emissiveIntensity = 0.08 + Math.min(1, k) * 0.14;
     this.waterMat.emissive.copy(this.liquid).lerp(this.accent, Math.min(1, k) * 0.5);
-    this.surfMat.emissiveIntensity = 0.15 + Math.min(1, k) * 0.35;
+    this.surfMat.emissiveIntensity = 0.12 + Math.min(1, k) * 0.2;
   }
 
   /**
@@ -493,14 +493,15 @@ class Containment {
       const out_ = (3.5 + Math.random() * 5.5) * F;
       m.userData = {
         kind: 'glass', life: 1.8 + Math.random() * 1.4,
-        vel: new THREE.Vector3(Math.cos(a) * out_, (1.5 + Math.random() * 4.5) * Math.sqrt(F) + (y - glassY0) * 0.5, Math.sin(a) * out_),
+        // mostly sideways + up: the battle camera looks along -Z, so keep shards out of its face
+        vel: new THREE.Vector3(Math.cos(a) * out_, (1.5 + Math.random() * 4.5) * Math.sqrt(F) + (y - glassY0) * 0.5, Math.sin(a) * out_ * 0.4),
         spin: new THREE.Vector3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14),
       };
       this.body.add(m);
       out.push(m);
     }
     if (o.lid !== false) {
-      this.lid.userData = { kind: 'lid', life: 3.5, vel: new THREE.Vector3((Math.random() - 0.5) * 2, 7.5 * Math.sqrt(F), 1.2 + Math.random()), spin: new THREE.Vector3(2.4 + Math.random() * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3) };
+      this.lid.userData = { kind: 'lid', life: 2.4, vel: new THREE.Vector3((Math.random() - 0.5) * 2.4, 7.5 * Math.sqrt(F), -1.6 - Math.random()), spin: new THREE.Vector3(-1.6 - Math.random() * 1.6, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2.4) };
       out.push(this.lid);
     }
     this.shards = out;

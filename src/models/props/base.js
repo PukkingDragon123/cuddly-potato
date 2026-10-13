@@ -16,7 +16,7 @@
 // drawn mirror-imaged before the flip so it reads correctly.
 import * as THREE from 'three';
 import { VoxGrid, Mats, makeMesh } from '../../core/voxel.js';
-import { rbox, cyl, capsule, blob, stamp, shade, n3 } from '../kit.js';
+import { rbox, cyl, shade, n3 } from '../kit.js';
 import { PAL, mixHex, hash3, mulberry32, clamp, vnoise, ring, text, textW, mirrorGrid, glassMat, glowMat, tintMat, hazardC } from './common.js';
 import { panelBox, windowZ, windowX, dishGrid, antennaGrid, pipe, hazard, signZ, boltEmblem, barrel, crate } from './labParts.js';
 import { makeLabBuilding } from './lab.js';
@@ -173,9 +173,6 @@ function sagLine(g, a, b, col, sag = 1.5, thick = 0) {
   }
   return g;
 }
-
-/** Simple vertical pole. */
-const pole = (g, x, y0, y1, z, col = WOOD) => g.box(x, y0, z, x, y1, z, col);
 
 // ---------------------------------------------------------------------------
 // Grid processing (hollowing, battle damage, rubble)
@@ -1169,7 +1166,7 @@ function tierDef(tier, side, flip) {
   const anims = (d.anims ?? []).map((a) => {
     const g = mir(a.grid);
     const piv = a.piv ?? [0.5, 0, 0.5];
-    grow(g, [Math.round(sx * a.at[0] - 0.5), Math.floor(a.at[1]), Math.round(a.at[2] - 0.5)]);
+    grow(g, [Math.round(sx * (a.at[0] - piv[0])), Math.round(a.at[1] - piv[1]), Math.round(a.at[2] - piv[2])]);
     return { ...a, pos: W(a.at), geo: g.build({ scale: V, pivot: [sx * piv[0], piv[1], piv[2]], maxSamples: 80 }) };
   });
   const def = {
@@ -1298,7 +1295,7 @@ export function makeBase(tier = 1, { side = 0, flip = false, style } = {}) {
     liquid.position.y = (h * (tk.fill ?? 0.86)) / 2;
     liquid.renderOrder = 2;
     grp.add(liquid);
-    const glass = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.04 * V * 10, r + 0.04 * V * 10, h, 16, 1, true), glassMat(0xd8f4ff, 0.22));
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.4 * V, r + 0.4 * V, h, 16, 1, true), glassMat(0xd8f4ff, 0.22));
     glass.position.y = h / 2;
     glass.renderOrder = 3;
     grp.add(glass);
@@ -1314,7 +1311,7 @@ export function makeBase(tier = 1, { side = 0, flip = false, style } = {}) {
     }
     root.add(grp);
     energyMats.push(liquidMat);
-    return { ...tk, grp, liquid, liquidMat, bubbles, top: h * (tk.fill ?? 0.86) - 0.04 };
+    return { ...tk, grp, liquid, glass, liquidMat, bubbles, top: h * (tk.fill ?? 0.86) - 0.04 };
   });
 
   // --- reactor orbs (glowing voxel orb + spinning rings)
@@ -1416,6 +1413,22 @@ export function makeBase(tier = 1, { side = 0, flip = false, style } = {}) {
     onChunk: null,
     setLevel(n) {
       this.level = clamp(Math.round(n) || 1, 1, 8);
+    },
+    /** Remove from the scene and free per-instance materials/geometry (voxel geometry stays cached). */
+    dispose() {
+      root.parent?.remove(root);
+      for (const p of puffs) p.mat.dispose();
+      for (const tk of tanks) {
+        tk.liquidMat.dispose();
+        tk.liquid.geometry.dispose();
+        tk.glass.geometry.dispose();
+      }
+      for (const o of orbs) {
+        o.orbMat.dispose();
+        o.ringMat.dispose();
+        o.orb.geometry.dispose();
+        for (const r of o.rings) r.mesh.geometry.dispose();
+      }
     },
     setDamage(f) {
       f = clamp(f || 0, 0, 1);
