@@ -15,18 +15,33 @@
 //  - pixel-art textures (bubbles, liquid surface, blueprint grid, hazard
 //    stripes) are exposed as CSS custom properties (--tx-*) for ui.css.
 
+const RGB = new Map();
 const hexToRgb = (hex) => {
+  let v = RGB.get(hex);
+  if (v) return v;
   const h = typeof hex === 'string' ? parseInt(hex.slice(1), 16) : hex;
-  return [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+  v = [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+  RGB.set(hex, v);
+  return v;
 };
-export function shadeHex(hex, f) {
+// colour math is memoised: the HD skin painters call it per pixel with a handful of distinct inputs
+const MEMO = new Map();
+const memo3 = (a, b, c, fn) => {
+  let m1 = MEMO.get(a); if (!m1) MEMO.set(a, (m1 = new Map()));
+  let m2 = m1.get(b); if (!m2) m1.set(b, (m2 = new Map()));
+  let v = m2.get(c); if (v === undefined) { v = fn(a, b, c); m2.set(c, v); }
+  return v;
+};
+export function shadeHex(hex, f) { return memo3(hex, f, 's', shadeHex0); }
+function shadeHex0(hex, f) {
   let [r, g, b] = hexToRgb(hex);
   if (f >= 0) { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; } else { r *= 1 + f; g *= 1 + f; b *= 1 + f; }
   const c = (v) => Math.max(0, Math.min(255, Math.round(v)));
   return '#' + ((c(r) << 16) | (c(g) << 8) | c(b)).toString(16).padStart(6, '0');
 }
 /** Linear blend of two hex colours (t = 0 -> a, 1 -> b). */
-export function mixHex(a, b, t) {
+export function mixHex(a, b, t) { return memo3(a, b, t, mixHex0); }
+function mixHex0(a, b, t) {
   const A = hexToRgb(a), B = hexToRgb(b);
   const c = (i) => Math.max(0, Math.min(255, Math.round(A[i] + (B[i] - A[i]) * t)));
   return '#' + ((c(0) << 16) | (c(1) << 8) | c(2)).toString(16).padStart(6, '0');
@@ -70,245 +85,357 @@ function painter(w, h) {
   return { set, get, done };
 }
 
+// ---------------------------------------------------------------------------
+// HD frames: every frame is painted at 2x density (K) and drawn with a
+// --px / 2 unit, so it covers exactly the same layout box as the original 1x
+// skins but carries twice the pixel detail: 2 px ink outlines, multi-band
+// bevels, dithered gloss, rivets, reflections and glints. Options are given
+// in the original 1x units (callers and ensureSkin() are unchanged).
+
+const K = 2; // hd pixels per original skin pixel
+const T = 2; // outline thickness (hd px)
+
+function shape(w, h, r) {
+  // precomputed masks: the painters query them many times per pixel
+  const IN = new Uint8Array(w * h), OUT = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    IN[y * w + x] = x >= T && y >= T && x < w - T && y < h - T && insideRR(x - T, y - T, w - 2 * T, h - 2 * T, r) ? 1 : 0;
+    OUT[y * w + x] = insideRR(x, y, w, h, r + T) ? 1 : 0;
+  }
+  const inside = (x, y) => x >= 0 && y >= 0 && x < w && y < h && IN[y * w + x] === 1;
+  const outer = (x, y) => x >= 0 && y >= 0 && x < w && y < h && OUT[y * w + x] === 1;
+  const edge = (x, y, n) => {
+    for (let k = 1; k <= n; k++) if (!inside(x, y - k) || !inside(x, y + k) || !inside(x - k, y) || !inside(x + k, y)) return k;
+    return n + 1;
+  };
+  const side = (x, y, k) => (!inside(x, y - k) ? 't' : !inside(x - k, y) ? 'l' : !inside(x, y + k) ? 'b' : 'r');
+  return { inside, outer, edge, side };
+}
+
+/** Domed rivet / screw head (s x s) centred at (cx, cy). */
+function rivet(set, cx, cy, metal, s = 5, ink = '#0d0a1f') {
+  const r = s / 2, x0 = Math.round(cx - r), y0 = Math.round(cy - r);
+  for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
+    const dx = i + 0.5 - r, dy = j + 0.5 - r, d = Math.hypot(dx, dy);
+    if (d > r + 0.1) continue;
+    let c;
+    if (d > r - 0.9) c = mixHex(shadeHex(metal, -0.6), ink, 0.35);
+    else { const l = -(dx + dy) / (r * 1.4); c = l > 0.45 ? '#ffffff' : l > 0.1 ? shadeHex(metal, 0.5) : l > -0.35 ? shadeHex(metal, 0.1) : shadeHex(metal, -0.35); }
+    set(x0 + i, y0 + j, c);
+  }
+}
+
 /**
- * Draw a frame skin (buttons, chips, card rims, plain panels). Returns { url, slice, w, h }.
- * o: { w, h, r (corner radius), outline, fill, top (gloss band colour), topRows,
- *      lip (rows), lipColor, hi, lo, inset (recessed), glint, ring (inner ring colour), ringW, dither,
- *      gloss (jelly highlight streak), rim (bright 1px rim colour) }
+ * Jelly button / chip / plain frame. Returns { url, slice, w, h, hd }.
+ * o (1x units): { w, h, r, outline, fill, top, topRows, lip, lipColor, hi, lo, inset, glint, ring, ringW, dither,
+ *                 gloss, glossColor, rim, deep, deepColor, bubbles, slice }
  */
 export function frameSkin(o) {
-  const w = o.w ?? 20, h = o.h ?? 20, r = o.r ?? 4, lip = o.lip ?? 0;
+  const w0 = o.w ?? 20, h0 = o.h ?? 20, r0 = o.r ?? 4, lip0 = o.lip ?? 0;
+  const w = w0 * K, h = h0 * K, r = r0 * K, lip = lip0 * K;
+  const slice = K * Math.max(r0 + 2, lip0 + 3, o.slice ?? 0);
   const P = painter(w, h);
   const set = P.set;
-  const inside = (x, y) => x >= 1 && y >= 1 && x < w - 1 && y < h - 1 && insideRR(x - 1, y - 1, w - 2, h - 2, r);
+  const S = shape(w, h, r);
   const fill = o.fill ?? '#3a56c8';
   const outline = o.outline ?? '#0d0a1f';
   const hi = o.hi ?? shadeHex(fill, o.inset ? -0.35 : 0.42);
   const lo = o.lo ?? shadeHex(fill, o.inset ? 0.18 : -0.28);
   const lipC = o.lipColor ?? shadeHex(fill, -0.38);
   const topC = o.top ?? null;
-  const topRows = o.topRows ?? Math.floor(h / 2) - 1;
-  const lipStart = h - 2 - lip;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!inside(x, y)) {
-        if (inside(x + 1, y) || inside(x - 1, y) || inside(x, y + 1) || inside(x, y - 1)) set(x, y, outline);
-        else if (o.shadow && (inside(x, y - 1) || inside(x - 1, y - 1))) set(x, y, o.shadow, 140);
-        continue;
-      }
-      let col = fill;
-      if (topC && y <= topRows) col = o.dither && y === topRows ? (bayer(x, y) < 0.5 ? topC : fill) : topC;
-      // liquid-dark lower body (jelly buttons): a dithered darker band above the lip
-      if (o.deep && lip && y >= lipStart - o.deep && y < lipStart) col = y === lipStart - o.deep ? (bayer(x, y) < 0.5 ? o.deepColor : col) : o.deepColor;
-      const up = inside(x, y - 1), dn = inside(x, y + 1), lf = inside(x - 1, y), rt = inside(x + 1, y);
-      if (lip && y > lipStart) col = (!lf || !rt) ? shadeHex(lipC, -0.12) : lipC;
-      else if (!up) col = hi;
-      else if (!dn || (lip && y === lipStart)) col = lo;
-      else if (!lf) col = o.inset ? shadeHex(fill, -0.2) : (o.rim ?? shadeHex(col, 0.16));
-      else if (!rt) col = o.inset ? shadeHex(fill, 0.1) : shadeHex(col, -0.14);
-      if (o.ring && !(lip && y > lipStart - 1)) {
-        let ed = 5;
-        for (let k = 1; k <= 4; k++) if (!inside(x, y - k) || !inside(x, y + k) || !inside(x - k, y) || !inside(x + k, y)) { ed = k; break; }
-        if (ed >= 2 && ed <= 1 + (o.ringW ?? 1)) col = o.ring;
-      }
-      set(x, y, col);
+  // keep colour bands inside the non-stretching slices so they stay crisp at any size
+  const topRows = Math.min((o.topRows ?? Math.floor(h0 / 2) - 1) * K, slice - T);
+  const lipStart = h - T - lip;
+  const deepRows = o.deep && lip ? Math.max(2, Math.min(o.deep * K, slice - lip - T)) : 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!S.inside(x, y)) { if (S.outer(x, y)) set(x, y, outline); continue; }
+    const ed = S.edge(x, y, 4), sd = S.side(x, y, ed);
+    let col = fill;
+    if (topC && y < T + topRows) col = o.dither && y >= T + topRows - 2 ? (bayer(x, y) < (y === T + topRows - 1 ? 0.33 : 0.66) ? topC : fill) : topC;
+    if (deepRows && y >= lipStart - deepRows && y < lipStart) col = y < lipStart - deepRows + 2 ? (bayer(x, y) < (y === lipStart - deepRows ? 0.33 : 0.66) ? o.deepColor : col) : o.deepColor;
+    if (lip && y >= lipStart) {
+      // the 3D lip under the jelly: highlight seam, body, dark base; darker at the rounded sides
+      const ly = y - lipStart;
+      col = ly === 0 ? mixHex(lipC, fill, 0.55) : ly === 1 ? mixHex(lipC, fill, 0.22) : y >= h - T - 2 ? shadeHex(lipC, -0.28) : lipC;
+      if (ed <= 2 && (sd === 'l' || sd === 'r')) col = shadeHex(col, sd === 'l' ? 0.08 : -0.2);
+    } else if (o.inset) {
+      if (ed === 1) col = sd === 't' || sd === 'l' ? hi : lo;
+      else if (ed === 2) col = sd === 't' || sd === 'l' ? mixHex(hi, fill, 0.45) : mixHex(lo, fill, 0.55);
+      else if (ed === 3 && sd === 't') col = mixHex(hi, fill, 0.75);
+    } else {
+      if (ed === 1) col = sd === 't' ? hi : sd === 'l' ? (o.rim ?? mixHex(hi, col, 0.35)) : sd === 'b' ? lo : shadeHex(col, -0.2);
+      else if (ed === 2) col = sd === 't' ? mixHex(hi, col, 0.5) : sd === 'l' ? mixHex(hi, col, 0.72) : sd === 'b' ? mixHex(lo, col, 0.45) : shadeHex(col, -0.09);
     }
+    if (o.ring && !(lip && y >= lipStart - 1)) {
+      const rw = (o.ringW ?? 1) * K;
+      if (ed >= 3 && ed < 3 + rw) col = ed === 3 ? shadeHex(o.ring, -0.08) : o.ring;
+    }
+    set(x, y, col);
   }
   if (o.gloss && !o.inset) {
-    // jelly highlight: a soft white streak under the top edge (stretches with the 9-slice)
+    // jelly highlight capsule under the top edge (its middle stretches with the 9-slice)
     const base = topC ?? fill;
-    const gc = o.glossColor ?? mixHex(base, '#ffffff', 0.88);
-    for (let x = r - 1; x <= w - r; x++) set(x, 2, gc);
-    for (let x = r - 1; x <= w - r; x++) set(x, 3, mixHex(base, '#ffffff', 0.6));
-    for (let x = r; x <= w - 1 - r; x++) set(x, 4, mixHex(base, '#ffffff', 0.3));
-    for (let x = r + 1; x <= w - 2 - r; x++) set(x, 5, bayer(x, 5) < 0.5 ? mixHex(base, '#ffffff', 0.3) : base);
+    const gc = o.glossColor ?? mixHex(base, '#ffffff', 0.9);
+    const y0 = T + 3, x0 = T + Math.max(3, r - 4), x1 = w - 1 - x0;
+    const rows = [[gc, 1], [mixHex(base, '#ffffff', 0.8), 0], [mixHex(base, '#ffffff', 0.62), 0], [mixHex(base, '#ffffff', 0.42), 1], [mixHex(base, '#ffffff', 0.3), 2]];
+    rows.forEach(([c, inset], j) => {
+      for (let x = x0 + inset; x <= x1 - inset; x++) if (j < 4 || bayer(x, y0 + j) < 0.5) set(x, y0 + j, c);
+    });
+    // a darker seam just above the gloss makes it read as a raised highlight
+    for (let x = x0 + 2; x <= x1 - 2; x++) set(x, y0 - 1, mixHex(base, '#000000', 0.06));
+    set(x0 + 1, y0, '#ffffff'); set(x0 + 2, y0, '#ffffff'); set(x0 + 1, y0 + 1, '#ffffff');
   }
   if (o.glint !== false && !o.inset) {
-    // specular glint in the top-left corner
-    const gx = r > 2 ? Math.floor(r * 0.7) + 1 : 2, gy = 2;
+    // specular glint in the top-left corner: a tiny 4-point star
+    const gx = T + Math.max(2, Math.round(r * 0.45)), gy = T + 2;
     set(gx, gy, '#ffffff'); set(gx + 1, gy, '#ffffff'); set(gx, gy + 1, '#ffffff');
-    if (o.glint === 'big') { set(gx + 2, gy, '#ffffff'); set(gx, gy + 2, '#ffffff'); }
+    if (o.glint === 'big') { set(gx + 2, gy, '#ffffff'); set(gx, gy + 2, '#ffffff'); set(gx + 1, gy + 1, '#ffffff'); }
   }
-  if (o.bubbles) {
-    // tiny bubble pixels in the bottom-right corner (corners never stretch)
-    const bx = w - 4, by = lipStart - 2;
-    set(bx, by, mixHex(fill, '#ffffff', 0.55));
-    set(bx - 2, by - 2, mixHex(fill, '#ffffff', 0.4));
+  if (o.bubbles !== false && !o.inset && lip) {
+    // little pixel bubbles caught in the jelly (bottom-right corner never stretches)
+    const bx = w - T - 6, by = lipStart - 5, bc = mixHex(o.deepColor ?? fill, '#ffffff', 0.6);
+    set(bx, by - 1, bc); set(bx + 1, by, bc); set(bx, by + 1, bc); set(bx - 1, by, bc); set(bx - 1, by - 1, '#ffffff');
+    set(bx - 4, by - 4, bc);
   }
-  const slice = Math.max(r + 2, lip + 3, o.slice ?? 0);
-  return { url: P.done(), slice, w, h };
+  return { url: P.done(), slice, w, h, hd: K };
 }
 
 /**
- * Glass specimen-tank panel. Returns { url, slice, w, h }.
- * o: { w, h, r, slice, outline, rim, rimHi, rimLo, inner, glass, glass2, reflect, base (lip rows), baseColor, bolts, boltColor }
+ * Glass specimen-tank panel. Returns { url, slice, w, h, hd }.
+ * o (1x units): { w, h, r, slice, outline, rim, rimHi, rimLo, inner, glass, glass2, reflect, base, baseColor, bolts, boltColor, dither }
  */
 export function glassSkin(o) {
-  const w = o.w ?? 24, h = o.h ?? 24, r = o.r ?? 5, base = o.base ?? 2;
+  const w0 = o.w ?? 24, h0 = o.h ?? 24, r0 = o.r ?? 5, base0 = o.base ?? 2;
+  const w = w0 * K, h = h0 * K, r = r0 * K, base = base0 * K;
+  const slice = K * Math.max(o.slice ?? 0, r0 + 2, base0 + 3);
   const P = painter(w, h);
   const set = P.set;
-  const inside = (x, y) => x >= 1 && y >= 1 && x < w - 1 && y < h - 1 && insideRR(x - 1, y - 1, w - 2, h - 2, r);
-  const edge = (x, y) => {
-    for (let k = 1; k <= 4; k++) if (!inside(x, y - k) || !inside(x, y + k) || !inside(x - k, y) || !inside(x + k, y)) return k;
-    return 5;
-  };
+  const S = shape(w, h, r);
   const outline = o.outline ?? '#0d0a1f';
   const rim = o.rim ?? '#7fe6ff', rimHi = o.rimHi ?? '#e6ffff', rimLo = o.rimLo ?? shadeHex(rim, -0.4);
   const inner = o.inner ?? '#0b1240';
   const g1 = o.glass ?? '#2c4cae', g2 = o.glass2 ?? '#182a76';
   const reflect = o.reflect ?? mixHex(g1, '#ffffff', 0.18);
   const baseC = o.baseColor ?? shadeHex(rim, -0.55);
-  const baseStart = h - 2 - base;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!inside(x, y)) {
-        if (inside(x + 1, y) || inside(x - 1, y) || inside(x, y + 1) || inside(x, y - 1)) set(x, y, outline);
-        continue;
-      }
-      const ed = edge(x, y);
-      const up = inside(x, y - 1), lf = inside(x - 1, y), rt = inside(x + 1, y);
-      let col;
-      if (base && y > baseStart) {
-        // heavy glass base (3D lip)
-        col = !lf || !rt ? shadeHex(baseC, -0.25) : y === baseStart + 1 ? shadeHex(baseC, 0.25) : baseC;
-      } else if (ed === 1) {
-        col = !up ? rimHi : !lf ? mixHex(rim, rimHi, 0.45) : !rt ? rimLo : y >= baseStart ? rimLo : rim;
-      } else if (ed === 2) {
-        col = inner;
-      } else {
-        const t = Math.max(0, Math.min(1, (y - 3) / Math.max(1, baseStart - 4)));
-        col = mixHex(g1, g2, Math.round(t * 4) / 4);
-        if (o.dither !== false) {
-          // ordered dither between the quantised steps
-          const tq = t * 4, f = tq - Math.floor(tq);
-          if (f > 0.15 && bayer(x, y) < f * 0.5) col = mixHex(g1, g2, Math.min(1, (Math.floor(tq) + 1) / 4));
-        }
-      }
-      set(x, y, col);
+  const baseStart = h - T - base;
+  const STEPS = 6;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!S.inside(x, y)) { if (S.outer(x, y)) set(x, y, outline); continue; }
+    const ed = S.edge(x, y, 5), sd = S.side(x, y, ed);
+    let col;
+    if (base && y >= baseStart && ed > 1) {
+      // heavy glass base (3D lip) with a bright seam and a dark foot
+      const ly = y - baseStart;
+      col = ly === 0 ? mixHex(baseC, rimHi, 0.5) : ly === 1 ? shadeHex(baseC, 0.18) : y >= h - T - 2 ? shadeHex(baseC, -0.3) : baseC;
+      if (ed <= 3 && (sd === 'l' || sd === 'r')) col = shadeHex(col, sd === 'l' ? 0.1 : -0.25);
+    } else if (ed === 1) {
+      col = sd === 't' ? rimHi : sd === 'l' ? mixHex(rim, rimHi, 0.55) : sd === 'b' ? shadeHex(rimLo, -0.12) : rimLo;
+    } else if (ed === 2) {
+      col = sd === 't' ? mixHex(rim, rimHi, 0.35) : sd === 'l' ? rim : mixHex(rim, rimLo, 0.6);
+    } else if (ed === 3) {
+      col = inner;
+    } else if (ed === 4) {
+      col = sd === 'b' || sd === 'r' ? mixHex(inner, g2, 0.45) : mixHex(inner, g1, 0.3);
+    } else {
+      const t = Math.max(0, Math.min(1, (y - T - 4) / Math.max(1, baseStart - T - 8)));
+      const tq = t * STEPS, f = tq - Math.floor(tq);
+      let step = Math.floor(tq);
+      if (o.dither !== false && f > 0.2 && bayer(x, y) < (f - 0.2) * 0.75) step++;
+      col = mixHex(g1, g2, Math.min(1, step / STEPS));
     }
+    set(x, y, col);
   }
-  // glass reflections: long vertical streak on the left, short one on the right, corner glint
-  const s0 = r + 1, s1 = baseStart - 2;
-  for (let y = s0; y <= s1; y++) set(3, y, reflect);
-  for (let y = s0 + 1; y <= s1 - 1; y++) set(w - 4, y, mixHex(reflect, g2, 0.55));
-  for (let x = r + 1; x <= w - 2 - r; x++) set(x, 3, mixHex(reflect, g1, 0.35));
-  const gx = Math.max(3, r - 1);
-  set(gx, 3, '#ffffff'); set(gx + 1, 3, '#ffffff'); set(3, gx + 1, '#ffffff'); set(gx + 2, 3, rimHi);
+  // glass reflections: long double streak on the left, short one on the right, faint top streak,
+  // diagonal glare in the top-left corner and a corner glint
+  const s0 = T + r + 1, s1 = baseStart - 4;
+  for (let y = s0; y <= s1; y++) { set(T + 5, y, reflect); if (y > s0 + 2 && y < s1 - 2) set(T + 6, y, mixHex(reflect, g1, 0.55)); }
+  for (let y = s0 + 3; y <= s1 - 4; y++) set(w - T - 6, y, mixHex(reflect, g2, 0.55));
+  for (let x = T + r + 2; x <= w - T - r - 3; x++) set(x, T + 5, mixHex(reflect, g1, 0.4));
+  for (let k = 0; k < 3; k++) { set(T + 7 + k, T + 9 - k, mixHex(reflect, '#ffffff', 0.35)); set(T + 7 + k, T + 12 - k, mixHex(reflect, g1, 0.3)); }
+  const gx = T + Math.max(3, r - 2);
+  set(gx, T + 1, '#ffffff'); set(gx + 1, T + 1, '#ffffff'); set(gx + 2, T + 1, rimHi); set(T + 1, gx + 1, '#ffffff'); set(T + 1, gx + 2, rimHi);
+  // tiny bubbles stuck to the glass (bottom-right corner)
+  const bc = mixHex(g2, '#ffffff', 0.5);
+  if (w > 24) { const bx = w - T - 8, by = baseStart - 6; set(bx, by - 1, bc); set(bx - 1, by, bc); set(bx + 1, by, bc); set(bx, by + 1, bc); set(bx - 1, by - 1, mixHex(g2, '#ffffff', 0.85)); set(bx + 3, by - 4, bc); }
   if (o.bolts) {
-    const bc = o.boltColor ?? '#cdd5ea';
-    for (const [bx, by] of [[2, 2], [w - 3, 2]]) { set(bx, by, bc); }
+    const bcol = o.boltColor ?? '#cdd5ea';
+    rivet(set, T + 5, T + 5, bcol, 4, outline);
+    rivet(set, w - T - 5, T + 5, bcol, 4, outline);
   }
-  const slice = Math.max(o.slice ?? 0, r + 2, base + 3);
-  return { url: P.done(), slice, w, h };
+  return { url: P.done(), slice, w, h, hd: K };
 }
 
 /** Neon lab sign (replaces the old ribbon): dark plate, glowing neon tube, metal side clamps. 3-slice. */
 export function signSkin(o) {
-  const w = 40, h = 18;
+  const w = 40 * K, h = 18 * K;
   const P = painter(w, h);
   const set = P.set;
   const col = o.fill ?? '#ff2e88';
   const ink = o.outline ?? '#0d0a1f';
-  const core = mixHex(col, '#ffffff', 0.62);
-  const plate = mixHex(col, '#120a2a', 0.78), plate2 = mixHex(col, '#0a0618', 0.86);
+  const core = mixHex(col, '#ffffff', 0.72);
+  const plate = mixHex(col, '#120a2a', 0.8), plate2 = mixHex(col, '#0a0618', 0.88);
   const metal = '#b8c4dc', metalD = '#6a7898', metalL = '#eef4ff';
-  const X0 = 5, X1 = w - 6, Y0 = 1, Y1 = h - 2; // plate box (inclusive)
-  const inPlate = (x, y) => x >= X0 && x <= X1 && y >= Y0 && y <= Y1 && insideRR(x - X0, y - Y0, X1 - X0 + 1, Y1 - Y0 + 1, 3);
-  // clamps behind the plate
+  const X0 = 10, X1 = w - 11, Y0 = 2, Y1 = h - 3; // plate box (inclusive)
+  const inPlate = (x, y) => x >= X0 && x <= X1 && y >= Y0 && y <= Y1 && insideRR(x - X0, y - Y0, X1 - X0 + 1, Y1 - Y0 + 1, 6);
+  // clamps behind the plate (bevelled steel brackets with a screw)
   for (const side of [0, 1]) {
-    const cx0 = side ? X1 - 1 : 1, cx1 = side ? w - 2 : X0 + 1;
-    for (let y = 5; y <= 12; y++) for (let x = cx0 - 1; x <= cx1 + 1; x++) set(x, y, ink);
-    for (let y = 6; y <= 11; y++) for (let x = cx0; x <= cx1; x++) set(x, y, y === 6 ? metalL : y === 11 ? metalD : metal);
-    const bx = side ? w - 3 : 2;
-    set(bx, 8, metalD); set(bx, 9, ink);
-  }
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (inPlate(x, y)) {
-        let c = y < 9 ? plate : plate2;
-        // neon tube: halo / bright core / colour, inset 1px from the plate edge
-        let ed = 9;
-        for (let k = 1; k <= 5; k++) if (!inPlate(x, y - k) || !inPlate(x, y + k) || !inPlate(x - k, y) || !inPlate(x + k, y)) { ed = k; break; }
-        if (ed === 1) c = mixHex(plate, '#ffffff', y <= Y0 + 1 ? 0.3 : 0.12);
-        else if (ed === 2) c = mixHex(col, plate, 0.45);
-        else if (ed === 3) c = core;
-        else if (ed === 4) c = col;
-        set(x, y, c);
-      } else if (inPlate(x + 1, y) || inPlate(x - 1, y) || inPlate(x, y + 1) || inPlate(x, y - 1)) set(x, y, ink);
+    const cx0 = side ? X1 - 3 : 2, cx1 = side ? w - 3 : X0 + 3;
+    for (let y = 9; y <= 26; y++) for (let x = cx0 - 2; x <= cx1 + 2; x++) set(x, y, ink);
+    for (let y = 11; y <= 24; y++) for (let x = cx0; x <= cx1; x++) {
+      const c = y <= 12 ? metalL : y >= 23 ? metalD : x === cx0 ? mixHex(metal, metalL, 0.5) : x === cx1 ? mixHex(metal, metalD, 0.5) : (y & 3) === 0 ? mixHex(metal, metalL, 0.25) : metal;
+      set(x, y, c);
     }
+    rivet(set, side ? w - 6 : 6, 18, metal, 4, ink);
   }
-  // tube glints
-  set(X0 + 4, Y0 + 2, '#ffffff'); set(X0 + 5, Y0 + 2, '#ffffff');
-  return { url: P.done(), sliceX: 12, sliceY: 6, w, h };
+  const E = (x, y) => { for (let k = 1; k <= 10; k++) if (!inPlate(x, y - k) || !inPlate(x, y + k) || !inPlate(x - k, y) || !inPlate(x + k, y)) return k; return 11; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (inPlate(x, y)) {
+      let c = y < h / 2 ? plate : plate2;
+      if ((y & 3) === 0 && y > Y0 + 9 && y < Y1 - 9) c = mixHex(c, col, 0.035); // faint scanlines
+      // metal frame lip, then the neon tube: halo / colour / hot core / colour / halo
+      const ed = E(x, y), top = !inPlate(x, y - ed);
+      if (ed === 1) c = top ? mixHex(plate, '#ffffff', 0.42) : mixHex(plate, '#ffffff', 0.16);
+      else if (ed === 2) c = top ? mixHex(plate, '#ffffff', 0.2) : shadeHex(plate, -0.3);
+      else if (ed === 3) c = mixHex(col, plate, 0.62);
+      else if (ed === 4) c = col;
+      else if (ed === 5) c = core;
+      else if (ed === 6) c = mixHex(core, '#ffffff', 0.5);
+      else if (ed === 7) c = col;
+      else if (ed === 8) c = mixHex(col, plate, 0.35);
+      else if (ed === 9) c = mixHex(col, plate, 0.62);
+      else if (ed === 10) c = mixHex(col, plate, 0.84);
+      set(x, y, c);
+    } else if (inPlate(x + 1, y) || inPlate(x - 1, y) || inPlate(x, y + 1) || inPlate(x, y - 1) || inPlate(x + 2, y) || inPlate(x - 2, y) || inPlate(x, y + 2) || inPlate(x, y - 2)) set(x, y, ink);
+  }
+  // tube glints + hot spots
+  for (const [x, y] of [[X0 + 9, Y0 + 5], [X0 + 10, Y0 + 5], [X0 + 11, Y0 + 5], [X0 + 5, Y0 + 9]]) set(x, y, '#ffffff');
+  return { url: P.done(), sliceX: 12 * K, sliceY: 6 * K, w, h, hd: K };
 }
 
 /**
  * Riveted metal plate frame (lab hardware): bevelled steel ring with brushed
  * dither, recessed inner edge, corner rivets and an optional fill. 9-slice.
- * o: { w, h, r, border (ring px), metal, fill (null = transparent centre), rivet, inner, hazard (bottom stripe) }
+ * o (1x units): { w, h, r, border (ring px), metal, fill (null = transparent centre), rivet, inner, hazard (bottom stripe) }
  */
 export function plateSkin(o = {}) {
-  const w = o.w ?? 24, h = o.h ?? 24, r = o.r ?? 3, bw = o.border ?? 4;
+  const w0 = o.w ?? 24, h0 = o.h ?? 24, r0 = o.r ?? 3, bw0 = o.border ?? 4;
+  const w = w0 * K, h = h0 * K, r = r0 * K, bw = bw0 * K;
+  const slice = K * Math.max(bw0 + 2, r0 + 2, 6);
   const P = painter(w, h);
   const set = P.set;
-  const inside = (x, y) => x >= 1 && y >= 1 && x < w - 1 && y < h - 1 && insideRR(x - 1, y - 1, w - 2, h - 2, r);
-  const edge = (x, y) => {
-    for (let k = 1; k <= bw + 2; k++) if (!inside(x, y - k) || !inside(x, y + k) || !inside(x - k, y) || !inside(x + k, y)) return k;
-    return bw + 3;
-  };
+  const S = shape(w, h, r);
   const metal = o.metal ?? '#9aa6c8', ink = o.outline ?? '#0d0a1f';
   const inner = o.inner ?? '#06041a';
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!inside(x, y)) {
-      if (inside(x + 1, y) || inside(x - 1, y) || inside(x, y + 1) || inside(x, y - 1)) set(x, y, ink);
-      continue;
-    }
-    const ed = edge(x, y);
+    if (!S.inside(x, y)) { if (S.outer(x, y)) set(x, y, ink); continue; }
+    const ed = S.edge(x, y, bw + 3);
     const dl = x, dr = w - 1 - x, dt = y, db = h - 1 - y, m = Math.min(dl, dr, dt, db);
-    const side = m === dt ? 't' : m === dl ? 'l' : m === db ? 'b' : 'r';
+    const sd = m === dt ? 't' : m === dl ? 'l' : m === db ? 'b' : 'r';
+    const lit = sd === 't' || sd === 'l';
     if (ed <= bw) {
-      let f = side === 't' ? 0.3 : side === 'l' ? 0.14 : side === 'b' ? -0.34 : -0.2;
-      if (ed === 1) f += side === 't' || side === 'l' ? 0.35 : -0.15;
-      else if (ed === bw) f = side === 't' || side === 'l' ? -0.42 : 0.22; // inner bevel (recessed)
-      else if ((side === 't' || side === 'b') && bayer(x, y) < 0.22) f += 0.12; // brushed steel
+      let f = sd === 't' ? 0.28 : sd === 'l' ? 0.12 : sd === 'b' ? -0.34 : -0.2;
+      if (ed === 1) f += lit ? 0.42 : -0.2;
+      else if (ed === 2) f += lit ? 0.22 : -0.08;
+      else if (ed === bw) f = lit ? -0.52 : 0.3; // inner bevel (recessed)
+      else if (ed === bw - 1) f = lit ? -0.3 : 0.14;
+      else {
+        // brushed steel: streaky rows / columns + a soft dither
+        const along = sd === 't' || sd === 'b' ? x : y, across = sd === 't' || sd === 'b' ? y : x;
+        const streak = ((across * 7 + ((along >> 3) * 13)) % 9) / 9;
+        if (streak < 0.22) f += 0.1; else if (streak > 0.85) f -= 0.07;
+        if (bayer(x, y) < 0.12) f += 0.08;
+      }
       let c = shadeHex(metal, f);
-      if (o.hazard && side === 'b' && ed > 1 && ed < bw) c = ((x + y) & 3) < 2 ? '#ffc21a' : '#1a1230';
+      if (o.hazard && sd === 'b' && ed > 2 && ed < bw - 1) {
+        const on = ((x + y) & 7) < 4;
+        c = on ? (ed === 3 ? '#ffe680' : '#ffc21a') : ed === 3 ? '#2a2248' : '#1a1230';
+      }
       set(x, y, c);
-    } else if (ed === bw + 1) set(x, y, side === 't' || side === 'l' ? inner : mixHex(inner, metal, 0.25));
+    } else if (ed === bw + 1) set(x, y, lit ? inner : mixHex(inner, metal, 0.3));
+    else if (ed === bw + 2 && o.fill) set(x, y, lit ? mixHex(inner, o.fill, 0.45) : o.fill);
     else if (o.fill) set(x, y, o.fill);
   }
   if (o.rivet !== false) {
-    const rc = o.rivet ?? mixHex(metal, '#ffffff', 0.55);
-    const q = Math.max(1, Math.floor(bw / 2) - 0) + 1;
-    for (const [rx, ry] of [[q, q], [w - 1 - q, q], [q, h - 1 - q], [w - 1 - q, h - 1 - q]]) {
-      set(rx, ry, rc); set(rx - 1, ry, shadeHex(metal, 0.4)); set(rx, ry - 1, shadeHex(metal, 0.4));
-      set(rx + 1, ry, shadeHex(metal, -0.45)); set(rx, ry + 1, shadeHex(metal, -0.45));
-    }
+    const rc = o.rivet ?? mixHex(metal, '#ffffff', 0.3);
+    const q = T + Math.round(bw / 2);
+    for (const [rx, ry] of [[q, q], [w - q, q], [q, h - q], [w - q, h - q]]) rivet(set, rx, ry, rc, Math.min(6, bw - 1), ink);
   }
-  const slice = Math.max(bw + 2, r + 2, 6);
-  return { url: P.done(), slice, w, h };
+  return { url: P.done(), slice, w, h, hd: K };
 }
 
-/** Old pixel ribbon with folded tails (kept for API compatibility). */
-export function ribbonSkin(o) {
-  const w = 40, h = 18;
-  const c = canvas(w, h);
-  const g = c.getContext('2d');
-  const col = o.fill ?? '#ff2e88', dark = shadeHex(col, -0.4), light = shadeHex(col, 0.35), ink = o.outline ?? '#0d0a1f';
-  const P = (x, y, ww, hh, cc) => { g.fillStyle = cc; g.fillRect(x, y, ww, hh); };
-  for (const side of [0, 1]) {
-    const x0 = side ? w - 9 : 0;
-    P(x0, 5, 9, 11, ink);
-    P(x0 + 1, 6, 7, 9, dark);
-    g.clearRect(side ? w - 3 : 0, 9, 3, 3);
-    P(side ? w - 4 : 3, 9, 1, 3, ink);
+/**
+ * Premium collectible card frame per rarity (HD, transparent centre): bevelled
+ * metal rim, inner glass line and corner ornaments that grow with rarity
+ * (rivets -> gold brackets -> cut gems -> filigree + crown spikes).
+ */
+export function cardFrameSkin(rarity, col) {
+  const w = 48, h = 60, r = 6, slice = 16;
+  const P = painter(w, h);
+  const set = P.set;
+  const S = shape(w, h, r);
+  const ink = '#0d0a1f';
+  const lv = { locked: 0, common: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 }[rarity] ?? 1;
+  const metal = col, hiM = mixHex(col, '#ffffff', 0.62), loM = shadeHex(col, -0.42), dd = shadeHex(col, -0.7);
+  // rim: outer bevel, engraved metal band, dark seat, light inner bevel, glass line (centre stays transparent)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!S.inside(x, y)) { if (S.outer(x, y)) set(x, y, ink); continue; }
+    const ed = S.edge(x, y, 7), sd = S.side(x, y, ed), lit = sd === 't' || sd === 'l';
+    let c = null;
+    if (ed === 1) c = lit ? hiM : loM;
+    else if (ed === 2) c = lit ? mixHex(metal, hiM, 0.45) : mixHex(metal, loM, 0.35);
+    else if (ed === 3) c = lv >= 2 && bayer(x, y) < 0.16 ? mixHex(metal, hiM, 0.55) : metal;
+    else if (ed === 4) c = lv >= 2 ? (lit ? loM : hiM) : metal; // engraved groove
+    else if (ed === 5) c = lit ? mixHex(metal, loM, 0.3) : loM;
+    else if (ed === 6) c = dd;
+    else if (ed === 7) set(x, y, mixHex(col, '#ffffff', 0.55), lit ? 170 : 80);
+    if (c) set(x, y, c);
   }
-  P(5, 1, w - 10, 15, ink);
-  P(6, 2, w - 12, 13, col);
-  P(6, 2, w - 12, 2, light);
-  P(6, 12, w - 12, 3, dark);
-  P(7, 2, 2, 1, '#ffffff');
-  return { url: c.toDataURL(), sliceX: 12, sliceY: 6, w, h };
+  const GOLD = ['#fff6c8', '#ffe46a', '#ffc21a', '#d8861a', '#9a5410'];
+  const SILV = ['#ffffff', '#e4eaf8', '#b8c4dc', '#7e8aa8', '#4e5878'];
+  const gemC = { 3: '#c063ff', 4: '#3ff2c8', 5: '#ff2e88' }[lv];
+  const orn = (mx, my) => {
+    const X = (i) => (mx ? w - 1 - i : i), Y = (j) => (my ? h - 1 - j : j);
+    const px = (i, j, c, a) => set(X(i), Y(j), c, a);
+    if (lv === 0) return;
+    const M = lv >= 2 ? GOLD : SILV;
+    // corner bracket: an L-shaped metal plate wrapping the corner with chamfered arm ends,
+    // outlined and bevel-shaded (light top-left, dark bottom-right)
+    const L = lv >= 4 ? 16 : lv >= 2 ? 14 : 11, A = lv >= 3 ? 10 : 8;
+    const inB = (i, j) => i >= 0 && j >= 0 && i < 16 && j < 16 && (i < A || j < A) && i + j < L + A - 3 && i < L && j < L;
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
+      if (!inB(i, j)) { if (inB(i + 1, j) || inB(i - 1, j) || inB(i, j + 1) || inB(i, j - 1)) px(i, j, ink); continue; }
+      const eT = !inB(i, j - 1), eL = !inB(i - 1, j), eB = !inB(i, j + 1), eR = !inB(i + 1, j);
+      let t = 2;
+      if ((my ? eB : eT) || (mx ? eR : eL)) t = 0;
+      else if ((my ? eT : eB) || (mx ? eL : eR)) t = 4;
+      else if ((my ? !inB(i, j - 2) : !inB(i, j + 2)) || (mx ? !inB(i - 2, j) : !inB(i + 2, j))) t = 3;
+      else if ((i + j) % 6 === 0) t = 1;
+      px(i, j, M[t]);
+    }
+    // screws on the bracket arms
+    if (lv >= 2) for (const [i, j] of [[L - 3, 3], [3, L - 3]]) { px(i, j, M[4]); px(i - 1, j - 1, '#ffffff'); }
+    if (lv >= 3) {
+      // faceted cut gem set in the bracket
+      const cx = 4.5 | 0, cy = 4, R = lv >= 4 ? 4 : 3;
+      for (let j = -R - 1; j <= R + 1; j++) for (let i = -R - 1; i <= R + 1; i++) {
+        const d = Math.abs(i) + Math.abs(j);
+        if (d > R + 1) continue;
+        let c;
+        if (d === R + 1) c = ink;
+        else if (i <= 0 && j <= 0) c = d <= 1 ? '#ffffff' : mixHex(gemC, '#ffffff', 0.55);
+        else if (i > 0 && j > 0) c = shadeHex(gemC, -0.45);
+        else c = j < 0 || i < 0 && j < 2 ? gemC : shadeHex(gemC, -0.2);
+        px(cx + i, cy + j, c);
+      }
+      px(cx - 1, cy - 2, '#ffffff');
+    } else rivet((x, y, c) => set(X(x), Y(y), c), 3.5, 3.5, lv >= 2 ? '#ffd23f' : hiM, 4, ink);
+    if (lv === 5 && !my) {
+      // crown spikes on the top corners
+      for (const [i, j] of [[9, 0], [10, 0], [12, 1]]) px(i, j, '#ffe46a');
+    }
+  };
+  orn(0, 0); orn(1, 0); orn(0, 1); orn(1, 1);
+  return { url: P.done(), slice, w, h, hd: K };
 }
 
 // ---------------------------------------------------------------------------
@@ -439,15 +566,18 @@ const FILL = {
 /** Neon colour per sign / liquid colour per panel (exposed as --neon / --liq on the skin classes). */
 const NEON = { pink: '#ff4aa0', blue: '#4fc8ff', gold: '#ffd84a', green: '#7aff6a', purple: '#c08aff', red: '#ff5a6a' };
 
+/** 9-slice CSS rule for a skin; HD skins (sk.hd = 2) draw each art pixel at unit / hd so the frame keeps its 1x footprint. */
+function skinRule(cls, sk, extra = '', o = {}) {
+  const unit = o.unit ?? 'var(--px)', hd = sk.hd ?? 1, b = sk.slice / hd;
+  return `${cls}{border-style:solid;border-image:url(${sk.url}) ${sk.slice}${o.fill === false ? '' : ' fill'} / calc(${b} * ${unit}) / 0 stretch;border-width:calc(${b} * ${unit});--skb:${b};${extra}}`;
+}
+
 let injected = false;
 export function injectSkins() {
   if (injected) return;
   injected = true;
   const rules = [];
-  const add = (cls, sk, extra = '', o = {}) => {
-    const unit = o.unit ?? 'var(--px)';
-    rules.push(`${cls}{border-style:solid;border-image:url(${sk.url}) ${sk.slice}${o.fill === false ? '' : ' fill'} / calc(${sk.slice} * ${unit}) / 0 stretch;border-width:calc(${sk.slice} * ${unit});--skb:${sk.slice};${extra}}`);
-  };
+  const add = (cls, sk, extra = '', o = {}) => rules.push(skinRule(cls, sk, extra, o));
   // jelly lab buttons (with 3D lip)
   for (const [k, v] of Object.entries(FILL)) {
     add(`.sk-btn-${k}`, frameSkin({ w: 20, h: 22, r: 4, lip: 3, topRows: 8, dither: true, shadow: '#000000', gloss: true, deep: 3, ...v }));
@@ -467,15 +597,17 @@ export function injectSkins() {
   add('.sk-slot', glassSkin({ w: 16, h: 16, r: 3, slice: 5, base: 1, rim: '#3a5ac8', rimHi: '#6f9cff', rimLo: '#1c2a78', inner: '#060a24', glass: '#16205a', glass2: '#0e1440', reflect: '#24347c', baseColor: '#1a2470', dither: false }), '--liq:#4fb0ff;--liq2:#1a52b0;');
   // card frames (rarity rims)
   const rimC = { common: '#b8c6e8', rare: '#ff9a2e', epic: '#c063ff', legendary: '#3ff2c8', mythic: '#ff2e88', locked: '#4a5478' };
-  for (const [k, col] of Object.entries(rimC)) {
-    add(`.sk-card-${k}`, frameSkin({ w: 16, h: 18, r: 2, fill: col, hi: shadeHex(col, 0.55), lo: shadeHex(col, -0.35), lip: 1, lipColor: shadeHex(col, -0.5), glint: 'big' }), '', { fill: false, unit: 'var(--pxs)' });
-  }
+  for (const [k, col] of Object.entries(rimC)) add(`.sk-card-${k}`, cardFrameSkin(k, col), '', { fill: false, unit: 'var(--pxs)' });
   // riveted metal plates (lab hardware frames) + reward pods (small glass capsules)
   add('.sk-plate', plateSkin({ metal: '#9aa6c8', fill: '#141c4e' }));
   add('.sk-plate-dark', plateSkin({ metal: '#5a6690', fill: '#0b1036', border: 3 }));
   add('.sk-plate-gold', plateSkin({ metal: '#ffc21a', fill: '#3a1e08', rivet: '#fffadc' }));
   add('.sk-plate-hazard', plateSkin({ metal: '#8a96b8', fill: '#141c4e', hazard: true, border: 5 }));
-  add('.sk-plate-ring', plateSkin({ metal: '#9aa6c8' }), '', { fill: false });
+  const plateRing = plateSkin({ metal: '#9aa6c8' }), plateRingGold = plateSkin({ metal: '#ffc21a', rivet: '#fffadc' }), plateRingDark = plateSkin({ metal: '#5a6690', border: 3 });
+  add('.sk-plate-ring', plateRing, '', { fill: false });
+  // skin images as CSS variables, so any stylesheet can frame an element without new classes:
+  //   border: 0 solid; border-image: var(--ski-plate-ring) 12 / calc(6 * var(--px)) / calc(2 * var(--px)) stretch;
+  rules.push(`:root{--ski-plate-ring:url(${plateRing.url});--ski-plate-ring-gold:url(${plateRingGold.url});--ski-plate-ring-dark:url(${plateRingDark.url})}`);
   const pod = (rim, rimHi, rimLo, inner, g1, g2, base) => glassSkin({ w: 16, h: 16, r: 3, slice: 5, base: 1, rim, rimHi, rimLo, inner, glass: g1, glass2: g2, baseColor: base, dither: false });
   add('.sk-pod', pod('#5ac8ff', '#d8f6ff', '#1e62b0', '#081040', '#2c56c0', '#18307e', '#163c8a'), '--liq:#4fb0ff;--liq2:#1a52b0;');
   add('.sk-pod-gold', pod('#ffc21a', '#fff6c0', '#a8600e', '#2a1406', '#a86a1a', '#5a3008', '#8a4e0c'), '--liq:#ffc21a;--liq2:#c8640e;');
@@ -485,7 +617,8 @@ export function injectSkins() {
   // neon lab signs (ribbons)
   for (const k of ['pink', 'blue', 'gold', 'green', 'purple', 'red']) {
     const rb = signSkin({ fill: NEON[k] });
-    rules.push(`.sk-ribbon-${k}{border-style:solid;border-image:url(${rb.url}) ${rb.sliceY} ${rb.sliceX} fill / calc(${rb.sliceY} * var(--px)) calc(${rb.sliceX} * var(--px)) / 0 stretch;border-width:calc(${rb.sliceY} * var(--px)) calc(${rb.sliceX} * var(--px));--neon:${NEON[k]};}`);
+    const sy = rb.sliceY / rb.hd, sx = rb.sliceX / rb.hd;
+    rules.push(`.sk-ribbon-${k}{border-style:solid;border-image:url(${rb.url}) ${rb.sliceY} ${rb.sliceX} fill / calc(${sy} * var(--px)) calc(${sx} * var(--px)) / 0 stretch;border-width:calc(${sy} * var(--px)) calc(${sx} * var(--px));--neon:${NEON[k]};}`);
   }
   // textures
   const wave = waveTiles();
@@ -541,7 +674,7 @@ export function ensureSkin(kind, hex) {
     sk = glassSkin({ w: 24, h: 24, r: 5, slice: 7, rim: mixHex(c, '#ffffff', 0.25), rimHi: mixHex(c, '#ffffff', 0.8), rimLo: shadeHex(c, -0.4), inner: mixHex(c, '#05071a', 0.85), glass: mixHex(c, '#1a2466', 0.6), glass2: mixHex(c, '#0b1036', 0.8), baseColor: shadeHex(c, -0.5), bolts: true });
     extra = `--liq:${c};--liq2:${shadeHex(c, -0.45)};`;
   }
-  const rule = `.${cls}{border-style:solid;border-image:url(${sk.url}) ${sk.slice} fill / calc(${sk.slice} * var(--px)) / 0 stretch;border-width:calc(${sk.slice} * var(--px));--skb:${sk.slice};${extra}}`;
+  const rule = skinRule(`.${cls}`, sk, extra);
   if (!dynStyle) {
     dynStyle = document.createElement('style');
     dynStyle.id = 'pixel-skins-dyn';

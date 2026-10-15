@@ -197,7 +197,7 @@
   position: relative; flex: 1 1 0; max-width: calc(var(--u) * 24); height: calc(var(--u) * 12); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 0.2);
   cursor: pointer; background: none; border: none; color: #fff; transition: transform 0.15s cubic-bezier(.2, 1.5, .4, 1), background 0.15s; touch-action: manipulation;
 }
-.hm-tabbtn .pi { position: relative; z-index: 1; width: calc(var(--u) * 7.2); height: calc(var(--u) * 7.2); transition: transform 0.15s; filter: saturate(0.75) brightness(0.85); }
+.hm-tabbtn .pi { position: relative; z-index: 1; width: calc(var(--u) * 7.2); height: calc(var(--u) * 7.2); transition: transform 0.15s; filter: saturate(0.85) brightness(0.92); }
 .hm-tabbtn .tl { position: relative; z-index: 1; font-family: var(--font-d); font-size: 0.78em; text-shadow: var(--outline-thin); line-height: 1; opacity: 0.55; color: #c8d4ff; transition: opacity 0.15s; }
 .hm-tabbtn:active:not(.on) .pi { transform: scale(0.86, 0.8); }
 .hm-tabbtn.on .tl { color: #fff; }

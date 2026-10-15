@@ -372,8 +372,14 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
 .banner-big {
   position: absolute; left: 50%; top: 38%; translate: -50% -50%; z-index: 55; pointer-events: none; text-align: center;
   font-family: var(--font-d); font-size: clamp(36px, calc(var(--u) * 15), 130px); letter-spacing: 0.04em; line-height: 0.9; white-space: nowrap;
-  text-shadow: var(--outline), 0 0 calc(var(--u) * 3) currentColor, 0 0 calc(var(--u) * 6) rgba(0, 0, 0, 0.45); animation: slam 0.45s cubic-bezier(.2, 1.5, .4, 1);
+  /* banded fill built from the banner colour (text-fill transparent keeps `color` as currentColor), outline + extrusion as drop-shadows */
+  -webkit-text-fill-color: transparent; text-shadow: none; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(color-mix(in srgb, currentColor 18%, #fff) 0 24%, color-mix(in srgb, currentColor 55%, #fff) 24% 40%, currentColor 40% 68%, color-mix(in srgb, currentColor 72%, #2a0a30) 68%);
+  filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink))
+    drop-shadow(0 calc(var(--px) * 2.5) 0 color-mix(in srgb, currentColor 45%, #1a0830)) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 2.5) color-mix(in srgb, currentColor 70%, transparent));
+  animation: slam 0.45s cubic-bezier(.2, 1.5, .4, 1);
 }
+.banner-big small { -webkit-text-fill-color: #fff; background: none; }
 .banner-big::before {
   /* electric zap streaks behind the slam text */
   content: ''; position: absolute; left: -12%; right: -12%; top: 50%; height: calc(var(--px) * 5); translate: 0 -50%; z-index: -1; opacity: 0.8;
@@ -429,63 +435,110 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
 @keyframes ring { 0% { width: 16px; height: 16px; opacity: 1; } 100% { width: calc(var(--u) * 20); height: calc(var(--u) * 20); opacity: 0; } }
 .tut-tip { position: absolute; z-index: 70; translate: -50% -100%; pointer-events: none; padding: 0.1em 0.5em; color: var(--ink); background: var(--gold); font-family: var(--font-d); font-size: 1.1em; box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #fff6b8, 0 0 calc(var(--px) * 4) rgba(255, 216, 74, 0.7); white-space: nowrap; }
 
-/* ---------------------------------------------------------------- game cards (specimens in glass cases) */
+/* ---------------------------------------------------------------- game cards (premium collectible specimens) */
 .gcard {
   --rc: var(--r-common);
   position: relative; width: calc(var(--u) * 19); aspect-ratio: 0.8; flex: none; cursor: pointer; transition: transform 0.12s;
+  container-type: inline-size;
 }
+.gcard.rare { --rc: var(--r-rare); }
+.gcard.epic { --rc: var(--r-epic); }
+.gcard.legendary { --rc: var(--r-legendary); }
+.gcard.mythic { --rc: var(--r-mythic); }
+/* the stage: rarity spotlight from above, deep tank gradient, floor glow */
 .gcard .art {
-  position: absolute; inset: calc(var(--pxs) * 2); overflow: hidden; z-index: 0;
+  position: absolute; inset: calc(var(--pxs) * 2.5); overflow: hidden; z-index: 0;
   background:
-    radial-gradient(ellipse at 50% 108%, color-mix(in srgb, var(--rc) 55%, transparent) 0 30%, transparent 62%),
-    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--rc) 42%, #2a3a9a) 0%, #141c58 72%);
+    radial-gradient(ellipse 62% 16% at 50% 84%, color-mix(in srgb, var(--rc) 70%, #fff) 0 30%, color-mix(in srgb, var(--rc) 45%, transparent) 31% 58%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 0%, color-mix(in srgb, var(--rc) 55%, transparent) 0 22%, color-mix(in srgb, var(--rc) 28%, transparent) 23% 44%, transparent 46%),
+    linear-gradient(#26368e 0 18%, #1f2c7a 18% 40%, #19236a 40% 62%, #141b56 62% 80%, #0f1546 80%);
+}
+.gcard .art > .stage {
+  /* slow pixel sunburst behind the Swarm */
+  position: absolute; left: -30%; right: -30%; top: -12%; aspect-ratio: 1; pointer-events: none; z-index: 0;
+  background: var(--tx-rays-w) center / 100% 100% no-repeat; opacity: 0.16; image-rendering: pixelated;
 }
 .gcard .art::before {
-  /* tank bubbles behind the Swarm */
-  content: ''; position: absolute; inset: 0; opacity: 0.32;
+  /* tank bubbles + blueprint grid behind the Swarm */
+  content: ''; position: absolute; inset: 0; opacity: 0.3; z-index: 0;
   background: var(--tx-bubbles-sm) 0 0 / calc(16 * var(--pxs)) calc(24 * var(--pxs)), var(--tx-grid) 0 0 / calc(8 * var(--pxs)) calc(8 * var(--pxs));
 }
 .gcard .art::after {
-  /* glass case reflection */
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
-  background: linear-gradient(118deg, rgba(255, 255, 255, 0.16) 0 14%, transparent 14% 21%, rgba(255, 255, 255, 0.08) 21% 24%, transparent 24%);
+  /* glass case reflection + bottom vignette */
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background:
+    linear-gradient(118deg, rgba(255, 255, 255, 0.18) 0 13%, transparent 13% 20%, rgba(255, 255, 255, 0.09) 20% 23%, transparent 23%),
+    linear-gradient(transparent 70%, rgba(6, 4, 24, 0.45) 70% 84%, rgba(6, 4, 24, 0.7) 84%);
 }
-.gcard .art img { position: absolute; left: -6%; top: -4%; width: 112%; height: 100%; object-fit: contain; image-rendering: auto; }
-.gcard .frame { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.gcard .art img { position: absolute; left: -6%; top: -4%; width: 112%; height: 100%; object-fit: contain; image-rendering: auto; z-index: 1; filter: drop-shadow(0 calc(var(--pxs) * 1.5) 0 rgba(6, 4, 24, 0.55)); }
+.gcard .frame { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-image-width: min(calc(9 * var(--pxs)), 17cqw); }
+/* POWER cost orb */
 .gcard .cost {
-  position: absolute; z-index: 3; left: calc(var(--u) * -1.6); top: calc(var(--u) * -1.8); width: calc(var(--u) * 7.4); height: calc(var(--u) * 7.4);
-  display: flex; align-items: center; justify-content: center; padding-top: calc(var(--u) * 0.2);
-  font-family: var(--font-d); font-size: calc(var(--u) * 5); text-shadow: var(--outline-thin);
+  position: absolute; z-index: 4; left: calc(var(--u) * -1.6); top: calc(var(--u) * -1.8); width: calc(var(--u) * 7.4); height: calc(var(--u) * 7.4);
+  display: flex; align-items: center; justify-content: center; padding-top: calc(var(--u) * 0.3);
+  font-family: var(--font-d); font-size: calc(var(--u) * 5); color: #fff;
+  text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 2) rgba(120, 180, 255, 0.9);
   background: center / 100% 100% no-repeat; image-rendering: pixelated;
+  filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(90, 156, 255, 0.7));
 }
+/* rarity crest: a cut gem set into the top of the frame */
+.gcard .rgem { position: absolute; z-index: 3; left: 50%; top: calc(var(--pxs) * -2.5); width: 24%; height: auto; translate: -50% 0; pointer-events: none; filter: drop-shadow(0 0 calc(var(--px) * 1.5) color-mix(in srgb, var(--rc) 80%, transparent)); }
+/* level: a folded rarity ribbon across the bottom of the frame */
 .gcard .lvl {
-  position: absolute; z-index: 3; left: calc(var(--pxs) * 3); right: calc(var(--pxs) * 3); bottom: calc(var(--pxs) * 3); padding: 0.05em 0 0.12em;
-  text-align: center; font-family: var(--font-d); font-size: calc(var(--u) * 3.4); text-shadow: var(--outline-thin);
-  background: linear-gradient(rgba(10, 8, 30, 0.2), rgba(10, 8, 30, 0.85));
+  position: absolute; z-index: 3; left: 6%; right: 6%; bottom: calc(var(--pxs) * 2.5); padding: 0.08em 0 0.14em;
+  text-align: center; font-family: var(--font-d); font-size: calc(var(--u) * 3.4); line-height: 1; color: #fff; text-shadow: var(--outline-thin);
+  background:
+    linear-gradient(var(--ink) 0 var(--pxs), color-mix(in srgb, var(--rc) 45%, #fff) var(--pxs) calc(var(--pxs) * 2), color-mix(in srgb, var(--rc) 82%, #1a1040) calc(var(--pxs) * 2) 58%, color-mix(in srgb, var(--rc) 52%, #0d0a1f) 58% calc(100% - var(--pxs)), var(--ink) calc(100% - var(--pxs)));
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--pxs) * 3) 50%, 100% 100%, 0 100%, calc(var(--pxs) * 3) 50%);
 }
-.gcard .lvl.max { color: var(--gold); }
+.gcard.locked .lvl { --rc: #4a5478; }
+.gcard .lvl.max { color: var(--gold); --rc: #ffc21a; color: #fff6c8; }
 .gcard .copies { position: absolute; z-index: 3; left: calc(var(--px) * -1); right: calc(var(--px) * -1); bottom: calc(var(--u) * -4.6); height: calc(var(--u) * 4.2); }
 .gcard .copies .lbl { font-size: calc(var(--u) * 3); }
 .gcard .copies.ready { --bl: #c8ff9a; --bc: #4cd24a; --bd: #2a8e30; }
 .gcard .copies.ready > .fill { box-shadow: inset calc(var(--px) * -1) 0 0 rgba(255, 255, 255, 0.55), 0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.8); }
 .gcard .copies .up { position: absolute; left: calc(var(--u) * -2.2); top: 50%; translate: 0 -50%; width: calc(var(--u) * 5); height: calc(var(--u) * 5); z-index: 2; animation: upBob 0.8s ease-in-out infinite; }
 @keyframes upBob { 50% { translate: 0 calc(-50% - var(--px) * 1.5); } }
-.gcard .shiny { position: absolute; z-index: 3; right: calc(var(--px) * 3); top: calc(var(--px) * 3); width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); }
+.gcard .shiny { position: absolute; z-index: 4; right: calc(var(--px) * 2); top: calc(var(--px) * 2); width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 255, 255, 0.8)); animation: shinyTwinkle 2.4s steps(1) infinite; }
+@keyframes shinyTwinkle { 0%, 80% { transform: none; } 84% { transform: scale(1.25) rotate(12deg); } 88% { transform: scale(0.95); } }
 .gcard.locked .art { filter: grayscale(1) brightness(0.35); }
 .gcard.locked .art img { filter: brightness(0) opacity(0.6); }
-.gcard.spell .art { background: radial-gradient(ellipse at 50% 108%, color-mix(in srgb, var(--rc) 55%, transparent) 0 30%, transparent 62%), radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--rc) 45%, #6a2a9a) 0%, #2a1458 70%); }
+.gcard.locked .art > .stage { display: none; }
+.gcard.spell .art {
+  background:
+    radial-gradient(ellipse 62% 16% at 50% 84%, color-mix(in srgb, var(--rc) 70%, #fff) 0 30%, color-mix(in srgb, var(--rc) 45%, transparent) 31% 58%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 0%, color-mix(in srgb, var(--rc) 55%, transparent) 0 22%, color-mix(in srgb, var(--rc) 28%, transparent) 23% 44%, transparent 46%),
+    linear-gradient(#5a2a9e 0 18%, #4a2088 18% 40%, #3c1874 40% 62%, #30125e 62% 80%, #240c4a 80%);
+}
 .gcard.mini { width: calc(var(--u) * 12); }
-.gcard.mini .lvl { font-size: calc(var(--u) * 2.4); }
+.gcard.mini .lvl { font-size: calc(var(--u) * 2.4); left: 3%; right: 3%; }
 .gcard.mini .cost { width: calc(var(--u) * 5.2); height: calc(var(--u) * 5.2); font-size: calc(var(--u) * 3.6); }
+.gcard.mini .shiny { width: calc(var(--u) * 3.2); height: calc(var(--u) * 3.2); }
 .gcard.big { width: calc(var(--u) * 32); }
 .gcard.big .cost { width: calc(var(--u) * 10); height: calc(var(--u) * 10); font-size: calc(var(--u) * 7); }
 .gcard.big .lvl { font-size: calc(var(--u) * 4.6); }
+.gcard.big .rgem { width: 20%; }
 .gcard.epic .frame, .gcard.legendary .frame, .gcard.mythic .frame { filter: drop-shadow(0 0 calc(var(--px) * 1.5) color-mix(in srgb, var(--rc) 70%, transparent)); }
 .gcard.legendary .frame::after, .gcard.mythic .frame::after {
   content: ''; position: absolute; inset: calc(var(--px) * -1); pointer-events: none; mix-blend-mode: screen;
   background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.45) 42%, transparent 54%) no-repeat; background-size: 260% 100%;
   animation: shineSweep 3s ease-in-out infinite;
 }
+/* legendary / mythic: a few sparkles drift over the stage */
+.gcard.legendary .art > .stage::after, .gcard.mythic .art > .stage::after { content: ''; position: absolute; inset: 0; background: var(--tx-stars) 0 0 / 30% 30%; opacity: 0; }
+.gcard.legendary .art > .stage, .gcard.mythic .art > .stage { opacity: 0.24; }
+/* shiny variants: holographic foil band sweeping across the art + sparkle field */
+.gcard.foil .art > .foil-fx {
+  position: absolute; top: 0; bottom: 0; left: -100%; width: 300%; z-index: 2; pointer-events: none; mix-blend-mode: color-dodge; opacity: 0.55;
+  background:
+    linear-gradient(115deg, transparent 0 28%, #ff5ac8 31%, #ffe46a 35%, #6affc8 39%, #5aa8ff 43%, #c87aff 47%, transparent 50% 100%),
+    var(--tx-stars) 0 0 / calc(10 * var(--pxs)) calc(10 * var(--pxs));
+  animation: foilSweep 3.2s steps(28) infinite;
+}
+.gcard.foil.v-gold .art > .foil-fx { background: linear-gradient(115deg, transparent 0 28%, #fff2a0 31%, #ffc21a 36%, #fffadc 41%, #ffb21a 46%, transparent 50% 100%), var(--tx-stars) 0 0 / calc(10 * var(--pxs)) calc(10 * var(--pxs)); }
+.gcard.foil.v-silver .art > .foil-fx { background: linear-gradient(115deg, transparent 0 30%, #e4eaf8 34%, #ffffff 39%, #9aa6c8 44%, transparent 49% 100%), var(--tx-stars) 0 0 / calc(10 * var(--pxs)) calc(10 * var(--pxs)); opacity: 0.45; }
+.gcard.foil .frame { filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 255, 255, 0.55)); }
+@keyframes foilSweep { 0% { transform: translateX(-12%); } 100% { transform: translateX(34%); } }
 
 /* ---------------------------------------------------------------- generic animations */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -557,15 +610,52 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
 @keyframes bootFizz { to { background-position: 0 -36px, 0 0; } }
 #boot .boot-tip { font-family: 'Pixelify Sans', sans-serif; color: #9ff4ff; text-shadow: 0 0 8px rgba(127, 230, 255, 0.6); }
 
-/* ---------------------------------------------------------------- title logo (title.js injects its own sheet; #ui raises specificity) */
-#ui .tt-logo .l1 { text-shadow: var(--outline), 0 calc(var(--px) * 4) 0 #ff2e88, 0 calc(var(--px) * 6) 0 var(--ink), 0 0 calc(var(--u) * 4) rgba(255, 46, 136, 0.65); }
-#ui .tt-logo .l2 { text-shadow: var(--outline), 0 calc(var(--px) * 4) 0 #d8861a, 0 calc(var(--px) * 7) 0 var(--ink), 0 0 calc(var(--u) * 5) rgba(255, 216, 74, 0.7); }
-#ui .tt-logo .tag {
-  background: linear-gradient(#5cc0ff 0 22%, #2b8cf2 22% 78%, #1a52b0 78%);
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #c4ecff, 0 0 calc(var(--px) * 5) rgba(79, 200, 255, 0.85);
+/* ---------------------------------------------------------------- title logo (title.js injects its own sheet; #ui raises specificity)
+   Layered pixel lettering: banded gradient fill (background-clip: text), a 4-way ink outline, a coloured
+   extrusion, an ink base and a neon glow, all as drop-shadow() filters so they follow the gradient glyphs.
+   SWARMERS letters each carry their own filter, so their bounce stays a cheap composited transform. */
+#ui .tt-logo { --lo: calc(var(--px) * 0.8); }
+#ui .tt-logo .l1, #ui .tt-logo .l2 span {
+  color: transparent; text-shadow: none; -webkit-background-clip: text; background-clip: text;
 }
-#ui .tt-start { color: #fff; text-shadow: var(--outline), 0 0 calc(var(--u) * 3) rgba(127, 230, 255, 0.9); }
+#ui .tt-logo .l1 {
+  background-image: linear-gradient(#ffffff 0 34%, #ffeaf4 34% 52%, #ffc4e0 52% 70%, #ff9acc 70% 86%, #ff7ab8 86%);
+  filter: drop-shadow(var(--lo) 0 0 var(--ink)) drop-shadow(calc(var(--lo) * -1) 0 0 var(--ink)) drop-shadow(0 var(--lo) 0 var(--ink)) drop-shadow(0 calc(var(--lo) * -1) 0 var(--ink))
+    drop-shadow(0 calc(var(--px) * 2) 0 #ff2e88) drop-shadow(0 calc(var(--px) * 1.5) 0 #a8145a) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 2.5) rgba(255, 46, 136, 0.6));
+}
+#ui .tt-logo .l2 span {
+  background-image: linear-gradient(#fffbe0 0 16%, #fff2a0 16% 30%, #ffe14a 30% 50%, #ffc21a 50% 68%, #ff9a1a 68% 84%, #f07a10 84%);
+  filter: drop-shadow(var(--lo) 0 0 var(--ink)) drop-shadow(calc(var(--lo) * -1) 0 0 var(--ink)) drop-shadow(0 var(--lo) 0 var(--ink)) drop-shadow(0 calc(var(--lo) * -1) 0 var(--ink))
+    drop-shadow(0 calc(var(--px) * 2.5) 0 #d8661a) drop-shadow(0 calc(var(--px) * 2) 0 #8a3a0c) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 2.5) rgba(255, 196, 40, 0.5));
+}
+/* twinkling pixel sparkles around the logo */
+#ui .tt-logo::before, #ui .tt-logo::after {
+  content: ''; position: absolute; pointer-events: none; width: calc(var(--px) * 9); height: calc(var(--px) * 9); z-index: 2;
+  background:
+    linear-gradient(#fff, #fff) 50% 50% / calc(var(--px) * 1) 100% no-repeat,
+    linear-gradient(#fff, #fff) 50% 50% / 100% calc(var(--px) * 1) no-repeat,
+    linear-gradient(#fff2a0, #fff2a0) 50% 50% / calc(var(--px) * 3) calc(var(--px) * 3) no-repeat;
+  filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 236, 140, 0.9));
+  animation: ttTwinkle 2.4s steps(1) infinite;
+}
+#ui .tt-logo::before { left: -4%; top: 8%; }
+#ui .tt-logo::after { right: 12%; bottom: 30%; animation-delay: -1.2s; }
+@keyframes ttTwinkle { 0%, 40% { transform: scale(1); opacity: 1; } 45% { transform: scale(0.5); } 50%, 85% { transform: scale(0); opacity: 0; } 90% { transform: scale(0.6); opacity: 1; } }
+#ui .tt-logo .bolt { width: calc(var(--u) * 19); height: calc(var(--u) * 19); right: calc(var(--u) * -8); top: calc(var(--u) * -6); filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 46, 136, 0.55)); }
+@keyframes ttZap { 50% { filter: drop-shadow(0 0 calc(var(--px) * 5) rgba(255, 120, 200, 0.9)) brightness(1.35); } }
+#ui .tt-logo .tag {
+  position: relative; padding: 0.12em 1.1em 0.22em; color: #fff; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(143, 212, 255, 0.9);
+  background:
+    linear-gradient(var(--ink) 0 var(--px), #d8f2ff var(--px) calc(var(--px) * 2), #7ad0ff calc(var(--px) * 2) 30%, #3a9cff 30% 64%, #2378e0 64% 84%, #1a52b0 84% calc(100% - var(--px)), var(--ink) calc(100% - var(--px)));
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 4) 50%, 100% 100%, 0 100%, calc(var(--px) * 4) 50%);
+  filter: drop-shadow(0 0 calc(var(--px) * 4) rgba(79, 200, 255, 0.85));
+}
+#ui .tt-start { color: #fff; text-shadow: var(--outline), 0 calc(var(--px) * 2) 0 #2b8cf2, 0 calc(var(--px) * 3.5) 0 var(--ink), 0 0 calc(var(--u) * 3) rgba(127, 230, 255, 0.9); }
+@media (prefers-reduced-motion: reduce) {
+  #ui .tt-logo, #ui .tt-logo .l2 span, #ui .tt-logo .bolt, #ui .tt-start, #ui .tt-logo::before, #ui .tt-logo::after { animation: none !important; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .lab-bg::after, .btn.lg::before, .btn.xl::before, .btn.fizz::before, .panel::after, .bar > .fill, .ribbon, .lab-fizz > i, .new-tag, .banner-big::before, .px-rays, .px-stars, .btn.shine::after, .btn.pulse, .badge { animation: none !important; }
+  .lab-bg::after, .btn.lg::before, .btn.xl::before, .btn.fizz::before, .panel::after, .bar > .fill, .ribbon, .lab-fizz > i, .new-tag, .banner-big::before, .px-rays, .px-stars, .btn.shine::after, .btn.pulse, .badge, .gcard .shiny, .gcard.foil .art > .foil-fx, .gcard .frame::after { animation: none !important; }
 }

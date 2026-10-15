@@ -521,16 +521,8 @@ const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
 /** The MrBeast Lab lightning-bolt logo as a tiny pixel-art image. */
 let _bolt = null;
 function iconURL_bolt() {
+  // hi-res shaded emblem: gold-rimmed magenta bolt with a hot core, arcs and sparkles (ui/icons.js 'logoBolt')
   if (_bolt) return _bolt;
-  const rows = [
-    '......kkkkk', '.....kpppk.', '....kpppk..', '...kpppk...', '..kppppkkk.', '.kppppppppk', 'kkkkkpppk..', '...kpppk...', '..kpppk....', '.kppk......', 'kpk........', 'kk.........',
-  ];
-  const c = document.createElement('canvas');
-  c.width = 11; c.height = 12;
-  const ctx = c.getContext('2d');
-  const pal = { k: '#120c24', p: '#ff2e88' };
-  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { ctx.fillStyle = pal[ch]; ctx.fillRect(x, y, 1, 1); } }));
-  _bolt = c.toDataURL();
-  void icon;
+  _bolt = icon('logoBolt').src;
   return _bolt;
 }

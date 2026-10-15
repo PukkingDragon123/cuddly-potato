@@ -1,7 +1,9 @@
-// Game card component (Clash Royale style): 3D-rendered portrait inside a
-// rarity-coloured pixel frame, energy-drop cost badge, level band and the
-// copies progress bar that turns green with a bouncing arrow when the card
-// can be upgraded.
+// Game card component (premium collectible style): the 3D-rendered portrait
+// on a lit specimen stage (rarity spotlight, pixel sunburst, pedestal) inside
+// an ornate HD rarity frame (corner brackets / cut gems grow with rarity), a
+// POWER cost orb, a rarity crest gem, a folded level ribbon, holo foil for
+// shiny variants, and the copies progress bar that turns green with a
+// bouncing arrow when the card can be upgraded.
 import { h, icon, iconURL, bar } from './ui.js';
 import { cardArtImg } from './thumbs.js';
 import { cardDef, isSpell } from '../data/cards.js';
@@ -22,17 +24,19 @@ export function cardEl(id, opts = {}) {
   const variant = opts.variant ?? own?.variant ?? 'base';
   const skin = opts.skin ?? own?.skin ?? null;
   const artSize = opts.artSize ?? (opts.size === 'big' ? 256 : 160);
+  const shiny = variant !== 'base' && VARIANTS[variant];
   const el = h('div', {
-    class: `gcard ${rarity} ${isSpell(id) ? 'spell' : ''} ${locked ? 'locked' : ''} ${opts.size ?? ''} ${opts.cls ?? ''}`,
+    class: `gcard ${rarity} ${isSpell(id) ? 'spell' : ''} ${locked ? 'locked' : ''} ${shiny ? 'foil v-' + variant : ''} ${opts.size ?? ''} ${opts.cls ?? ''}`,
     style: { '--rc': `var(--r-${rarity})` },
     'data-card': id,
   });
-  el.appendChild(h('div', { class: 'art' }, cardArtImg(id, variant, skin, artSize, '', { priority: opts.priority })));
+  el.appendChild(h('div', { class: 'art' }, h('i', { class: 'stage' }), cardArtImg(id, variant, skin, artSize, '', { priority: opts.priority }), shiny ? h('i', { class: 'foil-fx' }) : null));
   el.appendChild(h('div', { class: `frame sk-card-${locked ? 'locked' : rarity}` }));
+  if (!locked && opts.size !== 'mini') el.appendChild(h('img', { class: 'rgem', src: iconURL('rarity_' + rarity), alt: '', draggable: 'false' }));
   if (opts.cost !== false) {
     el.appendChild(h('div', { class: 'cost', style: { backgroundImage: `url(${iconURL('energy')})` } }, String(def.elixir ?? '?')));
   }
-  if (variant !== 'base' && VARIANTS[variant]) el.appendChild(icon(variant === 'chrome' ? 'chrome' : variant === 'gold' ? 'star' : 'chrome', 'shiny'));
+  if (shiny) el.appendChild(icon(variant === 'chrome' ? 'chrome' : variant === 'gold' ? 'star' : 'chrome', 'shiny'));
   if (!opts.noLevel) {
     const lvl = opts.level ?? own?.level;
     if (locked) el.appendChild(h('div', { class: 'lvl' }, icon('lock', 's')));

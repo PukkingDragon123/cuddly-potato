@@ -507,3 +507,53 @@ body.landscape .vs-band .por { width: calc(var(--u) * 21); height: calc(var(--u)
 @media (prefers-reduced-motion: reduce) {
   .bh-base .bhp .f, .bh-sig .chg, .bh-mega .liq, .bh-ebar.maxed::before, .res-base .rb .f, .vs-x::before { animation: none !important; }
 }
+
+/* =========================================================================
+   HD pixel pass: riveted HD metal frames (skin.js --ski-* images drawn as
+   outset border-images, so layouts don't move), banded gradient lettering
+   with drop-shadow outlines + extrusions, and finer pixel trims.
+   ========================================================================= */
+.bh-timer {
+  border: 0 solid transparent; border-image: var(--ski-plate-ring-dark) 12 / calc(5 * var(--px)) / calc(1.5 * var(--px)) stretch;
+  box-shadow: inset 0 0 0 var(--px) rgba(127, 230, 255, 0.35), inset 0 calc(var(--px) * 2) 0 rgba(255, 255, 255, 0.05), 0 0 calc(var(--px) * 5) rgba(63, 200, 255, 0.35);
+}
+.bh-timer::before, .bh-timer::after { display: none; }
+.bh-timer .tm {
+  color: transparent; -webkit-background-clip: text; background-clip: text; text-shadow: none;
+  background-image: linear-gradient(#ffffff 0 38%, #d8f6ff 38% 62%, #8fe4ff 62%);
+  filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink)) drop-shadow(0 calc(var(--o) * 1.6) 0 var(--ink)) drop-shadow(0 0 calc(var(--px) * 3) rgba(127, 230, 255, 0.85));
+}
+.bh-timer.urgent .tm { color: transparent; background-image: linear-gradient(#ffe0e4 0 38%, #ff9aa4 38% 62%, #ff5a6a 62%); }
+.bh-timer.ot .tm { color: transparent; background-image: linear-gradient(#fff2c8 0 38%, #ffc86a 38% 62%, #ff9a2a 62%); }
+.bh-mini { border: 0 solid transparent; border-image: var(--ski-plate-ring-dark) 12 / calc(3 * var(--px)) / calc(1 * var(--px)) stretch; }
+
+/* VS intro: framed portraits, gradient VS */
+.vs-band .por { border: 0 solid transparent; border-image: var(--ski-plate-ring) 12 / calc(5 * var(--px)) / calc(2 * var(--px)) stretch; box-shadow: inset 0 0 0 var(--px) rgba(255, 255, 255, 0.4), 0 0 calc(var(--px) * 5) rgba(255, 255, 255, 0.35); }
+.vs-band .deck img { box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 0 0 calc(var(--px) * 0.67) rgba(255, 255, 255, 0.4); }
+.vs-band::before {
+  /* fine diagonal pixel sheen across the band */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(115deg, transparent 0 calc(var(--px) * 14), rgba(255, 255, 255, 0.07) calc(var(--px) * 14) calc(var(--px) * 18));
+}
+.vs-x {
+  color: transparent; -webkit-background-clip: text; background-clip: text; text-shadow: none;
+  background-image: linear-gradient(#fffbe0 0 22%, #fff2a0 22% 38%, #ffe14a 38% 56%, #ffc21a 56% 74%, #ff8a1f 74%);
+  filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink))
+    drop-shadow(0 calc(var(--px) * 3) 0 #c0500e) drop-shadow(0 calc(var(--px) * 2) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 3) rgba(255, 200, 60, 0.85));
+}
+
+/* result screen: banded slam lettering, riveted reward tiles, pixel stamp */
+.res-title {
+  color: transparent; -webkit-background-clip: text; background-clip: text; text-shadow: none;
+  background-image: linear-gradient(#fffbe0 0 20%, #fff2a0 20% 36%, #ffe14a 36% 54%, #ffc21a 54% 72%, #ff9a1a 72%);
+  filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink))
+    drop-shadow(0 calc(var(--px) * 3) 0 #b8500e) drop-shadow(0 calc(var(--px) * 2) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 3) rgba(255, 210, 74, 0.7));
+}
+.res-title.loss { color: transparent; background-image: linear-gradient(#ffe0e4 0 20%, #ffb0b8 20% 36%, #ff7a84 36% 54%, #f23a4a 54% 72%, #b81a2c 72%); filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3) 0 #6a0a1a) drop-shadow(0 calc(var(--px) * 2) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 3) rgba(255, 60, 80, 0.6)); }
+.res-title.draw { color: transparent; background-image: linear-gradient(#ffffff 0 20%, #e8f0ff 20% 36%, #cfe0ff 36% 54%, #a8b8e0 54% 72%, #7e8aa8 72%); filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3) 0 #3a4470) drop-shadow(0 calc(var(--px) * 2) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 3) rgba(160, 200, 255, 0.5)); }
+.res-rw .pi { filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 236, 140, 0.45)); }
+.res-stamp { box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.2) #fff, 0 0 0 calc(var(--px) * 3.2) var(--ink), 0 calc(var(--px) * 3) 0 calc(var(--px) * 3) rgba(0, 0, 0, 0.35); background-image: linear-gradient(#ff9aa4 0 calc(var(--px) * 1.5), transparent calc(var(--px) * 1.5)); }
+.res-stamp.good { background: linear-gradient(#ffffff 0 calc(var(--px) * 1.5), #fff6b8 calc(var(--px) * 1.5) 18%, #ffc21a 18% 76%, #d8861a 76%); }
+
+/* MEGA cell: riveted containment frame */
+.bh-mega { border: 0 solid transparent; border-image: var(--ski-plate-ring) 12 / calc(4 * var(--px)) / 0 stretch; }

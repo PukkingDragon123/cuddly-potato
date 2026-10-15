@@ -69,3 +69,34 @@
 
 /* HUD tucks away while the cutscene owns the screen */
 body.cine .bhud, body.cine #world-ui { opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s; }
+
+/* ---- HD pixel pass ---------------------------------------------------- */
+/* letterbox: riveted steel edge with a hazard stripe + glowing seam */
+.mc-bar::after {
+  content: ''; position: absolute; left: 0; right: 0; height: calc(var(--px, 3px) * 4);
+  background:
+    radial-gradient(circle, #eef4ff 0 30%, #6a7898 34% 46%, transparent 50%) 0 50% / calc(var(--px, 3px) * 16) 100% repeat-x,
+    var(--tx-hazard) 0 0 / calc(8 * var(--px, 3px)) calc(8 * var(--px, 3px));
+  box-shadow: 0 0 0 calc(var(--px, 3px) * 0.67) #05030c;
+}
+.mc-bar.top::after { bottom: 0; }
+.mc-bar.bot::after { top: 0; }
+/* alarm strip: pixel hazard texture, ink seams, glowing text */
+.mc-warn {
+  background: var(--tx-hazard) 0 0 / calc(8 * var(--px, 3px)) calc(8 * var(--px, 3px));
+  box-shadow: 0 calc(var(--px, 3px) * -1) 0 #05030c, 0 var(--px, 3px) 0 #05030c, 0 0 calc(var(--px, 3px) * 6) rgba(255, 194, 26, 0.6);
+  text-shadow: -2px -2px 0 #05030c, 2px -2px 0 #05030c, -2px 2px 0 #05030c, 2px 2px 0 #05030c, 0 3px 0 #05030c, 0 0 10px var(--mb);
+}
+/* name slam: the gradient now actually shows (transparent fill) with drop-shadow outlines + extrusion */
+.mc-title span {
+  color: transparent; -webkit-text-stroke: 0; text-shadow: none;
+  background: linear-gradient(180deg, #ffffff 0 30%, color-mix(in srgb, var(--mc) 35%, #fff) 30% 48%, var(--mc) 48% 74%, color-mix(in srgb, var(--mc) 70%, #000) 74%);
+  -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(3px 0 0 #05030c) drop-shadow(-3px 0 0 #05030c) drop-shadow(0 3px 0 #05030c) drop-shadow(0 -3px 0 #05030c)
+    drop-shadow(0 5px 0 color-mix(in srgb, var(--mb) 60%, #000)) drop-shadow(0 3px 0 #05030c) drop-shadow(0 0 18px var(--mc));
+}
+@keyframes mc-shine { 50% { opacity: 0.88; } }
+.mc-title small { box-shadow: 0 0 0 3px #05030c, 0 0 0 5px #fff, 0 0 0 7px #05030c, 0 0 16px var(--mb); background-image: linear-gradient(rgba(255, 255, 255, 0.45) 0 3px, transparent 3px); }
+@media (prefers-reduced-motion: reduce) {
+  .mc-warn.on, .mc-title.go span, .mc-wrap.in:has(.mc-title.go)::before { animation: none !important; }
+}
