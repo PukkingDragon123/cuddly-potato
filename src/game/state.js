@@ -3,7 +3,7 @@
 // Lab Level XP, vial slots + cycle + free/crown vials, trophy road, arenas).
 import { SWARMS, VARIANTS, MAX_LEVEL } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
-import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_TROOPS, UPGRADE, UPGRADE_XP } from '../data/cards.js';
+import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_TROOPS, UPGRADE, UPGRADE_XP, lineupSlots } from '../data/cards.js';
 import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS, rollPerk, PERK_ROLL_COST, perkSlotsForLevel } from '../data/commanders.js';
 import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId } from '../data/vials.js';
 import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
@@ -156,7 +156,10 @@ function sanitize(p) {
   }
   // fill empty preset slots from the collection
   const d = p.decks[p.deckIdx];
-  for (const id of Object.keys(p.cards)) if (d.length < DECK_SIZE && !d.includes(id)) d.push(id);
+  const slots = lineupSlots(Math.max(p.bestTrophies ?? 0, p.trophies ?? 0));
+  p.decks = p.decks.map((dk) => dk.slice(0, slots));
+  const d2 = p.decks[p.deckIdx];
+  for (const id of Object.keys(p.cards)) if (d2.length < slots && !d2.includes(id)) d2.push(id);
 }
 
 const P = () => state.p;
@@ -232,7 +235,8 @@ export function addLabXp(n) {
 export const owned = (id) => P().cards[id] || null;
 export const cardLevel = (id) => P().cards[id]?.level ?? 1;
 export const currentDeck = () => P().decks[P().deckIdx];
-export const deckSlotCount = () => DECK_SIZE;
+export const deckSlotCount = () => lineupSlots(Math.max(P().bestTrophies ?? 0, P().trophies ?? 0));
+export const lineupSize = deckSlotCount;
 
 export function grantCard(id, copies = 1, variant = 'base') {
   const p = P();
@@ -251,7 +255,7 @@ export function grantCard(id, copies = 1, variant = 'base') {
     e.variant = variant; // auto-equip the shiny!
   }
   const d = currentDeck();
-  if (isNew && d.length < DECK_SIZE && !d.includes(id)) d.push(id);
+  if (isNew && d.length < deckSlotCount() && !d.includes(id)) d.push(id);
   state.emit('cards');
   return { isNew, newVariant };
 }
@@ -294,11 +298,11 @@ export function setDeckCard(slot, id) {
   if (at >= 0) {
     if (slot < d.length) [d[at], d[slot]] = [d[slot], d[at]];
   } else if (slot < d.length) d[slot] = id;
-  else if (d.length < DECK_SIZE) d.push(id);
+  else if (d.length < deckSlotCount()) d.push(id);
   state.emit('deck');
 }
 export function setDeck(ids) {
-  P().decks[P().deckIdx] = ids.filter((id) => owned(id)).slice(0, DECK_SIZE);
+  P().decks[P().deckIdx] = ids.filter((id) => owned(id)).slice(0, deckSlotCount());
   state.emit('deck');
 }
 export function selectDeck(i) {

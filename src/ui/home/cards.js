@@ -7,8 +7,8 @@
 import { h, icon, button, sparkle } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { audio } from '../../core/audio.js';
-import { state, upgradeInfo, currentDeck, setDeckCard, selectDeck } from '../../game/state.js';
-import { ALL_CARDS, cardDef, DECK_SIZE, DECK_PRESETS, avgElixir, RARITIES } from '../../data/cards.js';
+import { state, upgradeInfo, currentDeck, setDeckCard, selectDeck, deckSlotCount } from '../../game/state.js';
+import { ALL_CARDS, cardDef, DECK_SIZE, DECK_PRESETS, avgElixir, RARITIES, LINEUP_UNLOCKS } from '../../data/cards.js';
 import { arenaById } from '../../data/arenas.js';
 import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmtN } from './common.js';
 import { openCardInfo } from './cardInfo.js';
@@ -126,6 +126,7 @@ export function mount(el, ctx) {
       }));
     // the Battle Cats-style lineup: 10 slots, 2 rows of 5
     const grid = h('div', { class: `mn-deck lineup ${swapId ? 'swapping' : ''}`, style: { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', rowGap: 'calc(var(--u) * 5.4)', columnGap: 'calc(var(--u) * 1)' } });
+    const slots = deckSlotCount();
     for (let i = 0; i < DECK_SIZE; i++) {
       const id = deck[i];
       const cell = h('div', { class: `mn-cc ${i === justPlaced ? 'placed' : ''}`, style: { '--i': i, '--cwl': 'calc(var(--u) * 17)' } });
@@ -135,6 +136,13 @@ export function mount(el, ctx) {
         ce.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.appendChild(ce);
         if (up && !up.max && up.ok) cell.classList.add('can-up');
+      } else if (i >= slots) {
+        // locked lineup slot: opens at a trophy count
+        const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: { flexDirection: 'column', opacity: 0.8 } },
+          icon('lock', 's'), h('span', { class: 't-d c-gold', style: { fontSize: '0.8em', display: 'flex', alignItems: 'center', gap: '0.15em' } }, icon('trophy', 's'), String(LINEUP_UNLOCKS[i]))));
+        em.style.width = 'min(100%, calc(var(--u) * 17))';
+        cell.classList.add('lockd-slot');
+        cell.appendChild(em);
       } else {
         const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot' }, h('span', { class: 't-d' }, '+')));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
@@ -142,6 +150,7 @@ export function mount(el, ctx) {
       }
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (i >= slots) { audio.play('deny'); ctx.toast?.(`Lineup slot ${i + 1} unlocks at *${LINEUP_UNLOCKS[i]}* trophies!`, { icon: 'trophy' }); return; }
         if (swapId) return placeInto(i);
         if (id) openPop(cell, id, 'deck', i);
         else audio.play('deny');
@@ -157,7 +166,7 @@ export function mount(el, ctx) {
     const foot = h('div', { class: 'mn-deck-foot' },
       h('div', { class: 'mn-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average POWER'), h('b', { class: 't-d outline t-lg' }, avg ? avg.toFixed(1) : '-'))),
       h('span', { class: 'spacer' }),
-      chip([icon('cards', 's'), h('b', {}, `${deck.length}/${DECK_SIZE}`)], deck.length < DECK_SIZE ? 'warn' : ''));
+      chip([icon('cards', 's'), h('b', {}, `${deck.length}/${deckSlotCount()}`)], deck.length < deckSlotCount() ? 'warn' : ''));
     const box = h('div', { class: 'panel sk-panel mn-deckbox' }, tabs, grid, foot);
     const parts = [secHead('BATTLE LINEUP', 'blue'), box];
     if (swapId) {
@@ -166,7 +175,7 @@ export function mount(el, ctx) {
         h('div', { class: 'mn-swapcard' }, cardEl(swapId, { priority: true })),
         h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)' } },
           h('b', { class: 't-d outline t-lg c-gold' }, d.name),
-          h('span', { class: 'mn-swap-tip' }, deck.length < DECK_SIZE ? 'Tap an empty slot or a Swarm in your lineup to swap it in!' : 'Tap a Swarm in your lineup to swap it out!'),
+          h('span', { class: 'mn-swap-tip' }, deck.length < deckSlotCount() ? 'Tap an empty slot or a Swarm in your lineup to swap it in!' : 'Tap a Swarm in your lineup to swap it out!'),
           button('CANCEL', cancelSwap, 'red sm', { icon: 'x' }))));
     }
     return parts;

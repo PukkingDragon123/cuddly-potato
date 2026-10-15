@@ -198,8 +198,10 @@ export class BattleScene {
   canAct() {
     return this.ready && !this.ended && !this.sim.over && !this.sim.cinematic && !(this.sim.paused && !(this.sim instanceof RemoteSim));
   }
+  // the tutorial only points at things: it never blocks your controls
   allowed(what) {
-    return !this.lockInput || this.lockInput === what || (this.lockInput === 'deploy' && what.startsWith('deploy'));
+    void what;
+    return true;
   }
   card(slot) {
     return this.sim.handCard(0, slot);
@@ -220,13 +222,13 @@ export class BattleScene {
     if (!this.canAct() || !this.allowed('deploy' + slot)) return;
     const c = this.card(slot);
     if (!c) return;
-    // troops: straight out of the base (Battle Cats style)
+    const wasSel = this.sel === slot;
+    // troops: a tap sends them out of the base (Battle Cats style), a drag drops them on the field
     if (!c.spell) {
       this.select(-1);
-      this.deploy(slot, null);
+      this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel: false, over: false, x: null, troopTap: true };
       return;
     }
-    const wasSel = this.sel === slot;
     this.select(slot);
     this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel, over: false, x: null };
   }
@@ -429,6 +431,7 @@ export class BattleScene {
       if (d && e.pointerId === d.id) {
         if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > TAP_MOVE) {
           d.moved = true;
+          if (d.troopTap) this.select(d.slot);
           this.hud.dragStart(d.slot);
         }
         if (d.moved) {
@@ -460,7 +463,9 @@ export class BattleScene {
         if (d.moved) {
           if (d.over && d.x !== null && d.x !== undefined) this.deploy(d.slot, d.x);
           else { this.view.setGhost(null); this.view.setAim(null); }
-        } else if (d.wasSel) this.select(-1);
+          if (d.troopTap) this.select(-1);
+        } else if (d.troopTap) this.deploy(d.slot, null);
+        else if (d.wasSel) this.select(-1);
         return;
       }
       const f = this.fieldPtr;

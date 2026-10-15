@@ -14,6 +14,9 @@ export const cardElixir = (id) => cardDef(id)?.elixir ?? 3;
 export const rarityOf = (id) => RARITIES[cardDef(id)?.rarity ?? 'common'];
 // a Battle Cats-style lineup: up to 10 slots (2 rows of 5) in battle
 export const DECK_SIZE = 10;
+// lineup slots unlock with your best trophies: 2 at the start, the 10th at 600
+export const LINEUP_UNLOCKS = [0, 0, 10, 30, 70, 130, 190, 250, 280, 600];
+export const lineupSlots = (bestTrophies = 0) => LINEUP_UNLOCKS.filter((t) => bestTrophies >= t).length;
 export const DECK_PRESETS = 3;
 export { MAX_LEVEL, UPGRADE, UPGRADE_XP, RARITIES };
 

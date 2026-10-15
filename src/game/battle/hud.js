@@ -12,7 +12,7 @@ import './lineup.css';
 import { h, icon, iconURL, button, bigBanner, speech, sparkle, bump } from '../../ui/ui.js';
 import { cardEl } from '../../ui/cards.js';
 import { charPortrait, cardArtImg } from '../../ui/thumbs.js';
-import { cardDef } from '../../data/cards.js';
+import { cardDef, LINEUP_UNLOCKS } from '../../data/cards.js';
 import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
 import { MEGAS } from '../../data/megas.js';
 import { swarmThumb } from '../../ui/thumbs.js';
@@ -182,9 +182,10 @@ export class BattleHUD {
         e.preventDefault();
         audio.unlock();
         if (slot.card) handlers.press(i, e);
-        else this.hint('Unlock more Swarms on the Trophy Road and in vials!');
+        else if (i < (cfg.sides[0].lineupSlots ?? LINEUP_MAX)) this.hint('Empty slot: add a Swarm in your lineup (Cards tab)!');
+        else this.hint(`Lineup slot ${i + 1} unlocks at ${LINEUP_UNLOCKS[i]} trophies!`);
       });
-      const slot = { el, key: null, card: null, wasCool: false };
+      const slot = { el, key: undefined, card: null, wasCool: false };
       return slot;
     });
     this.lineup = h('div', { class: 'bh-lineup' }, this.slots.map((s) => s.el));
@@ -229,8 +230,11 @@ export class BattleHUD {
       slot.card = c;
       slot.el.innerHTML = '';
       if (!c) {
-        slot.el.className = 'bh-slot empty';
-        slot.el.appendChild(h('div', { class: 'qm' }, icon('lock')));
+        // locked slots show the trophies they open at (unlocked-but-empty ones a +)
+        const open = i < (this.cfg.sides[0].lineupSlots ?? LINEUP_MAX);
+        slot.el.className = `bh-slot empty${open ? ' open' : ''}`;
+        slot.el.appendChild(h('div', { class: 'qm' }, open ? h('b', { class: 'plus' }, '+') : icon('lock'),
+          open ? null : h('span', { class: 'tro' }, icon('trophy'), String(LINEUP_UNLOCKS[i] ?? ''))));
         return;
       }
       const def = cardDef(c.id);

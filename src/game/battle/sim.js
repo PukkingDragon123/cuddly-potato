@@ -262,8 +262,8 @@ export class BattleSim {
       const tx = x ?? this.densestEnemyX(si)?.x ?? this.sides[1 - si].labX;
       this.castSpell(si, card, Math.max(-FIELD.VIEW_X, Math.min(FIELD.VIEW_X, tx)));
     } else {
-      // troops always pop out of the base (Battle Cats style)
-      this.deployTroop(si, card, s.labX + s.dir * (LAB_HALF + 0.35));
+      // troops pop out of the base (tap) or drop where you dragged them in your half
+      this.deployTroop(si, card, x === null ? s.labX + s.dir * (LAB_HALF + 0.35) : this.clampDeploy(si, x));
     }
     // the slot recharges
     if (!free) s.cds[slot] = this.slotRecharge(si, slot);

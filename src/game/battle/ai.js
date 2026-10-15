@@ -75,7 +75,8 @@ export class BattleAI {
       if (sup.length && this.r() < 0.35 + this.d * 0.5) {
         const back = Math.min(...pushing.map((u) => u.x * dir)) * dir;
         const pick = sup.sort((a, b) => dps(b.def) / b.cost - dps(a.def) / a.cost)[0];
-        sim.play(si, pick.slot, back - dir * 1.4 + (this.r() - 0.5));
+        void back;
+        sim.play(si, pick.slot, null);
         return;
       }
     }
@@ -88,7 +89,8 @@ export class BattleAI {
       // tanks start at the back so support can stack behind; fast units go to the bridge
       const fast = pick.def.speed >= 1.7;
       const x = fast && !tank ? sim.clampDeploy(si, -dir * 1.2) : s.labX + dir * (FIELD.LAB_HALF + 0.5);
-      sim.play(si, pick.slot, x + (this.r() - 0.5) * (1.4 - this.d));
+      void x;
+      sim.play(si, pick.slot, null);
       this.pushStarted = sim.t;
     }
   }
@@ -119,7 +121,8 @@ export class BattleAI {
     if (distToFront > 8.5 && this.r() < this.d * 0.5) return;
     const range = pick.def.range ?? 1;
     const x = range > 2 ? myFront.x + dir * 0.4 : lead.x - dir * (1.3 + this.r() * 0.6);
-    sim.play(si, pick.slot, sim.clampDeploy(si, x));
+    void x;
+    sim.play(si, pick.slot, null);
   }
 
   trySpell(enemies) {

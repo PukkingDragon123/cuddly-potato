@@ -266,3 +266,9 @@ body.landscape .bh-pwr b { font-size: calc(var(--u) * 4.6); }
 @media (prefers-reduced-motion: reduce) {
   .bh-slot.ready::after, .bh-basebtn::before, .bh-pwr b, .bhud .bh-energy .bh-drop, .cmd-charge .bar::after, .bh-slot.sel, .base-badge.afford { animation: none !important; }
 }
+
+/* locked lineup slots show the trophies they open at */
+.bh-slot.empty .qm { flex-direction: column; gap: 2px; }
+.bh-slot.empty .qm .tro { display: flex; align-items: center; gap: 0.15em; font-family: var(--font-d); font-size: calc(var(--u) * 2.6); color: var(--gold); text-shadow: var(--outline-thin); }
+.bh-slot.empty .qm .tro .pi { width: 1em; height: 1em; }
+.bh-slot.empty.open .qm .plus { font-family: var(--font-d); font-size: calc(var(--u) * 6); color: #9ff2ff; font-weight: normal; }
