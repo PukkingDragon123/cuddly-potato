@@ -584,11 +584,13 @@ function addLandmarks({ T, root, updaters, exclude }) {
   root.add(lh);
   exclude.push([lx, lz, 3.5]);
   // --- giant panther head monument behind the summit arena, facing its camera
+  // (off to the north-west of the summit so it doesn't block the view up to the Northern Wilds)
   const S8 = ZONES[SUMMIT], sd = summitDir();
-  const hx = S8.x - sd.x * 14, hz = S8.z - sd.y * 14;
+  const side = new THREE.Vector2(-sd.y, sd.x);
+  const hx = S8.x - sd.x * 12 + side.x * 13, hz = S8.z - sd.y * 12 + side.y * 13;
   const head = P.mesh(P.geo('pantherHead', P.pantherHeadGrid, 0.25, 'bottom'), { receive: true });
   head.position.set(hx, T.minHeight(hx, hz, 3) - 1.2, hz);
-  head.rotation.y = Math.atan2(sd.x, sd.y);
+  head.rotation.y = Math.atan2(S8.x + sd.x * 40 - hx, S8.z + sd.y * 40 - hz); // faces the summit camera
   head.name = 'pantherMonument';
   root.add(head);
   exclude.push([hx, hz, 8]);

@@ -5,7 +5,7 @@
 // lab animates with tickLabScreens().
 import {
   THREE, VoxGrid, Mats, makeMesh, PAL, shade, mixHex, hash3, ring, text, vmesh, glassMat,
-  group, hazardC, instanced,
+  group, hazardC,
 } from './common.js';
 import { aoMesh, aoGeometry, dense } from './voxmesh.js';
 import { chain } from '../kit.js';
@@ -939,7 +939,7 @@ export function makeMonitorWall() {
 }
 
 // ---------------------------------------------------------------------------
-// Floor + walls (greedy-meshed voxels: big, cheap, no AO)
+// Floor + walls (one greedy+AO mesh each, built on a typed-array DenseGrid)
 
 /** Floor tile pixel (u, v in 0..15) for tile kind 0 light, 1 dark, 2 drain. */
 function floorTileColor(u, v, kind, seed) {

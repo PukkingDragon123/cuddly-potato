@@ -15,7 +15,7 @@ import { audio } from '../core/audio.js';
 import { fx } from '../core/particles.js';
 import { Chibi } from '../core/chibi.js';
 import { Mats, makeMesh } from '../core/voxel.js';
-import { mulberry32, mixHex } from '../core/util.js';
+import { mulberry32 } from '../core/util.js';
 import { CHARACTERS } from '../data/characters.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { makeArenaZone } from '../models/arenas/index.js';
@@ -532,6 +532,5 @@ function iconURL_bolt() {
   rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { ctx.fillStyle = pal[ch]; ctx.fillRect(x, y, 1, 1); } }));
   _bolt = c.toDataURL();
   void icon;
-  void mixHex;
   return _bolt;
 }

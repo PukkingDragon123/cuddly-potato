@@ -9,8 +9,7 @@
 // greedy-meshed), repeated items are instanced, every bubble in the room is
 // one InstancedMesh, and update() allocates nothing.
 import {
-  THREE, VoxGrid, Mats, makeMesh, PAL, shade, mixHex, hash3, ring, text, textW, vgeo, glassMat, tintMat, group, hazardC,
-  instanced,
+  THREE, VoxGrid, Mats, makeMesh, PAL, shade, mixHex, hash3, ring, text, glassMat, tintMat, group, instanced,
 } from './common.js';
 import { aoGeometry, dense } from './voxmesh.js';
 import { blob, capsule, chain, BOLT_SMALL } from '../kit.js';
@@ -1041,5 +1040,3 @@ export function buildLabRoom() {
 }
 
 export { labScreen };
-void textW;
-void capsule;
