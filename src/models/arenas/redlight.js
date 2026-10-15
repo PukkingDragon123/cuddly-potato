@@ -5,6 +5,7 @@
 // towers with sweeping lamps, swings and see-saws, a countdown board, and
 // impossible pastel staircases towering in the distance. A red finish line
 // crosses the lane.
+import { beamMesh } from './atmos.js';
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, vnoise, mulberry32, text, textW, canvasTex,
   paintGradient, paintClouds, paintSun, px, disc, skyTexture, parallaxWidth,
@@ -608,9 +609,7 @@ export function buildBattle(K) {
 
   // ---- guard towers with sweeping lamps and fluttering flags
   {
-    const beamGeo = new THREE.ConeGeometry(1.2, 10, 16, 1, true);
-    beamGeo.translate(0, -5, 0);
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff2d0, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    // voxel light-volume beams (stepped voxel cone, banded additive glow)
     for (const [x, z, col, ph] of [[-19.5, -19.5, C.pink, 0], [20, -20, C.teal, 2]]) {
       K.mesh('gtower' + col, towerGrid(col), { scale: 0.12, ao: true }, x, 0, z, Math.sign(x) * 0.3, 1, { shadow: true });
       const head = new THREE.Group();
@@ -623,7 +622,7 @@ export function buildBattle(K) {
         return g;
       }, { scale: 0.12, pivot: [0, 0, 0] }, 0, 0, 0, 0, 1, { parent: head });
       void lamp;
-      const beam = new THREE.Mesh(beamGeo, beamMat);
+      const beam = beamMesh(K, { id: 'guardSpot', len: 10, r0: 0.2, r1: 1.2, vox: 0.2, color: 0xfff2d0, opacity: 0.26 });
       beam.rotation.x = -1.05;
       head.add(beam);
       const flag = K.mesh('gflag' + col, flagGrid(col === C.pink ? C.teal : C.pink), { scale: 0.12, pivot: [0, 0, 0] }, x - 0.1, 8.6, z - 0.1);

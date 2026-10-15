@@ -576,7 +576,8 @@ export async function vsIntro(parent, cfg, opts = {}) {
           return el;
         })) : null));
   };
-  const wrap = h('div', { class: 'vs-wrap' }, band(cfg.sides[1], 1), h('div', { class: 'vs-x' }, 'VS'), band(cfg.sides[0], 0));
+  const wrap = h('div', { class: 'vs-wrap' }, h('div', { class: 'vs-flash' }), band(cfg.sides[1], 1),
+    h('div', { class: 'vs-mid' }, h('div', { class: 'px-rays vs-rays' }), h('div', { class: 'vs-bolt' }), h('div', { class: 'vs-x' }, 'VS')), band(cfg.sides[0], 0));
   parent.appendChild(wrap);
   audio.play('whoosh', { pitch: 0.8 });
   setTimeout(() => { audio.play('thud'); engine.shake(0.2); }, 380);

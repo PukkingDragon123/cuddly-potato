@@ -57,9 +57,22 @@ export function mount(el, ctx) {
     const need = cmdXpForLevel(lvl);
     const max = lvl >= CMD_MAX_LEVEL;
     const port = h('div', { class: 'mn-cmd-stage' },
+      h('div', { class: 'px-rays w mn-cmd-rays' }),
       h('div', { class: 'mn-cmd-spot' }),
-      h('div', { class: 'mn-cmd-ped' }),
-      cmdFullImg(id, cs?.skin ?? null, { w: 200, h: 250, pose: cs ? 'idle' : null }, `mn-cmd-full ${cs ? '' : 'locked'}`));
+      h('div', { class: 'mn-cmd-ped' }, h('i', { class: 'mn-cmd-pedring' })),
+      h('div', { class: 'px-stars mn-cmd-stars' }),
+      cmdFullImg(id, cs?.skin ?? null, { w: 200, h: 250, pose: cs ? 'idle' : null }, `mn-cmd-full ${cs ? '' : 'locked'}`),
+      h('div', { class: 'mn-cmd-plate t-d' }, cs ? (equipped ? 'COMMANDER' : 'RECRUITED') : 'LOCKED'));
+    // tap the figure: it hops and sparkles
+    port.addEventListener('click', () => {
+      const im = port.querySelector('.mn-cmd-full');
+      if (!im || !cs) return;
+      im.classList.remove('hop');
+      void im.offsetWidth;
+      im.classList.add('hop');
+      audio.play('pop', { pitch: 1.1 + Math.random() * 0.3 });
+      sparkle(im, { count: 10, spread: 50 });
+    });
     let action;
     if (!cs) {
       const u = unlockInfo(def, ctx);
@@ -319,7 +332,7 @@ export function mount(el, ctx) {
   function render() {
     const { cs } = view();
     const inner = h('div', { class: 'mn-inner' },
-      h('div', { class: 'mn-labcol' }, secHead('COMMANDER', 'purple'), showcase(), abilities(), perks(), outfits(), levelRoad(), roster()),
+      h('div', { class: 'mn-labcol' }, secHead('COMMANDER', 'purple'), showcase(), roster(), abilities(), perks(), outfits(), levelRoad()),
       h('div', { class: 'mn-labcol' }, secHead('LAB LEVEL', 'blue'), labLevelPanel()));
     if (!cs) inner.classList.add('viewing-locked');
     return inner;

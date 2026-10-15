@@ -10,7 +10,7 @@ import './home-mega.css';
 import { engine, addLights } from '../core/engine.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/particles.js';
-import { h, icon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
+import { h, icon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, burst, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
 import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
 import { makeBeastIsland } from '../models/island/beastIsland.js';
@@ -71,6 +71,8 @@ function vialImg(type, cls = 'vt') {
   }
   return h('img', { class: cls + ' pi', src: iconURL('vial'), draggable: 'false' });
 }
+
+const _camOff = new THREE.Vector3(), _camLook = new THREE.Vector3(), _yAxis = new THREE.Vector3(0, 1, 0);
 
 export class HomeScene {
   constructor() {
@@ -301,14 +303,16 @@ export class HomeScene {
     this.lvlEl = h('div', { class: 'hm-lvl' }, '1');
     this.nameEl = h('div', { class: 'nm' }, p.name);
     this.xpBar = bar(0, 'blue', '');
-    const prof = h('div', { class: 'hm-prof hit', onclick: () => this.openModal('profile', 'openProfile') }, this.lvlEl, h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
-    this.coinPill = pill('coin', p.coins, { plus: () => this.setTab('shop') });
-    this.buckPill = pill('bucks', p.bucks, { plus: () => this.setTab('shop') });
+    const prof = h('div', { class: 'hm-prof hit', 'data-tip': 'Your *Lab Level*: upgrade cards and win battles for Lab XP', onclick: () => this.openModal('profile', 'openProfile') }, h('div', { class: 'hm-lvlw' }, this.lvlEl, h('i', { class: 'hm-lvl-ring' })), h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
+    this.coinPill = pill('coin', p.coins, { plus: () => this.setTab('shop'), cls: 'hm-pill-coin' });
+    this.buckPill = pill('bucks', p.bucks, { plus: () => this.setTab('shop'), cls: 'hm-pill-buck' });
+    this.coinPill.dataset.tip = '*Beast Coins*: upgrade cards, roll perks';
+    this.buckPill.dataset.tip = '*Beast Bucks*: vials, skins and skips';
     root.appendChild(h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill));
     // side buttons
-    this.freeEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => this.openFree() }, vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
-    this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
-    this.labEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => game.go('lab', { visit: true }) }, icon('flask'), h('div', { class: 't' }, 'LAB'));
+    this.freeEl = h('div', { class: 'hm-mini hm-freebtn sk-panel-dark hit', 'data-tip': 'A *free vial* every 4 hours', onclick: () => this.openFree() }, h('i', { class: 'hm-mini-rays' }), vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
+    this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', 'data-tip': 'Your *MEGA ultimate*: unleash it in battle', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
+    this.labEl = h('div', { class: 'hm-mini hm-labbtn sk-panel-dark hit', 'data-tip': 'Visit the *Beast Lab*', onclick: () => game.go('lab', { visit: true }) }, icon('flask'), h('div', { class: 't' }, 'LAB'));
     root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl, this.labEl));
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
@@ -324,19 +328,21 @@ export class HomeScene {
     this.zArena = h('div', { class: 'an' }, 'ARENA 1');
     this.zRibbon = ribbon('BEAST LAB', 'blue');
     this.zTro = h('div', { class: 'zt' }, icon('trophy'), h('span', {}, String(p.trophies)));
-    this.zBox = h('div', { class: 'hm-zbox', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, this.zTro);
+    this.zProg = bar(0, 'gold', '', { cls: 'hm-zprog' });
+    this.zBox = h('div', { class: 'hm-zbox', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
     const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
     this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Ranked - win trophies & vials', sound: 'go' });
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
     this.practiceBtn = button('TRAIN', () => game.go('battle', { mode: 'practice' }), 'gray lg hm-side-play', { icon: 'sword' });
-    const play = h('div', { class: 'hm-play' }, this.practiceBtn, this.battleBtn, this.bossBtn);
+    const bwrap = h('div', { class: 'hm-bwrap' }, h('i', { class: 'hm-bring' }), h('i', { class: 'hm-bring b2' }), this.battleBtn);
+    const play = h('div', { class: 'hm-play' }, this.practiceBtn, bwrap, this.bossBtn);
     this.slotEls = [0, 1, 2, 3].map((i) => {
       const el = h('div', { class: 'hm-slot sk-slot', onclick: () => this.tapSlot(i) });
       return { el, key: null };
     });
     const slots = h('div', { class: 'hm-slots' }, this.slotEls.map((s) => s.el));
     this.navBtns = TABS.map((t) => {
-      const b = h('button', { class: 'hm-tabbtn', type: 'button', onclick: () => { audio.play('tap'); this.setTab(t.id); } }, icon(t.icon), h('span', { class: 'tl' }, t.label));
+      const b = h('button', { class: 'hm-tabbtn', type: 'button', style: { '--ti': TABS.indexOf(t) }, onclick: () => { audio.play('tap'); this.setTab(t.id); } }, icon(t.icon), h('span', { class: 'tl' }, t.label));
       b.dataset.tab = t.id;
       return b;
     });
@@ -365,6 +371,7 @@ export class HomeScene {
     this.currentTab?.refresh?.();
   }
   setPill(el, v) {
+    if (el.set) { if (el._v !== v) el.set(v); return; }
     const val = el.querySelector('.val');
     const s = v.toLocaleString('en-US');
     if (val.textContent !== s) {
@@ -386,6 +393,16 @@ export class HomeScene {
     this.zTro.innerHTML = '';
     if (locked) this.zTro.append(icon('lock'), h('span', { class: 'lockt' }, `Unlocks at ${A.trophies}`), icon('trophy'));
     else this.zTro.append(icon('trophy'), h('span', {}, p.trophies.toLocaleString('en-US')));
+    // progress tube toward the next arena (on your current arena only)
+    const nextA = ARENAS[k + 1];
+    const cur = currentArena(p.trophies).index;
+    const showProg = !locked && nextA && k === cur;
+    this.zProg.style.display = showProg ? '' : 'none';
+    if (showProg) {
+      const f = (p.trophies - A.trophies) / Math.max(1, nextA.trophies - A.trophies);
+      this.zProg.set(Math.max(0.02, Math.min(1, f)), `${nextA.trophies.toLocaleString('en-US')}`);
+      this.zProg.dataset.tip = `*${nextA.name}* unlocks at ${nextA.trophies.toLocaleString('en-US')} trophies`;
+    }
     this.prevBtn.classList.toggle('off', k <= 0);
     this.nextBtn.classList.toggle('off', k >= ARENAS.length - 1);
     const boss = bossOfArena(A.id);
@@ -418,12 +435,15 @@ export class HomeScene {
       const mode = !e ? 'empty' : ready ? 'ready' : e.unlockStart ? 'unlocking' : 'locked';
       const key = `${mode}|${e?.type}|${mode === 'unlocking' ? Math.ceil(left) : ''}|${mode === 'locked' ? unlocking : ''}`;
       if (!force && key === s.key) return;
-      const rebuild = !s.key || s.key.split('|').slice(0, 2).join('|') !== key.split('|').slice(0, 2).join('|');
+      const rebuild = !s.key || s.key.split('|').slice(0, 2).join('|') !== key.split('|').slice(0, 2).join('|') || (!!e && !!vialThumbFn && !!s.el.querySelector('img.vt.pi'));
       s.key = key;
       if (rebuild) {
         s.el.innerHTML = '';
         s.el.className = `hm-slot sk-slot ${mode}`;
+        s.el.style.setProperty('--si', i);
+        if (mode === 'ready') s.el.appendChild(h('i', { class: 'hm-slot-rays' }));
         if (e) s.el.appendChild(vialImg(e.type));
+        if (mode === 'unlocking') s.el.appendChild(s.pb = h('div', { class: 'hm-slot-prog' }, h('i')));
         s.st = h('div', { class: 'st' });
         s.sn = h('div', { class: 'sn' });
         s.el.append(s.st, s.sn);
@@ -431,6 +451,9 @@ export class HomeScene {
       if (mode === 'empty') { s.st.textContent = 'Vial slot'; s.sn.textContent = 'Win battles!'; }
       else if (mode === 'ready') { s.st.textContent = 'OPEN'; s.sn.textContent = VIALS[e.type].name; }
       else if (mode === 'unlocking') {
+        const total = Math.max(1, VIALS[e.type].time);
+        const fr = Math.max(0, Math.min(1, 1 - left / total));
+        s.el.style.setProperty('--prog', fr.toFixed(3));
         s.st.textContent = fmtTime(left);
         s.sn.innerHTML = '';
         s.sn.appendChild(h('span', { class: 'skip' }, icon('bucks'), String(skipPrice(left))));
@@ -479,12 +502,19 @@ export class HomeScene {
     const idx = TABS.findIndex((t) => t.id === id);
     this.tab = id;
     this.navBtns.forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
-    if (this.currentTab) { try { this.currentTab.dispose?.(); } catch (e) { console.error(e); } this.currentTab = null; }
-    this.tabEl?.remove();
+    const oldTab = this.currentTab, oldEl = this.tabEl;
+    this.currentTab = null;
     this.tabEl = null;
+    const disposeOld = () => { if (oldTab) { try { oldTab.dispose?.(); } catch (e) { console.error(e); } } oldEl?.remove(); };
+    if (oldEl && !instant && prevIdx !== idx) {
+      // slide the old screen away in the direction of travel, then dispose it
+      oldEl.classList.add('hm-tab-out', idx < prevIdx ? 'to-right' : 'to-left');
+      oldEl.style.pointerEvents = 'none';
+      setTimeout(disposeOld, 300);
+    } else disposeOld();
     this.root.classList.toggle('tabbed', id !== 'battle');
     if (id === 'battle') return;
-    const el = (this.tabEl = h('div', { class: `hm-tab ${idx < prevIdx ? 'from-left' : ''}` }));
+    const el = (this.tabEl = h('div', { class: `hm-tab ${idx < prevIdx ? 'from-left' : ''} ${prevIdx === TABS.findIndex((t) => t.id === 'battle') ? 'from-home' : ''}` }));
     this.layoutTab();
     this.root.insertBefore(el, this.dock);
     if (instant) el.style.animation = 'none';
@@ -594,6 +624,7 @@ export class HomeScene {
   }
   battle() {
     if (this.tutPtr) { this.tutPtr(); this.tutPtr = null; }
+    burst(this.battleBtn, { color: '#ffd84a', count: 22, scale: 1.4 });
     const best = currentArena(state.p.bestTrophies).index;
     // ranked battles always happen in your current arena (like Clash Royale)
     game.go('battle', { mode: 'ranked', arena: ARENAS[Math.min(best, currentArena(state.p.trophies).index)].id });
@@ -744,12 +775,19 @@ export class HomeScene {
       this.cam.look.lerpVectors(f.from.look, f.to.look, k);
       if (f.t >= 1) { this.fly = null; f.done?.(); }
     }
-    const sway = 0.035;
-    const off = this.cam.pos.clone().sub(this.cam.look);
-    off.applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(this.t * 0.13) * sway);
-    this.camera.position.copy(this.cam.look).add(off);
-    this.camera.position.y += Math.sin(this.t * 0.4) * 0.15;
-    this.camera.lookAt(this.cam.look);
+    // cinematic idle drift: a slow orbit sway, a gentle dolly "breath" and a drifting look target;
+    // it eases in after each camera flight so zone framing stays exact when you arrive
+    this.idleK = this.fly ? 0 : Math.min(1, (this.idleK ?? 0) + dt * 0.35);
+    const ik = this.idleK * this.idleK * (3 - 2 * this.idleK), t = this.t;
+    const off = _camOff.copy(this.cam.pos).sub(this.cam.look);
+    off.applyAxisAngle(_yAxis, (Math.sin(t * 0.11) * 0.05 + Math.sin(t * 0.23 + 1.3) * 0.015) * ik + Math.sin(t * 0.13) * 0.02);
+    off.multiplyScalar(1 + Math.sin(t * 0.085 + 0.6) * 0.03 * ik);
+    _camLook.copy(this.cam.look);
+    _camLook.x += Math.sin(t * 0.17) * 0.35 * ik;
+    _camLook.z += Math.cos(t * 0.13) * 0.25 * ik;
+    this.camera.position.copy(_camLook).add(off);
+    this.camera.position.y += Math.sin(t * 0.4) * 0.15 + Math.sin(t * 0.07) * 0.6 * ik;
+    this.camera.lookAt(_camLook);
     for (const a of this.actors) a.update?.(dt);
     // world tags
     const v = new THREE.Vector3();

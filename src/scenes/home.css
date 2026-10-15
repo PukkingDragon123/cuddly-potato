@@ -274,3 +274,171 @@ body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
 @media (prefers-reduced-motion: reduce) {
   .hm-mini::after, .hm-slot::after, .hm-play::before, .hm-play::after, .hm-tabbtn.on::before, .hm-sb-road, .hm-tabbtn.on .pi { animation: none !important; }
 }
+
+/* =========================================================================
+   Lobby juice (v3): living top bar, floating side consoles, breathing BATTLE
+   button with shock rings, arena progress tube, goo that rises with the
+   unlock timer, idle nav hops and push/bounce tab transitions.
+   Composited properties only (transform / translate / scale / opacity).
+   ========================================================================= */
+/* ---- top bar */
+.hm-lvlw { position: relative; flex: none; display: flex; }
+.hm-lvl { filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(79, 200, 255, 0.6)); }
+.hm-lvl::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 0 40%, rgba(255, 255, 255, 0.75) 40% 47%, transparent 47% 52%, rgba(255, 255, 255, 0.4) 52% 55%, transparent 55%) no-repeat;
+  background-size: 300% 100%; background-position: 150% 0; animation: hmLvlShine 4.5s steps(18) infinite;
+}
+@keyframes hmLvlShine { 0%, 62% { background-position: 150% 0; } 100% { background-position: -60% 0; } }
+.hm-lvl-ring {
+  /* twinkling pixel star on the badge corner */
+  position: absolute; right: calc(var(--px) * -2.5); top: calc(var(--px) * -2); width: calc(var(--px) * 7); height: calc(var(--px) * 7); pointer-events: none; z-index: 2;
+  background:
+    linear-gradient(#fff, #fff) 50% 50% / var(--px) 100% no-repeat,
+    linear-gradient(#fff, #fff) 50% 50% / 100% var(--px) no-repeat,
+    linear-gradient(#fff6b8, #fff6b8) 50% 50% / calc(var(--px) * 3) calc(var(--px) * 3) no-repeat;
+  filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 236, 140, 0.95));
+  animation: ttTwinkle 3s steps(1) infinite;
+}
+.hm-prof:active .hm-lvlw { scale: 0.92; }
+.hm-top .pill { overflow: visible; }
+.hm-top .pill::before {
+  /* glass glint that sweeps the pill now and then */
+  content: ''; position: absolute; left: calc(var(--u) * 3.2); right: var(--px); top: var(--px); bottom: var(--px); pointer-events: none; z-index: 1;
+  background: linear-gradient(100deg, transparent 0 42%, rgba(255, 255, 255, 0.38) 42% 50%, transparent 50%) no-repeat;
+  background-size: 320% 100%; background-position: 140% 0; animation: hmPillGlint 5.5s steps(22) infinite;
+}
+.hm-top .pill.hm-pill-buck::before { animation-delay: -2.7s; }
+@keyframes hmPillGlint { 0%, 70% { background-position: 140% 0; } 100% { background-position: -40% 0; } }
+.hm-top .pill > .val { position: relative; z-index: 2; }
+/* the coin flips edge-on now and then, the gem twinkles */
+.hm-pill-coin > .pi { animation: hmCoinFlip 4.2s steps(1) infinite; }
+@keyframes hmCoinFlip { 0%, 86% { scale: 1 1; } 88% { scale: 0.55 1; } 90% { scale: 0.15 1; } 92% { scale: 0.55 1; } 94%, 100% { scale: 1 1; } }
+.hm-pill-buck > .pi { animation: hmGemTwinkle 3.6s steps(1) infinite; }
+@keyframes hmGemTwinkle { 0%, 84% { filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 255, 255, 0.25)); } 86%, 92% { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 140, 210, 1)) brightness(1.3); } }
+.hm-top .pill.pill-pop > .pi { animation: pillIcon 0.5s cubic-bezier(.3, 1.8, .5, 1); }
+
+/* ---- side consoles float gently (translate only: the press keeps transform) */
+.hm-side.left .hm-mini { animation: hmFloatY 3.2s ease-in-out infinite; }
+.hm-side.left .hm-mini:nth-child(2) { animation-delay: -1.1s; }
+.hm-side.left .hm-mini:nth-child(3) { animation-delay: -2.2s; }
+@keyframes hmFloatY { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--px) * -2); } }
+.hm-side.left .hm-mini.ready { animation: readyBob 0.9s ease-in-out infinite; }
+.hm-mini-rays { display: none; }
+.hm-mini.ready > .hm-mini-rays {
+  display: block; position: absolute; left: 50%; top: 38%; width: 170%; aspect-ratio: 1; translate: -50% -50%; z-index: 0; pointer-events: none;
+  background: var(--tx-rays) center / 100% 100% no-repeat; image-rendering: pixelated; opacity: 0.55; animation: pxRays 10s steps(30) infinite;
+  -webkit-mask: radial-gradient(circle, #000 25%, transparent 66%); mask: radial-gradient(circle, #000 25%, transparent 66%);
+}
+.hm-side.right .hm-sb { animation: hmSbHop 6s ease-in-out infinite; }
+.hm-side.right .hm-sb:nth-child(2) { animation-delay: 1.2s; }
+.hm-side.right .hm-sb:nth-child(3) { animation-delay: 2.4s; }
+@keyframes hmSbHop { 0%, 88%, 100% { translate: 0 0; } 92% { translate: 0 calc(var(--px) * -3); } 96% { translate: 0 calc(var(--px) * 0.5); } }
+.hm-sb-road:has(.badge) { animation: hmRoadGlow 1.4s ease-in-out infinite, hmSbHop 6s 2.4s ease-in-out infinite; }
+
+/* ---- arena sign: progress tube to the next arena */
+.hm-ztrow { display: flex; align-items: center; gap: calc(var(--u) * 1); }
+.hm-zprog { width: calc(var(--u) * 22); height: calc(var(--u) * 3.6); margin-left: calc(var(--u) * 2.6); }
+.hm-zprog > .lbl { font-size: 0.62em; justify-content: flex-end; padding-right: 0.5em; }
+.hm-zprog::before {
+  /* little gate flag at the end of the tube */
+  content: ''; position: absolute; right: calc(var(--px) * -1); top: 50%; z-index: 3; width: calc(var(--px) * 2); height: 150%; translate: 0 -60%; pointer-events: none;
+  background: linear-gradient(90deg, #fff6b8, #ffc21a); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink);
+}
+.hm-zone .arr:not(.off) > * { animation: hmArrNudge 1.6s ease-in-out infinite; }
+.hm-zone .arr:first-child:not(.off) > * { animation-name: hmArrNudgeL; }
+@keyframes hmArrNudge { 0%, 60%, 100% { translate: 0 0; } 75% { translate: calc(var(--px) * 1.5) 0; } }
+@keyframes hmArrNudgeL { 0%, 60%, 100% { translate: 0 0; } 75% { translate: calc(var(--px) * -1.5) 0; } }
+.hm-zbox .ribbon { transition: transform 0.15s cubic-bezier(.3, 1.6, .5, 1); }
+.hm-zbox:active .ribbon { transform: scale(0.95, 0.9); }
+
+/* ---- BATTLE: bigger, breathing, shock rings + swords that clash */
+.hm-bwrap { position: relative; display: flex; isolation: isolate; }
+.hm-battle { min-width: calc(var(--u) * 48); font-size: 2.25em; animation: hmBreathe 1.8s ease-in-out infinite; }
+@keyframes hmBreathe { 0%, 100% { scale: 1 1; } 50% { scale: 1.035 1.05; } }
+.hm-battle .pi { animation: hmSwords 2.6s steps(1) infinite; }
+@keyframes hmSwords { 0%, 80% { rotate: 0deg; scale: 1; } 84% { rotate: -14deg; scale: 1.2; } 88% { rotate: 10deg; scale: 1.25; } 92% { rotate: -4deg; scale: 1.1; } 96% { rotate: 0deg; scale: 1; } }
+.hm-bring {
+  position: absolute; inset: calc(var(--px) * 2) calc(var(--px) * 1) calc(var(--px) * 3); z-index: -1; pointer-events: none;
+  box-shadow: 0 0 0 calc(var(--px) * 1.5) rgba(255, 226, 90, 0.95), 0 0 calc(var(--px) * 5) rgba(255, 190, 40, 0.8);
+  animation: hmRing 2.2s steps(14) infinite; opacity: 0;
+}
+.hm-bring.b2 { animation-delay: 1.1s; }
+@keyframes hmRing { 0% { transform: scale(0.96, 0.92); opacity: 0.95; } 100% { transform: scale(1.22, 1.6); opacity: 0; } }
+.hm-side-play { animation: hmFloatY 2.8s ease-in-out infinite; }
+.hm-play > .hm-side-play:last-child { animation-delay: -1.4s; }
+
+/* ---- vial slots: goo level = unlock progress, floating 3D vials, rays behind ready ones */
+.hm-slot img.vt { animation: hmVialFloat 2.6s ease-in-out infinite; animation-delay: calc(var(--si, 0) * -0.65s); }
+@keyframes hmVialFloat { 0%, 100% { translate: -50% 0; rotate: -3deg; } 50% { translate: -50% calc(var(--px) * -2.5); rotate: 3deg; } }
+.hm-slot.ready img.vt { animation: hmVialReady 0.9s ease-in-out infinite; }
+@keyframes hmVialReady { 0%, 100% { translate: -50% 0; rotate: -6deg; scale: 1; } 50% { translate: -50% calc(var(--px) * -4); rotate: 6deg; scale: 1.06; } }
+.hm-slot.unlocking { --lh: calc(16% + var(--prog, 0) * 50%); }
+.hm-slot-rays {
+  position: absolute; left: 50%; top: 30%; width: 150%; aspect-ratio: 1; translate: -50% -50%; z-index: -1; pointer-events: none;
+  background: var(--tx-rays) center / 100% 100% no-repeat; image-rendering: pixelated; opacity: 0.7; animation: pxRays 9s steps(27) infinite;
+  -webkit-mask: radial-gradient(circle, #000 22%, transparent 64%); mask: radial-gradient(circle, #000 22%, transparent 64%);
+}
+.hm-slot-prog {
+  position: relative; z-index: 2; width: 78%; height: calc(var(--u) * 1.8); margin-bottom: calc(var(--u) * 0.6); flex: none;
+  background: linear-gradient(#060a26, #16226a); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 rgba(0, 0, 0, 0.5);
+}
+.hm-slot-prog > i {
+  position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--prog, 0) * 100%); transition: width 0.9s linear;
+  background: var(--tx-bubbles-tube) 0 0 / calc(48 * var(--px)) calc(12 * var(--px)), linear-gradient(#fff4a8 0 30%, #ffc21a 30% 72%, #d07c14 72%);
+  box-shadow: inset calc(var(--px) * -0.67) 0 0 rgba(255, 255, 255, 0.7), 0 0 calc(var(--px) * 2) rgba(255, 200, 40, 0.8); animation: tubeFizz 2.4s steps(12) infinite;
+}
+.hm-slot.locked:not(.empty) .st { animation: hmTapMe 2.4s steps(1) infinite; }
+@keyframes hmTapMe { 0%, 80% { color: #fff; } 84%, 92% { color: var(--lab-cyan); } }
+.hm-slot.ready .st { animation: hmOpenPulse 0.9s ease-in-out infinite; }
+@keyframes hmOpenPulse { 0%, 100% { scale: 1; } 50% { scale: 1.12; } }
+
+/* ---- bottom nav: idle hops, glint on the active tube, press squash */
+.hm-tabbtn:not(.on) .pi { animation: hmNavIdle 7s ease-in-out infinite; animation-delay: calc(var(--ti, 0) * 1.3s); }
+@keyframes hmNavIdle { 0%, 90%, 100% { translate: 0 0; rotate: 0deg; } 93% { translate: 0 calc(var(--px) * -2.5); rotate: -6deg; } 96% { translate: 0 0; rotate: 4deg; } }
+.hm-tabbtn.on .pi { animation: hmTabPop 0.45s cubic-bezier(.3, 1.6, .5, 1), hmNavBob 1.6s 0.45s ease-in-out infinite; }
+@keyframes hmNavBob { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--px) * -1.5); } }
+.hm-tabbtn.on::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: linear-gradient(105deg, transparent 0 40%, rgba(255, 255, 255, 0.45) 40% 48%, transparent 48%) no-repeat;
+  background-size: 300% 100%; background-position: 150% 0; animation: hmLvlShine 3.6s steps(16) infinite;
+}
+.hm-tabbtn.on { animation: hmTabOn 0.4s cubic-bezier(.3, 1.7, .5, 1); }
+@keyframes hmTabOn { 0% { scale: 0.85 1.1; } 50% { scale: 1.08 0.94; } 100% { scale: 1 1; } }
+@media (hover: hover) { .hm-tabbtn:not(.on):hover .pi { translate: 0 calc(var(--px) * -2); scale: 1.08; } .hm-tabbtn:not(.on):hover .tl { opacity: 0.9; } }
+
+/* ---- tab transitions: push in from the side (bounce), the old one slides away */
+.hm-tab { animation: hmTabIn 0.42s cubic-bezier(.22, 1.2, .36, 1) both; will-change: transform; }
+.hm-tab.from-left { animation-name: hmTabInL; }
+.hm-tab.from-home { animation: hmTabUp 0.42s cubic-bezier(.22, 1.25, .36, 1) both; }
+@keyframes hmTabIn { 0% { transform: translateX(100%); } 70% { transform: translateX(-2.5%); } 100% { transform: none; } }
+@keyframes hmTabInL { 0% { transform: translateX(-100%); } 70% { transform: translateX(2.5%); } 100% { transform: none; } }
+@keyframes hmTabUp { 0% { transform: translateY(40%) scale(0.96); opacity: 0; } 65% { transform: translateY(-1.5%) scale(1.005); opacity: 1; } 100% { transform: none; } }
+.hm-tab.hm-tab-out { z-index: 3; animation: hmTabOutL 0.3s cubic-bezier(.5, 0, .9, .5) both; }
+.hm-tab.hm-tab-out.to-right { animation-name: hmTabOutR; }
+@keyframes hmTabOutL { to { transform: translateX(-45%); opacity: 0.2; } }
+@keyframes hmTabOutR { to { transform: translateX(45%); opacity: 0.2; } }
+.home:not(.tabbed) .hm-tab.hm-tab-out { animation-name: hmTabDown; }
+@keyframes hmTabDown { to { transform: translateY(35%); opacity: 0; } }
+
+/* ---- the lobby pops back in whenever you return to the island */
+.home:not(.tabbed) .hm-zone { animation: hmDockIn 0.45s cubic-bezier(.2, 1.5, .4, 1) backwards; }
+.home:not(.tabbed) .hm-play { animation: hmDockIn 0.45s 0.06s cubic-bezier(.2, 1.5, .4, 1) backwards; }
+.home:not(.tabbed) .hm-slots { animation: hmDockIn 0.45s 0.12s cubic-bezier(.2, 1.5, .4, 1) backwards; }
+.home:not(.tabbed) .hm-side.left { animation: hmSideInL 0.45s 0.08s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.home:not(.tabbed) .hm-side.right { animation: hmSideInR 0.45s 0.08s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+@keyframes hmDockIn { 0% { transform: translateY(calc(var(--u) * 10)) scale(0.9); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes hmSideInL { 0% { transform: translateX(-130%); } 100% { transform: none; } }
+@keyframes hmSideInR { 0% { transform: translateX(130%); } 100% { transform: none; } }
+
+/* landscape: the arena sign sits in the top bar, keep its tube small */
+body.landscape .hm-zprog { width: calc(var(--u) * 16); height: calc(var(--u) * 3); }
+body.landscape .hm-battle { min-width: calc(var(--u) * 38); font-size: 2em; }
+@media (max-width: 380px) { .hm-battle { min-width: calc(var(--u) * 44); font-size: 2.05em; } .hm-zprog { width: calc(var(--u) * 18); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-lvl::after, .hm-lvl-ring, .hm-top .pill::before, .hm-pill-coin > .pi, .hm-pill-buck > .pi, .hm-side.left .hm-mini, .hm-mini-rays, .hm-side.right .hm-sb,
+  .hm-zone .arr > *, .hm-battle, .hm-battle .pi, .hm-bring, .hm-side-play, .hm-slot img.vt, .hm-slot-rays, .hm-slot-prog > i, .hm-slot .st, .hm-tabbtn .pi, .hm-tabbtn.on::after, .hm-tabbtn.on,
+  .hm-tab, .hm-tab.hm-tab-out, .home .hm-zone, .home .hm-play, .home .hm-slots, .home .hm-side { animation: none !important; }
+  .hm-bring { display: none; }
+}

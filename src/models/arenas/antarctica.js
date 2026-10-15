@@ -4,6 +4,7 @@
 // of waving flags, waddling penguins and a wind turbine, an ice shelf that
 // drops into a dark iceberg sea, snowy mountain parallax, falling snow and a
 // live aurora rippling over a starry polar night.
+import { pixelDiscGeo } from './atmos.js';
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintStars, paintSun, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
@@ -1052,7 +1053,7 @@ export function buildZone(K) {
     }
     return g;
   }, { scale: 0.25, pivot: [0, 1, 0] }, 0, 0, 0);
-  const sea = new THREE.Mesh(new THREE.RingGeometry(5.6, 7, 48), new THREE.MeshLambertMaterial({ color: 0x173a66 }));
+  const sea = new THREE.Mesh(pixelDiscGeo(7, 5.6, 0.25), new THREE.MeshLambertMaterial({ color: 0x173a66 }));
   sea.rotation.x = -Math.PI / 2;
   sea.position.y = -0.9;
   K.add(sea);

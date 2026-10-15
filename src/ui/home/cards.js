@@ -14,9 +14,9 @@ import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmtN }
 import { openCardInfo } from './cardInfo.js';
 
 const SORTS = [
-  { id: 'rarity', label: 'By Rarity', icon: 'star' },
-  { id: 'energy', label: 'By Energy', icon: 'energy' },
-  { id: 'arena', label: 'By Arena', icon: 'island' },
+  { id: 'rarity', label: 'By Rarity', short: 'Rarity', icon: 'star' },
+  { id: 'energy', label: 'By Energy', short: 'Power', icon: 'energy' },
+  { id: 'arena', label: 'By Arena', short: 'Arena', icon: 'island' },
 ];
 let sortMode = 'rarity';
 const arenaIdx = (c) => arenaById(c.arena)?.index ?? 99;
@@ -187,11 +187,21 @@ export function mount(el, ctx) {
     const foundAll = ALL_CARDS.filter((c) => p.cards[c.id]);
     const coll = sortCards(foundAll.filter((c) => !deck.includes(c.id)));
     const missing = sortCards(ALL_CARDS.filter((c) => !p.cards[c.id]));
-    const sortBtn = button(SORTS.find((s) => s.id === sortMode).label, () => {
-      const i = SORTS.findIndex((s) => s.id === sortMode);
-      sortMode = SORTS[(i + 1) % SORTS.length].id;
-      shell.render();
-    }, 'purple sm', { icon: SORTS.find((s) => s.id === sortMode).icon, sound: 'tap' });
+    // sorting chips (segmented): the lit chip is the current order
+    const sortBtn = h('div', { class: 'mn-sortchips', role: 'tablist' }, ...SORTS.map((so) => {
+      const b = h('button', { class: `mn-sortchip ${so.id === sortMode ? 'on' : ''}`, type: 'button', 'data-tip': so.label },
+        icon(so.icon, 's'), h('span', {}, so.short));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (so.id === sortMode) return;
+        audio.play('tap');
+        sortMode = so.id;
+        shell.root.classList.add('mn-resort');
+        shell.render();
+        setTimeout(() => shell.root.classList.remove('mn-resort'), 700);
+      });
+      return b;
+    }));
     const found = h('div', { class: 'mn-found' },
       h('span', { class: 't-xs c-muted' }, 'Found'),
       h('b', { class: 't-d outline' }, `${foundAll.length}/${ALL_CARDS.length}`));
@@ -207,7 +217,9 @@ export function mount(el, ctx) {
       grid.appendChild(cell);
     });
     const out = [
-      h('div', { class: 'mn-sec-row' }, secHead('COLLECTION', 'pink'), h('div', { class: 'mn-coll-tools' }, found, sortBtn)),
+      h('div', { class: 'mn-sec-row' }, secHead('COLLECTION', 'pink'), h('div', { class: 'mn-coll-tools' }, found)),
+      h('div', { class: 'mn-sortrow' }, h('span', { class: 't-d outline mn-sortl' }, 'SORT'), sortBtn,
+        h('div', { class: 'mn-collbar' }, h('i', { style: { width: (foundAll.length / ALL_CARDS.length) * 100 + '%' } }))),
     ];
     if (coll.length) out.push(grid);
     else out.push(h('div', { class: 'mn-empty-note' }, 'All your cards are in your deck! Open vials to find more Swarms.'));

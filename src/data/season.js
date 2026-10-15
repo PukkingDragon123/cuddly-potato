@@ -136,10 +136,11 @@ export const LAB_SKINS = {
 };
 
 export const CMD_SKINS = {
-  juanChef: { name: 'Chef Juan', commander: 'juan', hat: { type: 'chef' } },
-  juanGold: { name: 'Golden Juan', commander: 'juan', shirt: 0xffd23f, accent: 0xff4fa3 },
-  gold: { name: 'Golden Outfit', commander: '*', shirt: 0xffd23f, coat: 0xffe27a },
-  nolanFryCook: { name: 'Fry Cook Nolan', commander: 'nolan', outfit: 'apron', shirt: 0xffd23f, accent: 0xff4a4a, hat: { type: 'cap', color: 0xff4a4a } },
-  headChef: { name: 'Head Chef', commander: '*', outfit: 'apron', shirt: 0xf4f6fb, accent: 0xff4fa3, hat: { type: 'chef' } },
-  jimmyFeast: { name: 'Feastables Jimmy', commander: 'jimmy', outfit: 'hoodie', shirt: 0x1d9bf0, logo: 'panther', accent: 0xff4fa3 },
+  // accPlus: extra accessories layered on the Commander's own (see models/characters/accessories.js)
+  juanChef: { name: 'Chef Juan', commander: 'juan', hat: { type: 'chef' }, accPlus: ['whisk', { type: 'scarf', color: 0xff4f4f }] },
+  juanGold: { name: 'Golden Juan', commander: 'juan', shirt: 0xffd23f, accent: 0xff4fa3, accPlus: [{ type: 'shades', lens: 0x3a2a00 }, { type: 'watch', bezel: 0xffd23f, color: 0xb8860b, side: 'R' }] },
+  gold: { name: 'Golden Outfit', commander: '*', shirt: 0xffd23f, coat: 0xffe27a, accPlus: [{ type: 'crown' }, { type: 'chain', pendant: 'star' }] },
+  nolanFryCook: { name: 'Fry Cook Nolan', commander: 'nolan', outfit: 'apron', shirt: 0xffd23f, accent: 0xff4a4a, hat: { type: 'cap', color: 0xff4a4a }, accPlus: [{ type: 'nametag', color: 0xff4a4a }, { type: 'headset', mic: true }] },
+  headChef: { name: 'Head Chef', commander: '*', outfit: 'apron', shirt: 0xf4f6fb, accent: 0xff4fa3, hat: { type: 'chef' }, accPlus: ['whisk', { type: 'scarf', color: 0xff4fa3 }] },
+  jimmyFeast: { name: 'Feastables Jimmy', commander: 'jimmy', outfit: 'hoodie', shirt: 0x1d9bf0, logo: 'panther', accent: 0xff4fa3, accPlus: [{ type: 'capBack', color: 0xff4fa3 }, { type: 'chain', pendant: 'bolt' }] },
 };

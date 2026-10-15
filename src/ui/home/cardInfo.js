@@ -1,14 +1,17 @@
 // Card detail modal: big card, rarity/type, stats with green "+N" upgrade
 // preview, upgrade with a level-up celebration (stat roll-ups, sparkles,
 // Lab XP), shiny finishes, Swarm skins and the Mega form toggle.
-import { h, icon, button, modal, bar, sparkle, rollNumber, clear, rich } from '../ui.js';
+import * as THREE from 'three';
+import { h, icon, button, modal, bar, sparkle, rollNumber, clear, rich, burst, confetti, $overlay } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { audio } from '../../core/audio.js';
+import { engine } from '../../core/engine.js';
+import { createSwarm } from '../../models/swarmModels.js';
 import { fmt } from '../../core/util.js';
 import {
   state, owned, upgradeInfo, upgradeCard, setVariant, setSwarmSkin, megaUnlocked, setMega, labXpInfo,
 } from '../../game/state.js';
-import { cardDef, isSpell, RARITIES } from '../../data/cards.js';
+import { cardDef, isSpell, RARITIES, ALL_CARDS } from '../../data/cards.js';
 import { SWARMS, SERIES, VARIANTS, ROLE_INFO, traitText, swarmStats, speedName, MAX_LEVEL } from '../../data/swarms.js';
 import { spellPower } from '../../data/spells.js';
 import { SWARM_SKINS } from '../../data/season.js';
@@ -67,6 +70,126 @@ function statTile(r, next, showPlus) {
 }
 
 // ---------------------------------------------------------------------------
+// Stat bars: each numeric stat against the best Swarm in the game at that level
+
+const refCache = new Map();
+function statRefs(level) {
+  if (refCache.has(level)) return refCache.get(level);
+  const ref = { hp: 1, dmg: 1, dps: 1, range: 1, speed: 0.1 };
+  for (const c of ALL_CARDS) {
+    if (isSpell(c.id) || !SWARMS[c.id]) continue;
+    const d = cardDef(c.id);
+    try {
+      const st = swarmStats(c.id, level, 'base');
+      ref.hp = Math.max(ref.hp, st.hp);
+      ref.dmg = Math.max(ref.dmg, st.dmg);
+      ref.dps = Math.max(ref.dps, st.dmg / Math.max(0.1, d.atk));
+    } catch (e) { /* skip odd entries */ }
+    ref.range = Math.max(ref.range, d.range ?? 0);
+    ref.speed = Math.max(ref.speed, d.speed ?? 0);
+  }
+  refCache.set(level, ref);
+  return ref;
+}
+function statFrac(id, key, v, level) {
+  if (isSpell(id)) return null;
+  const d = cardDef(id), ref = statRefs(level);
+  if (key === 'hp' || key === 'dmg' || key === 'dps') return typeof v === 'number' ? v / ref[key] : null;
+  if (key === 'range') return Math.max(0.08, (d.range ?? 0) / ref.range);
+  if (key === 'speed') return (d.speed ?? 0) / ref.speed;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 3D turntable: the Swarm spins on its card stage at a stepped pixel-art frame
+// rate (frames rendered once, one per animation frame, then cached). Drag the
+// card to spin it by hand.
+
+const TT_N = 12;
+const ttCache = new Map();
+function turntableFrames(id, variant, skin, w = 224) {
+  const key = `${id}|${variant}|${skin}|${w}`;
+  let e = ttCache.get(key);
+  if (e) return e;
+  e = { frames: [], done: false, subs: new Set() };
+  ttCache.set(key, e);
+  const hh = Math.round(w * 1.25);
+  let root = null, spin = null, i = 0;
+  const step = () => {
+    try {
+      if (!root) {
+        const rig = createSwarm(id, { variant, skin });
+        rig.setState('idle');
+        for (let k = 0; k < 6; k++) rig.update(0.016);
+        spin = new THREE.Group();
+        spin.add(rig.root);
+        root = new THREE.Group();
+        root.add(spin);
+        // an invisible spin-radius hull keeps the camera framing identical in every frame
+        const box = new THREE.Box3().setFromObject(rig.root);
+        let R = 0;
+        for (const x of [box.min.x, box.max.x]) for (const z of [box.min.z, box.max.z]) R = Math.max(R, Math.hypot(x, z));
+        R *= 0.82;
+        const hull = new THREE.Mesh(new THREE.BoxGeometry(R * 2, Math.max(0.01, box.max.y - box.min.y), R * 2));
+        hull.visible = false;
+        hull.position.y = (box.min.y + box.max.y) / 2;
+        root.add(hull);
+      }
+      spin.rotation.y = 0.62 + (i / TT_N) * Math.PI * 2;
+      e.frames.push(engine.renderThumb(root, { w, h: hh, yaw: 0, pitch: 0.16, zoom: 0.74, lift: -0.02 }));
+    } catch (err) {
+      console.warn('turntable', err);
+      e.done = true;
+      return;
+    }
+    i++;
+    for (const f of e.subs) f();
+    if (i < TT_N) requestAnimationFrame(step);
+    else { e.done = true; for (const f of e.subs) f(); e.subs.clear(); }
+  };
+  // let the modal pop in first
+  setTimeout(() => requestAnimationFrame(step), 420);
+  return e;
+}
+/** Make the big card's art spin (stepped) once its turntable frames exist. */
+function attachTurntable(card, id, variant, skin) {
+  if (!card || isSpell(id) || !SWARMS[id]) return;
+  const img = card.querySelector('.art img');
+  if (!img) return;
+  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const tt = turntableFrames(id, variant, skin);
+  let k = 0, drag = null, iv = 0, idle = 0;
+  const show = () => { if (tt.frames.length) img.src = tt.frames[((k % tt.frames.length) + tt.frames.length) % tt.frames.length]; };
+  const start = () => {
+    if (iv || !tt.done || !tt.frames.length) return;
+    card.classList.add('spinning');
+    img.classList.add('loaded');
+    iv = setInterval(() => {
+      if (!img.isConnected) { clearInterval(iv); return; }
+      if (drag || performance.now() < idle) return;
+      k++;
+      show();
+    }, 150);
+  };
+  if (tt.done) start();
+  else tt.subs.add(start);
+  card.appendChild(h('div', { class: 'mn-ci-360 t-d', 'data-tip': 'Drag to spin' }, icon('arrowL', 's'), '360', icon('arrowR', 's')));
+  card.addEventListener('pointerdown', (e) => {
+    if (!tt.done) return;
+    drag = { x: e.clientX, k };
+    card.setPointerCapture?.(e.pointerId);
+  });
+  card.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const nk = drag.k + Math.round((e.clientX - drag.x) / 14);
+    if (nk !== k) { k = nk; show(); }
+  });
+  const end = () => { if (drag) { drag = null; idle = performance.now() + 1200; } };
+  card.addEventListener('pointerup', end);
+  card.addEventListener('pointercancel', end);
+}
+
+// ---------------------------------------------------------------------------
 
 const VAR_ORDER = ['base', 'silver', 'gold', 'chrome'];
 
@@ -97,6 +220,8 @@ export function openCardInfo(id, ctx, opts = {}) {
     // --- top: big card + identity
     cardWrap = h('div', { class: 'mn-ci-card' }, cardEl(id, { size: 'big', progress: !!own, artSize: 256, locked: false, owned: own ?? { level: 1, variant: 'base' }, priority: true, noLevel: !own }));
     if (own?.mega && def.mega && megaUnlocked(def.mega)) cardWrap.appendChild(h('div', { class: 'mn-ci-mega t-d outline' }, icon('mega', 's'), 'MEGA'));
+    cardWrap.prepend(h('div', { class: 'px-rays w mn-ci-rays' }));
+    attachTurntable(cardWrap.querySelector('.gcard'), id, variant, own?.skin ?? null);
     const series = SERIES[def.series];
     const role = ROLE_INFO[def.role];
     const info = h('div', { class: 'mn-ci-info' },
@@ -116,7 +241,17 @@ export function openCardInfo(id, ctx, opts = {}) {
     const cur = cardStats(id, level, variant);
     const nxt = own && level < MAX_LEVEL ? cardStats(id, level + 1, variant) : null;
     const showPlus = !!(own && up && !up.max);
-    statTiles = cur.map((r) => statTile(r, nxt?.find((x) => x.key === r.key), showPlus));
+    statTiles = cur.map((r, i) => {
+      const t = statTile(r, nxt?.find((x) => x.key === r.key), showPlus);
+      const f = statFrac(id, r.key, r.v, level);
+      if (f !== null && Number.isFinite(f)) {
+        const nv = nxt?.find((x) => x.key === r.key);
+        const nf = showPlus && nv ? statFrac(id, r.key, nv.v, level) : null;
+        t.appendChild(h('div', { class: `mn-st-bar k-${r.key}`, style: { '--f': Math.min(1, f).toFixed(3), '--nf': Math.min(1, nf ?? f).toFixed(3), '--d': i * 0.06 + 's' } }, h('i', { class: 'nx' }), h('i', { class: 'cu' })));
+        t.classList.add('has-bar');
+      }
+      return t;
+    });
     statHost.appendChild(h('div', { class: 'mn-ci-stats' }, ...statTiles));
     if (!spell) {
       const tr = traitText(def);
@@ -182,6 +317,9 @@ export function openCardInfo(id, ctx, opts = {}) {
       cardWrap.replaceChild(fresh, cardWrap.querySelector('.gcard'));
       cardWrap.classList.remove('charging');
       cardWrap.classList.add('burst');
+      attachTurntable(fresh, id, own.variant ?? 'base', own.skin ?? null);
+      burst(cardWrap.querySelector('.gcard') ?? cardWrap, { color: '#a8f07a', count: 30, scale: 1.25 });
+      confetti($overlay(), { count: 30, life: 3.6, spread: 0.4 });
       slam(cardWrap, 'LEVEL UP!', 'c-gold');
       sparkle(cardWrap, { count: 34, spread: 120, colors: ['#ffffff', '#ffd84a', '#a8f07a', '#8fd4ff'] });
       audio.play('levelUp');

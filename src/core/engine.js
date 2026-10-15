@@ -33,6 +33,45 @@ const DEFAULT_BLOOM = { strength: 0.45, radius: 0.12, threshold: 1.75 };
 const MIN_BLOOM_THRESHOLD = 1.7;
 const ENV_GAIN = 0.3;
 
+// ---------------------------------------------------------------------------
+// Colour grade (per scene, e.g. per arena): exposure, saturation, an S-curve
+// contrast, a colour tint, a shadow lift tint and a vignette, applied right
+// after Neutral tone mapping. It lives inside the tone-mapping function, so it
+// costs no extra pass: in the composer path it runs once in the OutputPass, in
+// the direct path (medium / low quality) it runs in every material's tone
+// mapping. The uniforms are shared plain objects (ShaderLib uniform clones keep
+// the reference), all zero = identity, so shaders that never receive them
+// (custom ShaderMaterials) are unaffected.
+const GRADE = { gradeA: { x: 0, y: 0, z: 0, w: 0 }, gradeB: { x: 0, y: 0, z: 0, w: 0 }, gradeC: { x: 0, y: 0, z: 0, w: 0 }, gradeD: { x: 0, y: 0, z: 0, w: 0 } };
+const GRADE_UNIFORMS = Object.fromEntries(Object.entries(GRADE).map(([k, v]) => [k, { value: v }]));
+(function patchToneMapping() {
+  const C = THREE.ShaderChunk;
+  if (C.tonemapping_pars_fragment.includes('gradeA')) return;
+  C.tonemapping_pars_fragment = C.tonemapping_pars_fragment
+    .replace('vec3 NeutralToneMapping( vec3 color ) {', 'vec3 NeutralToneMappingBase( vec3 color ) {')
+    + `
+uniform vec4 gradeA; // exposure, saturation, contrast, vignette (offsets, 0 = identity)
+uniform vec4 gradeB; // tint rgb (multiplier - 1)
+uniform vec4 gradeC; // shadow lift rgb
+uniform vec4 gradeD; // 1 / drawing buffer size
+vec3 NeutralToneMapping( vec3 color ) {
+	color = NeutralToneMappingBase( color * ( 1.0 + gradeA.x ) );
+	float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+	color = max( mix( vec3( l ), color, 1.0 + gradeA.y ), 0.0 );
+	vec3 p = sqrt( color );
+	p = mix( p, p * p * ( 3.0 - 2.0 * p ), gradeA.z );
+	color = p * p * ( 1.0 + gradeB.rgb );
+	vec3 inv = 1.0 - clamp( color, 0.0, 1.0 );
+	color += gradeC.rgb * inv * inv;
+	if ( gradeA.w > 0.0 ) {
+		vec2 uv = gl_FragCoord.xy * gradeD.xy - 0.5;
+		color *= 1.0 - gradeA.w * smoothstep( 0.1, 0.55, dot( uv, uv ) );
+	}
+	return clamp( color, 0.0, 1.0 );
+}`;
+  for (const k in THREE.ShaderLib) Object.assign(THREE.ShaderLib[k].uniforms, GRADE_UNIFORMS);
+})();
+
 class Engine {
   constructor() {
     this.current = null;
@@ -96,6 +135,7 @@ class Engine {
     hp.fragmentShader = hp.fragmentShader.replace('float v = luminance( texel.xyz );', 'float v = max( texel.r, max( texel.g, texel.b ) );');
     hp.needsUpdate = true;
     this.outputPass = new OutputPass();
+    Object.assign(this.outputPass.material.uniforms, GRADE_UNIFORMS);
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.bloomPass);
     this.composer.addPass(this.outputPass);
@@ -107,6 +147,28 @@ class Engine {
     this.bloomPass.strength = b.strength;
     this.bloomPass.radius = Math.min(0.25, b.radius); // wide radii haze the whole screen around big neon signs
     this.bloomPass.threshold = Math.max(MIN_BLOOM_THRESHOLD, b.threshold);
+  }
+
+  /**
+   * Scene colour grade: { exposure, sat, contrast, tint: [r, g, b], lift: [r, g, b], vignette } as small
+   * offsets around 0 (identity). Scenes set `grade`, or a direct child of their scene carries
+   * `userData.grade` (battle arenas, Beast Island).
+   */
+  setGrade(g = null) {
+    const { gradeA: A, gradeB: B, gradeC: C } = GRADE;
+    A.x = g?.exposure ?? 0; A.y = g?.sat ?? 0; A.z = g?.contrast ?? 0; A.w = g?.vignette ?? 0;
+    [B.x, B.y, B.z] = g?.tint ?? [0, 0, 0];
+    [C.x, C.y, C.z] = g?.lift ?? [0, 0, 0];
+    this.grade = g;
+  }
+  /** The grade a scene asks for (scene.grade, then scene.scene.userData / its direct children). */
+  sceneGrade(sceneObj) {
+    if (sceneObj?.grade !== undefined) return sceneObj.grade;
+    const sc = sceneObj?.scene;
+    if (!sc) return null;
+    if (sc.userData?.grade) return sc.userData.grade;
+    for (const c of sc.children) if (c.userData?.grade) return c.userData.grade;
+    return null;
   }
 
   setQuality(q = 'high', retro = false) {
@@ -147,6 +209,8 @@ class Engine {
     this.renderer.setSize(w, h, false);
     this.composer.setPixelRatio(ratio);
     this.composer.setSize(w, h);
+    GRADE.gradeD.x = 1 / Math.max(1, Math.round(w * ratio));
+    GRADE.gradeD.y = 1 / Math.max(1, Math.round(h * ratio));
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
     const de = document.documentElement.style;
@@ -179,6 +243,7 @@ class Engine {
     particles.clear();
     if (sceneObj.enter) await sceneObj.enter(params);
     this.setBloom(sceneObj.bloom || {});
+    this.setGrade(this.sceneGrade(sceneObj));
     // apply the current shadow resolution to every shadow-casting light
     sceneObj.scene?.traverse((o) => {
       if (o.isDirectionalLight && o.castShadow) o.shadow.mapSize.set(this.shadowRes ?? 2048, this.shadowRes ?? 2048);
@@ -341,10 +406,14 @@ class Engine {
         if (m.envMap === this.envMap) { m.envMap = this.thumbEnv; swapped.push(m); }
       }
     });
+    // thumbnails are never graded (the shared grade uniforms belong to the current scene)
+    const saved = Object.values(GRADE).map((v) => [v.x, v.y, v.z, v.w]);
+    for (const v of Object.values(GRADE)) v.x = v.y = v.z = v.w = 0;
     try {
       r.render(this.thumbScene, this.thumbCam);
     } finally {
       for (const m of swapped) m.envMap = this.envMap;
+      Object.values(GRADE).forEach((v, i) => { [v.x, v.y, v.z, v.w] = saved[i]; });
     }
     const url = r.domElement.toDataURL('image/png');
     this.thumbScene.remove(holder);

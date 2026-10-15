@@ -4,6 +4,7 @@
 // tiki torches, a luxury villa with an infinity pool, a giant golden panther
 // statue, a superyacht bobbing offshore, gulls, and a blazing sunset over pixel
 // islands, sailboats and a glittering sea horizon.
+import { pixelDiscGeo } from './atmos.js';
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintStars, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
@@ -747,7 +748,7 @@ export function buildZone(K) {
   tLag.needsUpdate = true;
   tLag.wrapS = tLag.wrapT = THREE.RepeatWrapping;
   tLag.repeat.set(4, 4);
-  const lag = new THREE.Mesh(new THREE.RingGeometry(4.6, 7, 48), new THREE.MeshBasicMaterial({ map: tLag, color: 0xdfffff }));
+  const lag = new THREE.Mesh(pixelDiscGeo(7, 4.6, 0.25), new THREE.MeshBasicMaterial({ map: tLag, color: 0xdfffff }));
   lag.rotation.x = -Math.PI / 2;
   lag.position.y = -0.35;
   K.add(lag);

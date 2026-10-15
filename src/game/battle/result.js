@@ -3,7 +3,7 @@
 // stamp), a WINNER tag, then the rewards (trophies, coins, the vial you won,
 // XP, calories) popping in with roll-up numbers. Resolves with the button
 // pressed.
-import { h, icon, button, panel, bar, rollNumber, sparkle } from '../../ui/ui.js';
+import { h, icon, button, panel, bar, rollNumber, sparkle, burst, confetti, bump } from '../../ui/ui.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { VIALS } from '../../data/vials.js';
@@ -35,12 +35,23 @@ export async function showResult(parent, opts) {
     return { el, fill, pct, b };
   };
   const t1 = team(1), t0 = team(0);
-  const wrap = h('div', { class: 'res-wrap' }, h('div', { class: `res-title ${result}` }, title), t1.el, h('div', { class: 'res-vs' }, 'VS'), t0.el);
+  // the title: each letter slams down in turn over a spinning pixel sunburst and a neon plate
+  const letters = [...title].map((ch, i) => h('span', { class: ch === ' ' ? 'sp' : '', style: { '--i': i } }, ch === ' ' ? '\u00a0' : ch));
+  const titleEl = h('div', { class: `res-titlew ${result}` },
+    h('div', { class: 'px-rays res-rays' + (result === 'win' ? '' : ' w') }),
+    h('div', { class: 'res-plate' }),
+    result === 'win' ? icon('crown', 'res-crown') : result === 'loss' ? icon('skull', 'res-crown') : null,
+    h('div', { class: `res-title ${result}` }, letters),
+    h('div', { class: 'res-sub t-d' }, result === 'win' ? 'YOUR LAB WINS!' : result === 'draw' ? 'NOBODY BLINKED' : 'THE RIVAL LAB WINS'));
+  const wrap = h('div', { class: `res-wrap r-${result}` }, h('div', { class: 'res-flash' }), titleEl, t1.el, h('div', { class: 'res-vs' }, 'VS'), t0.el);
   parent.appendChild(wrap);
   audio.play(result === 'win' ? 'levelUp' : result === 'draw' ? 'bell' : 'error');
+  setTimeout(() => { if (wrap.isConnected) engine.shake?.(result === 'loss' ? 0.25 : 0.18); }, 120 + title.length * 55);
   if (result === 'win') {
     audio.play('cheer');
     fx.confetti(new THREE.Vector3(0, 6, 0), { count: 60, spread: 3 });
+    confetti(wrap, { count: 46, life: 5, spread: 1.4 });
+    setTimeout(() => wrap.isConnected && burst(titleEl.querySelector('.res-title'), { color: '#ffd84a', count: 24, scale: 1.1 }), 140 + title.length * 55);
   }
   await wait(450);
   // each base's HP drains to what was left; a destroyed base gets stamped
@@ -59,11 +70,12 @@ export async function showResult(parent, opts) {
       requestAnimationFrame(step);
     });
     if (!t.b.alive) {
-      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp' }, 'BASE DESTROYED!'));
+      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp' }, icon('skull', 's'), 'BASE DESTROYED!'));
       audio.play('stamp');
       engine.shake?.(0.12);
+      bump(t.el, 'res-hit');
     } else if (t.b.frac >= 0.999) {
-      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp good' }, 'FLAWLESS!'));
+      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp good' }, icon('star', 's'), 'FLAWLESS!'));
       sparkle(t.el, { count: 14, colors: ['#ffd84a', '#ffffff'] });
       audio.play('stamp', { pitch: 1.2 });
     }
@@ -76,14 +88,21 @@ export async function showResult(parent, opts) {
     const items = [];
     const add = (ic, value, label, o = {}) => {
       const v = h('div', { class: 'v' }, '0');
-      const el = h('div', { class: `res-rw sk-panel-dark${o.neg ? ' neg' : ''}` }, o.img ?? icon(ic), v, h('div', { class: 'l' }, label));
-      items.push({ el, v, value, sign: o.sign, text: o.text });
+      const el = h('div', { class: `res-rw sk-panel-dark k-${ic}${o.neg ? ' neg' : ''}` }, h('div', { class: 'px-rays w res-rw-rays' }), o.img ?? icon(ic), v, h('div', { class: 'l' }, label));
+      items.push({ el, v, value, sign: o.sign, text: o.text, neg: o.neg });
     };
+    // the 3D vial render, even when the caller didn't pass a thumbnail function
+    let vialThumb = opts.vialThumb;
+    if (r.vial && !vialThumb) {
+      try { vialThumb = (await import('../../ui/vialThumb.js')).vialThumb; } catch (e) { vialThumb = null; }
+    }
     if (r.trophies) add('trophy', r.trophies, 'Trophies', { neg: r.trophies < 0, sign: true });
     if (r.coins) add('coin', r.coins, 'Coins');
     if (r.vial) {
       const vd = VIALS[r.vial];
-      const img = opts.vialThumb ? h('img', { class: 'vial3d', src: opts.vialThumb(r.vial) }) : icon('vial');
+      let src = null;
+      try { src = vialThumb ? vialThumb(r.vial, 160) : null; } catch (e) { src = null; }
+      const img = src ? h('img', { class: 'vial3d', src }) : icon('vial');
       add('vial', 0, vd?.name ?? 'Vial', { img, text: 'NEW!' });
     } else if (r.slotsFull && result === 'win') add('vial', 0, 'Vial slots full!', { text: 'FULL', neg: true });
     if (r.calories) add('calorie', r.calories, 'Pass calories');
@@ -96,6 +115,7 @@ export async function showResult(parent, opts) {
       if (it.text) it.v.textContent = it.text;
       else rollNumber(it.v, 0, it.value, 0.6, (n) => (it.sign && n > 0 ? '+' : '') + n);
       audio.play('coin', { pitch: 1 + items.indexOf(it) * 0.08 });
+      if (!it.neg) setTimeout(() => it.el.isConnected && sparkle(it.el, { count: 8, spread: 40 }), 260);
       await wait(170);
     }
     for (const lu of r.levelUps ?? []) wrap.appendChild(h('div', { class: 't-d outline c-gold' }, `Commander level ${lu.level ?? lu}!`));

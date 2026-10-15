@@ -5,6 +5,7 @@
 // sign; film-crew cranes, tripods, a drone and spotlight towers; bleachers of
 // cheering fans (pixel-art crowd), porta-potties and a LAST TO LEAVE
 // billboard, over golden-afternoon suburbs, a water tower and rolling hills.
+import { beamMesh } from './atmos.js';
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, vnoise, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, paintClouds, paintRidge, paintTrees, paintSun, px, disc, skyTexture, parallaxWidth,
@@ -954,14 +955,12 @@ export function buildBattle(K) {
     });
   }
   {
-    const beamGeo = new THREE.ConeGeometry(1.7, 13, 18, 1, true);
-    beamGeo.translate(0, -6.5, 0);
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    // voxel light-volume beams (stepped voxel cone, banded additive glow)
     for (const [x, z, ph] of [[-19.5, -20.5, 0], [19.5, -21, 2.1]]) {
       K.mesh('tower', towerGrid, { scale: 0.12, ao: true }, x, 0, z, 0, 1, { shadow: true });
       const head = new THREE.Group();
       head.position.set(x, 7.4, z + 0.45);
-      const beam = new THREE.Mesh(beamGeo, beamMat);
+      const beam = beamMesh(K, { id: 'circleSpot', len: 13, r0: 0.2, r1: 1.7, vox: 0.25, color: 0xfff0c0, opacity: 0.28 });
       beam.rotation.x = -0.95;
       head.add(beam);
       K.add(head);

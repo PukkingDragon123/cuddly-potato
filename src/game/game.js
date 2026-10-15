@@ -10,6 +10,7 @@ const loaders = {
   home: () => import('../scenes/home.js').then((m) => m.HomeScene),
   battle: () => import('../scenes/battle.js').then((m) => m.BattleScene),
   preview: () => import('../dev/preview.js').then((m) => m.PreviewScene),
+  charview: () => import('../dev/charView.js').then((m) => m.CharViewScene),
   modellab: () => import('../dev/modelLab.js').then((m) => m.ModelLabScene),
   arenaview: () => import('../dev/arenaView.js').then((m) => m.ArenaViewScene),
   islandview: () => import('../dev/islandView.js').then((m) => m.IslandViewScene),

@@ -1211,3 +1211,260 @@
 .mn-pst { transition: transform 0.16s cubic-bezier(.3, 1.8, .5, 1); }
 .mn-pst:active { transform: scale(0.97); }
 .mn-pst .mn-st-ic { filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(0, 0, 0, 0.25)); }
+
+/* =========================================================================
+   Premium pass (v3): shop hero offer + corner ribbons, hover glints on every
+   tile, collection rarity glows + sort chips + cascade entrance, card-info
+   turntable stage + stat bars, commander showcase stage, modal polish.
+   ========================================================================= */
+/* hover glint shared by all offer / pick tiles (mouse only) */
+@media (hover: hover) {
+  :is(.mn-offer, .mn-vtile, .mn-ctile, .mn-feat, .mn-rost, .mn-fr-choice, .mn-pk):not(.sold):hover { translate: 0 calc(var(--px) * -1.5); }
+  :is(.mn-offer, .mn-ctile, .mn-feat, .mn-rost, .mn-fr-choice):not(.sold):hover > :first-child { filter: brightness(1.06); }
+}
+.mn-offer, .mn-ctile, .mn-feat, .mn-rost, .mn-fr-choice, .mn-pk { transition: transform 0.16s cubic-bezier(.3, 1.8, .5, 1), translate 0.16s cubic-bezier(.3, 1.8, .5, 1); }
+
+/* ---- corner ribbons ("BEST VALUE", "HOT!") */
+.mn-cribbon {
+  --rb1: #fff6b8; --rb2: #ffc21a; --rb3: #c8780e;
+  position: absolute; z-index: 7; left: calc(var(--px) * -2); top: calc(var(--px) * 2); padding: 0.06em 0.9em 0.12em 0.45em; pointer-events: none; overflow: hidden;
+  background: linear-gradient(var(--ink) 0 var(--px), var(--rb1) var(--px) calc(var(--px) * 2), var(--rb2) calc(var(--px) * 2) 68%, var(--rb3) 68% calc(100% - var(--px)), var(--ink) calc(100% - var(--px)));
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 3) 50%, 100% 100%, 0 100%);
+  filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(0, 0, 0, 0.35)); transform-origin: 0 50%; animation: mnRibbonIn 0.5s 0.2s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.mn-cribbon > span { position: relative; z-index: 1; font-size: 0.82em; letter-spacing: 0.06em; color: #fff; text-shadow: var(--outline-thin); white-space: nowrap; }
+.mn-cribbon::after {
+  content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 0 40%, rgba(255, 255, 255, 0.7) 40% 48%, transparent 48%) no-repeat;
+  background-size: 300% 100%; background-position: 150% 0; animation: hmLvlShineR 3s steps(14) infinite;
+}
+@keyframes hmLvlShineR { 0%, 60% { background-position: 150% 0; } 100% { background-position: -60% 0; } }
+@keyframes mnRibbonIn { 0% { transform: scaleX(0); } 100% { transform: none; } }
+.mn-cribbon.pink { --rb1: #ffc8e4; --rb2: #ff3a98; --rb3: #a8145a; }
+.mn-cribbon.teal { --rb1: #c8fff0; --rb2: #22d8b0; --rb3: #0e8a7a; }
+.mn-cribbon.gray { --rb1: #e4e8f4; --rb2: #8e9ac0; --rb3: #4a5478; }
+.mn-offer .mn-cribbon { top: calc(var(--u) * 4.4); }
+.mn-cbonus {
+  position: absolute; z-index: 6; right: calc(var(--px) * 2); top: calc(var(--px) * 2); padding: 0.08em 0.35em 0.12em; font-size: 0.95em; color: #fff; text-shadow: var(--outline-thin);
+  background: radial-gradient(circle at 35% 30%, #ff9aa4 0 18%, transparent 19%), var(--red); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.7);
+  rotate: 8deg; animation: badgeIn 0.5s 0.3s cubic-bezier(.3, 1.8, .5, 1) both, badgeBob 1.4s 0.8s ease-in-out infinite;
+}
+.mn-ctile.best { box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.5) #ffe46a, inset 0 0 0 var(--px) rgba(200, 255, 170, 0.45), inset 0 calc(var(--px) * 2) 0 rgba(255, 255, 255, 0.22), 0 0 calc(var(--px) * 6) rgba(255, 216, 74, 0.7); }
+.mn-ctile .mn-ctile-ic { animation: hmBob 2s ease-in-out infinite; }
+.mn-ctile.best .mn-ctile-ic { animation: hmBob 1.2s ease-in-out infinite; }
+
+/* ---- shop hero offer */
+.mn-hero {
+  --vc: #ffc21a;
+  position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: calc(var(--u) * 1.4);
+  min-height: calc(var(--u) * 46); padding: calc(var(--u) * 2.6) calc(var(--u) * 2.2) calc(var(--u) * 2);
+  border: 0 solid transparent; border-image: var(--ski-plate-ring-gold) 12 / calc(5 * var(--px)) / 0 stretch;
+  box-shadow: 0 0 calc(var(--u) * 3) color-mix(in srgb, var(--vc) 55%, transparent), 0 calc(var(--px) * 3) 0 rgba(0, 0, 0, 0.35);
+}
+.mn-hero.vr-epic { --vc: #c063ff; }
+.mn-hero.vr-legendary { --vc: #ffc21a; }
+.mn-hero.vr-rare { --vc: #ff8a2a; }
+.mn-hero-bg {
+  position: absolute; inset: 0; z-index: -3;
+  background:
+    radial-gradient(ellipse 55% 75% at 26% 58%, color-mix(in srgb, var(--vc) 70%, #fff) 0%, color-mix(in srgb, var(--vc) 55%, #3a0c6a) 38%, transparent 72%),
+    var(--tx-grid) 0 0 / calc(16 * var(--px)) calc(16 * var(--px)),
+    linear-gradient(115deg, #5a1a9a 0%, #2a0f6a 48%, #12083a 100%);
+}
+.mn-hero-rays { left: 26%; top: 56%; --rs: calc(var(--u) * 74); --ro: 0.55; z-index: -2; }
+.mn-hero-stars { z-index: -1; opacity: 0.7; }
+.mn-hero-art { position: relative; height: calc(var(--u) * 40); display: flex; align-items: flex-end; justify-content: center; }
+.mn-hero-ped {
+  position: absolute; left: 8%; right: 8%; bottom: 0; height: calc(var(--u) * 6); border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, #fff6c8 0 22%, color-mix(in srgb, var(--vc) 80%, #fff) 23% 48%, color-mix(in srgb, var(--vc) 45%, #2a0a50) 49% 70%, transparent 71%);
+  filter: drop-shadow(0 0 calc(var(--px) * 4) color-mix(in srgb, var(--vc) 80%, transparent));
+}
+.mn-hero-vial { position: relative; height: 112% !important; width: auto; max-width: 118%; margin-bottom: calc(var(--u) * 1.4); animation: mnHeroFloat 2.4s ease-in-out infinite; filter: drop-shadow(0 calc(var(--px) * 3) 0 rgba(0, 0, 0, 0.35)) drop-shadow(0 0 calc(var(--px) * 4) color-mix(in srgb, var(--vc) 70%, transparent)); }
+.mn-hero-vial:not(.v3d) { height: 80% !important; }
+@keyframes mnHeroFloat { 0%, 100% { translate: 0 0; rotate: -4deg; } 50% { translate: 0 calc(var(--px) * -4); rotate: 4deg; } }
+.mn-hero-txt { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * 0.9); min-width: 0; }
+.mn-hero-k { display: inline-flex; align-items: center; gap: 0.25em; font-size: 0.85em; letter-spacing: 0.1em; color: var(--gold); text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(255, 216, 74, 0.8); }
+.mn-hero-n { font-size: 2.05em; line-height: 0.88; --t3: #ff8a1f; white-space: normal; }
+.mn-hero-s { font-size: 0.8em; font-weight: 700; color: #ffe6f4; text-shadow: var(--outline-thin); line-height: 1.15; }
+.mn-hero-chips { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 0.8); }
+.mn-hero-chips .mn-chip { font-size: 0.78em; }
+.mn-hero-buy { display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * 0.8); margin-top: calc(var(--u) * 0.4); }
+.mn-hero-buy .btn { min-width: calc(var(--u) * 30); }
+.mn-hero .mn-chip-timer { font-size: 0.78em; }
+.mn-hero.sold .mn-hero-vial, .mn-hero.sold .mn-hero-rays { filter: grayscale(0.85) brightness(0.7); animation: none; }
+.mn-hero .mn-cribbon { top: calc(var(--px) * 4); left: calc(var(--px) * 1); }
+.mn-hero .mn-cribbon > span { font-size: 0.95em; }
+.mn-dealhead { justify-content: space-between; }
+.mn-dealhead .mn-sec { flex: 0 1 auto; }
+.mn-dealhead .mn-chip-timer { font-size: 0.8em; }
+.mn-intro :is(.mn-offers, .mn-vials, .mn-feats) > * { animation: hmPop 0.45s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.mn-intro .mn-coins > * { animation: hmPop 0.45s cubic-bezier(.2, 1.4, .4, 1) backwards, mnFizzBg 3s steps(24) infinite; }
+.mn-intro .mn-offers > :nth-child(2), .mn-intro .mn-coins > :nth-child(2), .mn-intro .mn-feats > :nth-child(2), .mn-intro .mn-vials > :nth-child(2) { animation-delay: 0.06s; }
+.mn-intro .mn-offers > :nth-child(3), .mn-intro .mn-coins > :nth-child(3), .mn-intro .mn-feats > :nth-child(3), .mn-intro .mn-vials > :nth-child(3) { animation-delay: 0.12s; }
+.mn-intro .mn-offers > :nth-child(4) { animation-delay: 0.18s; } .mn-intro .mn-offers > :nth-child(5) { animation-delay: 0.24s; } .mn-intro .mn-offers > :nth-child(6) { animation-delay: 0.3s; }
+.mn-shop .sold.just { animation: bump 0.32s; }
+.mn-gift-art { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 216, 74, 0.7)); }
+.mn-gift:not(.sold) .mn-gift-art { animation: mnGiftShake 2.4s ease-in-out infinite; }
+@keyframes mnGiftShake { 0%, 70%, 100% { rotate: 0deg; translate: 0 0; } 74% { rotate: -8deg; translate: 0 calc(var(--px) * -2); } 78% { rotate: 7deg; } 82% { rotate: -5deg; } 86% { rotate: 3deg; translate: 0 0; } }
+@media (max-width: 420px) {
+  .mn-hero { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); padding-left: calc(var(--u) * 1.2); }
+  .mn-hero-n { font-size: 1.7em; }
+  .mn-hero-art { height: calc(var(--u) * 36); }
+}
+
+/* ---- cards tab: sort chips, rarity glows, cascade, lineup numbers */
+.mn-sortrow { display: flex; align-items: center; gap: calc(var(--u) * 1.2); flex-wrap: wrap; margin-top: calc(var(--u) * -1); }
+.mn-sortl { font-size: 1em; color: var(--muted) !important; }
+.mn-sortchips { display: flex; gap: calc(var(--u) * 0.8); }
+.mn-sortchip {
+  position: relative; display: inline-flex; align-items: center; gap: 0.25em; padding: 0.15em 0.6em 0.25em; cursor: pointer; border: 0; color: #c8d4ff;
+  font-family: var(--font-d); font-size: 0.95em; letter-spacing: 0.04em; text-shadow: var(--outline-thin);
+  background: linear-gradient(#2a3a8a, #18205a); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(170, 230, 255, 0.3), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s cubic-bezier(.3, 1.7, .5, 1);
+}
+.mn-sortchip .pi { opacity: 0.6; }
+.mn-sortchip:active { transform: scale(0.92, 0.88); }
+.mn-sortchip.on {
+  color: #fff; transform: translateY(calc(var(--px) * -1));
+  background: linear-gradient(#ffb8e0 0 14%, #ff4aa8 14% 70%, #b0186a 70%); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #ffd8ee, inset 0 calc(var(--px) * -2) 0 #7a0e48, 0 0 calc(var(--px) * 4) rgba(255, 74, 168, 0.65);
+  animation: hmTabOn 0.35s cubic-bezier(.3, 1.7, .5, 1);
+}
+.mn-sortchip.on .pi { opacity: 1; }
+.mn-collbar { position: relative; flex: 1 1 calc(var(--u) * 20); min-width: calc(var(--u) * 16); height: calc(var(--u) * 1.6); background: linear-gradient(#060a26, #16226a); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink); }
+.mn-collbar > i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#ffc8e4 0 30%, #ff4aa8 30% 72%, #a8145a 72%); box-shadow: 0 0 calc(var(--px) * 2) rgba(255, 74, 168, 0.7); }
+/* rarity halos under the cards (static glow, legendary + mythic pulse in steps) */
+.mn-cgrid:not(.locked) .mn-cc::before, .mn-deck .mn-cc::before {
+  content: ''; position: absolute; left: 50%; top: 46%; width: 128%; aspect-ratio: 1; translate: -50% -50%; z-index: -1; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, var(--halo, transparent) 0%, transparent 62%);
+}
+.mn-cc:has(.gcard.rare)::before { --halo: rgba(255, 154, 46, 0.32); opacity: 1; }
+.mn-cc:has(.gcard.epic)::before { --halo: rgba(192, 99, 255, 0.45); opacity: 1; }
+.mn-cc:has(.gcard.legendary)::before { --halo: rgba(63, 242, 200, 0.55); opacity: 1; animation: mnHalo 1.6s steps(4) infinite alternate; }
+.mn-cc:has(.gcard.mythic)::before { --halo: rgba(255, 46, 136, 0.55); opacity: 1; animation: mnHalo 1.6s steps(4) infinite alternate; }
+@keyframes mnHalo { from { opacity: 0.55; scale: 0.92; } to { opacity: 1; scale: 1.06; } }
+.mn-cc { isolation: isolate; }
+.mn-cgrid .gcard.epic, .mn-cgrid .gcard.legendary, .mn-cgrid .gcard.mythic { filter: drop-shadow(0 0 calc(var(--px) * 1.5) color-mix(in srgb, var(--rc) 75%, transparent)); }
+.mn-intro .mn-cgrid .mn-cc, .mn-resort .mn-cgrid .mn-cc, .mn-intro .mn-deck .mn-cc { animation: mnCardIn 0.42s calc(var(--i, 0) * 0.035s) cubic-bezier(.2, 1.5, .4, 1) backwards; }
+@keyframes mnCardIn { 0% { transform: translateY(calc(var(--u) * 6)) scale(0.6) rotate(-6deg); opacity: 0; } 70% { transform: scale(1.05) rotate(1deg); opacity: 1; } 100% { transform: none; } }
+@media (hover: hover) { .mn-cc:not(.picked):hover .gcard { translate: 0 calc(var(--px) * -2); scale: 1.03; } }
+.mn-cc .gcard { transition: translate 0.15s, scale 0.15s cubic-bezier(.3, 1.7, .5, 1); }
+.mn-deck { counter-reset: slot; }
+.mn-deck .mn-cc { counter-increment: slot; }
+.mn-deck .mn-cc:not(.lockd-slot)::after {
+  /* lineup position (also the keyboard shortcut in battle) */
+  content: counter(slot); position: absolute; left: 50%; bottom: calc(var(--u) * -4.2); translate: -50% 0; z-index: 2; pointer-events: none;
+  font-family: var(--font-d); font-size: 0.7em; line-height: 1; padding: 0 0.3em 0.05em; color: #9fe8ff; text-shadow: var(--outline-thin);
+  background: rgba(4, 8, 30, 0.75); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink);
+}
+.mn-deck .mn-cc:has(.copies)::after { bottom: calc(var(--u) * -7.8); }
+.mn-deck.lineup { row-gap: calc(var(--u) * 8.2) !important; padding-bottom: calc(var(--u) * 7); }
+.mn-deckbox { box-shadow: 0 0 calc(var(--u) * 3) rgba(63, 200, 255, 0.25); }
+.mn-cc.can-up::after { color: var(--green-l); }
+.mn-empty-in { animation: mnEmptyPulse 2s steps(2) infinite; }
+@keyframes mnEmptyPulse { 50% { color: rgba(127, 230, 255, 0.85); } }
+
+/* ---- card info: rays + 3D turntable stage, stat bars */
+.mn-ci-card { isolation: isolate; }
+.mn-ci-rays { --rs: 170%; --ro: 0.28; z-index: -1; top: 45%; }
+.mn-cimodal.mn-r-epic .mn-ci-rays { --ro: 0.38; }
+.mn-cimodal.mn-r-legendary .mn-ci-rays, .mn-cimodal.mn-r-mythic .mn-ci-rays { --ro: 0.5; background-image: var(--tx-rays); }
+.mn-ci-card .gcard { cursor: grab; touch-action: pan-y; }
+.mn-ci-card .gcard:active { cursor: grabbing; }
+.mn-ci-card .gcard.spinning .art > .stage { animation: pxRays 20s steps(60) infinite; }
+.mn-ci-360 {
+  position: absolute; left: 50%; bottom: calc(var(--u) * -0.6); translate: -50% 0; z-index: 5; display: inline-flex; align-items: center; gap: 0.1em; white-space: nowrap;
+  padding: 0 0.35em 0.05em; font-size: 0.75em; color: #9fe8ff; text-shadow: var(--outline-thin); background: rgba(4, 8, 30, 0.8); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink);
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.mn-ci-360 .pi { width: 0.9em; height: 0.9em; }
+.gcard.spinning > .mn-ci-360 { opacity: 1; }
+.mn-ci-card .gcard.big .copies ~ .mn-ci-360 { bottom: calc(var(--u) * -9.4); }
+.mn-st.has-bar { flex-wrap: wrap; row-gap: calc(var(--u) * 0.5); }
+.mn-st-bar {
+  --bc: #2b9cff; position: relative; flex: 1 0 100%; height: calc(var(--px) * 3); margin-top: calc(var(--px) * 0.5);
+  background: #1a2050; box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 rgba(0, 0, 0, 0.5);
+}
+.mn-st-bar > i { position: absolute; left: 0; top: 0; bottom: 0; transform-origin: 0 50%; animation: mnStBar 0.6s var(--d, 0s) cubic-bezier(.2, 1.2, .4, 1) backwards; }
+.mn-st-bar > .cu { width: calc(var(--f) * 100%); background: linear-gradient(color-mix(in srgb, var(--bc) 45%, #fff) 0 34%, var(--bc) 34%); }
+.mn-st-bar > .nx { width: calc(var(--nf) * 100%); background: repeating-linear-gradient(90deg, #7aff4a 0 calc(var(--px) * 2), #2a9a2a calc(var(--px) * 2) calc(var(--px) * 3)); }
+@keyframes mnStBar { from { transform: scaleX(0); } }
+.mn-st-bar.k-hp { --bc: #ff4a6a; } .mn-st-bar.k-dmg { --bc: #ff8a1f; } .mn-st-bar.k-dps { --bc: #ffc21a; } .mn-st-bar.k-range { --bc: #2bd8ff; } .mn-st-bar.k-speed { --bc: #7aff4a; }
+.mn-ci-stats > .mn-st { animation: hmPop 0.4s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.mn-ci-stats > .mn-st:nth-child(2) { animation-delay: 0.04s; } .mn-ci-stats > .mn-st:nth-child(3) { animation-delay: 0.08s; } .mn-ci-stats > .mn-st:nth-child(4) { animation-delay: 0.12s; }
+.mn-ci-stats > .mn-st:nth-child(5) { animation-delay: 0.16s; } .mn-ci-stats > .mn-st:nth-child(n+6) { animation-delay: 0.2s; }
+.mn-ci-upbtn.shine { animation: btnPulse 1.1s ease-in-out infinite; }
+
+/* ---- commander showcase: rays, spotlight stars, glowing pedestal ring, name plate */
+.mn-cmd-stage { isolation: isolate; cursor: pointer; }
+.mn-cmd-rays { --rs: 150%; --ro: 0.3; top: 46%; z-index: -1; }
+.mn-cmd.is-locked .mn-cmd-rays { display: none; }
+.mn-cmd-stars { z-index: 0; opacity: 0.45; -webkit-mask: radial-gradient(ellipse 50% 60% at 50% 50%, #000, transparent); mask: radial-gradient(ellipse 50% 60% at 50% 50%, #000, transparent); }
+.mn-cmd-pedring {
+  position: absolute; left: -6%; right: -6%; top: -20%; bottom: -20%; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 calc(var(--px) * 1) rgba(127, 230, 255, 0.85); animation: mnPedRing 2.2s steps(11) infinite;
+}
+@keyframes mnPedRing { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.3, 1.5); opacity: 0; } }
+.mn-cmd-full { z-index: 1; filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(0, 0, 0, 0.3)); }
+.mn-cmd-full.hop { animation: mnCmdHop 0.55s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes mnCmdHop { 0% { transform: scale(1.1, 0.88); } 35% { transform: translateY(calc(var(--u) * -4)) scale(0.94, 1.08); } 65% { transform: translateY(0) scale(1.06, 0.94); } 100% { transform: none; } }
+.mn-cmd-plate {
+  position: absolute; left: 50%; bottom: calc(var(--u) * -0.6); translate: -50% 0; z-index: 2; padding: 0.02em 0.6em 0.1em; white-space: nowrap; font-size: 0.75em; letter-spacing: 0.1em; color: #fff; text-shadow: var(--outline-thin);
+  background: linear-gradient(#c08aff 0 18%, #8a4ae0 18% 76%, #5a2aa8 76%); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 3) rgba(192, 138, 255, 0.7);
+}
+.mn-cmd.is-locked .mn-cmd-plate { background: linear-gradient(#7a86aa, #3a3f62); box-shadow: 0 0 0 var(--px) var(--ink); }
+.mn-cmd-name { animation: hmPop 0.4s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.mn-roster { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 19), 1fr)); }
+.mn-rost.view { animation: hmTabOn 0.35s cubic-bezier(.3, 1.7, .5, 1); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2) #fff, 0 0 calc(var(--px) * 5) rgba(255, 216, 74, 0.8); }
+.mn-rost:not(.lock) .mn-rost-art img { transition: transform 0.15s cubic-bezier(.3, 1.7, .5, 1); }
+@media (hover: hover) { .mn-rost:not(.lock):hover .mn-rost-art img { transform: scale(1.08) rotate(-3deg); } }
+.mn-abil, .mn-perk { animation: hmRise 0.4s cubic-bezier(.2, 1.25, .4, 1) backwards; }
+.mn-screen:not(.mn-intro) :is(.mn-abil, .mn-perk, .mn-cmd-name) { animation: none; }
+.mn-abil.sig .mn-abil-ic { animation: hmGlow 1.6s ease-in-out infinite; }
+.mn-perk.empty .mn-perk-ic > .t-d { animation: hmBob 1.2s ease-in-out infinite; display: inline-block; }
+
+/* ---- profile / boss / friend / settings polish */
+.mn-prof-ban { position: relative; }
+.mn-prof-ban::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(105deg, transparent 0 40%, rgba(255, 255, 255, 0.35) 40% 46%, transparent 46%) no-repeat; background-size: 300% 100%; background-position: 150% 0;
+  animation: hmLvlShineR 5s steps(20) infinite;
+}
+.mn-prof-port { animation: hmPop 0.45s 0.1s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.mn-pstats > * { animation: hmPop 0.4s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.mn-pstats > :nth-child(2) { animation-delay: 0.04s; } .mn-pstats > :nth-child(3) { animation-delay: 0.08s; } .mn-pstats > :nth-child(4) { animation-delay: 0.12s; }
+.mn-pstats > :nth-child(5) { animation-delay: 0.16s; } .mn-pstats > :nth-child(6) { animation-delay: 0.2s; } .mn-pstats > :nth-child(n+7) { animation-delay: 0.24s; }
+.mn-boss-art { box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 3) #b8252f, 0 0 0 calc(var(--px) * 4) var(--ink), inset 0 calc(var(--px) * 2) 0 rgba(255, 255, 255, 0.3), 0 0 calc(var(--u) * 3) rgba(255, 46, 74, 0.55); }
+.mn-boss-art::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--px) * 3); z-index: 2; pointer-events: none;
+  background: var(--tx-hazard) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)); animation: mnHazardRun 1s steps(8) infinite;
+}
+.mn-boss-art::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--px) * 3); z-index: 2; pointer-events: none;
+  background: var(--tx-hazard) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)); animation: mnHazardRun 1s steps(8) infinite reverse;
+}
+@keyframes mnHazardRun { to { background-position: calc(8 * var(--px)) 0; } }
+.mn-boss-tag { animation: mnBossTag 1.2s steps(1) infinite; }
+@keyframes mnBossTag { 0%, 60% { background: #d4141c; } 65%, 80% { background: #ff4a5a; box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 4) rgba(255, 60, 80, 0.9); } }
+.mn-boss-img { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.6)); }
+.mn-boss-deck > * { animation: hmPop 0.35s cubic-bezier(.2, 1.4, .4, 1) backwards; }
+.mn-boss-deck > :nth-child(2) { animation-delay: 0.05s; } .mn-boss-deck > :nth-child(3) { animation-delay: 0.1s; } .mn-boss-deck > :nth-child(4) { animation-delay: 0.15s; }
+.mn-boss-deck > :nth-child(5) { animation-delay: 0.2s; } .mn-boss-deck > :nth-child(n+6) { animation-delay: 0.25s; }
+.mn-bossm .modal-foot .btn.xl { animation: hmBreathe 1.4s ease-in-out infinite; }
+.mn-bossm .modal-foot .btn.xl.btn-pop { animation: btnPop 0.42s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes hmBreathe { 0%, 100% { scale: 1 1; } 50% { scale: 1.035 1.05; } }
+.mn-fr-choice { position: relative; overflow: hidden; isolation: isolate; }
+.mn-fr-choice::before {
+  content: ''; position: absolute; left: 50%; top: 40%; width: 150%; aspect-ratio: 1; translate: -50% -50%; z-index: -1; pointer-events: none;
+  background: var(--tx-rays-w) center / 100% 100% no-repeat; image-rendering: pixelated; opacity: 0.18; animation: pxRays 18s steps(54) infinite;
+}
+.mn-fr-choice.join .mn-fr-ic { animation-delay: -0.7s; }
+.mn-setrow { animation: hmRise 0.35s cubic-bezier(.2, 1.25, .4, 1) backwards; }
+.mn-set > :nth-child(2) { animation-delay: 0.04s; } .mn-set > :nth-child(3) { animation-delay: 0.08s; } .mn-set > :nth-child(4) { animation-delay: 0.12s; } .mn-set > :nth-child(n+5) { animation-delay: 0.16s; }
+@media (hover: hover) { .mn-setrow:hover { background: linear-gradient(rgba(127, 200, 255, 0.16), rgba(0, 0, 0, 0.12)); } }
+.mn-switch > i { transition: left 0.18s cubic-bezier(.3, 1.8, .5, 1); }
+.mn-rwmodal .mn-rwpop.big .mn-rw { animation: hmGlow 1.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mn-cribbon, .mn-cribbon::after, .mn-cbonus, .mn-ctile .mn-ctile-ic, .mn-hero-vial, :is(.mn-offers, .mn-vials, .mn-feats, .mn-coins) > *, .mn-gift-art, .mn-sortchip.on, .mn-cc::before, .mn-cc, .mn-empty-in,
+  .mn-ci-card .gcard .art > .stage, .mn-st-bar > i, .mn-ci-stats > .mn-st, .mn-ci-upbtn.shine, .mn-cmd-pedring, .mn-cmd-full.hop, .mn-cmd-name, .mn-rost.view, .mn-abil, .mn-perk, .mn-perk-ic > .t-d,
+  .mn-prof-ban::after, .mn-prof-port, .mn-pstats > *, .mn-boss-art::before, .mn-boss-art::after, .mn-boss-tag, .mn-boss-deck > *, .mn-bossm .modal-foot .btn.xl, .mn-fr-choice::before, .mn-setrow, .mn-rwpop .mn-rw { animation: none !important; }
+}

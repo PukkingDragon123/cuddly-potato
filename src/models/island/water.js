@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { X0, Z0, NX, NZ, CS } from './terrain.js';
 import { mulberry32 } from '../../core/util.js';
+import { pixelDiscGeo } from '../arenas/atmos.js';
+import { CLOUD_GLSL } from './extras.js';
 
 const col = (hex) => new THREE.Color(hex);
 
@@ -26,8 +28,9 @@ const OCEAN_FRAG = /* glsl */ `
 uniform float uTime;
 uniform sampler2D uDist;
 uniform vec4 uRect;
-uniform vec3 cFoam, cShallow, cShallow2, cMid, cDeep, cDeepest, cDash;
+uniform vec3 cFoam, cShallow, cShallow2, cMid, cDeep, cDeepest, cDash, cCaustic, cSky;
 varying vec3 vWorld;
+${CLOUD_GLSL}
 float bb2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float bayer4(vec2 a) { return bb2(0.5 * a) * 0.25 + bb2(a) + 0.03; }
 float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -55,6 +58,22 @@ void main() {
   float dir = mod(row, 2.0) * 2.0 - 1.0;
   float s = q.x * 0.5 + dir * uTime * 0.35 + h21(vec2(row, 3.0)) * 40.0;
   if (mod(cell.y, 6.0) < 1.0 && fract(s * 0.11) < 0.09 && d > 3.0) c = mix(c, cDash, 0.55);
+  // caustic web dancing over the sandy shallows
+  float cz = 1.0 - smoothstep(1.0, 5.5, d);
+  if (cz > 0.0) {
+    vec2 cq = q * 0.95;
+    float c1 = abs(sin(cq.x * 1.7 + sin(cq.y * 1.3 + uTime * 0.9) * 1.4 + uTime * 0.6));
+    float c2 = abs(sin(cq.y * 1.9 + sin(cq.x * 1.1 - uTime * 0.7) * 1.4 - uTime * 0.5));
+    float caus = 1.0 - min(c1, c2);
+    if (caus > 0.8 && cz > dith * 0.7) c = mix(c, cCaustic, 0.5 * cz);
+  }
+  // the bright horizon sky reflected at grazing angles (banded fresnel)
+  vec3 V = normalize(vWorld - cameraPosition);
+  float fr = pow(1.0 - abs(V.y), 5.0);
+  fr = floor(fr * 4.0 + dith) / 4.0;
+  c = mix(c, cSky, fr * 0.55);
+  // drifting cloud shadows
+  c *= cloudShade(vWorld.xz);
   // foam rings rolling into the shore
   float ph = fract(dd * 0.24 - uTime * 0.2);
   float ringZone = 1.0 - smoothstep(1.5, 8.0, d);
@@ -71,7 +90,7 @@ void main() {
   #include <fog_fragment>
 }`;
 
-export function makeOcean(T, size = 2600) {
+export function makeOcean(T, size = 2600, opts = {}) {
   const uniforms = THREE.UniformsUtils.merge([
     THREE.UniformsLib.fog,
     {
@@ -84,8 +103,13 @@ export function makeOcean(T, size = 2600) {
       cDeep: { value: col(0x1886d8) },
       cDeepest: { value: col(0x1666c4) },
       cDash: { value: col(0xbff2ff) },
+      cCaustic: { value: col(0xd8fff6) },
+      cSky: { value: col(0xd4f2ff) },
     },
   ]);
+  // cloud shadows (shared with the terrain): uniforms from opts.cloud, zero = none
+  uniforms.uCloudT = opts.cloud?.uCloudT ?? { value: 0 };
+  uniforms.uCloudZones = opts.cloud?.uCloudZones ?? { value: Array.from({ length: 16 }, () => new THREE.Vector4()) };
   uniforms.uDist = { value: T.distTex };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: OCEAN_VERT, fragmentShader: OCEAN_FRAG, fog: true });
   const geo = new THREE.PlaneGeometry(size, size);
@@ -309,7 +333,7 @@ export function makeRiver(samples, opts = {}) {
   const mist = [];
   for (const S of splashes) {
     if (S.h < 2.5 || lava) continue;
-    const ringGeo = new THREE.CircleGeometry(S.w * 1.2 + 0.3, 10);
+    const ringGeo = pixelDiscGeo(Math.round((S.w * 1.2 + 0.3) * 4) / 4, 0, 0.25).clone();
     ringGeo.rotateX(-Math.PI / 2);
     const ringM = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xe8fcff, transparent: true, opacity: 0.85, depthWrite: false }));
     ringM.position.set(S.x, S.y + 0.03, S.z);

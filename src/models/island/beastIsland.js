@@ -36,6 +36,7 @@ import { buildTerrain, MAT, VY, X0, Z0, NX, NZ, CS } from './terrain.js';
 import { makeOcean, makeRiver, lagoonTexture, lavaLakeTexture, columnWater } from './water.js';
 import { makeSky, Billboards, makeDistantIslands, HORIZON } from './sky.js';
 import * as P from './props.js';
+import { addIslandExtras, makeCloudUniforms, patchCloudShadows } from './extras.js';
 
 export const ZONE_ORDER = ['lab', 'circle', 'factory', 'mart', 'redlight', 'antarctica', 'reactor', 'pyramid', 'island', 'jungle', 'laser', 'haunted', 'reef', 'volcano', 'space'];
 
@@ -148,6 +149,10 @@ export async function makeBeastIsland(opts = {}) {
     new THREE.MeshLambertMaterial({ map: T.colorTex }),
     new THREE.MeshLambertMaterial({ vertexColors: true }),
   ];
+  // drifting cloud shadows over the terrain + ocean (kept off the arena plinths)
+  const cloudU = makeCloudUniforms(ZONES.map((Z) => [Z.x, Z.z, PLINTH_R + 3]));
+  for (const m of terrainMats) patchCloudShadows(m, cloudU);
+  updaters.push((dt, t) => { cloudU.uCloudT.value = t; });
   // terrain chunks (separate meshes so the camera and the sun's shadow box can cull them)
   for (const g of T.meshes) {
     const terrain = new THREE.Mesh(g, terrainMats);
@@ -158,7 +163,7 @@ export async function makeBeastIsland(opts = {}) {
   }
 
   // ------------------------------------------------------------------ water
-  const ocean = makeOcean(T);
+  const ocean = makeOcean(T, 2600, { cloud: cloudU });
   root.add(ocean.mesh);
   const rivers = T.rivers.map((samples) => makeRiver(samples, { lava: samples.lava }));
   for (const rv of rivers) root.add(rv.group);
@@ -422,7 +427,19 @@ export async function makeBeastIsland(opts = {}) {
   addRoadside({ T, root, bridges, exclude });
   if (opts.decor !== false) addDecor({ T, root, exclude, R });
   lap('decor');
-  addLife({ T, root, updaters, R });
+  const boats = addLife({ T, root, updaters, R });
+  try {
+    addIslandExtras({ T, root, updaters, R, zones, ZONES, boats, CX, CZ, exclude, falls: rivers[0]?.splashes ?? [] });
+  } catch (e) {
+    console.error('island extras failed', e);
+  }
+  lap('extras');
+  // light rig extras: a cool sky fill from the camera side (no shadows); colour grade for the home scene
+  const fill = new THREE.DirectionalLight(0xa8ccff, 0.42);
+  fill.position.set(-30, 26, 60);
+  fill.name = 'fillLight';
+  root.add(fill);
+  root.userData.grade = { exposure: 0.02, sat: 0.1, contrast: 0.08, tint: [0.015, 0.005, -0.015], lift: [0.0, 0.012, 0.03], vignette: 0.22 };
 
   root.updateMatrixWorld(true);
   if (opts.log) console.log(`[beastIsland] built in ${Math.round(performance.now() - t0)}ms`);
@@ -435,10 +452,10 @@ export async function makeBeastIsland(opts = {}) {
     isLocked: (id) => !!lockState[id]?.locked,
     update(dt, t) { for (const u of updaters) u(dt, t); },
     sky: makeSky(),
-    fog: { color: HORIZON, near: 260, far: 900 },
+    fog: { color: HORIZON, near: 180, far: 820 }, // a touch of aerial perspective behind the zone close-ups
     /** Fog range that keeps the island crisp for a camera this far from its target. */
     fogFor: (camDist) => ({ color: HORIZON, near: Math.max(260, camDist * 1.25), far: Math.max(900, camDist * 3.6) }),
-    lights: { sky: 0xd8f0ff, ground: 0x8a7a5a, hemi: 1.15, sun: 2.5, sunColor: 0xfff0d6, dir: [34, 62, 44], rim: 0.7, rimColor: 0xa8dcff, shadowExtent: 34 },
+    lights: { sky: 0xd8f0ff, ground: 0x8a7a5a, hemi: 1.0, sun: 2.75, sunColor: 0xffe8cc, dir: [34, 62, 44], rim: 0.85, rimColor: 0xa8dcff, shadowExtent: 34 },
     overview: { camPos: V(CX, 322, CZ + 258), camLook: V(CX, 4, CZ - 4) },
     heightAt: (x, z) => T.heightAt(x, z),
     terrain: T,
@@ -1053,6 +1070,7 @@ function addLife({ T, root, updaters, R }) {
       b.m.rotation.z = Math.sin(t * 1.7 + b.ph) * 0.05;
     }
   });
+  const boatList = boats;
   // gulls
   const flocks = [[-30, 9, 60], [-56, 16, 38], [30, 30, -30], [52, 14, 30], [-6, 26, -40], [-8, 12, -86], [20, 10, -96], [112, 26, -120]];
   const gulls = [];
@@ -1089,4 +1107,5 @@ function addLife({ T, root, updaters, R }) {
     wings.instanceMatrix.needsUpdate = true;
   });
   void T;
+  return boatList;
 }

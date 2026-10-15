@@ -3,6 +3,7 @@
 //   buildZone(K, opts)   -> { focus: [x,y,z], radius }           (Beast Island diorama, hotspots in K.hotspots)
 // where K is an ArenaKit (see ./kit.js).
 import { ArenaKit } from './kit.js';
+import { applyBattleAtmos } from './atmos.js';
 
 const MODULES = {
   lab: () => import('./lab.js'),
@@ -43,6 +44,11 @@ export async function makeArenaBattle(id, opts = {}) {
     params = mod.buildBattle(K, opts) || {};
   } catch (e) {
     console.error('arena build failed', id, e);
+  }
+  try {
+    params = applyBattleAtmos(K, MODULES[id] ? id : 'lab', params); // light rig extras, shafts, motes, mist, colour grade
+  } catch (e) {
+    console.error('arena atmosphere failed', id, e);
   }
   return { root: K.root, update: (dt, t) => K.update(dt, t), breakables: K.breakables, ...params };
 }

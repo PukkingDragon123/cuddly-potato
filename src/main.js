@@ -40,7 +40,8 @@ async function boot() {
   const dev = params.get('dev');
   if (dev === 'reset') state.reset();
   if (params.get('seed')) (await import('./dev/seed.js')).seedProfile(params.get('seed'));
-  if (dev === 'models' || dev === 'chars' || dev === 'props') await game.go('preview', { mode: dev, id: params.get('id'), instant: true });
+  if (dev === 'chars') await game.go('charview', { ...Object.fromEntries(params), instant: true });
+  else if (dev === 'models' || dev === 'props') await game.go('preview', { mode: dev, id: params.get('id'), instant: true });
   else if (dev === 'modellab') await game.go('modellab', { ...Object.fromEntries(params), instant: true });
   else if (dev === 'arena') await game.go('arenaview', { ...Object.fromEntries(params), instant: true });
   else if (dev === 'island') await game.go('islandview', { ...Object.fromEntries(params), instant: true });

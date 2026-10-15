@@ -6,6 +6,7 @@
 // lagoon with a coral-covered shipwreck, the solar trash barge with its
 // conveyor eating the trash a floating boom funnels in, cleanup boats,
 // leaping dolphins and a lighthouse on a rock arch, under a bright tropical sky.
+import { pixelDiscGeo } from './atmos.js';
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, paintClouds, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
@@ -519,7 +520,7 @@ export function buildZone(K) {
   tLag.needsUpdate = true;
   tLag.wrapS = tLag.wrapT = THREE.RepeatWrapping;
   tLag.repeat.set(4, 4);
-  const lag = new THREE.Mesh(new THREE.RingGeometry(3.9, 5.9, 48), new THREE.MeshBasicMaterial({ map: tLag, color: 0x8ff0f0, transparent: true, opacity: 0.6, depthWrite: false }));
+  const lag = new THREE.Mesh(pixelDiscGeo(5.9, 3.9, 0.25), new THREE.MeshBasicMaterial({ map: tLag, color: 0x8ff0f0, transparent: true, opacity: 0.6, depthWrite: false }));
   lag.rotation.x = -Math.PI / 2;
   lag.position.y = 0.32;
   lag.renderOrder = 2;

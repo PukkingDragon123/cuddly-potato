@@ -42,7 +42,13 @@ export function h(tag, props, ...children) {
       const v = props[k];
       if (v === undefined || v === null || v === false) continue;
       if (k === 'class') el.className = v;
-      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'style' && typeof v === 'object') {
+        // custom properties (--foo) need setProperty; Object.assign silently drops them
+        for (const sk in v) {
+          if (sk.startsWith('--')) { if (v[sk] !== undefined && v[sk] !== null) el.style.setProperty(sk, String(v[sk])); }
+          else el.style[sk] = v[sk];
+        }
+      }
       else if (k === 'html') el.innerHTML = v;
       else if (k === 'text') el.textContent = v;
       else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
@@ -126,9 +132,15 @@ export function button(label, onClick, cls = '', opts = {}) {
       opts.onDisabled && opts.onDisabled();
       return;
     }
+    // jelly release bounce (uses the `scale` property, so it never fights the press transform)
+    b.classList.remove('btn-pop');
+    void b.offsetWidth;
+    b.classList.add('btn-pop');
     audio.play(opts.sound ?? 'click');
     onClick && onClick(e);
   });
+  b.addEventListener('animationend', (e) => { if (e.animationName === 'btnPop') b.classList.remove('btn-pop'); });
+  if (opts.tip) b.dataset.tip = opts.tip;
   return b;
 }
 export function setDisabled(btn, on) {
@@ -160,7 +172,26 @@ export function pill(iconName, value, opts = {}) {
   }
   if (opts.onClick) el.addEventListener('click', () => { audio.unlock(); audio.play('click'); opts.onClick(); });
   el.val = val;
+  /** Animated value change: rolls the number, jelly-bumps the pill and floats "+N" / "-N" off it. */
+  el.set = (v, o = {}) => {
+    const from = el._v ?? (typeof value === 'number' ? value : NaN);
+    el._v = v;
+    if (!Number.isFinite(from) || from === v || o.instant) { val.textContent = fmtFull(v); return; }
+    rollNumber(val, from, v, Math.min(1.1, 0.45 + Math.abs(v - from) / 4000), fmtFull);
+    bump(el, 'pill-pop');
+    if (o.float !== false) floatDelta(el, v - from);
+  };
+  if (typeof value === 'number') el._v = value;
   return el;
+}
+const fmtFull = (n) => Math.round(n).toLocaleString('en-US');
+/** "+120" rising off an element (gold when positive, red when negative). */
+export function floatDelta(el, d, cls = '') {
+  if (!el?.isConnected || !d) return;
+  const r = el.getBoundingClientRect();
+  const t = h('div', { class: `ui-delta ${d > 0 ? 'up' : 'down'} ${cls}`, style: { left: r.left + r.width * 0.62 + 'px', top: r.bottom - r.height * 0.2 + 'px' } }, (d > 0 ? '+' : '-') + fmtFull(Math.abs(d)));
+  $overlay().appendChild(t);
+  setTimeout(() => t.remove(), 1200);
 }
 /** Progress bar. color: green|blue|pink|gold|purple|orange|red */
 export function bar(frac, color = '', label = '', opts = {}) {
@@ -663,6 +694,84 @@ function startAutoFizz() {
 if (typeof window !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startAutoFizz, { once: true });
   else startAutoFizz();
+}
+
+// ---------------------------------------------------------------------------
+// Tooltips: any element with data-tip="..." shows a pixel speech tip on mouse
+// hover or on a touch long-press (450 ms). tip(el, text) sets it from code.
+
+export function tip(el, text) {
+  if (el) {
+    if (text) el.dataset.tip = text;
+    else delete el.dataset.tip;
+  }
+  return el;
+}
+let tipEl = null, tipFor = null, tipHold = 0;
+function showTip(target) {
+  const text = target?.dataset?.tip;
+  if (!text || !target.isConnected) return;
+  hideTip();
+  tipFor = target;
+  const r = target.getBoundingClientRect();
+  tipEl = h('div', { class: 'ui-tip', html: rich(text) });
+  $overlay().appendChild(tipEl);
+  const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  const below = r.top - th - 14 < 8;
+  const x = Math.max(6 + tw / 2, Math.min(innerWidth - 6 - tw / 2, r.left + r.width / 2));
+  tipEl.style.left = x + 'px';
+  tipEl.style.top = (below ? r.bottom + 10 : r.top - th - 10) + 'px';
+  tipEl.style.setProperty('--ax', r.left + r.width / 2 - (x - tw / 2) + 'px');
+  tipEl.classList.toggle('below', below);
+}
+function hideTip() {
+  clearTimeout(tipHold);
+  tipFor = null;
+  if (tipEl) { tipEl.remove(); tipEl = null; }
+}
+if (typeof window !== 'undefined') {
+  const find = (e) => (e.target instanceof Element ? e.target.closest('[data-tip]') : null);
+  window.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const t = find(e);
+    if (t && t !== tipFor) showTip(t);
+    else if (!t && tipFor) hideTip();
+  }, true);
+  window.addEventListener('pointerdown', (e) => {
+    hideTip();
+    if (e.pointerType === 'mouse') return;
+    const t = find(e);
+    if (t) tipHold = setTimeout(() => showTip(t), 450);
+  }, true);
+  for (const ev of ['pointerup', 'pointercancel', 'scroll', 'wheel']) window.addEventListener(ev, (e) => {
+    if (e.type === 'pointerup' && e.pointerType === 'mouse') return;
+    clearTimeout(tipHold);
+    if (tipEl && e.type !== 'pointerup') hideTip();
+    else if (tipEl) setTimeout(hideTip, 900);
+  }, true);
+}
+
+/** Drop a short burst of pixel confetti over a layer (DOM, CSS-animated). o: { count, colors } */
+export function confetti(parent = $overlay(), o = {}) {
+  if (!parent) return null;
+  const n = reducedMotion() ? 0 : o.count ?? 36;
+  const cols = o.colors ?? ['#ffd84a', '#ff2e88', '#3ff2e0', '#7aff4a', '#ffffff', '#a35cff', '#ff8a1f'];
+  const layer = h('div', { class: 'ui-confetti', 'aria-hidden': 'true' });
+  for (let i = 0; i < n; i++) {
+    const p = h('i');
+    const st = p.style;
+    st.setProperty('--x', (Math.random() * 100).toFixed(1) + '%');
+    st.setProperty('--c', cols[i % cols.length]);
+    st.setProperty('--d', (1.8 + Math.random() * 1.6).toFixed(2) + 's');
+    st.setProperty('--dl', (Math.random() * (o.spread ?? 0.9)).toFixed(2) + 's');
+    st.setProperty('--dx', ((Math.random() - 0.5) * 120).toFixed(0) + 'px');
+    st.setProperty('--r', (Math.random() * 720 - 360).toFixed(0) + 'deg');
+    st.setProperty('--w', (2 + Math.floor(Math.random() * 3)) + '');
+    layer.appendChild(p);
+  }
+  parent.appendChild(layer);
+  setTimeout(() => layer.remove(), (o.life ?? 4.6) * 1000);
+  return layer;
 }
 
 // ---------------------------------------------------------------------------

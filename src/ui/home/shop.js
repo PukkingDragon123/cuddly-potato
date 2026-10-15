@@ -3,7 +3,7 @@
 //   cosmetics (Swarm skins, banners, Commander outfits), vials for Beast
 //   Bucks (opened right away via ctx.openVial) and coin bundles.
 //   Everything resets at local midnight.
-import { h, icon, button, sparkle } from '../ui.js';
+import { h, icon, button, sparkle, burst } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { audio } from '../../core/audio.js';
 import { mulberry32, hashString, todayKey } from '../../core/util.js';
@@ -55,6 +55,17 @@ const VIAL_BLURB = {
   testTube: '7+ cards',
 };
 const COIN_ART = { coinPile: 'coinStack', coinBag: 'coinPile', coinVault: 'coinChest' };
+// The daily hero offer: one premium vial in the spotlight (rotates every day).
+const HERO_POOL = ['cashCase', 'megaLab', 'hyperchrome', 'cashCase'];
+export function heroVialId(off) {
+  const rng = mulberry32(hashString('hero' + todayKey()));
+  const ids = off.vials.map((v) => v.id);
+  const pick = HERO_POOL.filter((id) => ids.includes(id));
+  return pick.length ? pick[Math.floor(rng() * pick.length)] : ids[ids.length - 1];
+}
+const HERO_TAG = { cashCase: 'LEGENDARY DEAL', megaLab: 'MEGA DEAL', hyperchrome: 'SHINY DEAL', labPack: 'HOT DEAL' };
+/** Corner ribbon for offer tiles ("BEST VALUE", "HOT!"). */
+const cornerRibbon = (text, cls = '') => h('div', { class: 'mn-cribbon ' + cls }, h('span', { class: 't-d' }, text));
 
 export function mount(el, ctx) {
   let day = todayKey();
@@ -138,6 +149,7 @@ export function mount(el, ctx) {
     const sold = shopBought(key);
     const isNew = !state.p.cards[o.id];
     const tile = h('div', { class: `mn-offer mn-r-${d.rarity} ${sold ? 'sold' : ''}` },
+      !sold && (d.rarity === 'legendary' || d.rarity === 'epic') ? cornerRibbon(d.rarity === 'legendary' ? 'RARE FIND' : 'HOT!', d.rarity === 'legendary' ? 'teal' : 'pink') : null,
       h('div', { class: 'mn-offer-top' }, h('span', { class: 'mn-qty t-d outline' }, 'x' + o.copies), isNew ? h('span', { class: 'mn-newcard t-d' }, 'NEW') : null),
       h('div', { class: 'mn-offer-art' }, cardEl(o.id, { size: 'mini', noLevel: true, locked: false, owned: state.p.cards[o.id] ?? { level: 1 } })),
       h('div', { class: 'mn-offer-n' }, d.name),
@@ -195,6 +207,7 @@ export function mount(el, ctx) {
     const key = 'vial:' + o.id;
     const sold = shopBought(key);
     const tile = h('div', { class: `mn-vtile vr-${v.rarity} ${sold ? 'sold' : ''}` },
+      !sold && o.id === 'hyperchrome' ? cornerRibbon('8x SHINY', 'teal') : null,
       h('div', { class: 'mn-vtile-glow' }),
       h('div', { class: 'mn-vtile-art' }, vialArt(o.id)),
       h('div', { class: 'mn-vtile-n t-d outline' }, v.name),
@@ -209,11 +222,17 @@ export function mount(el, ctx) {
     return tile;
   }
 
-  function coinTile(o) {
+  function coinTile(o, i, all) {
     const key = 'deal:' + o.id;
     const sold = shopBought(key);
     const ic = COIN_ART[o.id] ?? 'coin';
-    const tile = h('div', { class: `mn-ctile ${sold ? 'sold' : ''}` },
+    const ratio = (x) => x.coins / Math.max(1, x.price);
+    const baseR = Math.min(...all.map(ratio));
+    const bonus = Math.round((ratio(o) / baseR - 1) * 100);
+    const best = all.every((x) => ratio(x) <= ratio(o));
+    const tile = h('div', { class: `mn-ctile ${sold ? 'sold' : ''} ${best ? 'best' : ''}` },
+      !sold && best ? cornerRibbon('BEST VALUE', 'gold') : null,
+      !sold && bonus >= 5 ? h('div', { class: 'mn-cbonus t-d' }, `+${bonus}%`) : null,
       h('div', { class: 'mn-ctile-art' }, h('div', { class: 'px-rays mn-ctile-rays' }), icon(ic, 'mn-ctile-ic')),
       h('div', { class: 'mn-ctile-amt t-d outline c-gold' }, fmtN(o.coins)),
       h('div', { class: 'mn-ctile-n' }, o.label),
@@ -225,6 +244,45 @@ export function mount(el, ctx) {
           await showRewards([{ type: 'coins', amount: o.coins }], { title: 'COINS!' });
         },
       })));
+    return tile;
+  }
+
+  function heroTile(off) {
+    const id = heroVialId(off);
+    const o = off.vials.find((v) => v.id === id);
+    if (!o) return null;
+    const v = VIALS[id];
+    const key = 'vial:' + id;
+    const sold = shopBought(key);
+    const tile = h('div', { class: `mn-hero vr-${v.rarity} ${sold ? 'sold' : ''}` },
+      h('div', { class: 'mn-hero-bg' }),
+      h('div', { class: 'px-rays mn-hero-rays' }),
+      h('div', { class: 'px-stars mn-hero-stars' }),
+      cornerRibbon(sold ? 'SOLD OUT' : HERO_TAG[id] ?? 'DEAL OF THE DAY', sold ? 'gray' : 'gold'),
+      h('div', { class: 'mn-hero-art' }, h('div', { class: 'mn-hero-ped' }), vialArt(id, 'mn-hero-vial', { size: 320 })),
+      h('div', { class: 'mn-hero-txt' },
+        h('span', { class: 'mn-hero-k t-d' }, icon('star', 's'), 'FEATURED OFFER'),
+        h('b', { class: 'mn-hero-n t-d t-3d' }, v.name.toUpperCase()),
+        h('span', { class: 'mn-hero-s' }, VIAL_BLURB[id] ?? v.desc ?? ''),
+        h('div', { class: 'mn-hero-chips' },
+          h('span', { class: 'mn-chip' }, icon('cards', 's'), `x${v.cards}`),
+          h('span', { class: 'mn-chip' }, icon('coin', 's'), `${fmtN(v.coins[0])}+`),
+          v.bucks ? h('span', { class: 'mn-chip' }, icon('bucks', 's'), String(v.bucks)) : null),
+        h('div', { class: 'mn-hero-buy' },
+          sold ? h('div', { class: 'mn-soldtag t-d outline' }, icon('check', 's'), 'SOLD OUT') : (() => {
+            const b = button('BUY', () => buy({
+              key, cur: 'bucks', price: o.price, tile,
+              title: v.name.toUpperCase(), art: vialArt(id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens instantly - no waiting!'), yesCls: 'yellow',
+              async onPaid() {
+                burst(tile.querySelector('.mn-hero-art'), { color: '#ffd84a', count: 26, scale: 1.2 });
+                ctx.openVial?.({ type: id, source: 'shop' });
+              },
+            }), 'yellow lg shine', { price: { cur: 'bucks', amount: o.price }, sound: 'tap' });
+            if (have('bucks') < o.price) b.classList.add('poor');
+            return b;
+          })(),
+          timerChip(midnightMs(), 'Ends in'))));
+    tile.heroId = id;
     return tile;
   }
 
@@ -240,16 +298,20 @@ export function mount(el, ctx) {
       h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-d outline mn-shophead-t' }, 'BEAST SHOP'), h('span', { class: 't-xs c-muted' }, 'Fresh deals from the Lab every day')),
       h('span', { class: 'spacer' }),
       timerChip(midnightMs(), 'New in')));
+    // featured hero offer
+    const hero = heroTile(off);
+    if (hero) inner.appendChild(hero);
     // daily deals
-    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('DAILY DEALS', 'gold'), giftTile(off),
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, h('div', { class: 'mn-sec-row mn-dealhead' }, secHead('DAILY DEALS', 'gold'), timerChip(midnightMs(), 'Refresh in')), giftTile(off),
       h('div', { class: 'mn-offers' }, ...off.cards.map(cardTile))));
     // featured
     const feat = featuredOffers();
     if (feat.length) inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('FEATURED', 'pink'), h('div', { class: 'mn-feats' }, ...feat.map(featuredTile))));
     // vials
-    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('VIALS', 'blue'), h('div', { class: 'mn-vials' }, ...off.vials.map(vialTile))));
+    const restVials = off.vials.filter((v) => v.id !== hero?.heroId);
+    if (restVials.length) inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('VIALS', 'blue'), h('div', { class: 'mn-vials' }, ...restVials.map(vialTile))));
     // coins
-    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('BEAST COINS', 'green'), h('div', { class: 'mn-coins' }, ...off.deals.map(coinTile))));
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('BEAST COINS', 'green'), h('div', { class: 'mn-coins' }, ...off.deals.map((d, i, all) => coinTile(d, i, all)))));
     inner.appendChild(h('div', { class: 'mn-shopnote' }, icon('bucks', 's'), h('span', {}, 'Earn Beast Bucks from the Trophy Road, Lab Levels, the Food Pass, bosses and secrets on Beast Island.')));
     return inner;
   }

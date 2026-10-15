@@ -656,6 +656,86 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
   #ui .tt-logo, #ui .tt-logo .l2 span, #ui .tt-logo .bolt, #ui .tt-start, #ui .tt-logo::before, #ui .tt-logo::after { animation: none !important; }
 }
 
+/* =========================================================================
+   Juice layer (v3): hover glints, jelly release, rolling pills, bouncing
+   badges, tooltips, DOM confetti. Transform / opacity only, mostly stepped.
+   ========================================================================= */
+/* hover glint: a pixel light bar sweeps across the button face (inside the 9-slice border) */
+:is(.home, .mn-screen, .modal, .res-wrap, .hm-unlock) .btn:not(.shine):not(.hm-sb)::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 2;
+  background: linear-gradient(105deg, transparent 0 38%, rgba(255, 255, 255, 0.55) 38% 46%, transparent 46% 52%, rgba(255, 255, 255, 0.3) 52% 55%, transparent 55%) no-repeat;
+  background-size: 260% 100%; background-position: 170% 0; clip-path: inset(0);
+}
+@media (hover: hover) {
+  :is(.home, .mn-screen, .modal, .res-wrap, .hm-unlock) .btn:hover:not(.shine):not(.hm-sb):not(.disabled)::after { opacity: 1; animation: btnGlint 0.55s steps(9) both; }
+}
+@keyframes btnGlint { from { background-position: 170% 0; } to { background-position: -70% 0; } }
+/* jelly release after a click (individual `scale`, composes with the press transform) */
+.btn.btn-pop { animation: btnPop 0.42s cubic-bezier(.3, 1.6, .5, 1); }
+.btn.pulse.btn-pop { animation: btnPop 0.42s cubic-bezier(.3, 1.6, .5, 1), btnPulse 1.1s 0.42s ease-in-out infinite; }
+@keyframes btnPop { 0% { scale: 1.1 0.86; } 35% { scale: 0.92 1.1; } 65% { scale: 1.04 0.97; } 100% { scale: 1 1; } }
+
+/* badges pop in with a bounce, then bob */
+.badge { animation: badgeIn 0.5s cubic-bezier(.3, 1.8, .5, 1) both, badgeBob 1.4s 0.5s ease-in-out infinite; }
+@keyframes badgeIn { 0% { scale: 0; rotate: -30deg; } 60% { scale: 1.3; rotate: 8deg; } 100% { scale: 1; rotate: 0deg; } }
+.new-tag { animation: newTagIn 0.45s cubic-bezier(.3, 1.8, .5, 1) both, tagZap 1.6s 0.45s steps(1) infinite; }
+@keyframes newTagIn { 0% { scale: 0; } 70% { scale: 1.25; } 100% { scale: 1; } }
+
+/* currency pills: jelly when the value changes, floating +N / -N */
+.pill.pill-pop { animation: jelly 0.45s cubic-bezier(.3, 1.6, .5, 1); }
+.pill.pill-pop > .pi { animation: pillIcon 0.5s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes pillIcon { 0% { scale: 1; rotate: 0deg; } 40% { scale: 1.35; rotate: -14deg; } 100% { scale: 1; rotate: 0deg; } }
+.ui-delta {
+  position: absolute; z-index: 92; pointer-events: none; translate: -50% 0; white-space: nowrap;
+  font-family: var(--font-d); font-size: calc(var(--u) * 5); color: var(--gold); text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(255, 216, 74, 0.8);
+  animation: uiDelta 1.2s cubic-bezier(.2, .9, .3, 1) forwards;
+}
+.ui-delta.down { color: #ff8a94; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.7); }
+@keyframes uiDelta { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 15% { transform: translateY(calc(var(--u) * -1)) scale(1.2); opacity: 1; } 70% { opacity: 1; } 100% { transform: translateY(calc(var(--u) * -6)) scale(1); opacity: 0; } }
+
+/* tooltips (ui.js data-tip) */
+.ui-tip {
+  position: absolute; z-index: 95; pointer-events: none; translate: -50% 0; max-width: min(70vw, calc(var(--u) * 60)); padding: 0.25em 0.6em 0.3em;
+  font-family: var(--font-b); font-weight: 700; font-size: 0.78em; line-height: 1.2; color: var(--ink); text-align: center;
+  background: linear-gradient(#ffffff 0 calc(var(--px) * 1), #fff8e0 calc(var(--px) * 1) 70%, #f0dcae 70%);
+  box-shadow: 0 0 0 var(--px) var(--ink), 0 calc(var(--px) * 2) 0 var(--px) rgba(0, 0, 0, 0.35);
+  animation: tipIn 0.22s cubic-bezier(.3, 1.6, .5, 1) both; transform-origin: 50% 100%;
+}
+.ui-tip b { color: #d8146a; }
+.ui-tip::after {
+  content: ''; position: absolute; left: var(--ax, 50%); top: 100%; translate: -50% 0; width: calc(var(--px) * 4); height: calc(var(--px) * 3);
+  background: #f0dcae; clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 var(--px) 0 var(--ink));
+}
+.ui-tip.below { transform-origin: 50% 0; }
+.ui-tip.below::after { top: auto; bottom: 100%; background: #fff; clip-path: polygon(50% 0, 100% 100%, 0 100%); filter: drop-shadow(0 calc(var(--px) * -1) 0 var(--ink)); }
+@keyframes tipIn { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
+/* DOM pixel confetti (ui.js confetti()) */
+.ui-confetti { position: absolute; inset: 0; z-index: 58; pointer-events: none; overflow: hidden; }
+.ui-confetti > i {
+  position: absolute; left: var(--x); top: calc(var(--u) * -6); width: calc(var(--px) * var(--w, 3)); height: calc(var(--px) * var(--w, 3) * 1.6);
+  background: var(--c); box-shadow: inset calc(var(--px) * -1) 0 0 rgba(0, 0, 0, 0.25), 0 0 0 calc(var(--px) * 0.5) rgba(18, 12, 36, 0.6);
+  animation: confFall var(--d) var(--dl) cubic-bezier(.3, .2, .7, 1) both;
+}
+.ui-confetti > i:nth-child(3n) { height: calc(var(--px) * var(--w, 3)); }
+@keyframes confFall {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), calc(100vh + var(--u) * 12)) rotate(var(--r)); opacity: 0.9; }
+}
+
+/* modals: bouncier entrance, the sign swings down onto the tank */
+.modal { animation: modalIn 0.42s cubic-bezier(.2, 1.5, .4, 1) backwards; }
+@keyframes modalIn { 0% { transform: translateY(calc(var(--u) * 8)) scale(0.6, 0.5); opacity: 0; } 55% { transform: translateY(0) scale(1.05, 0.96); opacity: 1; } 78% { transform: scale(0.98, 1.03); } 100% { transform: none; } }
+.modal-head .ribbon { animation: signDrop 0.55s 0.1s cubic-bezier(.3, 1.7, .5, 1) both, neonHum 7s 0.7s steps(1) infinite; transform-origin: 50% 0; }
+@keyframes signDrop { 0% { transform: translateY(calc(var(--u) * -8)) rotate(-6deg); opacity: 0; } 60% { transform: translateY(0) rotate(3deg); opacity: 1; } 100% { transform: none; } }
+.modal-close { animation: popIn 0.35s 0.25s cubic-bezier(.2, 1.6, .4, 1) both; }
+.toast > .pi { animation: pillIcon 0.5s 0.12s cubic-bezier(.3, 1.8, .5, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn::after, .btn.btn-pop, .badge, .new-tag, .pill.pill-pop, .pill.pill-pop > .pi, .ui-delta, .ui-tip, .modal, .modal-head .ribbon, .modal-close, .toast > .pi { animation: none !important; }
+  .ui-confetti { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lab-bg::after, .btn.lg::before, .btn.xl::before, .btn.fizz::before, .panel::after, .bar > .fill, .ribbon, .lab-fizz > i, .new-tag, .banner-big::before, .px-rays, .px-stars, .btn.shine::after, .btn.pulse, .badge, .gcard .shiny, .gcard.foil .art > .foil-fx, .gcard .frame::after { animation: none !important; }
 }

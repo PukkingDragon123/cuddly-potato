@@ -3,6 +3,7 @@
 // hieroglyph walls and obelisks, a PANTHER-headed sphinx, treasure piles, a
 // palm oasis, rolling 3D dunes and a giant stepped pyramid with a golden
 // capstone, under a hot peach sky over pixel dunes and distant pyramids.
+import { pixelDiscGeo } from './atmos.js';
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, px, disc, skyTexture, parallaxWidth, canvasTex, treeGrid, rockGrid,
@@ -628,7 +629,7 @@ export function buildBattle(K) {
   wt.needsUpdate = true;
   wt.wrapS = wt.wrapT = THREE.RepeatWrapping;
   wt.repeat.set(3, 2);
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshLambertMaterial({ map: wt, color: 0xffffff }));
+  const pool = new THREE.Mesh(pixelDiscGeo(1, 0, 0.06), new THREE.MeshLambertMaterial({ map: wt, color: 0xffffff }));
   pool.rotation.x = -Math.PI / 2;
   pool.scale.set(3.5, 2.05, 1);
   pool.position.set(OX, 0.02, OZ);
@@ -760,7 +761,7 @@ export function buildZone(K) {
   wt.needsUpdate = true;
   wt.wrapS = wt.wrapT = THREE.RepeatWrapping;
   wt.repeat.set(2, 2);
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(1.5, 20), new THREE.MeshLambertMaterial({ map: wt }));
+  const pool = new THREE.Mesh(pixelDiscGeo(1.5, 0, 0.2), new THREE.MeshLambertMaterial({ map: wt }));
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(3.6, 0.02, 2.8);
   K.add(pool);
