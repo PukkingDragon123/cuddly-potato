@@ -74,13 +74,18 @@ export function unlockedSeries(trophies) {
 // Trophy road (milestones). Arena gates are flagged `arena`.
 
 export const TROPHY_ROAD = [
-  { t: 20, reward: { type: 'coins', amount: 150 } },
+  // you start with only 2 troops (Panther + Clogged Toilet); the first wins unlock the rest of the squad
+  { t: 10, reward: { type: 'card', id: 'fryFiend', copies: 2 } },
+  { t: 30, reward: { type: 'card', id: 'foodThrow', copies: 2 } },
   { t: 50, reward: { type: 'vial', id: 'testTube' } },
-  { t: 80, reward: { type: 'card', id: 'fryFiend', copies: 10 } },
-  { t: 120, reward: { type: 'bucks', amount: 25 } },
+  { t: 70, reward: { type: 'card', id: 'trashedCan', copies: 2 } },
+  { t: 100, reward: { type: 'coins', amount: 150 } },
+  { t: 130, reward: { type: 'card', id: 'pizzaSlicer', copies: 2 } },
   { t: 160, reward: { type: 'vial', id: 'labPack' } },
-  { t: 200, reward: { type: 'coins', amount: 400 } },
+  { t: 190, reward: { type: 'card', id: 'toiletRollRipper', copies: 2 } },
+  { t: 220, reward: { type: 'coins', amount: 400 } },
   { t: 250, reward: { type: 'card', id: 'steelPanther', copies: 1 } },
+  { t: 280, reward: { type: 'card', id: 'moneyDrop', copies: 2 } },
   { t: 300, arena: 'circle', reward: { type: 'mega', id: 'panthar' } },
   { t: 360, reward: { type: 'coins', amount: 500 } },
   { t: 420, reward: { type: 'card', id: 'mutantMailbox', copies: 5 } },
