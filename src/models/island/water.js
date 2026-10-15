@@ -152,6 +152,60 @@ export function fallsTexture() {
     fill(ctx, w - 1, 0, 1, h, '#ffffff');
   });
 }
+/** Molten lava flow: hot streaks between drifting dark crust plates. */
+export function lavaRiverTexture() {
+  return pixTex(16, 32, (ctx, w, h) => {
+    const R = mulberry32(17);
+    fill(ctx, 0, 0, w, h, '#ff6a1f');
+    for (let y = 0; y < h; y++) for (let x = 1; x < w - 1; x++) if (R() < 0.22) fill(ctx, x, y, 1, 1, R() < 0.5 ? '#ff8a2a' : '#e8481a');
+    for (let k = 0; k < 7; k++) {
+      const x = 2 + Math.floor(R() * (w - 5)), y = Math.floor(R() * h), l = 2 + Math.floor(R() * 4);
+      fill(ctx, x, y, 2, l, '#8a2a10');
+      fill(ctx, x, y, 1, l - 1, '#5a1a10');
+    }
+    for (let k = 0; k < 8; k++) {
+      const x = 2 + Math.floor(R() * (w - 4)), y = Math.floor(R() * h), l = 2 + Math.floor(R() * 5);
+      fill(ctx, x, y, 1, l, '#ffc04a');
+      if (R() < 0.5) fill(ctx, x, y + 1, 1, 1, '#fff2a8');
+    }
+    // cooled crust banks
+    for (let y = 0; y < h; y++) {
+      fill(ctx, 0, y, 1, 1, R() < 0.5 ? '#3a1a14' : '#5a2216');
+      fill(ctx, w - 1, y, 1, 1, R() < 0.5 ? '#3a1a14' : '#5a2216');
+    }
+  });
+}
+export function lavaFallsTexture() {
+  return pixTex(16, 32, (ctx, w, h) => {
+    const R = mulberry32(19);
+    fill(ctx, 0, 0, w, h, '#ff7a22');
+    for (let x = 0; x < w; x++) {
+      fill(ctx, x, 0, 1, h, R() < 0.35 ? '#ffb040' : R() < 0.5 ? '#e8501a' : '#ff7a22');
+      let y = Math.floor(R() * h);
+      for (let k = 0; k < 2; k++) {
+        const l = 3 + Math.floor(R() * 6);
+        fill(ctx, x, y, 1, l, R() < 0.6 ? '#ffe07a' : '#7a2410');
+        y = (y + l + 3 + Math.floor(R() * 8)) % h;
+      }
+    }
+    fill(ctx, 0, 0, 1, h, '#5a1a10');
+    fill(ctx, w - 1, 0, 1, h, '#5a1a10');
+  });
+}
+/** Lava lake: crust plates with glowing seams. */
+export function lavaLakeTexture() {
+  return pixTex(32, 32, (ctx, w, h) => {
+    const R = mulberry32(23);
+    fill(ctx, 0, 0, w, h, '#ff7a22');
+    for (let i = 0; i < 9; i++) {
+      const x = Math.floor(R() * w), y = Math.floor(R() * h), pw = 4 + Math.floor(R() * 6), ph = 3 + Math.floor(R() * 5);
+      fill(ctx, x, y, pw, ph, '#6a2010');
+      fill(ctx, x + 1, y + 1, pw - 2, ph - 2, '#4a1610');
+      if (R() < 0.6) fill(ctx, x + 1, y + 1, 1, 1, '#8a3016');
+    }
+    for (let i = 0; i < 26; i++) fill(ctx, Math.floor(R() * w), Math.floor(R() * h), 1, 1, R() < 0.5 ? '#ffd060' : '#fff2a8');
+  });
+}
 export function lagoonTexture() {
   return pixTex(32, 32, (ctx, w, h) => {
     const R = mulberry32(13);
@@ -166,7 +220,8 @@ export function lagoonTexture() {
  * River + waterfall ribbons following the terrain's river samples
  * (each { x, z, y (water level), w (half width) }).
  */
-export function makeRiver(samples) {
+export function makeRiver(samples, opts = {}) {
+  const lava = !!opts.lava;
   const flat = { pos: [], uv: [], idx: [] }, falls = { pos: [], uv: [], idx: [] };
   const splashes = [];
   const n = samples.length;
@@ -228,18 +283,22 @@ export function makeRiver(samples) {
     geo.setIndex(G.idx);
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+    if (lava) mat.color.setScalar(1.3); // hot, but under the bloom threshold
+    const m = new THREE.Mesh(geo, mat);
     m.name = name;
     return m;
   };
-  const rTex = riverTexture(), fTex = fallsTexture();
+  const rTex = lava ? lavaRiverTexture() : riverTexture(), fTex = lava ? lavaFallsTexture() : fallsTexture();
   const group = new THREE.Group();
-  group.name = 'river';
+  group.name = lava ? 'lavaRiver' : 'river';
   group.add(mk(flat, rTex, 'riverFlat'), mk(falls, fTex, 'riverFalls'));
 
   // splash bits: little white voxels bursting at the foot of each fall
   const per = 26;
-  const bits = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff }), Math.max(1, splashes.length * per));
+  const bitMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  if (lava) bitMat.color.setRGB(2.2, 0.75, 0.2); // tiny blooming lava spatters
+  const bits = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), bitMat, Math.max(1, splashes.length * per));
   bits.name = 'splash';
   bits.frustumCulled = false;
   const R = mulberry32(3);
@@ -249,7 +308,7 @@ export function makeRiver(samples) {
   // mist puffs (flat foam rings) under big falls
   const mist = [];
   for (const S of splashes) {
-    if (S.h < 2.5) continue;
+    if (S.h < 2.5 || lava) continue;
     const ringGeo = new THREE.CircleGeometry(S.w * 1.2 + 0.3, 10);
     ringGeo.rotateX(-Math.PI / 2);
     const ringM = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xe8fcff, transparent: true, opacity: 0.85, depthWrite: false }));
@@ -259,11 +318,11 @@ export function makeRiver(samples) {
   }
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
   const update = (dt, t) => {
-    rTex.offset.y = -t * 0.55;
-    fTex.offset.y = -t * 1.6;
+    rTex.offset.y = -t * (lava ? 0.16 : 0.55);
+    fTex.offset.y = -t * (lava ? 0.5 : 1.6);
     seeds.forEach((b, i) => {
       const S = splashes[b.s];
-      const k = (t * 0.9 + b.ph) % 1;
+      const k = (t * (lava ? 0.45 : 0.9) + b.ph) % 1;
       const big = Math.min(2, 0.6 + S.h / 6);
       p.set(S.x + Math.cos(b.a) * b.r * k * S.w * 0.9, S.y + 0.1 + Math.sin(k * Math.PI) * b.up * big * 0.7, S.z + Math.sin(b.a) * b.r * k * S.w * 0.9);
       const s = b.sz * (1 - k) * big;

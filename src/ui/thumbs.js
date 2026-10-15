@@ -129,7 +129,30 @@ function pump() {
   if (queue.length) requestAnimationFrame(pump);
   else pumping = false;
 }
-/** <img> whose src is generated lazily (spread over frames). gen() may return a URL or a Promise of one. */
+// Deferred start for images that only render once scrolled near the viewport.
+let io = null;
+const ioStart = new WeakMap();
+function whenVisible(img, start) {
+  if (typeof IntersectionObserver === 'undefined') return start();
+  if (!io) {
+    io = new IntersectionObserver((ents) => {
+      for (const e of ents) {
+        if (!e.isIntersecting) continue;
+        io.unobserve(e.target);
+        const f = ioStart.get(e.target);
+        ioStart.delete(e.target);
+        f?.();
+      }
+    }, { rootMargin: '160px 0px' });
+  }
+  ioStart.set(img, start);
+  io.observe(img);
+}
+
+/**
+ * <img> whose src is generated lazily (spread over frames). gen() may return a URL or a Promise of one.
+ * opts: { priority, force, visible (wait until the image scrolls near the viewport) }
+ */
 export function lazyImg(key, gen, cls = '', opts = {}) {
   const img = document.createElement('img');
   img.className = 'thumb ' + cls;
@@ -142,17 +165,23 @@ export function lazyImg(key, gen, cls = '', opts = {}) {
     return img;
   }
   img.src = BLANK;
-  let job = jobs.get(key);
-  if (!job) {
-    job = { key, gen, imgs: [], force: !!opts.force };
-    jobs.set(key, job);
-    if (opts.priority) queue.unshift(job); else queue.push(job);
-  }
-  job.imgs.push(img);
-  if (!pumping) {
-    pumping = true;
-    requestAnimationFrame(pump);
-  }
+  const start = () => {
+    const done = cache.get('lazy|' + key);
+    if (done) { img.src = done; img.classList.add('loaded'); return; }
+    let job = jobs.get(key);
+    if (!job) {
+      job = { key, gen, imgs: [], force: !!opts.force };
+      jobs.set(key, job);
+      if (opts.priority) queue.unshift(job); else queue.push(job);
+    }
+    job.imgs.push(img);
+    if (!pumping) {
+      pumping = true;
+      requestAnimationFrame(pump);
+    }
+  };
+  if (opts.visible) requestAnimationFrame(() => (img.isConnected ? whenVisible(img, start) : setTimeout(() => whenVisible(img, start), 60)));
+  else start();
   return img;
 }
 
@@ -160,4 +189,44 @@ export function lazyImg(key, gen, cls = '', opts = {}) {
 export function cardArtImg(id, variant = 'base', skin = null, size = 160, cls = '', opts = {}) {
   if (SPELLS[id]) return lazyImg(`sp|${id}|${size}`, () => spellThumbAsync(id, size), cls, opts);
   return lazyImg(`s|${id}|${variant}|${skin}|${size}`, () => swarmThumb(id, variant, skin, size), cls, opts);
+}
+
+// --------------------------------------------------------------------------- arena dioramas + lab skins
+
+const arenaUrls = new Map();
+/**
+ * Snapshot of an arena's Beast Island diorama (the voxel plinth with its props), for
+ * banners. Resolves null when the arena has no diorama module. o: { w, h, yaw, pitch, zoom }
+ */
+export async function arenaThumb(id, o = {}) {
+  const w = o.w ?? 360, hh = o.h ?? 200;
+  const k = `${id}|${w}x${hh}|${o.yaw ?? ''}|${o.zoom ?? ''}`;
+  if (arenaUrls.has(k)) return arenaUrls.get(k);
+  const A = await import('../models/arenas/index.js');
+  if (!A.ARENA_THEMES?.includes(id)) return null;
+  const z = await A.makeArenaZone(id);
+  try { z.update?.(0.016, 2.5); } catch (e) { /* animated bits are optional */ }
+  const url = engine.renderThumb(z.root, { w, h: hh, yaw: o.yaw ?? -0.38, pitch: o.pitch ?? 0.6, zoom: o.zoom ?? 0.6 });
+  arenaUrls.set(k, url);
+  return url;
+}
+/** Lazy <img> of an arena diorama (renders when scrolled into view). Falls back to `fallback` (URL) if none. */
+export function arenaImg(id, cls = '', o = {}) {
+  return lazyImg(`ar|${id}|${o.w ?? 360}x${o.h ?? 200}`, () => arenaThumb(id, o).then((u) => u ?? o.fallback ?? BLANK), cls, { visible: o.visible ?? true, priority: o.priority });
+}
+
+const labUrls = new Map();
+/** 3D render of a Lab building style (Lab skins: default, mansion, martLab, chocoLab, goldVault...). */
+export async function labSkinThumb(style, size = 160) {
+  const k = `${style}|${size}`;
+  if (labUrls.has(k)) return labUrls.get(k);
+  const { makeLabBuilding } = await import('../models/props/lab.js');
+  const lab = makeLabBuilding({ style });
+  try { lab.update?.(0.016); } catch (e) { /* ignore */ }
+  const url = engine.renderThumb(lab.root, { size, yaw: -0.55, pitch: 0.26, zoom: 0.94 });
+  labUrls.set(k, url);
+  return url;
+}
+export function labSkinImg(style, size = 160, cls = '') {
+  return lazyImg(`lab|${style}|${size}`, () => labSkinThumb(style, size), cls, { visible: true });
 }

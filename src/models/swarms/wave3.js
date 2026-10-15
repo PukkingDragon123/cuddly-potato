@@ -313,8 +313,8 @@ function vineAlong(pts, rAt, turns, phase = 0) {
 // back and spits venom that slows and poisons.
 function vineViper() {
   const K = {
-    g: 0x3cc443, gD: 0x1d7a32, gL: 0x8fe866, belly: 0xeaf7a8, bellyD: 0xc9e07a,
-    vine: 0x6a7f22, vineD: 0x45561a, leaf: 0x4ad83a, leafD: 0x228a2c, leafL: 0xa8f070,
+    g: 0x1fbf8f, gD: 0x0c7a5c, gL: 0x86f0c8, belly: 0xf6f0a0, bellyD: 0xe0d478,
+    vine: 0x7a6224, vineD: 0x4e3e18, leaf: 0x62d834, leafD: 0x2a8a22, leafL: 0xb8f070,
     eye: 0xfff04a, venom: 0xc6ff3a, pod: 0x9a6a30, podD: 0x5e3c1c, pollen: 0xffd23f, roof: 0xff5aa8,
   };
   const scales = (v) => {
@@ -741,7 +741,11 @@ function vaultBot() {
   const body = G();
   rbox(body, -10, 7, -7, 9, 28, 7, 2.5, steel);
   // brass corner guards
-  for (const x of [-9, 8]) for (const y of [8, 27]) for (const z of [-6, 6]) blob(body, x, y, z, 2.2, 2.2, 2.2, (xx, yy, zz) => ((xx + yy + zz) % 4 === 0 ? K.brassD : K.brass), { p: 2.6 });
+  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
+    const cx = x < 0 ? -11 : 6, cy = y < 0 ? 6 : 25, cz = z < 0 ? -8 : 4;
+    rbox(body, cx, cy, cz, cx + 4, cy + 4, cz + 4, 1.4, (xx, yy, zz) => (yy === cy + 4 || yy === cy ? K.brassD : K.brass));
+    body.set(x < 0 ? cx - 1 : cx + 5, cy + 2, cz + 2, CHROME);
+  }
   // the vault opening: a deep cavity full of gold bars and cash
   body.carve((x, y, z) => z >= 3 && dr(x, y) <= 5.6);
   for (let x = -7; x <= 6; x++) for (let y = 9; y <= 22; y++) if (dr(x, y) <= 5.6) body.set(x, y, 2, K.inside);
