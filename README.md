@@ -29,7 +29,7 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 **The loop (Clash Royale-style)**
 - Battle in real time, earn **trophies**, win **vials** (the game's chests), open them for cards, upgrade your
   Swarms with copies + Beast Coins, build the best **8-card deck**, and climb **Beast Island**.
-- **Beast Island** is the home screen: a living 3D voxel island. The trophy road winds from the beach up to the
+- The home screen's backdrop is a **frozen battle**: a time-stopped cinematic frame of a lane fight in the selected arena (your deck vs. that arena's Swarms) with live VFX; drag to pan between the bases, pinch / scroll to zoom. The **MAP** button opens **Beast Island**: a living 3D voxel island. The trophy road winds from the beach up to the
   summit and on across a huge northern region through fifteen arenas, each a diorama inspired by a MrBeast video:
   *Beast Lab*, *Last To Leave Circle*, *Chocolate Factory*, *Beast Mart*, *Red Light Courtyard*, *Antarctica Outpost*,
   *Atomic Reactor*, *Lost Pyramid*, *Beast Island Paradise*, *Lost Jungle Temple*, *Laser Maze Vault*, *Haunted

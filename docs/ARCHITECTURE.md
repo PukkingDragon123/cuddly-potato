@@ -51,6 +51,8 @@ src/
     lab.js             the Beast Lab: first-time flow (Jimmy, your name, first pack -> tutorial battle ->
                        MEGA tube -> Beast Island) and later visits
     home.js            Beast Island home lobby (top bar, vial slots, battle, nav tabs, unlock cinematic)
+    frozenBattle.js    home BATTLE-tab backdrop: a time-stopped cinematic lane fight in the selected arena (real
+                       arena/bases/Commanders/Swarms, suspended fx snapshot, live arcs/glows/ripples), pan + zoom camera
     battle.js          battle scene: modes (tutorial/ranked/practice/boss/friend), input, tutorial, finish
     vialOpen.js        vial opening + card reveal
   ui/
