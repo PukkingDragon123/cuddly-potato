@@ -177,14 +177,15 @@ export class BattleHUD {
 
     // the hand: 4 cards (up to 6 after a DRAW) + the NEXT card, Clash Royale style
     this.slots = Array.from({ length: HAND_MAX }, (_, i) => {
-      const el = h('div', { class: 'bh-slot empty', 'data-slot': String(i) });
-      el.addEventListener('pointerdown', (e) => {
+      const slot = { el: h('div', { class: 'bh-slot empty', 'data-slot': String(i) }), key: undefined, card: null };
+      slot.el.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         e.preventDefault();
         audio.unlock();
-        if (slot.card) handlers.press(i, e);
+        // read through this.slots: Rollup's tree-shaking otherwise folds the
+        // literal `card: null` and drops this call from the production build
+        if (this.slots[i]?.card) handlers.press(i, e);
       });
-      const slot = { el, key: undefined, card: null };
       return slot;
     });
     this.nextEl = h('div', { class: 'bh-nextc' });
