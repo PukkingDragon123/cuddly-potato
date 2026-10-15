@@ -22,8 +22,8 @@ src/
     game.js            scene router: game.go('title' | 'lab' | 'home' | 'battle' | 'vialopen' | dev scenes, params)
     battle/
       field.js         lane geometry shared by sim, view and arenas
-      sim.js           deterministic battle logic (Battle Cats lineup: up to 10 slots with recharge, troops
-                       spawn at the base; one base per side, POWER, base tiers, MEGA ultimate with a frozen
+      sim.js           deterministic battle logic (Clash Royale card cycle: 8-card deck, hand of 4 + NEXT,
+                       SPECIAL card tricks: draw / discard / echo / copy / exhaust; troops spawn at the base; one base per side, POWER, base tiers, MEGA ultimate with a frozen
                        cinematic window), events
       ai.js            opponent AI (reads its hand, defends, builds pushes, spells, base upgrades, MEGA)
       netsync.js       friend battles: HostSync streams state, RemoteSim mirrors it for the guest
@@ -32,7 +32,7 @@ src/
       megaCutscene.js  MEGA breakout cutscene (containment vessel, camera shots, overlay) + Mega special fx
       commandFx.js     Commander electric MEGA charge-up (voxel lightning, halo, label) + base upgrade sign
       voxfx.js         voxel effect meshes (laser beam, goo puddle, shield dome)
-      hud.js           battle HUD (base HP banners, timer, minimap, 10-slot lineup with recharge wipes, POWER
+      hud.js           battle HUD (base HP banners, timer, minimap, card hand + NEXT card, POWER
                        counter + cells, Commander, base level + MEGA buttons, emotes, VS intro); lineup.css
       result.js        victory / defeat / draw screen with base HP and rewards
   net/p2p.js           WebRTC data channel with copy/paste "battle code" signalling (no server)
