@@ -73,8 +73,8 @@ const ROAD = [
   [-22, -160], [-8, -172], [4, -180], [12, -182],
 ];
 const RIVER = [[28, -38], [27, -33], [26, -28.5], [24.5, -23], [21.5, -17], [19.5, -10], [21, -3], [24.5, 3], [25, 10], [22.5, 17], [25, 24], [30, 30], [29.5, 38], [31, 46], [29, 54], [31.5, 62], [33, 70], [34, 80]];
-const JUNGLE_RIVER = [[72, -150], [75, -140], [79, -128], [85, -116], [90, -104], [96, -95], [104, -89], [114, -85]];
-const LAVA_RIVER = [[-44, -172], [-47, -163], [-51, -152], [-56, -140], [-61, -128], [-66, -116], [-72, -104]];
+const JUNGLE_RIVER = [[72, -150], [75, -140], [79, -128], [85, -116], [90, -104], [96, -95], [101, -90.5]];
+const LAVA_RIVER = [[-44, -172], [-47, -163], [-51, -152], [-56, -140], [-60, -131], [-64, -123.5]];
 const BASINS = [[24.5, -21.5, 9.5, 6, 3], [72, -150, 24.5, 4.6, 3]];
 const LAGOON = [28, -38, 4.4, 22.5];
 const LAGOONS = [
@@ -843,6 +843,21 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
     heli.position.set(Lz.x + Math.cos(a) * 17, Lz.y + 11 + Math.sin(t * 0.5) * 0.6, Lz.z + Math.sin(a) * 17);
     heli.rotation.set(0.12, -a, -0.18, 'YXZ');
     hr.rotation.y = t * 22;
+  });
+
+  // ---- hot-air balloons drifting over the Northern Wilds' meadows
+  const balloons = [[0xff4fa3, 0xffd23f], [0x29b6f6, 0xffffff], [0x5fdc4a, 0xffd23f]].map(([a, b], i) => {
+    const m = P.mesh(P.geo('balloon' + i, () => P.balloonGrid(a, b), 0.12, 'bottom'), {});
+    m.name = 'balloon';
+    root.add(m);
+    return m;
+  });
+  updaters.push((dt, t) => {
+    balloons.forEach((m, i) => {
+      const a = t * (0.012 + i * 0.004) + i * 2.1, r = 22 + i * 9;
+      m.position.set(30 + Math.cos(a) * r, 40 + i * 5 + Math.sin(t * 0.25 + i) * 1.2, -128 + Math.sin(a) * r * 0.6);
+      m.rotation.y = t * 0.05 + i;
+    });
   });
 
   // ---- TeamSeas reef: coral heads in the shallows, a trash boom, floating plastic, cleanup boats

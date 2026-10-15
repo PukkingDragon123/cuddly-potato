@@ -40,8 +40,10 @@ src/
     kit.js             high-res toy modelling kit (blob, rbox, cyl, capsule, pixel-art stamping, joints)
     swarmRig.js        part-driven procedural animation + toy finishes (gloss, metal, translucent, glow)
     swarmModels.js     createSwarm(id, {variant, skin, scale, model}) registry; models in swarms/*.js by series
-    arenas/            battle arenas + Beast Island zone dioramas (kit.js ArenaKit, one module per arena)
-    island/            Beast Island world: terrain, water, sky, props, makeBeastIsland()
+    arenas/            battle arenas + Beast Island zone dioramas (kit.js ArenaKit + sky/animation/scenery
+                       helpers, wildsKit.js; one module per arena, 15 arenas)
+    island/            Beast Island world: terrain (chunked), water, sky, props, makeBeastIsland() - 15 zones
+                       incl. the northern region and the floating space station
     props/             base tiers tent -> Mega HQ (base.js), MEGA containment vessel (containment.js), legacy Lab
                        buildings (lab.js), vials (vials.js), lab interior + misc props
   scenes/
@@ -54,9 +56,11 @@ src/
   ui/
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), panel(), ribbon(), pill(), bar(), modal(), toast(),
                        say() dialogue, speech(), floatText(), pointAt(), sparkle(), rollNumber()
-    skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*) and pixel icons
+    skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*, glass tanks, plates, pods, ensureSkin tints),
+                       pixel textures as CSS vars, 16/24 px pixel icons
     cards.js           cardEl(): the card component (rarity frame, cost, level, copies progress)
-    thumbs.js          cached 3D thumbnails: swarmThumb, charPortrait, spell art
+    thumbs.js          cached 3D thumbnails: swarmThumb, charPortrait, spell art, arenaThumb (diorama snapshots),
+                       labSkinThumb; lazy queue renders on-screen images first
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss)
   dev/                 modelLab, arenaView, islandView, uiBench, screenBench, seed

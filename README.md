@@ -30,9 +30,11 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - Battle in real time, earn **trophies**, win **vials** (the game's chests), open them for cards, upgrade your
   Swarms with copies + Beast Coins, build the best **8-card deck**, and climb **Beast Island**.
 - **Beast Island** is the home screen: a living 3D voxel island. The trophy road winds from the beach up to the
-  summit through nine arenas, each a diorama inspired by a real MrBeast video: *Beast Lab*, *Last To Leave Circle*,
-  *Chocolate Factory*, *Beast Mart*, *Red Light Courtyard*, *Antarctica Outpost*, *Atomic Reactor*, *Lost Pyramid* and
-  the legendary *Beast Island Paradise*. Reaching an arena's trophy gate plays an unlock cinematic and unlocks its cards.
+  summit and on across a huge northern region through fifteen arenas, each a diorama inspired by a MrBeast video:
+  *Beast Lab*, *Last To Leave Circle*, *Chocolate Factory*, *Beast Mart*, *Red Light Courtyard*, *Antarctica Outpost*,
+  *Atomic Reactor*, *Lost Pyramid*, *Beast Island Paradise*, *Lost Jungle Temple*, *Laser Maze Vault*, *Haunted
+  Mansion*, *TeamSeas Reef*, *Volcano Forge* and the legendary *Zero-G Space Station* floating above the island on a
+  space elevator. Reaching an arena's trophy gate plays an unlock cinematic and unlocks its cards.
 - Each arena has a **boss challenge**, NPCs with quest chains (Nolan, Juan), hidden secrets, and your own deck's
   Swarms hanging out on it.
 - **Vials** modelled on the real packaging (test tubes, Lab Packs, the Mega Lab, the Cash Case, Hyperchrome tubes)
@@ -62,10 +64,10 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - 3:00 regulation, sudden-death overtime, then a base-HP tiebreak. Emotes included.
 
 **Collection**
-- 40+ Swarms across the Beast Originals, Home Horrors, Techno Terrors, Atomic, Lab Hybrids and Snack Squad
-  series, plus spells. Rarities: Common, Rare, Ultra Rare, Legendary, Limited. Shiny **Silver, Gold and Chrome**
+- 60+ Swarms across the Beast Originals, Home Horrors, Techno Terrors, Atomic, Lab Hybrids, Snack Squad, Mega-Tech,
+  Fire & Ice, Battle Fusion, Wildlands, Spooky and Cosmic series, plus spells. Rarities: Common, Rare, Ultra Rare, Legendary, Limited. Shiny **Silver, Gold and Chrome**
   variants, skins and the Feastables Panther **Mega Form**.
-- Lab Level (king level) from Lab XP, Commander levels, the Food Season pass, daily challenges, Trophy Road rewards
+- Lab Level (king level) from Lab XP, Commander levels, the 50-tier Food Season pass, daily challenges, Trophy Road rewards
   and a daily shop. Beast Bucks are earned in game only (no real-money purchases).
 
 ## Controls

@@ -360,7 +360,7 @@ export function buildBattle(K) {
       return hash3(ix >> 3, iz >> 2, 3) < 0.2 ? C.ironL : hash3(ix, iz, 1) < 0.05 ? C.rust : C.iron;
     },
   });
-  K.mesh('laneLights', () => { const g = new VoxGrid(); for (let x = -96; x < 96; x += 6) { const glow = (x + 96) % 24 === 0; g.set(x, 0, -10, glow ? C.lavaL : C.hot, glow); g.set(x, 0, 9, glow ? C.lavaL : C.hot, glow); } return g; }, { scale: 0.25, pivot: [0, 0, 0] }, 0, 0.002, 0);
+  K.mesh('laneLights', () => { const g = new VoxGrid(); for (let x = -96; x < 96; x += 6) { g.set(x, 0, -10, C.hot); g.set(x, 0, 9, C.hot); } return g; }, { scale: 0.25, pivot: [0, 0, 0] }, 0, 0.002, 0);
   K.mesh('pantherSeal', () => {
     const g = new VoxGrid();
     for (let x = -5; x <= 5; x++) for (let z = -5; z <= 5; z++) { const r = Math.hypot(x, z); if (r > 5.4) continue; g.set(x, 0, z, r > 4.4 ? C.goldD : r < 1.6 ? C.lavaY : (Math.atan2(z, x) * 4 / Math.PI + 8) % 2 < 1 ? C.lava : C.iron, r < 1.6); }
@@ -426,8 +426,8 @@ export function buildBattle(K) {
   scrollPlane(K, { tex: tLava, w: 7, d: 4, x: fx + 0.8, y: 0.06, z: fz + 2.4, tile: 2, sx: 0.02, sy: 0.02, boost: 1.25, grad: () => 0xffffff, name: 'lavaPool', segs: 1 });
   // eruption: lava fountain bombs + smoke puffs from the crater
   const craterY = VH * Math.pow(1 - 14 / 70, 1.25) * VS, CX = 4, CZ = VZ;
-  const bombs = liveInst(K, 'bomb', () => { const g = new VoxGrid(); g.box(-1, -1, -1, 0, 0, 0, C.lavaL, true); g.set(0, 0, 0, C.lavaY, true); return g; }, { scale: 0.28 }, 18);
-  const bb = Array.from({ length: 18 }, () => ({ a: K.rand(0, 6.28), v: K.rand(2, 6), up: K.rand(8, 15), ph: K.rand(0, 1) }));
+  const bombs = liveInst(K, 'bomb', () => { const g = new VoxGrid(); g.box(-1, -1, -1, 0, 0, 0, C.lava); g.set(0, 0, 0, C.lavaY, true); return g; }, { scale: 0.2 }, 14);
+  const bb = Array.from({ length: 14 }, () => ({ a: K.rand(0, 6.28), v: K.rand(2, 6), up: K.rand(8, 15), ph: K.rand(0, 1) }));
   K.onUpdate((dt, t) => {
     bb.forEach((b, i) => {
       const k = (t * 0.25 + b.ph) % 1, tt = k * 3.2;
@@ -445,11 +445,12 @@ export function buildBattle(K) {
   });
 
   // ---- life: embers, ash, lava bats, lava bubbles + crust in the river
-  addParticles(K, 60, [-36, 36, 0, 14, -24, 8], { color: [C.lavaL, C.lava, C.lavaY], glow: 1.95, size: [0.04, 0.08], vy: 0.9, drift: 0.7, fadeTop: true });
+  addParticles(K, 50, [-36, 36, 0, 14, -24, 8], { color: [C.lavaL, C.lava], glow: 1.45, size: [0.04, 0.07], vy: 0.9, drift: 0.7, fadeTop: true });
+  addParticles(K, 10, [-30, 30, 0, 10, -18, 6], { color: C.lavaY, glow: 1.9, size: [0.03, 0.05], vy: 1.1, drift: 0.7, fadeTop: true, seed: 8 });
   addParticles(K, 40, [-40, 40, 1, 16, -30, 10], { color: [0x5a5260, 0x3a3440], size: [0.04, 0.08], vy: -0.25, drift: 0.6, wind: 0.3, seed: 31 });
   addFlyers(K, 'lavaBat', lavaBatBody, lavaBatWing, { scale: 0.11 }, [...orbitList(K, 4, [-8, 11, -22], { r0: 6, r1: 12, spread: 6, dy: 3, f0: 11, f1: 15 }), ...orbitList(K, 3, [14, 15, -32], { r0: 6, r1: 10, spread: 4, dy: 3, f0: 11, f1: 15 })], { flap: 0.85 });
-  const bubbles = liveInst(K, 'lavaBubble', () => { const g = new VoxGrid(); g.box(-1, 0, -1, 1, 1, 1, C.lavaL, true); g.set(0, 2, 0, C.lavaY, true); return g; }, { scale: 0.1 }, 16);
-  const bub = Array.from({ length: 16 }, () => ({ x: K.rand(-34, 34), ph: K.rand(0, 1), sp: K.rand(0.3, 0.6) }));
+  const bubbles = liveInst(K, 'lavaBubble', () => { const g = new VoxGrid(); g.box(-1, 0, -1, 1, 1, 1, C.lavaL); g.set(0, 2, 0, C.lavaY, true); return g; }, { scale: 0.1 }, 12);
+  const bub = Array.from({ length: 12 }, () => ({ x: K.rand(-34, 34), ph: K.rand(0, 1), sp: K.rand(0.3, 0.6) }));
   K.onUpdate((dt, t) => {
     bub.forEach((b, i) => { const k = (t * b.sp + b.ph) % 1; setInst(bubbles, i, b.x, -0.38 + k * 0.15, RIVER(b.x) + Math.sin(b.ph * 9) * 2.4, 0, 0, 0, k < 0.85 ? 0.4 + k : 0.0001); });
     bubbles.instanceMatrix.needsUpdate = true;

@@ -44,7 +44,7 @@ const fmtTime = (sec) => {
 };
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const NPC_OF_ZONE = Object.fromEntries(Object.entries(QUEST_NPC_ZONE).map(([npc, z]) => [z, npc]));
-const ZONE_EXTRAS = { circle: 'fan', factory: 'labTech', redlight: 'guard', antarctica: 'labTech', reactor: 'labTech', pyramid: 'fan', island: 'fan' };
+const ZONE_EXTRAS = { circle: 'fan', factory: 'labTech', redlight: 'guard', antarctica: 'labTech', reactor: 'labTech', pyramid: 'fan', island: 'fan', jungle: 'fan', laser: 'guard', haunted: 'fan', reef: 'fan', volcano: 'labTech', space: 'labTech' };
 
 // vial thumbnails come from the vial module (rendered 3D); fall back to the pixel icon
 // screens are code-split: each tab / modal loads on first use

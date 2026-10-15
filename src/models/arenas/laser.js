@@ -223,6 +223,16 @@ const droneGrid = () => {
   g.set(0, 0, 2, C.red, true);
   return g;
 };
+/** Security booth with a lit monitor wall + a boom barrier (arm animated separately). */
+const boothGrid = () => {
+  const g = new VoxGrid();
+  g.box(-5, 0, -4, 4, 12, 3, (x, y, z) => (y === 12 ? C.steelDD : y > 5 && y < 10 && z === 3 && Math.abs(x + 0.5) < 4 ? 0x2a3a5a : C.white));
+  g.box(-6, 13, -5, 5, 13, 4, C.red);
+  for (let x = -3; x <= 2; x++) g.set(x, 7 + (x & 1), 2, x % 3 === 0 ? C.cyan : C.green, true);
+  g.box(6, 0, -1, 7, 6, 0, C.steelD);
+  return g;
+};
+const barrierArmGrid = () => { const g = new VoxGrid(); for (let x = 0; x < 30; x++) g.box(x, 0, 0, x, 1, 0, ((x >> 2) & 1) ? C.red : C.white); return g; };
 const stanchionGrid = () => {
   const g = new VoxGrid();
   g.box(-1, 0, -1, 1, 0, 1, C.brass);
@@ -366,7 +376,7 @@ export function buildBattle(K) {
   // glowing emitter dots along the lane edges (small accents)
   K.mesh('laneLeds', () => {
     const g = new VoxGrid();
-    for (let x = -96; x < 96; x += 8) { g.set(x, 0, -9, C.laser, true); g.set(x, 0, 8, C.laser, true); }
+    for (let x = -96; x < 96; x += 16) { g.set(x, 0, -9, C.laser, true); g.set(x, 0, 8, C.laser, true); }
     return g;
   }, { scale: 0.25, pivot: [0, 0, 0] }, 0, 0.002, 0);
   K.mesh('dialMarker', () => {
@@ -399,7 +409,7 @@ export function buildBattle(K) {
     for (let k = 0; k < pyl.length - 1; k++) for (let row = 0; row < 3; row++) {
       const on = Math.sin(t * 2.2 + k * 1.3 + row * 2.1) > -0.35;
       const sweep = row === 1 ? Math.sin(t * 1.6 + k) * 0.35 : 0;
-      setInst(beams, i++, pyl[k][0] + 0.05, [0.3, 0.75, 1.15][row] + sweep, -4.9, 0, 0, 0, on ? [6.5 / 6.4, 1, 1] : 0.0001);
+      setInst(beams, i++, pyl[k][0] + 0.05, [0.3, 0.75, 1.15][row] + sweep, -4.9, 0, 0, 0, on ? [6.5 / 6.4, 0.55, 0.55] : 0.0001);
     }
     beams.instanceMatrix.needsUpdate = true;
   });
@@ -499,7 +509,7 @@ export function buildBattle(K) {
   const trip = liveInst(K, 'tripwire', beamGrid, { scale: 0.06, pivot: [32, 0.5, 0.5] }, 6);
   const trips = Array.from({ length: 6 }, (_, i) => [-25 + i * 10 + K.rand(-2, 2), K.rand(8, 24), K.rand(-0.6, 0.6), K.rand(0, 6)]);
   K.onUpdate((dt, t) => {
-    trips.forEach(([x, z, r, ph], i) => setInst(trip, i, x, 0.1, z, r + Math.sin(t * 0.3 + ph) * 0.25, 0, 0, Math.sin(t * 1.7 + ph) > -0.3 ? 1 : 0.0001));
+    trips.forEach(([x, z, r, ph], i) => setInst(trip, i, x, 0.1, z, r + Math.sin(t * 0.3 + ph) * 0.25, 0, 0, Math.sin(t * 1.7 + ph) > -0.3 ? [1, 0.6, 0.6] : 0.0001));
     trip.instanceMatrix.needsUpdate = true;
   });
   const bills = [], coins = [], tapes = [], vents = [];
@@ -567,6 +577,11 @@ export function buildZone(K) {
   });
   K.inst('safeOpen', safeGrid(true), { scale: 0.06 }, [[-3.6, 0, 4.6, 0.4], [4.2, 0, 4.8, -0.5]], { shadow: true });
   K.inst('goldPallet', goldPalletGrid, { scale: 0.06 }, [[-1.2, 0, 5.4, 0.2], [1.8, 0, 3.0, -0.3], [-5.2, 0, 1.0, 0.5]], { shadow: true });
+  K.inst('cashCart', cashCartGrid, { scale: 0.06 }, [[3.6, 0, 2.2, 0.6], [-3.0, 0, 3.0, -0.4]], { shadow: true });
+  K.inst('moneyBag', moneyBagGrid, { scale: 0.06 }, [[2.6, 0, 5.4, 0.3], [3.0, 0, 5.8, 1.2], [-4.4, 0, 2.2, 0.6], [-0.4, 0, 4.0, 2]], { shadow: true });
+  K.mesh('booth', boothGrid, { scale: 0.07 }, 5.0, 0, 3.0, -0.9, 1, { shadow: true });
+  const arm = K.mesh('barrierArm', barrierArmGrid, { scale: 0.07, pivot: [0, 0, 0] }, 5.0 + Math.cos(-0.9) * 0.46, 0.4, 3.0 - Math.sin(-0.9) * 0.46, -0.9 + Math.PI, 1, { shadow: true });
+  K.onUpdate((dt, t) => { const q = (t * 0.15) % 1; arm.rotation.z = q < 0.2 ? Math.sin((q / 0.2) * Math.PI) * 1.2 : 0; });
   K.mesh('displayGem', displayGrid(true), { scale: 0.06 }, 0.4, 0, 2.6, 0, 1, { shadow: true });
   K.inst('camPole', camPoleGrid, { scale: 0.06 }, [[5.0, 0, -0.4], [-5.4, 0, 3.4]], { shadow: true });
   const camHeads = liveInst(K, 'camHead', camGrid, { scale: 0.06, pivot: [0, 0, -4] }, 2, { shadow: true });

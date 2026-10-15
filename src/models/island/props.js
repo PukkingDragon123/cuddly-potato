@@ -1048,3 +1048,23 @@ export function heliRotorGrid() {
   g.box(-1, 0, -1, 1, 1, 1, 0x2a2e3a);
   return g;
 }
+
+/** Hot-air balloon (voxel 0.12): striped envelope, rope rigging, wicker basket. */
+export function balloonGrid(c1 = 0xff4fa3, c2 = 0xffd23f) {
+  const g = new VoxGrid();
+  for (let y = 0; y < 26; y++) {
+    const t = y / 25;
+    const r = t < 0.25 ? 4 + t * 26 : 10.5 * Math.sqrt(Math.max(0, 1 - ((t - 0.62) / 0.4) ** 2));
+    for (let x = -12; x <= 11; x++) for (let z = -12; z <= 11; z++) {
+      const d = Math.hypot(x + 0.5, z + 0.5);
+      if (d > r || d < r - 1.4) continue;
+      const seg = Math.floor((Math.atan2(z + 0.5, x + 0.5) + Math.PI) / (Math.PI / 6));
+      g.set(x, y + 12, z, y > 23 ? c2 : (seg & 1 ? c1 : c2));
+    }
+  }
+  text(g, 'B', 0, 22, 11, '+z', 0xffffff, { center: true, scale: 2 });
+  for (const [x, z] of [[-4, -4], [3, -4], [-4, 3], [3, 3]]) g.line(x, 12, z, x > 0 ? 2 : -3, 4, z > 0 ? 2 : -3, 0x8a6a3a);
+  g.box(-3, 0, -3, 2, 3, 2, (x, y) => (y === 3 ? 0x6e4224 : (x + y) & 1 ? 0xb8844a : 0x9a6a3c));
+  g.box(-1, 10, -1, 0, 11, 0, 0xff8a1a, true); // burner
+  return g;
+}
