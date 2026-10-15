@@ -10,7 +10,7 @@ import './home-mega.css';
 import { engine, addLights } from '../core/engine.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/particles.js';
-import { h, icon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, burst, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
+import { h, icon, animIcon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, burst, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
 import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
 import { makeBeastIsland } from '../models/island/beastIsland.js';
@@ -312,7 +312,7 @@ export class HomeScene {
     // side buttons
     this.freeEl = h('div', { class: 'hm-mini hm-freebtn sk-panel-dark hit', 'data-tip': 'A *free vial* every 4 hours', onclick: () => this.openFree() }, h('i', { class: 'hm-mini-rays' }), vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
     this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', 'data-tip': 'Your *MEGA ultimate*: unleash it in battle', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
-    this.labEl = h('div', { class: 'hm-mini hm-labbtn sk-panel-dark hit', 'data-tip': 'Visit the *Beast Lab*', onclick: () => game.go('lab', { visit: true }) }, icon('flask'), h('div', { class: 't' }, 'LAB'));
+    this.labEl = h('div', { class: 'hm-mini hm-labbtn sk-panel-dark hit', 'data-tip': 'Visit the *Beast Lab*', onclick: () => game.go('lab', { visit: true }) }, animIcon('flask'), h('div', { class: 't' }, 'LAB'));
     root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl, this.labEl));
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
@@ -329,7 +329,7 @@ export class HomeScene {
     this.zRibbon = ribbon('BEAST LAB', 'blue');
     this.zTro = h('div', { class: 'zt' }, icon('trophy'), h('span', {}, String(p.trophies)));
     this.zProg = bar(0, 'gold', '', { cls: 'hm-zprog' });
-    this.zBox = h('div', { class: 'hm-zbox', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
+    this.zBox = h('div', { class: 'hm-zbox', 'data-sfx': 'tap', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
     const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
     this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Ranked - win trophies & vials', sound: 'go' });
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
@@ -392,7 +392,7 @@ export class HomeScene {
     this.zBox.classList.toggle('locked', locked);
     this.zTro.innerHTML = '';
     if (locked) this.zTro.append(icon('lock'), h('span', { class: 'lockt' }, `Unlocks at ${A.trophies}`), icon('trophy'));
-    else this.zTro.append(icon('trophy'), h('span', {}, p.trophies.toLocaleString('en-US')));
+    else this.zTro.append(animIcon('trophy'), h('span', {}, p.trophies.toLocaleString('en-US')));
     // progress tube toward the next arena (on your current arena only)
     const nextA = ARENAS[k + 1];
     const cur = currentArena(p.trophies).index;

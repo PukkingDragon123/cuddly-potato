@@ -1249,8 +1249,8 @@
   rotate: 8deg; animation: badgeIn 0.5s 0.3s cubic-bezier(.3, 1.8, .5, 1) both, badgeBob 1.4s 0.8s ease-in-out infinite;
 }
 .mn-ctile.best { box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.5) #ffe46a, inset 0 0 0 var(--px) rgba(200, 255, 170, 0.45), inset 0 calc(var(--px) * 2) 0 rgba(255, 255, 255, 0.22), 0 0 calc(var(--px) * 6) rgba(255, 216, 74, 0.7); }
-.mn-ctile .mn-ctile-ic { animation: hmBob 2s ease-in-out infinite; }
-.mn-ctile.best .mn-ctile-ic { animation: hmBob 1.2s ease-in-out infinite; }
+.mn-ctile .mn-ctile-art { animation: hmBob 2s ease-in-out infinite; }
+.mn-ctile.best .mn-ctile-art { animation: hmBob 1.2s ease-in-out infinite; }
 
 /* ---- shop hero offer */
 .mn-hero {
@@ -1346,7 +1346,7 @@
 .mn-intro .mn-cgrid .mn-cc, .mn-resort .mn-cgrid .mn-cc, .mn-intro .mn-deck .mn-cc { animation: mnCardIn 0.42s calc(var(--i, 0) * 0.035s) cubic-bezier(.2, 1.5, .4, 1) backwards; }
 @keyframes mnCardIn { 0% { transform: translateY(calc(var(--u) * 6)) scale(0.6) rotate(-6deg); opacity: 0; } 70% { transform: scale(1.05) rotate(1deg); opacity: 1; } 100% { transform: none; } }
 @media (hover: hover) { .mn-cc:not(.picked):hover .gcard { translate: 0 calc(var(--px) * -2); scale: 1.03; } }
-.mn-cc .gcard { transition: translate 0.15s, scale 0.15s cubic-bezier(.3, 1.7, .5, 1); }
+.mn-cc .gcard { transition: translate 0.15s, scale 0.15s cubic-bezier(.3, 1.7, .5, 1), transform 0.18s cubic-bezier(.3, 1.4, .5, 1); }
 .mn-deck { counter-reset: slot; }
 .mn-deck .mn-cc { counter-increment: slot; }
 .mn-deck .mn-cc:not(.lockd-slot)::after {
@@ -1464,7 +1464,7 @@
 .mn-rwmodal .mn-rwpop.big .mn-rw { animation: hmGlow 1.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mn-cribbon, .mn-cribbon::after, .mn-cbonus, .mn-ctile .mn-ctile-ic, .mn-hero-vial, :is(.mn-offers, .mn-vials, .mn-feats, .mn-coins) > *, .mn-gift-art, .mn-sortchip.on, .mn-cc::before, .mn-cc, .mn-empty-in,
+  .mn-cribbon, .mn-cribbon::after, .mn-cbonus, .mn-ctile .mn-ctile-art, .mn-hero-vial, :is(.mn-offers, .mn-vials, .mn-feats, .mn-coins) > *, .mn-gift-art, .mn-sortchip.on, .mn-cc::before, .mn-cc, .mn-empty-in,
   .mn-ci-card .gcard .art > .stage, .mn-st-bar > i, .mn-ci-stats > .mn-st, .mn-ci-upbtn.shine, .mn-cmd-pedring, .mn-cmd-full.hop, .mn-cmd-name, .mn-rost.view, .mn-abil, .mn-perk, .mn-perk-ic > .t-d,
   .mn-prof-ban::after, .mn-prof-port, .mn-pstats > *, .mn-boss-art::before, .mn-boss-art::after, .mn-boss-tag, .mn-boss-deck > *, .mn-bossm .modal-foot .btn.xl, .mn-fr-choice::before, .mn-setrow, .mn-rwpop .mn-rw { animation: none !important; }
 }

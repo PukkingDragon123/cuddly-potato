@@ -3,7 +3,7 @@
 //   cosmetics (Swarm skins, banners, Commander outfits), vials for Beast
 //   Bucks (opened right away via ctx.openVial) and coin bundles.
 //   Everything resets at local midnight.
-import { h, icon, button, sparkle, burst } from '../ui.js';
+import { h, icon, animIcon, button, sparkle, burst } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { audio } from '../../core/audio.js';
 import { mulberry32, hashString, todayKey } from '../../core/util.js';
@@ -233,7 +233,7 @@ export function mount(el, ctx) {
     const tile = h('div', { class: `mn-ctile ${sold ? 'sold' : ''} ${best ? 'best' : ''}` },
       !sold && best ? cornerRibbon('BEST VALUE', 'gold') : null,
       !sold && bonus >= 5 ? h('div', { class: 'mn-cbonus t-d' }, `+${bonus}%`) : null,
-      h('div', { class: 'mn-ctile-art' }, h('div', { class: 'px-rays mn-ctile-rays' }), icon(ic, 'mn-ctile-ic')),
+      h('div', { class: 'mn-ctile-art' }, h('div', { class: 'px-rays mn-ctile-rays' }), animIcon(ic, 'mn-ctile-ic')),
       h('div', { class: 'mn-ctile-amt t-d outline c-gold' }, fmtN(o.coins)),
       h('div', { class: 'mn-ctile-n' }, o.label),
       priceButton('bucks', o.price, sold, () => buy({
@@ -294,7 +294,7 @@ export function mount(el, ctx) {
     const inner = h('div', { class: 'mn-inner' });
     // hero header
     inner.appendChild(h('div', { class: 'mn-shophead' },
-      h('div', { class: 'mn-shophead-ic' }, icon('shop')),
+      h('div', { class: 'mn-shophead-ic', 'data-sfx': 'pop' }, icon('shop')),
       h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-d outline mn-shophead-t' }, 'BEAST SHOP'), h('span', { class: 't-xs c-muted' }, 'Fresh deals from the Lab every day')),
       h('span', { class: 'spacer' }),
       timerChip(midnightMs(), 'New in')));

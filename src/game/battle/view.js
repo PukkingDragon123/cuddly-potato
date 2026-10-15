@@ -925,7 +925,8 @@ export class BattleView {
     const ch = this.cmds?.[i];
     if (!ch) return;
     ch.boing(0.4);
-    ch.play('sitCheer');
+    if (ch.react) ch.react(Math.random() < 0.5 ? 'fistPump' : 'flex', { dur: 1 });
+    else ch.play('sitCheer');
     ch.expr('determined', 'grin', 1);
     ch.reactT = 1;
     const p = ch.root.position;
@@ -946,7 +947,8 @@ export class BattleView {
           ch.expr('star', 'grin');
         } else if (s.lab.hp < s.lab.maxHp * 0.35) {
           ch.play('sitWorried');
-          ch.expr('shock', 'wobble');
+          ch.expr('worried', 'wobble');
+          ch.face?.fx('sweat');
         } else {
           ch.play('sit');
           ch.expr('normal', 'smile');
@@ -961,6 +963,15 @@ export class BattleView {
     if (!ch || ch.busy) return;
     ch.play(anim);
     ch.expr(eyes, mouth, dur);
+    ch.reactT = dur;
+    if (line) speech(ch, line, Math.min(2.2, dur + 0.6));
+  }
+
+  /** Richer Commander reaction: pose + mood + emote (seated variant while on the roof). */
+  reactRich(side, name, dur = 1.2, line) {
+    const ch = this.cmds?.[side];
+    if (!ch || ch.busy || !ch.react) return;
+    ch.react(name, { dur });
     ch.reactT = dur;
     if (line) speech(ch, line, Math.min(2.2, dur + 0.6));
   }
@@ -1124,8 +1135,8 @@ export class BattleView {
             engine.shake(0.5);
             engine.hitstop(0.08);
           }
-          if (ev.killerSide === 0 && Math.random() < 0.3) this.react(0, 'sitCheer', 'happy', 'grin', 0.8);
-          if (ev.killerSide === 1 && Math.random() < 0.3) this.react(1, 'sitCheer', 'happy', 'tongue', 0.8);
+          if (ev.killerSide === 0 && Math.random() < 0.3) this.reactRich(0, pick(['laugh', 'clap', 'fistPump', 'thumbsUp', 'cheer']), 1);
+          if (ev.killerSide === 1 && Math.random() < 0.3) this.reactRich(1, pick(['taunt', 'laugh', 'fistPump', 'smug']), 1);
           a.dispose();
           this.actors.delete(ev.unit.id);
           this.smashNear(p.x, big ? 2 : 0.8, ev.unit.side);
@@ -1339,7 +1350,7 @@ export class BattleView {
     if (ev.amount >= 1) floatText(p, String(ev.amount), ev.amount > 150 ? 'crit' : 'tower', { life: 0.9 });
     audio.play('crunch', { pitch: 0.7 + Math.random() * 0.3, gap: 0.08 });
     if (ev.amount > 120) engine.shake(0.22);
-    if (Math.random() < 0.12) this.react(ev.side, 'sitWorried', 'shock', 'shout', 0.9, ev.side === 1 ? pick(['Hey!', 'My Lab!', 'Not the Lab!', 'OUCH!']) : null);
+    if (Math.random() < 0.12) this.reactRich(ev.side, pick(['panic', 'nervous', 'angry', 'shock']), 0.9, ev.side === 1 ? pick(['Hey!', 'My Lab!', 'Not the Lab!', 'OUCH!']) : null);
   }
 
 
@@ -2085,18 +2096,20 @@ export class BattleView {
         ch.busy = true;
         ch.play('shocked', { restart: true, dur: 0.4, then: 'sad' });
         ch.expr('dizzy', 'shout');
+        ch.emote?.('star', 1.6);
         const from = ch.root.position.clone();
         const to = new THREE.Vector3(from.x + (side === 0 ? 2.5 : -2.5), 0, 1.5);
         animate(0.9, (e, k) => {
           ch.root.position.set(lerp(from.x, to.x, k), lerp(from.y, 0, k) + Math.sin(k * Math.PI) * 2.5, lerp(from.z, to.z, k));
           ch.root.rotation.x = k * Math.PI * 2;
-        }, { onComplete: () => { ch.root.rotation.x = 0; ch.play('sad'); ch.expr('sad', 'frown'); fx.dust(ch.root.position, { count: 10, scale: 2 }); } });
+        }, { onComplete: () => { ch.root.rotation.x = 0; ch.play('cry'); ch.expr('cry', 'sad'); ch.face?.fx('tears'); fx.dust(ch.root.position, { count: 10, scale: 2 }); } });
       }
       const win = this.cmds[1 - side];
       if (win) {
         win.busy = true;
         win.play('victory');
         win.expr('star', 'grin');
+        win.emote?.('sparkle', 2);
       }
       fx.confetti(new THREE.Vector3(this.camX, 6, 0), { count: 120, spread: 2.5 });
     }, 1000);

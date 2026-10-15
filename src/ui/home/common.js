@@ -3,7 +3,7 @@
 // products, banners, Commander portraits, reward art/tiles + reward popup,
 // confirm dialog, timers and small juice helpers.
 import './home.css';
-import { h, icon, button, modal, toast, clear, sparkle, burst, flyIcons, $overlay } from '../ui.js';
+import { h, icon, animIcon, button, modal, toast, clear, sparkle, burst, flyIcons, $overlay } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { lazyImg, charPortrait, swarmThumb, labSkinImg } from '../thumbs.js';
 import { audio } from '../../core/audio.js';
@@ -512,8 +512,8 @@ export function rewardArt(r, opts = {}) {
   r = rewardDef(r);
   const wrap = (cls, ...kids) => h('div', { class: 'mn-ra ' + cls }, ...kids);
   switch (r.type) {
-    case 'coins': return wrap('cur coins', icon(r.amount >= 2500 ? 'coinChest' : r.amount >= 900 ? 'coinPile' : r.amount >= 300 ? 'coinStack' : 'coin', 'mn-ra-ic big'));
-    case 'bucks': return wrap('cur bucks', icon(r.amount >= 60 ? 'bucksPile' : 'bucks', 'mn-ra-ic big'));
+    case 'coins': return wrap('cur coins', animIcon(r.amount >= 2500 ? 'coinChest' : r.amount >= 900 ? 'coinPile' : r.amount >= 300 ? 'coinStack' : 'coin', 'mn-ra-ic big'));
+    case 'bucks': return wrap('cur bucks', animIcon(r.amount >= 60 ? 'bucksPile' : 'bucks', 'mn-ra-ic big'));
     case 'calories': return wrap('cur cal', icon('calorie', 'mn-ra-ic'));
     case 'vial': return wrap('vial', vialArt(r.id));
     case 'card': case 'swarm': case 'spell': return wrap('card', cardEl(r.id, { size: 'mini', noLevel: true, locked: false, owned: state.p.cards[r.id] ?? { level: 1 }, artSize: 128 }));

@@ -15,7 +15,7 @@
 // a shiny metal material (chains, crowns, buckles, watch bezels).
 import { VoxGrid } from '../../core/voxel.js';
 import { shade, mixHex, hash3 } from '../../core/util.js';
-import { blob, rbox, capsule, stamp } from '../kit.js';
+import { blob, rbox, capsule, cyl, stamp } from '../kit.js';
 import { buildAccessory, accSlot } from './accessories.js';
 
 export const H = 0.05;
@@ -377,6 +377,31 @@ export function buildBody(def) {
       g.paint((x, y, z, c) => (y >= 2 && y <= 3 && c === accent ? 0xe8e8e8 : undefined));
       break;
     }
+    case 'mech': {
+      // armoured space exosuit: chest plate, power core, bolt, segmented abs, collar ring, back plate
+      const A = def.coat ?? 0xeef2f8, Ad = shade(A, -0.16), Ae = shade(A, -0.34);
+      const glow = def.glow ?? 0x3fd2ee;
+      rbox(g, -6, 3, 0, 5, 9, 4, 1, (x, y, z) => (y === 3 ? Ad : x === -6 || x === 5 ? shade(A, -0.06) : A));
+      for (let y = 4; y <= 8; y++) { g.set(-6, y, 3, accent); g.set(5, y, 3, accent); }
+      for (let x = -4; x <= 3; x++) g.set(x, 9, 4, Ad); // plate top edge
+      // power core
+      for (let x = -3; x <= 2; x++) for (let y = 3; y <= 6; y++) {
+        const edge = x === -3 || x === 2 || y === 3 || y === 6;
+        if (edge) g.set(x, y, 5, Ae);
+      }
+      for (let x = -2; x <= 1; x++) for (let y = 4; y <= 5; y++) g.set(x, y, 5, (x === -2 || x === 1) ? shade(glow, -0.35) : glow, x !== -2 && x !== 1);
+      logo(g, 'bolt', -0.5, 9, 'z', { c: accent, raise: 1 });
+      // segmented abs + belt
+      for (let y = 0; y <= 2; y++) for (let x = -4; x <= 3; x++) g.set(x, y, 4, y === 0 ? Ae : (y + (x > -1 ? 1 : 0)) % 2 ? A : Ad);
+      for (let x = -6; x <= 5; x++) for (let z = -4; z <= 3; z++) if (g.has(x, 0, z) && (x === -6 || x === 5 || z === -4)) g.set(x, 0, z, Ae);
+      metal.set(-1, 0, 5, 0xc8d0dc); metal.set(0, 0, 5, 0xc8d0dc);
+      // collar ring
+      for (let x = -5; x <= 4; x++) for (let z = -4; z <= 3; z++) if (x === -5 || x === 4 || z === -4 || z === 3) metal.set(x, 10, z, (x + z) % 3 ? 0xaab4c4 : 0x7a8496);
+      // back plate with vents
+      rbox(g, -5, 2, -5, 4, 9, -5, 0, A);
+      for (let y = 4; y <= 7; y += 3) for (let x = -3; x <= 2; x++) g.set(x, y, -6, Ae);
+      break;
+    }
     default: {
       // tee: ringed collar, hem, belt line
       for (let x = -3; x <= 2; x++) g.set(x, 9, front, shade(shirt, -0.18));
@@ -386,7 +411,7 @@ export function buildBody(def) {
       metal.set(-1, 0, F, 0xd8dce4); metal.set(0, 0, F, 0xd8dce4);
     }
   }
-  if (def.logo) {
+  if (def.logo && outfit !== 'mech') {
     const big = outfit === 'hoodie' || outfit === 'tee';
     if (outfit === 'labcoat') logo(g, def.logo, -4.5, 8, 'z', { raise: 1 });
     else if (big) logo(g, def.logo, -0.5, 8, 'z', { raise: 0 });
@@ -462,6 +487,7 @@ export function buildBackpack(g, def, a) {
 
 function sleeveInfo(def) {
   const o = def.outfit ?? 'tee';
+  if (o === 'mech') return { color: def.shirt ?? 0x26304a, long: true, cuff: shade(def.coat ?? 0xeef2f8, -0.3), mech: true };
   if (o === 'labcoat') return { color: def.coat ?? 0xf4f6fb, long: true, cuff: shade(def.coat ?? 0xf4f6fb, -0.1) };
   if (o === 'hoodie') return { color: def.sleeve ?? def.shirt ?? 0x222233, long: true, cuff: shade(def.sleeve ?? def.shirt ?? 0x222233, -0.14) };
   if (o === 'suit') return { color: def.shirt ?? 0x222233, long: true, cuff: 0xffffff };
@@ -478,7 +504,14 @@ export function buildUpperArm(def, side) {
   rbox(g, -2, -4, -2, 1, -1, 1, 1, (x, y, z) => (sl.long || y >= -2 ? sl.color : skin));
   if (!sl.long) for (let x = -2; x <= 1; x++) for (let z = -2; z <= 1; z++) if (g.has(x, -2, z)) g.set(x, -2, z, sl.trim);
   // fold crease on the sleeve
-  if (sl.long) g.set(side < 0 ? -2 : 1, -3, 0, shade(sl.color, -0.08));
+  if (sl.long && !sl.mech) g.set(side < 0 ? -2 : 1, -3, 0, shade(sl.color, -0.08));
+  if (sl.mech) {
+    // shoulder pauldron + armour band
+    const A = def.coat ?? 0xeef2f8;
+    blob(g, -0.5 + side * 0.3, -0.3, -0.5, 2.9, 2.1, 2.8, (x, y) => (y <= -2 ? shade(A, -0.16) : A), { p: 2.6, clip: (x, y) => y < -2 });
+    for (let z = -2; z <= 1; z++) g.set(side < 0 ? -4 : 3, 0, z, def.accent ?? 0xff2e88);
+    for (let x = -2; x <= 1; x++) for (let z = -2; z <= 1; z++) if (x === -2 || x === 1 || z === -2 || z === 1) g.set(x + (x < 0 ? -1 : 1) * 0, -4, z, shade(A, -0.1));
+  }
   for (const a of def._acc ?? []) if (accSlot(a) === 'upper') buildAccessory(a, 'upper', g, metal, def, side);
   return { g, metal };
 }
@@ -490,6 +523,13 @@ export function buildForearm(def, side) {
   const skin = def.skin ?? SKIN;
   rbox(g, -2, -4, -2, 1, 0, 1, 1, sl.long ? sl.color : skin);
   if (sl.long) for (let x = -2; x <= 1; x++) for (let z = -2; z <= 1; z++) if (g.has(x, -4, z) || inRB(x, -4, z, -2, -4, -2, 1, 0, 1, 1)) g.set(x, -4, z, sl.cuff);
+  if (sl.mech) {
+    const A = def.coat ?? 0xeef2f8;
+    rbox(g, -3, -4, -3, 2, -1, 2, 1, (x, y) => (y === -4 ? shade(A, -0.3) : y === -1 ? shade(A, -0.12) : A));
+    const ox = side < 0 ? -4 : 3;
+    g.set(ox, -2, -1, def.glow ?? 0x3fd2ee, true); g.set(ox, -2, 0, def.glow ?? 0x3fd2ee, true);
+    g.set(ox, -3, -1, shade(A, -0.3)); g.set(ox, -3, 0, shade(A, -0.3));
+  }
   const me = side < 0 ? 'L' : 'R';
   for (const a of def._acc ?? []) {
     if (accSlot(a) !== 'fore') continue;
@@ -537,6 +577,7 @@ export function buildThigh(def) {
   const pants = def.pants ?? 0x2b3448;
   rbox(g, -2, -4, -2, 1, 0, 1, 1, pants);
   g.paint((x, y, z, c) => (z === 1 && x === -1 && y === -2 ? shade(c, -0.08) : undefined));
+  if (def.outfit === 'mech') rbox(g, -2, -3, 2, 1, -1, 2, 0, (x, y) => (y === -1 ? shade(def.coat ?? 0xeef2f8, -0.15) : def.coat ?? 0xeef2f8));
   return { g };
 }
 
@@ -554,6 +595,19 @@ export function buildShin(def) {
       if (def.shorts) { if (g.has(x, -2, z)) g.set(x, -2, z, def.socks ?? 0xffffff); }
       else if (g.has(x, -1, z) && (x === -2 || x === 1 || z === -2 || z === 1)) g.set(x, -1, z, shade(pants, -0.1));
     }
+  }
+  if (def.outfit === 'mech') {
+    // armoured jet boots: knee pad, tall boot, toe cap, heel thruster
+    const A = def.shoes ?? def.coat ?? 0xeef2f8, Ad = shade(A, -0.16), Ae = shade(A, -0.34);
+    rbox(g, -2, -1, 1, 1, 0, 2, 0, def.coat ?? 0xeef2f8);
+    g.set(-1, 0, 3, def.accent ?? 0xff2e88); g.set(0, 0, 3, def.accent ?? 0xff2e88);
+    rbox(g, -2, -4, -3, 1, -2, 4, 1, A);
+    for (let x = -2; x <= 1; x++) for (let z = -3; z <= 4; z++) if (g.has(x, -4, z)) g.set(x, -4, z, Ae);
+    for (let x = -2; x <= 1; x++) { g.set(x, -2, 3, Ad); g.set(x, -3, 5, Ad); }
+    for (let z = -2; z <= 2; z++) { g.set(-2, -3, z, def.accent ?? 0xff2e88); g.set(1, -3, z, def.accent ?? 0xff2e88); }
+    g.set(-1, -3, -4, Ae); g.set(0, -3, -4, Ae);
+    g.set(-1, -3, -5, 0xff8a2a, true); g.set(0, -3, -5, 0xffb05a, true);
+    return { g };
   }
   // chunky sneaker: sole, toe cap, laces, heel tab
   rbox(g, -2, -4, -3, 1, -3, 4, 1, shoe);

@@ -577,8 +577,8 @@ body.landscape .vs-band .por { width: calc(var(--u) * 21); height: calc(var(--u)
   animation: zapRun 0.35s steps(8) infinite, vsBoltIn 0.3s 0.3s steps(4) both;
 }
 @keyframes vsBoltIn { 0% { clip-path: inset(0 50%); } 100% { clip-path: inset(0 0); } }
-.vs-band .por { animation: vsPor 0.5s 0.32s cubic-bezier(.2, 1.6, .4, 1) both; }
-.vs-band.s1 .por { animation-delay: 0.42s; }
+.vs-band .por { animation: vsPor 0.5s 0.12s cubic-bezier(.2, 1.6, .4, 1); }
+.vs-band.s1 .por { animation-delay: 0.22s; }
 @keyframes vsPor { 0% { transform: scale(1.6) rotate(-8deg); opacity: 0; } 60% { transform: scale(0.92) rotate(2deg); opacity: 1; } 100% { transform: none; } }
 .vs-band .deck > * { animation: popIn 0.3s cubic-bezier(.2, 1.6, .4, 1) both; }
 .vs-band .deck > :nth-child(1) { animation-delay: 0.55s; } .vs-band .deck > :nth-child(2) { animation-delay: 0.6s; } .vs-band .deck > :nth-child(3) { animation-delay: 0.65s; } .vs-band .deck > :nth-child(4) { animation-delay: 0.7s; }
@@ -628,8 +628,10 @@ body.landscape .vs-band .por { width: calc(var(--u) * 21); height: calc(var(--u)
 }
 .res-wrap .res-title.win > span:nth-child(2n) { --tilt: 4deg; }
 .res-wrap .res-title.win > span:nth-child(2n+1) { --tilt: -4deg; }
-@keyframes resLetter { 0% { transform: translateY(-120%) scale(2.2); opacity: 0; } 55% { transform: translateY(0) scale(0.9, 1.15); opacity: 1; } 75% { transform: scale(1.12, 0.88) rotate(var(--tilt, 0deg)); } 100% { transform: rotate(var(--tilt, 0deg)); } }
-@keyframes resLetterFall { 0% { transform: translateY(-80%) rotate(-20deg); opacity: 0; } 60% { transform: translateY(6%) rotate(calc(var(--i) * 3deg - 9deg)); opacity: 1; } 100% { transform: translateY(calc(var(--i) * 1% - 2%)) rotate(calc(var(--i) * 2deg - 6deg)); } }
+@keyframes resLetter { 0% { transform: translateY(-120%) scale(2.2); opacity: 0; } 55% { transform: translateY(0) scale(0.9, 1.15); opacity: 1; } 75% { transform: scale(1.12, 0.88); } 100% { transform: none; } }
+@keyframes resLetterFall { 0% { transform: translateY(-80%) rotate(-20deg); opacity: 0; } 60% { transform: translateY(6%) rotate(-4deg); opacity: 1; } 100% { transform: none; } }
+.res-wrap .res-title.loss > span { rotate: calc(var(--i) * 2deg - 6deg); translate: 0 calc(var(--i) * 1% - 2%); }
+.res-wrap .res-title.win > span { rotate: var(--tilt, 0deg); }
 .res-sub { position: relative; z-index: 1; margin-top: calc(var(--u) * 1.6); padding: 0.05em 0.8em 0.12em; font-size: 1.05em; letter-spacing: 0.12em; color: #fff; text-shadow: var(--outline-thin); background: linear-gradient(#ffd84a 0 18%, #f0a018 18% 78%, #b8600e 78%); box-shadow: 0 0 0 var(--px) var(--ink); clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 3) 50%, 100% 100%, 0 100%, calc(var(--px) * 3) 50%); animation: fadeIn 0.3s 0.6s both; }
 .res-titlew.loss .res-sub { background: linear-gradient(#ff8a9a 0 18%, #d02a44 18% 78%, #7a0e22 78%); }
 .res-titlew.draw .res-sub { background: linear-gradient(#cfe0ff 0 18%, #6a7ab8 18% 78%, #3a4470 78%); }

@@ -11,12 +11,12 @@
 // draws voxels into that joint's grid (or into `metal` for shiny bits).
 // Hats are exclusive (the last one wins), and so are eyewear items.
 import { shade, hash3 } from '../../core/util.js';
-import { blob, rbox, capsule, stamp } from '../kit.js';
+import { blob, rbox, capsule, cyl, stamp } from '../kit.js';
 import { inHead, HEAD, buildBackpack } from './parts.js';
 
 const SLOT = {
   cap: 'head', capBack: 'head', beanie: 'head', chef: 'head', crown: 'head', headband: 'head', goggles: 'head', hardhat: 'head',
-  partyhat: 'head', tophat: 'head', headset: 'head', headphones: 'head', glasses: 'head', shades: 'head', shadesUp: 'head', earpiece: 'head', earring: 'head',
+  partyhat: 'head', tophat: 'head', helmet: 'head', jetpack: 'torso', headset: 'head', headphones: 'head', glasses: 'head', shades: 'head', shadesUp: 'head', earpiece: 'head', earring: 'head',
   chain: 'torso', badge: 'torso', nametag: 'torso', bowtie: 'torso', tie: 'torso', whistle: 'torso', backpack: 'torso', radio: 'torso',
   pens: 'torso', scarf: 'torso', neckphones: 'torso', medal: 'torso',
   watch: 'fore', wristband: 'fore',
@@ -24,7 +24,7 @@ const SLOT = {
   clipboard: 'hand', phone: 'hand', mic: 'hand', whisk: 'hand',
   cape: 'cape',
 };
-const HATS = new Set(['cap', 'capBack', 'beanie', 'chef', 'crown', 'headband', 'goggles', 'hardhat', 'partyhat', 'tophat']);
+const HATS = new Set(['cap', 'capBack', 'beanie', 'chef', 'crown', 'headband', 'goggles', 'hardhat', 'partyhat', 'tophat', 'helmet']);
 const EYEWEAR = new Set(['glasses', 'shades']);
 const HAND_DEFAULT = { clipboard: 'L', phone: 'R', mic: 'R', whisk: 'R' };
 
@@ -258,6 +258,43 @@ const B = {
     metal.set(HEAD.x0 - 1, 6, 1, 0xffd23f); metal.set(HEAD.x1 + 1, 6, 1, 0xffd23f);
   },
 
+  helmet(g, metal, def, a) {
+    // space helmet: open face, panel seams, comm discs, antenna, flip-up visor (a.visor: 'down' closes it)
+    const c = a.color ?? 0xeef2f8, d = shade(c, -0.16), e = shade(c, -0.34);
+    const vis = a.visorColor ?? 0x1e6fa8, glow = a.glow ?? 0x3fd2ee, acc = a.accent ?? def.accent ?? 0xff2e88;
+    // keep the face (nose, fringe peeking out); everything else outside the skull goes under the helmet
+    g.carve((x, y, z) => !inHead(x, y, z, 0) && !(z >= 9 && y >= 3 && y <= 17 && Math.abs(x + 0.5) <= 7.5));
+    const open = (x, y, z) => z >= 3 && y >= 3 && y <= 16 && Math.abs(x + 0.5) <= 7.5 + (y >= 6 && y <= 14 ? 0.6 : 0);
+    for (let x = HEAD.x0 - 2; x <= HEAD.x1 + 2; x++)
+      for (let y = HEAD.y0; y <= HEAD.y1 + 2; y++)
+        for (let z = HEAD.z0 - 2; z <= HEAD.z1 + 2; z++) {
+          if (!inHead(x, y, z, 2) || inHead(x, y, z, 0) || open(x, y, z)) continue;
+          if (y < 3 && z < 3) continue; // open neck at the back/bottom
+          let col = c;
+          if (y === 12 && z < 3) col = d;
+          if (y >= 19 && Math.abs(x + 0.5) <= 1) col = acc;
+          if (open(x, y + 1, z) || open(x, y - 1, z) || open(x + 1, y, z) || open(x - 1, y, z)) col = e; // rim
+          g.set(x, y, z, col);
+        }
+    for (const s of [-1, 1]) {
+      const x = s < 0 ? HEAD.x0 - 3 : HEAD.x1 + 3;
+      cyl(g, 'x', 9, 1, x, x, 2.6, 2.6, e);
+      g.set(x + s, 9, 1, glow, true);
+      g.set(x + s, 9, 0, shade(glow, -0.4));
+    }
+    capsule(g, [HEAD.x0 - 3, 12, -1], [HEAD.x0 - 4, 22, -3], 0.5, 0.4, e);
+    g.set(HEAD.x0 - 4, 23, -3, 0xff3d4d, true);
+    if (a.visor === 'down') {
+      for (let x = -9; x <= 8; x++) for (let y = 2; y <= 16; y++) g.set(x, y, HEAD.z1 + 2, (x - y) % 7 === 0 ? shade(vis, 0.35) : vis);
+    } else {
+      // visor flipped up onto the forehead
+      for (let x = -9; x <= 8; x++) for (let y = 17; y <= 21; y++) {
+        const z = HEAD.z1 + 2 - Math.floor((y - 17) / 2);
+        g.set(x, y, z, y === 17 ? e : (x + y) % 6 === 0 ? shade(vis, 0.4) : vis);
+      }
+    }
+  },
+
   // ----- torso (body grid: x -6..5, y 0..9, z -4..3, raised layer z = 4)
   chain(g, metal, def, a) {
     const gold = a.color ?? 0xffd23f, dk = shade(gold, -0.25);
@@ -300,6 +337,16 @@ const B = {
     for (const [x, y] of [[-1, 2], [0, 2], [1, 2], [-1, 3], [0, 3]]) pf(metal, x, y, 0xd8dce4, false, g);
   },
   backpack(g, metal, def, a) { buildBackpack(g, def, a); },
+  jetpack(g, metal, def, a) {
+    const c = a.color ?? def.coat ?? 0xeef2f8, d = shade(c, -0.2);
+    rbox(g, -5, 2, -6, 4, 9, -5, 1, d);
+    for (const x of [-3.5, 2.5]) {
+      cyl(g, 'y', x, -8.5, 1, 9, 2.1, 2.1, (xx, yy) => (yy === 9 || yy === 5 ? d : c));
+      cyl(metal, 'y', x, -8.5, -1, 0, 1.6, 2.2, 0x7a8496);
+      g.set(Math.floor(x), -2, -9, 0xff8a2a, true);
+    }
+    for (let y = 3; y <= 8; y++) { g.set(-1, y, -7, def.accent ?? 0xff2e88); g.set(0, y, -7, def.accent ?? 0xff2e88); }
+  },
   radio(g, metal, def, a) {
     rbox(g, -9, 1, -1, -7, 5, 1, 0, 0x22222a);
     for (let y = 5; y <= 9; y++) g.set(-8, y, -1, 0x111118);

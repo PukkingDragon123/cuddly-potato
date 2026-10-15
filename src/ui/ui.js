@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
-import { iconURL as pixIconURL } from './icons.js';
+import { iconURL as pixIconURL, iconAnim, animKindOf } from './icons.js';
 import { injectSkins } from './skin.js';
 import { fmt } from '../core/util.js';
 
@@ -92,6 +92,22 @@ export const iconURL = pixIconURL;
 export function icon(name, cls = '') {
   return h('img', { src: iconURL(name), class: 'pi ' + cls, alt: name, draggable: 'false' });
 }
+/**
+ * Animated pixel icon (coin spin, gem glint, bolt flicker, vial bubbles): a sprite strip
+ * stepped through with object-position, so it drops in anywhere an icon() <img> goes.
+ * Falls back to the static icon for names without an animation. cls 'pia-hover' = only
+ * animates while its button / tile is hovered or pressed.
+ */
+export function animIcon(name, cls = '', kind = undefined) {
+  let a = null;
+  try { a = animKindOf(name) || kind ? iconAnim(name, kind ?? animKindOf(name)) : null; } catch (e) { a = null; }
+  if (!a) return icon(name, cls);
+  const el = h('img', { src: a.url, class: `pi pia pia-${kind ?? animKindOf(name)} ${cls}`, alt: name, draggable: 'false' });
+  el.style.setProperty('--n', a.n);
+  el.style.setProperty('--dur', a.dur + 's');
+  el.style.animationDelay = -(Math.random() * a.dur).toFixed(2) + 's';
+  return el;
+}
 
 // ---------------------------------------------------------------------------
 // Buttons
@@ -149,7 +165,7 @@ export function setDisabled(btn, on) {
 }
 
 export function priceTag(cur, amount) {
-  return h('span', { class: 'price' }, icon(cur === 'bucks' ? 'bucks' : cur === 'coins' ? 'coin' : cur), h('span', {}, typeof amount === 'number' ? fmt(amount) : String(amount)));
+  return h('span', { class: 'price' }, animIcon(cur === 'bucks' ? 'bucks' : cur === 'coins' ? 'coin' : cur, 'pia-hover'), h('span', {}, typeof amount === 'number' ? fmt(amount) : String(amount)));
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +180,7 @@ export function ribbon(text, color = 'pink', cls = '') {
 /** Currency pill: icon overlapping the left edge, value, optional green "+" button. */
 export function pill(iconName, value, opts = {}) {
   const val = h('span', { class: 'val' }, typeof value === 'number' ? fmt(value) : value);
-  const el = h('div', { class: 'pill trough ' + (opts.plus ? 'has-plus ' : '') + (opts.cls ?? '') }, icon(iconName), val);
+  const el = h('div', { class: 'pill trough ' + (opts.plus ? 'has-plus ' : '') + (opts.cls ?? '') }, animIcon(iconName), val);
   if (opts.plus) {
     const plus = h('button', { class: 'btn sk-btn-green plus icon-only', type: 'button' }, h('span', { class: 't-d', style: { fontSize: '1.2em' } }, '+'));
     plus.addEventListener('click', (e) => { e.stopPropagation(); audio.play('click'); opts.plus(); });
@@ -180,6 +196,10 @@ export function pill(iconName, value, opts = {}) {
     rollNumber(val, from, v, Math.min(1.1, 0.45 + Math.abs(v - from) / 4000), fmtFull);
     bump(el, 'pill-pop');
     if (o.float !== false) floatDelta(el, v - from);
+    if (v > from) {
+      sparkle(el.querySelector('.pi') ?? el, { count: 8, spread: 34, colors: ['#ffffff', '#ffd84a', '#fff6b8'] });
+      audio.play('coin', { pitch: 1.3, gap: 0.08 });
+    }
   };
   if (typeof value === 'number') el._v = value;
   return el;
@@ -224,6 +244,8 @@ export function modal({ title, color = 'pink', body, foot, onClose, size = '', c
     if (e.target === back && closable) close();
   });
   (layer === 'ui' ? $ui() : $overlay()).appendChild(back);
+  // after the entrance, drop every fill-mode so no staggered child can stay hidden
+  setTimeout(() => m.classList.add('settled'), 1400);
   audio.play('pop', { pitch: 1.2, gap: 0.05 });
   let closed = false;
   function close() {
@@ -749,6 +771,67 @@ if (typeof window !== 'undefined') {
     if (tipEl && e.type !== 'pointerup') hideTip();
     else if (tipEl) setTimeout(hideTip, 900);
   }, true);
+}
+
+// ---------------------------------------------------------------------------
+// Interaction layer (delegated, passive listeners; transform / opacity only):
+//  - cards tilt toward the pointer with a parallax shine (menus + modals)
+//  - scrollers bounce when a fling hits the top / bottom
+//  - [data-sfx="tap|pop|..."] plays that sound on press
+
+const TILT_SCOPE = '.mn-screen, .modal, .vo-root, .hm-unlock';
+let tiltEl = null;
+function setTilt(card, e) {
+  const r = card.getBoundingClientRect();
+  const fx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), fy = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+  card.style.setProperty('--rx', ((fx - 0.5) * 18).toFixed(1) + 'deg');
+  card.style.setProperty('--ry', ((0.5 - fy) * 14).toFixed(1) + 'deg');
+  card.style.setProperty('--mx', (fx * 100).toFixed(0) + '%');
+  card.style.setProperty('--my', (fy * 100).toFixed(0) + '%');
+  card.classList.add('tilting');
+}
+function clearTilt() {
+  if (!tiltEl) return;
+  tiltEl.classList.remove('tilting');
+  tiltEl = null;
+}
+function tiltTarget(e) {
+  if (reducedMotion() || !(e.target instanceof Element)) return null;
+  const c = e.target.closest('.gcard');
+  return c && !c.classList.contains('locked') && c.closest(TILT_SCOPE) ? c : null;
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' && !e.buttons) return;
+    const c = tiltTarget(e);
+    if (c !== tiltEl) clearTilt();
+    if (!c) return;
+    tiltEl = c;
+    setTilt(c, e);
+  }, { passive: true });
+  window.addEventListener('pointerdown', (e) => {
+    const c = tiltTarget(e);
+    if (c) { clearTilt(); tiltEl = c; setTilt(c, e); }
+    const sfx = e.target instanceof Element ? e.target.closest('[data-sfx]') : null;
+    if (sfx) audio.play(sfx.dataset.sfx, { pitch: 0.95 + Math.random() * 0.15, gap: 0.04 });
+  }, { passive: true, capture: true });
+  for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, (e) => { if (e.pointerType !== 'mouse') clearTilt(); }, { passive: true });
+  document.addEventListener('pointerleave', clearTilt, { passive: true });
+
+  // edge bounce for the menu scrollers
+  const lastTop = new WeakMap();
+  window.addEventListener('scroll', (e) => {
+    const sc = e.target;
+    if (!(sc instanceof Element) || !sc.matches('.mn-scroll, .modal-body, .scroll-y') || reducedMotion()) return;
+    const prev = lastTop.get(sc) ?? sc.scrollTop;
+    const top = sc.scrollTop, max = sc.scrollHeight - sc.clientHeight;
+    lastTop.set(sc, top);
+    const v = top - prev;
+    const kid = sc.firstElementChild;
+    if (!kid || Math.abs(v) < 6) return;
+    if (top <= 0 && v < 0) bump(kid, 'edge-bounce-top');
+    else if (top >= max - 1 && v > 0) bump(kid, 'edge-bounce-bot');
+  }, { passive: true, capture: true });
 }
 
 /** Drop a short burst of pixel confetti over a layer (DOM, CSS-animated). o: { count, colors } */

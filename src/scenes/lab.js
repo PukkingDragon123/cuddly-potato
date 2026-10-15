@@ -382,7 +382,7 @@ export class LabScene {
       audio.play('growl', { pitch: 0.7 + Math.random() * 0.3 });
       engine.shake(0.2);
       fx.bubbles(new THREE.Vector3(0, 1.4, -3.6), { count: 20, color: 0xcff2ff, radius: 1, speed: 2 });
-      if (this.tigerTaps === 3) this.jimmy.expr('shock', 'open', 2);
+      if (this.tigerTaps === 3) { this.jimmy.expr('shock', 'open', 2); this.jimmy.emote?.('!', 1.2); }
       return;
     }
     if (this.vial && this.ctaResolve && ray.intersectObject(this.vial.root, true).length) this.ctaResolve();
@@ -411,7 +411,8 @@ export class LabScene {
     this.techT -= dt;
     if (this.techT <= 0) {
       this.techT = 3 + Math.random() * 4;
-      this.tech.play(['talk', 'point', 'idle', 'facepalm'][Math.floor(Math.random() * 4)]);
+      const TECH = ['talk', 'point', 'idle', 'facepalm', 'think', 'scratchHead', 'crossArms', 'nervous'];
+      this.tech.play(TECH[Math.floor(Math.random() * TECH.length)]);
     }
     // flickery neon + pulsing tank lights
     for (const sg of this.signs) sg.material.color.setScalar(Math.random() < 0.012 ? 0.7 : 2.6);

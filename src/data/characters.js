@@ -3,13 +3,13 @@
 // Fields (all optional): skin, eyeColor, brow, lashes, freckles, blush,
 //   hair: { style: jimmy|messy|undercut|spiky|bob|ponytail|buzz|curly|short|bald, color, tie },
 //   beard (colour), beardStyle: full|chin|stubble,
-//   outfit: labcoat|hoodie|jersey|apron|suit|vest|tee, shirt, coat, sleeve, accent, pants, shorts, socks,
+//   outfit: labcoat|hoodie|jersey|apron|suit|vest|mech|tee, glow (mech accents), shirt, coat, sleeve, accent, pants, shorts, socks,
 //   shoes, sole, laces, gloves, logo: panther|bolt|beast, number (jersey),
 //   hat: { type, color, logo } (legacy, = one accessory), chain: true (legacy),
 //   acc: [accessory | { type, ...opts }]  -> see models/characters/accessories.js
-//     hats: cap capBack beanie chef crown headband goggles hardhat partyhat tophat
+//     hats: cap capBack beanie chef crown headband goggles hardhat partyhat tophat helmet (visor: 'down')
 //     face: glasses shades shadesUp headset headphones earpiece earring
-//     torso: chain badge nametag bowtie tie whistle backpack radio pens scarf neckphones medal cape
+//     torso: jetpack chain badge nametag bowtie tie whistle backpack radio pens scarf neckphones medal cape
 //     arms/hands: watch wristband armband clipboard phone mic whisk
 export const CHARACTERS = {
   jimmy: {
@@ -41,11 +41,11 @@ export const CHARACTERS = {
     color: '#1f9e4a',
   },
   recruit: {
-    id: 'recruit', name: 'You', skin: 0xf0c09c, eyeColor: 0x2a2a4a,
+    // the Lab Recruit (you): armoured space exosuit with jet boots and thrusters
+    id: 'recruit', name: 'You', skin: 0xf0c09c, eyeColor: 0x2a6ab8,
     hair: { style: 'spiky', color: 0xff8a2a },
-    outfit: 'labcoat', coat: 0xeaf6ff, shirt: 0x29b6f6, pants: 0x2d3650, shoes: 0x29b6f6, accent: 0xff2e88,
-    hat: { type: 'goggles' },
-    acc: [{ type: 'backpack', color: 0xff2e88 }, { type: 'badge', color: 0xff2e88, header: 0xff2e88 }],
+    outfit: 'mech', coat: 0xeef2f8, shirt: 0x26304a, pants: 0x26304a, shoes: 0xeef2f8, accent: 0xff2e88, gloves: 0x3a4256, glow: 0x3fd2ee,
+    acc: [{ type: 'helmet', color: 0xeef2f8 }, 'jetpack'],
     color: '#ff8a2a',
   },
   labTech: {

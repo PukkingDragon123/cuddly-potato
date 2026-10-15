@@ -501,6 +501,11 @@ export class TitleScene {
       if (Math.random() < dt * 0.15) { a.rig.attack(0.5); a.rig.boing(0.4); }
     }
     this.jimmy?.update(dt);
+    // Jimmy hams it up on the title stage now and then
+    if (this.jimmy?.react && this.jimmy.anim === 'wave' && Math.random() < dt * 0.15) {
+      const R = ['thumbsUp', 'laugh', 'peace', 'fistPump', 'flex', 'wave'];
+      this.jimmy.react(R[Math.floor(Math.random() * R.length)], { dur: 1.6, then: 'wave' });
+    }
     if (this.jimmy && Math.random() < dt * 0.6) fx.sparkle(new THREE.Vector3((Math.random() - 0.5) * 10, 0.5 + Math.random() * 3, 5 + Math.random() * 2), { count: 1, colors: [0xffd84a, 0xff7ac0, 0x8fd4ff], speed: 0.6 });
     this.placeCam();
     const k = Math.min(1, dt * 2.2);

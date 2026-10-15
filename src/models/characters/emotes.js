@@ -105,7 +105,7 @@ export class Emote {
         all[i].rotation.y = -a;
         all[i].scale.setScalar(0.8);
       }
-      this.root.scale.setScalar(Math.max(0.001, s));
+      this.root.scale.setScalar(Math.max(0.001, s) * 0.8);
       return;
     }
     m.scale.setScalar(1);
@@ -124,6 +124,6 @@ export class Emote {
       m.position.y = Math.sin(t * 6) * 0.03;
       m.rotation.z = Math.sin(t * 8) * 0.08;
     }
-    this.root.scale.setScalar(Math.max(0.001, s));
+    this.root.scale.setScalar(Math.max(0.001, s) * 0.8);
   }
 }

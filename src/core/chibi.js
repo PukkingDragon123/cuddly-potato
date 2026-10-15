@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { Mats, makeMesh, VOX } from './voxel.js';
 import { PixelFace } from './face.js';
-import { damp, rand } from './util.js';
+import { damp, rand, shade } from './util.js';
 import {
   H, buildHead, buildBody, buildTail, buildCape, buildUpperArm, buildForearm, buildHand, buildThigh, buildShin,
 } from '../models/characters/parts.js';
@@ -25,7 +25,8 @@ const PLANE_GEO = new THREE.PlaneGeometry(1.0, HEAD_H * VOX); // face plane over
 
 // toy vinyl: slightly matte so skin doesn't look wet; metal for bling
 const CHAR_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, envMapIntensity: 0.55 });
-const METAL_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.9, envMapIntensity: 2.4 });
+const METAL_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.85, envMapIntensity: 1.0 });
+METAL_MAT.color.setScalar(0.72); // keeps polished gold/chrome below the bloom threshold
 const PAIR = [CHAR_MAT, Mats.glow];
 const METAL_PAIR = [METAL_MAT, Mats.glow];
 function syncEnv() {
@@ -739,7 +740,7 @@ export class Chibi {
     this.headTopY = Math.max((HEAD_H + 2) * V, (headPart?.g?.boundingBox?.max.y ?? 1) + 0.12);
 
     const hairC = def.hair?.color ?? 0x3a2a20;
-    const browColor = def.brow ?? (def.hair?.style === 'bald' ? 0x6a4a3a : hairC);
+    const browColor = def.brow ?? (def.hair?.style === 'bald' ? 0x5a3a2a : shade(hairC, -0.38));
     this.face = new PixelFace({ eyeColor: def.eyeColor, blush: def.blush ?? true, browColor, lashes: def.lashes, freckles: def.freckles });
     const faceMat = new THREE.MeshStandardMaterial({ map: this.face.texture, transparent: true, alphaTest: 0.05, roughness: 0.6, metalness: 0, envMapIntensity: 0.4, envMap: CHAR_MAT.envMap });
     const plane = new THREE.Mesh(PLANE_GEO, faceMat);

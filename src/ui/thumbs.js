@@ -25,13 +25,15 @@ export function swarmThumb(id, variant = 'base', skin = null, size = 160, opts =
 
 /** Head-and-shoulders portrait of a chibi character. */
 export function charPortrait(charId, opts = {}) {
-  const key = `c|${charId}|${opts.eyes}|${opts.mouth}|${opts.size}|${opts.full}|${JSON.stringify(opts.override ?? null)}`;
+  const key = `c|${charId}|${opts.eyes}|${opts.mouth}|${opts.mood}|${opts.size}|${opts.full}|${JSON.stringify(opts.override ?? null)}`;
   if (cache.has(key)) return cache.get(key);
   const def = { ...CHARACTERS[charId], ...(opts.override ?? {}) };
-  const c = new Chibi(def);
-  c.expr(opts.eyes ?? 'normal', opts.mouth ?? 'smile');
+  const c = new Chibi(def, { fidget: false });
+  if (opts.mood) c.mood(opts.mood);
+  else c.expr(opts.eyes ?? 'normal', opts.mouth ?? 'smile');
   c.face.blinkT = 99;
-  c.update(0.016);
+  c.face.autoLook = false;
+  c.snap();
   c.face.redraw();
   const url = engine.renderThumb(c.root, { size: opts.size ?? 128, yaw: opts.yaw ?? -0.25, pitch: 0.1, zoom: opts.full ? 1 : 0.62, focusHead: !opts.full });
   cache.set(key, url);

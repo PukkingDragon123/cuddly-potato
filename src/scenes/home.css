@@ -311,11 +311,6 @@ body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
 .hm-top .pill.hm-pill-buck::before { animation-delay: -2.7s; }
 @keyframes hmPillGlint { 0%, 70% { background-position: 140% 0; } 100% { background-position: -40% 0; } }
 .hm-top .pill > .val { position: relative; z-index: 2; }
-/* the coin flips edge-on now and then, the gem twinkles */
-.hm-pill-coin > .pi { animation: hmCoinFlip 4.2s steps(1) infinite; }
-@keyframes hmCoinFlip { 0%, 86% { scale: 1 1; } 88% { scale: 0.55 1; } 90% { scale: 0.15 1; } 92% { scale: 0.55 1; } 94%, 100% { scale: 1 1; } }
-.hm-pill-buck > .pi { animation: hmGemTwinkle 3.6s steps(1) infinite; }
-@keyframes hmGemTwinkle { 0%, 84% { filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 255, 255, 0.25)); } 86%, 92% { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 140, 210, 1)) brightness(1.3); } }
 .hm-top .pill.pill-pop > .pi { animation: pillIcon 0.5s cubic-bezier(.3, 1.8, .5, 1); }
 
 /* ---- side consoles float gently (translate only: the press keeps transform) */
@@ -408,12 +403,12 @@ body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
 @media (hover: hover) { .hm-tabbtn:not(.on):hover .pi { translate: 0 calc(var(--px) * -2); scale: 1.08; } .hm-tabbtn:not(.on):hover .tl { opacity: 0.9; } }
 
 /* ---- tab transitions: push in from the side (bounce), the old one slides away */
-.hm-tab { animation: hmTabIn 0.42s cubic-bezier(.22, 1.2, .36, 1) both; will-change: transform; }
+.hm-tab { animation: hmTabIn 0.42s cubic-bezier(.22, 1.2, .36, 1); }
 .hm-tab.from-left { animation-name: hmTabInL; }
-.hm-tab.from-home { animation: hmTabUp 0.42s cubic-bezier(.22, 1.25, .36, 1) both; }
+.hm-tab.from-home { animation: hmTabUp 0.42s cubic-bezier(.22, 1.25, .36, 1); }
 @keyframes hmTabIn { 0% { transform: translateX(100%); } 70% { transform: translateX(-2.5%); } 100% { transform: none; } }
 @keyframes hmTabInL { 0% { transform: translateX(-100%); } 70% { transform: translateX(2.5%); } 100% { transform: none; } }
-@keyframes hmTabUp { 0% { transform: translateY(40%) scale(0.96); opacity: 0; } 65% { transform: translateY(-1.5%) scale(1.005); opacity: 1; } 100% { transform: none; } }
+@keyframes hmTabUp { 0% { transform: translateY(40%) scale(0.96); opacity: 0.3; } 65% { transform: translateY(-1.5%) scale(1.005); opacity: 1; } 100% { transform: none; } }
 .hm-tab.hm-tab-out { z-index: 3; animation: hmTabOutL 0.3s cubic-bezier(.5, 0, .9, .5) both; }
 .hm-tab.hm-tab-out.to-right { animation-name: hmTabOutR; }
 @keyframes hmTabOutL { to { transform: translateX(-45%); opacity: 0.2; } }
@@ -437,7 +432,7 @@ body.landscape .hm-battle { min-width: calc(var(--u) * 38); font-size: 2em; }
 @media (max-width: 380px) { .hm-battle { min-width: calc(var(--u) * 44); font-size: 2.05em; } .hm-zprog { width: calc(var(--u) * 18); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .hm-lvl::after, .hm-lvl-ring, .hm-top .pill::before, .hm-pill-coin > .pi, .hm-pill-buck > .pi, .hm-side.left .hm-mini, .hm-mini-rays, .hm-side.right .hm-sb,
+  .hm-lvl::after, .hm-lvl-ring, .hm-top .pill::before, .hm-side.left .hm-mini, .hm-mini-rays, .hm-side.right .hm-sb,
   .hm-zone .arr > *, .hm-battle, .hm-battle .pi, .hm-bring, .hm-side-play, .hm-slot img.vt, .hm-slot-rays, .hm-slot-prog > i, .hm-slot .st, .hm-tabbtn .pi, .hm-tabbtn.on::after, .hm-tabbtn.on,
   .hm-tab, .hm-tab.hm-tab-out, .home .hm-zone, .home .hm-play, .home .hm-slots, .home .hm-side { animation: none !important; }
   .hm-bring { display: none; }

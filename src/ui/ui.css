@@ -739,3 +739,52 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
 @media (prefers-reduced-motion: reduce) {
   .lab-bg::after, .btn.lg::before, .btn.xl::before, .btn.fizz::before, .panel::after, .bar > .fill, .ribbon, .lab-fizz > i, .new-tag, .banner-big::before, .px-rays, .px-stars, .btn.shine::after, .btn.pulse, .badge, .gcard .shiny, .gcard.foil .art > .foil-fx, .gcard .frame::after { animation: none !important; }
 }
+
+/* =========================================================================
+   Interaction layer (v3b): animated pixel icons, card tilt + parallax shine,
+   icon wiggles, edge bounce, scroll snap, hover tilt. Reduced motion = off.
+   ========================================================================= */
+/* animated icons: a sprite strip stepped with object-position */
+img.pia { object-fit: cover; object-position: 0 50%; animation: piaRun var(--dur, 2.4s) steps(var(--n, 8), jump-none) infinite; }
+@keyframes piaRun { from { object-position: 0% 50%; } to { object-position: 100% 50%; } }
+img.pia.pia-hover { animation-play-state: paused; }
+.btn:hover img.pia-hover, .btn:active img.pia-hover, .btn.btn-pop img.pia-hover, .btn.pulse img.pia-hover, .btn.shine img.pia-hover { animation-play-state: running; }
+.pill.pill-pop > img.pia { animation: pillIcon 0.5s cubic-bezier(.3, 1.8, .5, 1), piaRun var(--dur, 2.4s) steps(var(--n, 8), jump-none) infinite; }
+
+/* icons wiggle when their button is tapped */
+.btn.btn-pop .pi:not(.pia) { animation: iconWiggle 0.45s cubic-bezier(.3, 1.7, .5, 1); }
+@keyframes iconWiggle { 0% { rotate: 0deg; scale: 1; } 25% { rotate: -16deg; scale: 1.25; } 55% { rotate: 10deg; scale: 1.1; } 80% { rotate: -4deg; } 100% { rotate: 0deg; scale: 1; } }
+@media (hover: hover) {
+  :is(.home, .mn-screen, .modal) .btn.icon-only:hover:not(.disabled) { rotate: -4deg; }
+  :is(.home, .mn-screen, .modal) .btn:hover:not(.disabled) .pi:not(.pia) { translate: 0 calc(var(--px) * -1); }
+}
+.btn .pi { transition: translate 0.12s; }
+
+/* cards tilt toward the pointer, with a parallax highlight following it */
+:is(.mn-screen, .modal, .vo-root, .hm-unlock) .gcard { transition: transform 0.18s cubic-bezier(.3, 1.4, .5, 1); }
+:is(.mn-screen, .modal, .vo-root, .hm-unlock) .gcard.tilting { transform: perspective(calc(var(--u) * 110)) rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg)) scale(1.04); transition-duration: 0.07s; z-index: 4; }
+:is(.mn-screen, .modal, .vo-root, .hm-unlock) .gcard::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0; transition: opacity 0.2s; mix-blend-mode: screen;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08) 28%, transparent 48%);
+}
+:is(.mn-screen, .modal, .vo-root, .hm-unlock) .gcard.tilting::after { opacity: 1; }
+:is(.mn-screen, .modal, .vo-root, .hm-unlock) .gcard.tilting .art img { translate: calc((var(--mx, 50%) - 50%) * -0.04) 0; }
+
+/* scrollers: edge bounce + snap for horizontal reward roads */
+.edge-bounce-top { animation: edgeTop 0.42s cubic-bezier(.3, 1.6, .5, 1); }
+.edge-bounce-bot { animation: edgeBot 0.42s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes edgeTop { 0% { transform: translateY(0); } 35% { transform: translateY(calc(var(--u) * 2.4)); } 100% { transform: none; } }
+@keyframes edgeBot { 0% { transform: translateY(0); } 35% { transform: translateY(calc(var(--u) * -2.4)); } 100% { transform: none; } }
+.scroll-y, .scroll-x, .modal-body { overscroll-behavior: contain; scroll-behavior: smooth; }
+:is(.mn-screen, .modal) .scroll-x { scroll-snap-type: x proximity; }
+:is(.mn-screen, .modal) .scroll-x > * { scroll-snap-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  img.pia, .btn .pi, .edge-bounce-top, .edge-bounce-bot { animation: none !important; }
+  .gcard.tilting { transform: none !important; }
+  .scroll-y, .scroll-x, .modal-body { scroll-behavior: auto; }
+}
+/* entrance safety net: once settled, pending/filled entrance animations can't hide content */
+.modal.settled :is(.mn-ci-stats > .mn-st, .mn-pstats > *, .mn-boss-deck > *, .mn-setrow, .mn-prof-port, .mn-cribbon, .mn-cbonus, .mn-st-bar > i, .mn-rwpop, .mn-cmd-name),
+.modal-back:has(.modal.settled) :is(.modal-head .ribbon, .modal-close),
+.res-wrap.settled :is(.res-title > span, .res-team, .res-rw, .res-plate, .res-crown, .res-sub, .res-rays) { animation-fill-mode: none !important; }

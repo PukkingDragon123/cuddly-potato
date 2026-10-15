@@ -1,31 +1,36 @@
-// Expressive pixel-art faces drawn onto a small canvas and used as a texture on
-// the front of chibi heads.
+// Stylized pixel-art faces drawn onto a small canvas and used as a texture on
+// the front of chibi heads - "action figure / hero-shooter chibi" style:
+// smaller almond eyes with a heavy upper lash line and outer wing, real
+// iris + pupil + glint, angular brows that carry attitude, subtle face shading
+// (brow shadow, nose shadow, jaw shade) and a small clean mouth.
 //
-// The face is fully parametric: eyes are drawn per pixel from a small state
-// (openness, eyelid tilt, lower-lid squint, pupil look offset, pupil size), so
+// The face is parametric: eyes are drawn per pixel from a small state
+// (openness, lid tilt, lower-lid squint, pupil look offset, pupil size), so
 // blinks, squints and glances are smooth, and the same eye can be angry, sad,
-// sleepy or shocked. Brows, cheeks, mouths (with teeth, tongue and talk
-// visemes) and overlays (blush, sweat, tears, anger vein, gloom lines, sparkles)
-// are layered on top. The canvas is only redrawn when something visible changes.
+// sleepy or shocked. Brows, mouths (with teeth, tongue and talk visemes) and
+// overlays (blush, sweat, tears, anger vein, gloom lines, sparkles) are layered
+// on top. The canvas is only redrawn when something visible changes.
 import * as THREE from 'three';
 import { hexToCss, rand, shade } from './util.js';
 
 export const FACE_RES = 40; // canvas pixels across the head front (2 px per hi-res head voxel)
 const S = FACE_RES;
-const INK = '#1b1530';
-const WHITE = '#ffffff';
-const MOUTH_IN = '#5a1424';
-const RED = '#c8324a';
-const TONGUE = '#ff7a8a';
-const TEETH = '#fbf6ee';
+const INK = '#16121f';
+const SCLERA = '#f3efe8';
+const SCLERA_SH = '#c9c0c4';
+const MOUTH_IN = '#4a1420';
+const TONGUE = '#e8707e';
+const TEETH = '#f6f1e8';
+const LIP = 'rgba(150,55,60,0.28)';
+const SKIN_SH = 'rgba(90,40,30,0.13)';
 const TEAR = '#6cc7ff';
 const TEAR_HI = '#d8f4ff';
 
-// eye centres and radii (canvas px)
-const EYE_X = [12, 28];
-const EYE_Y = 17;
-const ERX = 3.7, ERY = 4.6;
-const MOUTH_X = 20, MOUTH_Y = 29;
+// eye centres (canvas px)
+const EYE_X = [12.5, 27.5];
+const EYE_Y = 18;
+const ERX = 3.6; // half width of the almond
+const MOUTH_X = 20, MOUTH_Y = 30;
 
 // ---------------------------------------------------------------------------
 // tiny raster helpers
@@ -51,8 +56,8 @@ function line(ctx, x0, y0, x1, y1, c, th = 1) {
     ctx.fillRect(Math.round(x0 + (x1 - x0) * t - (th - 1) / 2), Math.round(y0 + (y1 - y0) * t - (th - 1) / 2), th, th);
   }
 }
-/** Thick arc: points along an ellipse from angle a0 to a1 (radians, y down). */
-function arc(ctx, cx, cy, rx, ry, a0, a1, c, th = 2) {
+/** Arc: points along an ellipse from angle a0 to a1 (radians, y down). */
+function arc(ctx, cx, cy, rx, ry, a0, a1, c, th = 1) {
   const n = Math.ceil(Math.abs(a1 - a0) * Math.max(rx, ry) * 1.6) + 2;
   ctx.fillStyle = c;
   for (let i = 0; i <= n; i++) {
@@ -60,171 +65,6 @@ function arc(ctx, cx, cy, rx, ry, a0, a1, c, th = 2) {
     ctx.fillRect(Math.round(cx + Math.cos(a) * rx - th / 2), Math.round(cy + Math.sin(a) * ry - th / 2), th, th);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Eyes
-
-/**
- * Parametric open eye. st: { open 0..1.2, tilt (+ angry, - sad), low 0..1 lower-lid squint,
- * lx, ly look offset, pupil (scale), iris, shine, wet }.
- */
-function drawEye(ctx, cx, cy, side, st, iris) {
-  const open = st.open ?? 1;
-  if (open <= 0.08) {
-    // closed: soft downward curve
-    arc(ctx, cx, cy + 0.5, ERX, 1.6, Math.PI * 0.08, Math.PI * 0.92, INK, 1.5);
-    return;
-  }
-  const big = open > 1 ? open : 1;
-  const rx = ERX * (big > 1 ? 1 + (big - 1) * 0.6 : 1), ry = ERY * big;
-  const top0 = cy - ry + (1 - Math.min(1, open)) * ry * 1.75;
-  const bot = cy + ry - (st.low ?? 0) * ry * 1.05;
-  const tilt = st.tilt ?? 0;
-  const pupil = st.pupil ?? 1;
-  const lx = (st.lx ?? 0), ly = (st.ly ?? 0);
-  const icx = cx + lx * 1.4, icy = cy + 0.6 + ly * 1.2;
-  const irx = 2.75 * pupil ** 0.4 * (big > 1 ? 0.85 : 1), iry = 3.4 * pupil ** 0.4 * (big > 1 ? 0.85 : 1);
-  const prx = 1.35 * pupil, pry = 1.9 * pupil;
-  const irisDark = shade(iris, -0.35), irisLight = shade(iris, 0.3);
-  const irisC = hexToCss(iris), irisD = hexToCss(irisDark), irisL = hexToCss(irisLight);
-  const x0 = Math.floor(cx - rx - 1), x1 = Math.ceil(cx + rx + 1);
-  const y0 = Math.floor(cy - ry - 2), y1 = Math.ceil(cy + ry + 1);
-  for (let x = x0; x <= x1; x++) {
-    // inner corner (towards the nose) is +x for the left eye
-    const inner = ((x + 0.5 - cx) / rx) * (side < 0 ? 1 : -1);
-    const lid = top0 + tilt * inner * 2.2;
-    for (let y = y0; y <= y1; y++) {
-      if (!inEll(x, y, cx, cy, rx, ry)) continue;
-      if (y + 0.5 < lid) continue;
-      if (y + 0.5 > bot + 0.6) continue;
-      let c;
-      if (y + 0.5 < lid + 1.6) c = INK; // lash line
-      else if (y + 0.5 > bot - 0.4 && (st.low ?? 0) > 0.05) c = INK;
-      else if (inEll(x, y, icx, icy, prx, pry)) c = INK;
-      else if (inEll(x, y, icx, icy, irx, iry)) c = y + 0.5 < icy - 0.8 ? irisD : y + 0.5 > icy + 1.4 ? irisL : irisC;
-      else c = WHITE;
-      P(ctx, x, y, c);
-    }
-  }
-  // outer lash flick
-  const ox = side < 0 ? Math.floor(cx - rx) - 1 : Math.ceil(cx + rx);
-  const oy = top0 + tilt * -2.2 + 0.4;
-  if (open > 0.45 && oy < bot - 1) P(ctx, ox, oy, INK);
-  // highlights (only where the eye is visible)
-  if (open > 0.3) {
-    const hx = icx - 1.6, hy = icy - 2.2;
-    const lidAt = (x) => top0 + tilt * (((x + 0.5 - cx) / rx) * (side < 0 ? 1 : -1)) * 2.2 + 1.6;
-    if (hy > lidAt(hx) - 0.5 && hy < bot) P(ctx, hx, hy, WHITE, 2, 2);
-    if (icy + 1.6 < bot && pupil >= 0.7) P(ctx, icx + 1, icy + 1.4, WHITE);
-    if (st.shine) { P(ctx, icx + 0.6, icy - 2.4, WHITE); P(ctx, icx - 2, icy + 1, 'rgba(255,255,255,0.8)'); }
-  }
-  // watery lower lid
-  if (st.wet) for (let x = Math.floor(cx - rx + 1); x <= Math.ceil(cx + rx - 1); x++) P(ctx, x, Math.round(bot), TEAR);
-}
-
-// eye state presets ({ open, tilt, low, pupil, lx, ly, shine, wet })
-const EYE_STATE = {
-  normal: {},
-  angry: { open: 0.82, tilt: 0.55 },
-  sad: { open: 0.92, tilt: -0.45, wet: true },
-  determined: { open: 0.72, tilt: 0.3, low: 0.18 },
-  sleepy: { open: 0.38 },
-  side: { open: 0.72, lx: 1.4, low: 0.1 },
-  sideL: { open: 0.72, lx: -1.4, low: 0.1 },
-  lookL: { lx: -1.5 },
-  lookR: { lx: 1.5 },
-  up: { ly: -1.3, open: 1.05 },
-  down: { ly: 1.2, open: 0.7 },
-  shock: { open: 1.18, pupil: 0.45 },
-  wide: { open: 1.1, pupil: 1.25, shine: true },
-  sparkle: { open: 1.05, pupil: 1.2, shine: true },
-  worried: { open: 0.95, tilt: -0.5, pupil: 0.75 },
-  teary: { open: 1.05, tilt: -0.35, pupil: 1.2, shine: true, wet: true },
-  smug: { open: 0.5, low: 0.15, lx: 0.9, tilt: 0.1 },
-  focus: { open: 0.66, tilt: 0.42, pupil: 0.7 },
-  tired: { open: 0.48, tilt: -0.15, ly: 0.4 },
-  think: { lx: -1.2, ly: -1.3, open: 0.92 },
-  blank: { open: 1.1, pupil: 0 },
-};
-
-/** Special (non-parametric) eye painters, (cx, cy) = eye centre. */
-const SPECIAL = {
-  happy(ctx, cx, cy) {
-    arc(ctx, cx, cy + 2, ERX - 0.4, 3.2, Math.PI * 1.08, Math.PI * 1.92, INK, 2);
-  },
-  closed(ctx, cx, cy) {
-    arc(ctx, cx, cy, ERX - 0.3, 1.8, Math.PI * 0.1, Math.PI * 0.9, INK, 2);
-  },
-  squint(ctx, cx, cy, side) {
-    // >  <
-    const d = side < 0 ? 1 : -1;
-    line(ctx, cx - d * 3, cy - 3, cx + d * 2, cy, INK, 2);
-    line(ctx, cx + d * 2, cy, cx - d * 3, cy + 3, INK, 2);
-  },
-  cry(ctx, cx, cy, side) {
-    SPECIAL.squint(ctx, cx, cy, side);
-  },
-  dizzy(ctx, cx, cy, side, iris, t) {
-    // spiral
-    const n = 26;
-    ctx.fillStyle = INK;
-    const r0 = t * 4;
-    for (let i = 0; i < n; i++) {
-      const a = i * 0.55 + r0 * (side < 0 ? 1 : -1);
-      const r = 0.4 + i * 0.15;
-      ctx.fillRect(Math.round(cx + Math.cos(a) * r - 0.5), Math.round(cy + Math.sin(a) * r * 1.15 - 0.5), 1, 1);
-    }
-  },
-  x(ctx, cx, cy) {
-    line(ctx, cx - 3, cy - 3, cx + 2, cy + 2, INK, 2);
-    line(ctx, cx + 2, cy - 3, cx - 3, cy + 2, INK, 2);
-  },
-  star(ctx, cx, cy) {
-    const c = '#ffd23f', o = '#c47a10';
-    // 5-point star, ~9px
-    const pts = [];
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 5;
-      const r = i % 2 ? 2.1 : 5;
-      pts.push([cx + Math.cos(a) * r, cy + 0.5 + Math.sin(a) * r]);
-    }
-    for (let y = Math.floor(cy - 6); y <= cy + 6; y++)
-      for (let x = Math.floor(cx - 6); x <= cx + 6; x++) {
-        if (!inPoly(x + 0.5, y + 0.5, pts)) continue;
-        const edge = !inPoly(x + 1.5, y + 0.5, pts) || !inPoly(x - 0.5, y + 0.5, pts) || !inPoly(x + 0.5, y + 1.5, pts) || !inPoly(x + 0.5, y - 0.5, pts);
-        P(ctx, x, y, edge ? o : c);
-      }
-    P(ctx, cx - 1, cy - 1, WHITE, 2, 2);
-  },
-  heart(ctx, cx, cy) {
-    const c = '#ff3d7f', o = '#a8124a';
-    for (let y = -5; y <= 5; y++)
-      for (let x = -5; x <= 5; x++) {
-        const fx = (x + 0.5) / 4.6, fy = -(y + 0.5) / 4.6 + 0.2;
-        const v = (fx * fx + fy * fy - 1) ** 3 - fx * fx * fy * fy * fy;
-        if (v > 0) continue;
-        P(ctx, cx + x, cy + y, v > -0.06 ? o : c);
-      }
-    P(ctx, cx - 3, cy - 3, WHITE, 2, 1); P(ctx, cx - 3, cy - 2, WHITE);
-  },
-  money(ctx, cx, cy) {
-    const g = '#2fbf4f', d = '#147a2c';
-    // $ glyph 7x11
-    const art = ['..#..', '.####', '#.#..', '#.#..', '.###.', '..#.#', '..#.#', '####.', '..#..'];
-    for (let r = 0; r < art.length; r++) for (let q = 0; q < 5; q++) if (art[r][q] === '#') { P(ctx, cx - 3 + q, cy - 4 + r, d); P(ctx, cx - 3 + q, cy - 5 + r, g); }
-  },
-  fire(ctx, cx, cy, side, iris, t) {
-    const f = Math.floor(t * 10) % 2;
-    ell(ctx, cx, cy + 1, 3.6, 3.6, '#ff6a1f');
-    ell(ctx, cx, cy - 1 - f, 2.4, 3.4, '#ff9a2a');
-    ell(ctx, cx, cy + 1, 1.8, 2, '#ffe27a');
-    P(ctx, cx + (f ? -1 : 1), cy - 5, '#ff9a2a');
-    line(ctx, cx - 4, cy - 5 + (side < 0 ? 0 : 2), cx + 3, cy - 5 + (side < 0 ? 2 : 0), INK, 2);
-  },
-};
-SPECIAL.wink = null; // handled per side
-SPECIAL.laugh = SPECIAL.squint;
-
 function inPoly(x, y, pts) {
   let ins = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -234,35 +74,184 @@ function inPoly(x, y, pts) {
   return ins;
 }
 
+// ---------------------------------------------------------------------------
+// Eyes
+
+/**
+ * Almond eye. st: { open 0..1.15, tilt (+ angry: inner corner down, - sad), low 0..1 lower-lid
+ * squint, lx, ly look offset, pupil (scale), wet, glint: null|'star'|'heart'|'money'|'fire' }.
+ */
+function drawEye(ctx, cx, cy, side, st, iris) {
+  const open = Math.min(1.15, st.open ?? 1);
+  const tilt = st.tilt ?? 0;
+  const inSign = side < 0 ? 1 : -1; // +x direction of the inner corner
+  if (open <= 0.08) {
+    // closed: a crisp lash line that dips slightly, with the outer wing
+    for (let x = Math.floor(cx - ERX); x <= Math.ceil(cx + ERX - 1); x++) {
+      const u = (x + 0.5 - cx) / ERX;
+      P(ctx, x, cy + 0.6 + (1 - u * u) * 0.9 + tilt * u * inSign * 0.8, INK);
+    }
+    P(ctx, cx - inSign * (ERX + 0.6), cy - 0.2, INK);
+    return;
+  }
+  const rx = ERX * (open > 1 ? 1.06 : 1);
+  const up = 2.75 * open, dn = 1.75 * Math.min(1.1, 0.55 + 0.45 * open) * (1 - (st.low ?? 0) * 0.75);
+  const pupil = st.pupil ?? 1;
+  const icx = cx + (st.lx ?? 0) * 1.1, icy = cy + 0.35 + (st.ly ?? 0) * 0.7;
+  const ri = 2.35 * Math.max(0.55, pupil) ** 0.35;
+  const irisC = hexToCss(iris), irisD = hexToCss(shade(iris, -0.42)), irisL = hexToCss(shade(iris, 0.28));
+  const x0 = Math.floor(cx - rx - 1), x1 = Math.ceil(cx + rx);
+  const glint = st.glint;
+  for (let x = x0; x <= x1; x++) {
+    const u = (x + 0.5 - cx) / rx;
+    if (Math.abs(u) > 1) continue;
+    const inner = u * inSign; // +1 at the inner corner, -1 outer
+    // upper lid: peak a little towards the inner side, outer corner swept up into a wing
+    const k = Math.pow(Math.max(0, 1 - u * u), 0.55);
+    const top = cy - up * k + tilt * (inner + 0.2) * 1.5 - (inner < -0.5 ? 0.4 : 0);
+    const bot = cy + dn * Math.pow(Math.max(0, 1 - u * u), 0.9) - 0.2;
+    if (bot - top < 0.6) { P(ctx, x, Math.round(top), INK); continue; }
+    for (let y = Math.floor(top); y <= Math.ceil(bot); y++) {
+      const yc = y + 0.5;
+      if (yc < top || yc > bot + 0.5) continue;
+      let c;
+      if (yc < top + 1.4) c = INK; // heavy upper lash line
+      else {
+        const dx = x + 0.5 - icx, dy = yc - icy;
+        const d = Math.sqrt(dx * dx + dy * dy * 0.85);
+        if (d <= ri) {
+          if (pupil > 0.05 && Math.abs(dx) <= 0.9 * pupil + 0.1 && Math.abs(dy) <= 1.4 * pupil + 0.2) c = INK;
+          else c = d > ri - 0.75 ? irisD : dy > 0.6 ? irisL : irisC;
+        } else c = yc < top + 2.4 ? SCLERA_SH : SCLERA;
+      }
+      P(ctx, x, y, c);
+    }
+    // soft lower lid on the outer half
+    if (inner < 0.2) P(ctx, x, Math.round(bot + 0.5), 'rgba(80,30,40,0.35)');
+    if (st.wet && inner > -0.8) P(ctx, x, Math.round(bot + 0.3), TEAR);
+  }
+  // outer wing
+  const ox = cx - inSign * (rx + 0.6);
+  const wy = cy - up * 0.15 + tilt * -1.2 - 0.6;
+  P(ctx, ox, wy, INK);
+  if (open > 0.5) P(ctx, ox - inSign, wy - 0.8, INK);
+  // glints / tamed special irises
+  const topAtIris = cy - up * Math.pow(Math.max(0, 1 - ((icx - cx) / rx) ** 2), 0.55) + 1.4;
+  const gy = Math.max(icy - 1.3, topAtIris);
+  if (glint === 'star') {
+    const c = '#ffe27a';
+    P(ctx, icx - 0.5, gy - 0.6, c); P(ctx, icx - 1.5, gy + 0.4, c); P(ctx, icx + 0.5, gy + 0.4, c); P(ctx, icx - 0.5, gy + 1.4, c); P(ctx, icx - 0.5, gy + 0.4, '#ffffff');
+  } else if (glint === 'heart') {
+    const c = '#ff4f8f';
+    P(ctx, icx - 1.5, gy, c); P(ctx, icx + 0.5, gy, c); P(ctx, icx - 1.5, gy + 1, c, 3, 1); P(ctx, icx - 0.5, gy + 2, c);
+  } else if (glint === 'money') {
+    P(ctx, icx - 0.5, gy - 0.3, '#7dff9a', 1, 3); P(ctx, icx - 1.5, gy + 0.7, '#7dff9a', 3, 1);
+  } else if (glint === 'fire') {
+    P(ctx, icx - 0.5, gy, '#ffe27a'); P(ctx, icx - 0.5, gy + 1, '#ff9a2a'); P(ctx, icx + 0.5, gy + 0.6, '#ff6a1f');
+  } else if (open > 0.3 && pupil > 0.05) {
+    P(ctx, icx - 1.6, gy, '#ffffff');
+    if (open > 0.7) P(ctx, icx + 0.6, icy + 1, 'rgba(255,255,255,0.65)');
+  }
+}
+
+// eye state presets ({ open, tilt, low, pupil, lx, ly, wet, glint })
+const EYE_STATE = {
+  normal: { tilt: 0.12 },
+  angry: { open: 0.72, tilt: 0.75 },
+  sad: { open: 0.85, tilt: -0.55, wet: true },
+  determined: { open: 0.7, tilt: 0.45, low: 0.2 },
+  sleepy: { open: 0.35 },
+  side: { open: 0.62, lx: 1.5, low: 0.15, tilt: 0.2 },
+  sideL: { open: 0.62, lx: -1.5, low: 0.15, tilt: 0.2 },
+  lookL: { lx: -1.5, tilt: 0.12 },
+  lookR: { lx: 1.5, tilt: 0.12 },
+  up: { ly: -1.1, open: 1.02 },
+  down: { ly: 1, open: 0.6 },
+  shock: { open: 1.15, pupil: 0.45, tilt: -0.2 },
+  wide: { open: 1.1, pupil: 1.1 },
+  sparkle: { open: 1.05, glint: 'star' },
+  worried: { open: 0.9, tilt: -0.6, pupil: 0.8 },
+  teary: { open: 1, tilt: -0.45, wet: true },
+  smug: { open: 0.48, low: 0.25, lx: 0.9, tilt: 0.3 },
+  focus: { open: 0.6, tilt: 0.55, pupil: 0.75 },
+  tired: { open: 0.42, tilt: -0.2, ly: 0.4 },
+  think: { lx: -1.2, ly: -1, open: 0.85 },
+  blank: { open: 1.05, pupil: 0 },
+  star: { open: 1.05, glint: 'star', tilt: -0.1 },
+  heart: { open: 0.95, glint: 'heart', tilt: -0.2 },
+  money: { open: 1, glint: 'money' },
+  fire: { open: 0.75, tilt: 0.8, glint: 'fire' },
+};
+
+/** Special eye painters, (cx, cy) = eye centre. Kept small and crisp. */
+const SPECIAL = {
+  happy(ctx, cx, cy) {
+    // ^ shaped, angular
+    line(ctx, cx - 3, cy + 1.5, cx - 0.5, cy - 0.5, INK, 1);
+    line(ctx, cx - 0.5, cy - 0.5, cx + 2.5, cy + 1.5, INK, 1);
+    P(ctx, cx - 1, cy - 0.5, INK, 2, 1);
+  },
+  closed(ctx, cx, cy, side) {
+    drawEye(ctx, cx, cy, side, { open: 0 }, 0x000000);
+  },
+  squint(ctx, cx, cy, side) {
+    const d = side < 0 ? 1 : -1;
+    line(ctx, cx - d * 2.5, cy - 1.5, cx + d * 1.5, cy + 0.3, INK, 1);
+    line(ctx, cx + d * 1.5, cy + 0.3, cx - d * 2.5, cy + 2, INK, 1);
+  },
+  cry(ctx, cx, cy, side) { SPECIAL.squint(ctx, cx, cy, side); },
+  dizzy(ctx, cx, cy, side, iris, t) {
+    ctx.fillStyle = INK;
+    const r0 = t * 4;
+    for (let i = 0; i < 18; i++) {
+      const a = i * 0.62 + r0 * (side < 0 ? 1 : -1);
+      const r = 0.3 + i * 0.13;
+      ctx.fillRect(Math.round(cx + Math.cos(a) * r - 0.5), Math.round(cy + Math.sin(a) * r * 0.9 - 0.5), 1, 1);
+    }
+  },
+  x(ctx, cx, cy) {
+    line(ctx, cx - 2, cy - 2, cx + 1.5, cy + 1.5, INK, 1);
+    line(ctx, cx + 1.5, cy - 2, cx - 2, cy + 1.5, INK, 1);
+  },
+};
+SPECIAL.laugh = SPECIAL.squint;
+
 // Brows: { a: angle (+ angry: inner end down), r: raise px, hide }
 const BROWS = {
-  normal: { a: 0, r: 0 }, happy: { a: -0.15, r: 1 }, closed: { a: 0, r: 0 }, shock: { a: -0.2, r: 3 },
-  angry: { a: 0.9, r: -1 }, sad: { a: -0.8, r: 1 }, determined: { a: 0.55, r: -1 }, dizzy: { a: -0.4, r: 1 },
-  star: { a: -0.2, r: 2 }, money: { a: 0, r: 2 }, heart: { a: -0.3, r: 2 }, wink: { a: 0, r: 0, wink: true },
-  sleepy: { a: -0.2, r: -1 }, side: { a: 0.2, r: -1, quirk: true }, sideL: { a: 0.2, r: -1, quirk: true },
-  lookL: { a: 0, r: 0 }, lookR: { a: 0, r: 0 }, up: { a: -0.2, r: 2 }, down: { a: 0.1, r: -1 },
-  wide: { a: -0.3, r: 2 }, sparkle: { a: -0.3, r: 2 }, worried: { a: -0.9, r: 1 }, teary: { a: -0.8, r: 1 },
-  smug: { a: 0.2, r: 0, quirk: true }, focus: { a: 0.6, r: -1 }, tired: { a: -0.3, r: -1 }, think: { a: 0.2, r: 1, quirk: true },
-  blank: { a: 0, r: 3 }, squint: { a: 0.5, r: -1 }, cry: { a: -0.9, r: 1 }, x: { a: -0.2, r: 1 }, fire: { hide: true },
+  normal: { a: 0.25, r: 0 }, happy: { a: -0.1, r: 1 }, closed: { a: 0.1, r: 0 }, shock: { a: -0.35, r: 2.5 },
+  angry: { a: 1.1, r: -0.5 }, sad: { a: -0.9, r: 0.5 }, determined: { a: 0.8, r: -0.5 }, dizzy: { a: -0.4, r: 1 },
+  star: { a: -0.2, r: 1.5 }, money: { a: 0.1, r: 1.5 }, heart: { a: -0.4, r: 1.5 }, wink: { a: 0.3, r: 0, wink: true },
+  sleepy: { a: -0.1, r: -0.5 }, side: { a: 0.6, r: -0.5, quirk: true }, sideL: { a: 0.6, r: -0.5, quirk: true },
+  lookL: { a: 0.25, r: 0 }, lookR: { a: 0.25, r: 0 }, up: { a: -0.2, r: 1.5 }, down: { a: 0.3, r: -0.5 },
+  wide: { a: -0.3, r: 2 }, sparkle: { a: -0.2, r: 1.5 }, worried: { a: -1.0, r: 1 }, teary: { a: -0.9, r: 1 },
+  smug: { a: 0.5, r: 0, quirk: true }, focus: { a: 0.9, r: -0.5 }, tired: { a: -0.3, r: -0.5 }, think: { a: 0.4, r: 0.5, quirk: true },
+  blank: { a: 0, r: 2.5 }, squint: { a: 0.7, r: -0.5 }, cry: { a: -1.0, r: 1 }, x: { a: -0.2, r: 1 }, fire: { a: 1.2, r: -0.5 },
   laugh: { a: -0.3, r: 1 },
 };
 
 function drawBrow(ctx, cx, side, b, col) {
   if (b.hide) return;
   const inner = side < 0 ? 1 : -1; // direction towards the nose
-  const y = EYE_Y - ERY - 3.2 - (b.r ?? 0);
+  const y = EYE_Y - 5.6 - (b.r ?? 0);
   let a = b.a ?? 0;
   let r = 0;
-  if (b.quirk && side > 0) { a = -0.4; r = 1.5; }
-  const xi = cx + inner * 3.2, xo = cx - inner * 3.4;
-  const yi = y - r + a * 1.8, yo = y - r - a * 0.4 + 0.4;
-  line(ctx, xo, yo, xi, yi, col, 2);
-  // soft taper on the outer end
-  P(ctx, xo - inner, yo + 1, col);
+  if (b.quirk && side > 0) { a = -0.5; r = 1.5; }
+  // angular brow: thick block at the inner end, tapering to a point at the outer end
+  const xi = cx + inner * 3.4, xo = cx - inner * 3.8;
+  const yi = y - r + a * 1.6, yo = y - r - a * 0.5 + 0.3;
+  const n = 8;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = xi + (xo - xi) * t;
+    // slight arch in the middle
+    const yy = yi + (yo - yi) * t - Math.sin(t * Math.PI) * 0.7;
+    const th = t < 0.55 ? 2 : 1;
+    P(ctx, x, yy, col, 1, th);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Mouths at (cx, cy) = centre
+// Mouths at (cx, cy) = centre (small and clean)
 
 /** Filled open mouth: shape 'D' (flat top), 'U' (flat bottom), 'O' oval. */
 function mouthHole(ctx, cx, cy, rx, ry, o = {}) {
@@ -283,71 +272,71 @@ function mouthHole(ctx, cx, cy, rx, ry, o = {}) {
       if (edge) c = INK;
       else if (o.teeth && y <= top + o.teeth) c = TEETH;
       else if (o.lowTeeth && y >= bottom - o.lowTeeth) c = TEETH;
-      else if (o.tongue && y >= bottom - o.tongue && Math.abs(x + 0.5 - cx - (o.tx ?? 0)) < rx * 0.62) c = TONGUE;
+      else if (o.tongue && y >= bottom - o.tongue && Math.abs(x + 0.5 - cx) < rx * 0.62) c = TONGUE;
       P(ctx, x, y, c);
     }
+  if (bottom > -Infinity) P(ctx, cx - rx * 0.5, bottom + 1, LIP, Math.max(1, Math.round(rx)), 1);
 }
+const lowerLip = (ctx, cx, y, w = 3) => P(ctx, cx - w / 2, y, LIP, w, 1);
 
 const MOUTHS = {
-  smile(ctx, cx, cy) { arc(ctx, cx, cy - 2.5, 4.2, 3.5, Math.PI * 0.18, Math.PI * 0.82, INK, 1.5); },
-  smileSmall(ctx, cx, cy) { arc(ctx, cx, cy - 1.5, 2.6, 2.2, Math.PI * 0.18, Math.PI * 0.82, INK, 1.5); },
-  grin(ctx, cx, cy) { mouthHole(ctx, cx, cy, 5, 3.4, { shape: 'D', teeth: 1, tongue: 1 }); },
-  beam(ctx, cx, cy) { mouthHole(ctx, cx, cy, 6.2, 4.2, { shape: 'D', teeth: 1, tongue: 2 }); },
-  laugh(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 5.4, 4.6, { shape: 'D', teeth: 1, tongue: 2 }); },
-  open(ctx, cx, cy) { mouthHole(ctx, cx, cy, 3.2, 3, { tongue: 1 }); },
-  shout(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 5.4, 4.6, { shape: 'O', teeth: 1, tongue: 2 }); },
-  scream(ctx, cx, cy) { mouthHole(ctx, cx, cy + 1, 4.2, 5.4, { teeth: 1, lowTeeth: 1, tongue: 2 }); },
-  gasp(ctx, cx, cy) { mouthHole(ctx, cx, cy, 2.2, 3, {}); },
-  o(ctx, cx, cy) { mouthHole(ctx, cx, cy, 1.8, 1.8, {}); },
-  frown(ctx, cx, cy) { arc(ctx, cx, cy + 3, 4.2, 3.2, Math.PI * 1.18, Math.PI * 1.82, INK, 1.5); },
-  sad(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 4.2, 3, { shape: 'U', tongue: 1 }); },
-  flat(ctx, cx, cy) { P(ctx, cx - 3, cy, INK, 6, 1); P(ctx, cx - 3, cy + 1, 'rgba(27,21,48,0.35)', 6, 1); },
-  smirk(ctx, cx, cy) { line(ctx, cx - 3, cy + 1, cx + 1, cy + 1, INK, 1); arc(ctx, cx + 1, cy - 1, 2.6, 2, Math.PI * 0.05, Math.PI * 0.55, INK, 1); P(ctx, cx + 3, cy - 2, INK); },
-  tongue(ctx, cx, cy) { MOUTHS.smile(ctx, cx, cy); ell(ctx, cx + 1, cy + 2.2, 1.7, 2, TONGUE); P(ctx, cx + 1, cy + 2, '#e05068'); },
+  smile(ctx, cx, cy) { arc(ctx, cx, cy - 1.8, 3.2, 2.2, Math.PI * 0.2, Math.PI * 0.8, INK, 1); P(ctx, cx - 3.6, cy - 1.4, INK); P(ctx, cx + 2.6, cy - 1.4, INK); lowerLip(ctx, cx, cy + 1.4); },
+  smileSmall(ctx, cx, cy) { arc(ctx, cx, cy - 1.2, 2.2, 1.6, Math.PI * 0.2, Math.PI * 0.8, INK, 1); lowerLip(ctx, cx, cy + 1.2, 2); },
+  grin(ctx, cx, cy) { mouthHole(ctx, cx, cy, 3.6, 2.2, { shape: 'D', teeth: 1, tongue: 1 }); },
+  beam(ctx, cx, cy) { mouthHole(ctx, cx, cy, 4.4, 2.8, { shape: 'D', teeth: 1, tongue: 1 }); },
+  laugh(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 4, 3.2, { shape: 'D', teeth: 1, tongue: 2 }); },
+  open(ctx, cx, cy) { mouthHole(ctx, cx, cy, 2.2, 2, { tongue: 1 }); },
+  shout(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 4, 3.2, { shape: 'O', teeth: 1, tongue: 1 }); },
+  scream(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 3, 3.8, { teeth: 1, lowTeeth: 1, tongue: 1 }); },
+  gasp(ctx, cx, cy) { mouthHole(ctx, cx, cy, 1.6, 2.2, {}); },
+  o(ctx, cx, cy) { mouthHole(ctx, cx, cy, 1.3, 1.4, {}); },
+  frown(ctx, cx, cy) { arc(ctx, cx, cy + 2, 3, 2, Math.PI * 1.22, Math.PI * 1.78, INK, 1); },
+  sad(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 3, 2.2, { shape: 'U', tongue: 1 }); },
+  flat(ctx, cx, cy) { P(ctx, cx - 2.5, cy, INK, 5, 1); lowerLip(ctx, cx, cy + 1.5, 3); },
+  smirk(ctx, cx, cy) { line(ctx, cx - 2.5, cy + 0.5, cx + 1, cy + 0.5, INK, 1); line(ctx, cx + 1, cy + 0.5, cx + 3, cy - 1, INK, 1); lowerLip(ctx, cx, cy + 2, 3); },
+  tongue(ctx, cx, cy) { MOUTHS.smile(ctx, cx, cy); P(ctx, cx, cy + 0.5, TONGUE, 2, 2); P(ctx, cx, cy + 2.5, '#c8505e', 2, 1); },
   wobble(ctx, cx, cy) {
     ctx.fillStyle = INK;
-    for (let x = -5; x <= 4; x++) ctx.fillRect(cx + x, Math.round(cy + Math.sin(x * 1.6) * 0.9), 1, 1);
+    for (let x = -3; x <= 3; x++) ctx.fillRect(cx + x, Math.round(cy + Math.sin(x * 1.7) * 0.7), 1, 1);
   },
   teeth(ctx, cx, cy) {
-    P(ctx, cx - 5, cy - 2, INK, 10, 5);
-    P(ctx, cx - 4, cy - 1, TEETH, 8, 3);
-    for (let x = -3; x <= 3; x += 2) P(ctx, cx + x, cy - 1, '#c8c0b8', 1, 3);
-    P(ctx, cx - 4, cy, '#c8c0b8', 8, 1);
+    P(ctx, cx - 4, cy - 1.5, INK, 8, 4);
+    P(ctx, cx - 3, cy - 0.5, TEETH, 6, 2);
+    P(ctx, cx - 3, cy, '#bdb4ae', 6, 1);
+    for (let x = -2; x <= 2; x += 2) P(ctx, cx + x, cy - 0.5, '#bdb4ae', 1, 2);
   },
   grimace(ctx, cx, cy) {
-    // wide crooked clenched teeth
-    for (let x = -6; x <= 5; x++) { const o = Math.round(Math.sin((x + 6) * 0.9) * 0.6); P(ctx, cx + x, cy - 2 + o, INK, 1, 5); }
-    for (let x = -5; x <= 4; x++) { const o = Math.round(Math.sin((x + 6) * 0.9) * 0.6); P(ctx, cx + x, cy - 1 + o, TEETH, 1, 3); }
-    for (let x = -4; x <= 3; x += 2) P(ctx, cx + x, cy - 1, '#c8c0b8', 1, 3);
+    for (let x = -4; x <= 4; x++) { const o = Math.round(Math.sin((x + 4) * 0.9) * 0.5); P(ctx, cx + x, cy - 1.5 + o, INK, 1, 4); }
+    for (let x = -3; x <= 3; x++) { const o = Math.round(Math.sin((x + 4) * 0.9) * 0.5); P(ctx, cx + x, cy - 0.5 + o, TEETH, 1, 2); }
+    for (let x = -2; x <= 2; x += 2) P(ctx, cx + x, cy - 0.5, '#bdb4ae', 1, 2);
   },
   cat(ctx, cx, cy) {
-    arc(ctx, cx - 2, cy - 1, 2, 2, Math.PI * 0.1, Math.PI * 0.9, INK, 1);
-    arc(ctx, cx + 2, cy - 1, 2, 2, Math.PI * 0.1, Math.PI * 0.9, INK, 1);
+    arc(ctx, cx - 1.5, cy - 0.8, 1.5, 1.5, Math.PI * 0.1, Math.PI * 0.9, INK, 1);
+    arc(ctx, cx + 1.5, cy - 0.8, 1.5, 1.5, Math.PI * 0.1, Math.PI * 0.9, INK, 1);
   },
   chew(ctx, cx, cy, t) {
     const o = Math.floor(t * 8) % 2;
-    P(ctx, cx - 3, cy - o, INK, 6, 2 + o);
-    P(ctx, cx - 2, cy - o, '#6e3e26', 4, 1);
-    ell(ctx, cx - 6, cy - 1, 1.6, 1.8, 'rgba(255,150,150,0.0)');
+    P(ctx, cx - 2, cy - o, INK, 4, 1 + o);
+    if (o) P(ctx, cx - 1, cy - 1, '#6e3e26', 2, 1);
+    lowerLip(ctx, cx, cy + 1.5, 3);
   },
-  pout(ctx, cx, cy) { arc(ctx, cx, cy + 2, 2.4, 2, Math.PI * 1.15, Math.PI * 1.85, INK, 1.5); P(ctx, cx - 1, cy + 1, '#e88a9a', 2, 1); },
-  whistle(ctx, cx, cy) { ell(ctx, cx + 2, cy, 1.6, 1.6, INK); P(ctx, cx + 2, cy, MOUTH_IN); },
+  pout(ctx, cx, cy) { arc(ctx, cx, cy + 1.5, 1.8, 1.4, Math.PI * 1.15, Math.PI * 1.85, INK, 1); P(ctx, cx - 1, cy + 1, '#d08088', 2, 1); },
+  whistle(ctx, cx, cy) { ell(ctx, cx + 1.5, cy, 1.2, 1.2, INK); P(ctx, cx + 1, cy - 0.5, MOUTH_IN); },
   kiss(ctx, cx, cy) {
-    // "3"
-    arc(ctx, cx, cy - 1.2, 1.4, 1.2, -Math.PI * 0.5, Math.PI * 0.5, INK, 1);
-    arc(ctx, cx, cy + 1.2, 1.4, 1.2, -Math.PI * 0.5, Math.PI * 0.5, INK, 1);
+    arc(ctx, cx, cy - 0.9, 1.1, 0.9, -Math.PI * 0.5, Math.PI * 0.5, INK, 1);
+    arc(ctx, cx, cy + 0.9, 1.1, 0.9, -Math.PI * 0.5, Math.PI * 0.5, INK, 1);
   },
-  drool(ctx, cx, cy) { MOUTHS.open(ctx, cx, cy); P(ctx, cx + 2, cy + 3, TEAR, 1, 3); P(ctx, cx + 2, cy + 6, TEAR_HI); },
-  bite(ctx, cx, cy) { MOUTHS.smile(ctx, cx, cy); P(ctx, cx - 2, cy - 1, TEETH, 4, 1); },
-  yawn(ctx, cx, cy) { mouthHole(ctx, cx, cy + 1, 3.6, 5, { tongue: 2 }); },
-  mmm(ctx, cx, cy) { arc(ctx, cx, cy - 1.5, 3, 2, Math.PI * 0.12, Math.PI * 0.88, INK, 1.5); P(ctx, cx - 4, cy - 1, INK); P(ctx, cx + 3, cy - 1, INK); },
+  drool(ctx, cx, cy) { MOUTHS.open(ctx, cx, cy); P(ctx, cx + 1.5, cy + 2, TEAR, 1, 2); },
+  bite(ctx, cx, cy) { MOUTHS.smile(ctx, cx, cy); P(ctx, cx - 1.5, cy - 0.5, TEETH, 3, 1); },
+  yawn(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 2.6, 3.4, { tongue: 1 }); },
+  mmm(ctx, cx, cy) { arc(ctx, cx, cy - 1, 2.4, 1.4, Math.PI * 0.12, Math.PI * 0.88, INK, 1); lowerLip(ctx, cx, cy + 1, 2); },
   // talk visemes
-  vA(ctx, cx, cy) { mouthHole(ctx, cx, cy, 3.4, 3.2, { shape: 'D', teeth: 1, tongue: 1 }); },
-  vE(ctx, cx, cy) { mouthHole(ctx, cx, cy, 4.6, 2.2, { shape: 'D', teeth: 1 }); },
-  vO(ctx, cx, cy) { mouthHole(ctx, cx, cy, 2.4, 3, { tongue: 1 }); },
-  vU(ctx, cx, cy) { mouthHole(ctx, cx, cy, 1.6, 1.8, {}); },
-  vM(ctx, cx, cy) { P(ctx, cx - 2, cy, INK, 4, 1); },
-  vBig(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 5, 4.4, { shape: 'D', teeth: 1, tongue: 2 }); },
+  vA(ctx, cx, cy) { mouthHole(ctx, cx, cy, 2.6, 2.2, { shape: 'D', teeth: 1, tongue: 1 }); },
+  vE(ctx, cx, cy) { mouthHole(ctx, cx, cy, 3.4, 1.5, { shape: 'D', teeth: 1 }); },
+  vO(ctx, cx, cy) { mouthHole(ctx, cx, cy, 1.8, 2.2, {}); },
+  vU(ctx, cx, cy) { mouthHole(ctx, cx, cy, 1.2, 1.3, {}); },
+  vM(ctx, cx, cy) { P(ctx, cx - 2, cy, INK, 4, 1); lowerLip(ctx, cx, cy + 1, 3); },
+  vBig(ctx, cx, cy) { mouthHole(ctx, cx, cy + 0.5, 3.6, 3, { shape: 'D', teeth: 1, tongue: 1 }); },
 };
 
 // ---------------------------------------------------------------------------
@@ -356,62 +345,64 @@ const MOUTHS = {
 const FX = {
   blush(ctx) {
     for (const cx of [7.5, 32.5]) {
-      ell(ctx, cx, 24.5, 3.6, 1.8, 'rgba(255,90,130,0.55)');
-      for (let i = 0; i < 3; i++) line(ctx, cx - 2 + i * 1.8, 25, cx - 1 + i * 1.8, 23.6, 'rgba(230,50,100,0.7)', 1);
+      ell(ctx, cx, 24, 2.8, 1.1, 'rgba(240,80,110,0.4)');
+      for (let i = 0; i < 3; i++) P(ctx, cx - 2 + i * 1.6, 23.5, 'rgba(210,50,90,0.55)');
     }
   },
   sweat(ctx, t) {
-    const y = 4 + ((t * 6) % 4);
-    ell(ctx, 34.5, y + 3.5, 2.2, 2.6, TEAR);
-    P(ctx, 34, y, TEAR, 1, 2);
-    P(ctx, 33, y + 2, TEAR_HI, 1, 2);
+    const y = 4 + ((t * 5) % 3);
+    ell(ctx, 34.5, y + 2.5, 1.5, 1.9, TEAR);
+    P(ctx, 34, y, TEAR, 1, 1);
+    P(ctx, 34, y + 1.5, TEAR_HI);
   },
   tears(ctx, t) {
     const f = Math.floor(t * 8) % 3;
     for (const cx of EYE_X) {
-      for (let y = 21; y < 38; y++) {
-        const w = 2 + (y > 30 ? 1 : 0);
-        P(ctx, cx - 1 + Math.round(Math.sin(y * 0.6) * 0.5), y, (y + f) % 3 === 0 ? TEAR_HI : TEAR, w, 1);
-      }
+      for (let y = 21; y < 37; y++) P(ctx, cx - 0.5 + Math.round(Math.sin(y * 0.6) * 0.5), y, (y + f) % 3 === 0 ? TEAR_HI : TEAR, y > 30 ? 2 : 1, 1);
     }
   },
   tear(ctx) {
-    ell(ctx, EYE_X[0] - 3, 23.5, 1.2, 1.7, TEAR);
-    P(ctx, EYE_X[0] - 4, 22, TEAR_HI);
+    ell(ctx, EYE_X[0] - 2.5, 22.5, 0.9, 1.3, TEAR);
+    P(ctx, EYE_X[0] - 3, 21.5, TEAR_HI);
   },
   vein(ctx) {
     const c = '#ff2e4a';
-    const x = 6, y = 3;
-    for (const [dx, dy, ax, ay] of [[0, 0, 1, 0], [5, 0, 0, 1], [5, 5, -1, 0], [0, 5, 0, -1]]) {
-      // little arcs at each corner of the cross-vein
-      P(ctx, x + dx, y + dy, c, ax ? 2 : 1, ay ? 2 : 1);
-    }
-    line(ctx, x + 1, y + 1, x + 2, y + 2, c, 1); line(ctx, x + 4, y + 1, x + 3, y + 2, c, 1);
-    line(ctx, x + 1, y + 4, x + 2, y + 3, c, 1); line(ctx, x + 4, y + 4, x + 3, y + 3, c, 1);
+    const x = 5, y = 3;
+    for (const [ax, ay, bx, by] of [[0, 1, 1, 0], [3, 0, 4, 1], [4, 3, 3, 4], [1, 4, 0, 3]]) line(ctx, x + ax, y + ay, x + bx, y + by, c, 1);
   },
   gloom(ctx) {
-    for (let x = 8; x <= 31; x += 3) P(ctx, x, 1, 'rgba(70,40,140,0.55)', 1, 6 + ((x * 7) % 4));
+    for (let x = 9; x <= 30; x += 3) P(ctx, x, 1, 'rgba(70,40,140,0.45)', 1, 5 + ((x * 7) % 3));
   },
   shine(ctx, t) {
     const f = Math.floor(t * 5) % 2;
-    for (const [x, y] of [[4, 10], [35, 12]]) {
+    for (const [x, y] of [[5, 11], [35, 13]]) {
       P(ctx, x, y - 1 - f, '#ffffff'); P(ctx, x - 1 - f, y, '#ffffff'); P(ctx, x, y, '#fff6b0'); P(ctx, x + 1 + f, y, '#ffffff'); P(ctx, x, y + 1 + f, '#ffffff');
     }
   },
   shock(ctx) {
-    for (const [x0, y0, x1, y1] of [[2, 3, 4, 7], [37, 3, 35, 7], [1, 10, 4, 11], [38, 10, 35, 11]]) line(ctx, x0, y0, x1, y1, INK, 1);
+    for (const [x0, y0, x1, y1] of [[2, 4, 3, 7], [37, 4, 36, 7]]) line(ctx, x0, y0, x1, y1, INK, 1);
   },
   bags(ctx) {
-    for (const cx of EYE_X) arc(ctx, cx, EYE_Y + 3.5, 3.2, 1.6, Math.PI * 0.15, Math.PI * 0.85, 'rgba(110,70,120,0.5)', 1);
+    for (const cx of EYE_X) arc(ctx, cx, EYE_Y + 3, 2.8, 1.2, Math.PI * 0.15, Math.PI * 0.85, 'rgba(110,70,120,0.45)', 1);
   },
-  stars(ctx) { /* 3D emote handles it */ },
 };
 const ANIMATED_FX = new Set(['sweat', 'tears', 'shine']);
 
 // default overlays implied by an eye style
-const EYE_FX = { sad: ['tear'], cry: ['tears'], teary: [], shock: ['shock'], tired: ['bags'], heart: ['blush'] };
+const EYE_FX = { sad: ['tear'], cry: ['tears'], shock: ['shock'], tired: ['bags'], heart: ['blush'] };
 
-export const EYE_TYPES = [...Object.keys(EYE_STATE), ...Object.keys(SPECIAL).filter((k) => SPECIAL[k]), 'wink'];
+/** Subtle sculpting drawn under the features: brow shadow, nose shadow, jaw shade, cheeks. */
+function shading(ctx, blush) {
+  for (const cx of EYE_X) P(ctx, cx - 3.5, EYE_Y - 4.2, 'rgba(70,30,30,0.08)', 8, 2);
+  P(ctx, 19, 24, 'rgba(90,40,30,0.28)', 2, 1); // under the nose voxel
+  P(ctx, 18, 23, SKIN_SH, 1, 1); P(ctx, 21, 23, SKIN_SH, 1, 1);
+  for (let y = 26; y < 40; y++) { P(ctx, 0, y, SKIN_SH, 2, 1); P(ctx, 38, y, SKIN_SH, 2, 1); }
+  P(ctx, 14, 36, 'rgba(90,40,30,0.08)', 12, 2); // chin
+  if (blush) for (const cx of [7.5, 32.5]) ell(ctx, cx, 24.5, 2.6, 1, 'rgba(235,110,110,0.16)');
+}
+
+const SPECIAL_EYES = Object.keys(SPECIAL).filter((k) => SPECIAL[k]);
+export const EYE_TYPES = [...Object.keys(EYE_STATE), ...SPECIAL_EYES, 'wink'];
 export const MOUTH_TYPES = Object.keys(MOUTHS).filter((k) => k[0] !== 'v' || k.length > 3);
 export const FACE_FX = Object.keys(FX);
 
@@ -577,7 +568,7 @@ export class PixelFace {
   }
 
   isAnimated() {
-    if (this.eyes === 'dizzy' || this.eyes === 'fire' || this.mouth === 'chew') return true;
+    if (this.eyes === 'dizzy' || this.mouth === 'chew') return true;
     for (const k of this.fxOn.keys()) if (ANIMATED_FX.has(k)) return true;
     const def = EYE_FX[this.eyes];
     return !!def && def.some((k) => ANIMATED_FX.has(k));
@@ -592,16 +583,13 @@ export class PixelFace {
     let eyes = this.eyes;
     const blinkFrame = this.blinking > 0 ? (this.blinking > 0.1 || this.blinking < 0.04 ? 1 : 2) : 0;
     // cheeks under everything
-    if (this.blush) {
-      ctx.fillStyle = 'rgba(255,110,140,0.38)';
-      for (const cx of [7.5, 32.5]) ell(ctx, cx, 24.5, 3.2, 1.5, 'rgba(255,110,140,0.38)');
-    }
-    if (this.freckles) for (const [x, y] of [[6, 22], [8, 23], [10, 22], [30, 22], [32, 23], [34, 22]]) P(ctx, x, y, 'rgba(150,80,50,0.55)');
+    shading(ctx, this.blush);
+    if (this.freckles) for (const [x, y] of [[6, 22], [8, 23], [10, 22], [30, 22], [32, 23], [34, 22]]) P(ctx, x, y, 'rgba(150,80,50,0.45)');
     // brows
     const brow = BROWS[eyes] ?? BROWS.normal;
     for (let i = 0; i < 2; i++) {
       const side = i ? 1 : -1;
-      drawBrow(ctx, EYE_X[i], side, brow.wink && side > 0 ? { a: -0.1, r: -1 } : brow, this.brow);
+      drawBrow(ctx, EYE_X[i], side, brow.wink && side > 0 ? { a: 0.5, r: -0.5 } : brow, this.brow);
     }
     // eyes
     for (let i = 0; i < 2; i++) {
@@ -614,16 +602,16 @@ export class PixelFace {
       const base = EYE_STATE[e] ?? EYE_STATE.normal;
       const st = this._st ?? (this._st = {});
       st.open = base.open ?? 1; st.tilt = base.tilt ?? 0; st.low = base.low ?? 0; st.pupil = base.pupil ?? 1;
-      st.shine = base.shine; st.wet = base.wet;
+      st.wet = base.wet; st.glint = base.glint;
       st.lx = (base.lx ?? 0) + (base.lx === undefined ? this._qx ?? 0 : 0);
       st.ly = (base.ly ?? 0) + (base.ly === undefined ? this._qy ?? 0 : 0);
       if (blinkFrame === 1) st.open = Math.min(st.open, 0.45);
       else if (blinkFrame === 2) st.open = 0;
       drawEye(ctx, cx, cy, side, st, iris);
       if (this.lashes && st.open > 0.4) {
-        const ox = side < 0 ? cx - ERX - 1 : cx + ERX;
-        P(ctx, ox, cy - ERY + 1 + (1 - Math.min(1, st.open)) * 6, INK);
-        P(ctx, ox + (side < 0 ? -1 : 1), cy - ERY + (1 - Math.min(1, st.open)) * 6, INK);
+        const ox = side < 0 ? cx - ERX - 2 : cx + ERX + 1;
+        P(ctx, ox, cy - 2.2, INK);
+        P(ctx, ox + (side < 0 ? -1 : 1), cy - 3, INK);
       }
     }
     // mouth

@@ -248,6 +248,7 @@ function render(p, o = {}) {
   }
   for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) { const col = out[y * R + x]; if (col) put(x, y, col); }
   ctx.putImageData(img, 0, 0);
+  render.last = c;
   return c.toDataURL();
 }
 
@@ -1075,4 +1076,134 @@ export function iconURL(name) {
   return url;
 }
 export const ICON_NAMES = Object.keys(D);
+
+// --------------------------------------------------------------------------- animated variants
+// Pixel-art sprite strips built from the finished (shaded + outlined) icon, so
+// every frame keeps the icon's exact palette and silhouette:
+//   spin    - the coin turns edge-on and back (re-sampled columns, darker back face)
+//   glint   - a diagonal white glint sweeps across the opaque body (gems, stars, trophies)
+//   flicker - the bolt flares brighter with a 1px electric halo, then dims
+//   bubble  - tiny bubbles rise through the liquid inside vials and flasks
+// iconAnim(name, kind?) -> { url, n, dur } | null; frames sit side by side in one PNG.
+const ANIM_KIND = {
+  coin: 'spin', coinStack: 'glint', coinPile: 'glint', coinChest: 'glint',
+  bucks: 'glint', bucksPile: 'glint', gem: 'glint', star: 'glint', crown: 'glint', trophy: 'glint', chrome: 'glint', spark4: 'glint', ticket: 'glint', chest: 'glint',
+  energy: 'flicker', power: 'flicker', powerBolt: 'flicker', bolt: 'flicker', lightning: 'flicker', logoBolt: 'flicker', mega: 'flicker',
+  vial: 'bubble', tube: 'bubble', flask: 'bubble', flaskCur: 'bubble', flaskOn: 'bubble', flaskGold: 'bubble', flaskPrem: 'bubble', lab: 'bubble',
+};
+export const animKindOf = (name) => ANIM_KIND[name] ?? null;
+const animCache = new Map();
+const lumA = (d, i) => d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+export function iconAnim(name, kind = ANIM_KIND[name]) {
+  if (!kind || typeof document === 'undefined') return null;
+  const key = name + '|' + kind;
+  if (animCache.has(key)) return animCache.get(key);
+  iconURL(name);
+  // re-render to get the canvas (iconURL caches the data URL only)
+  const d0 = D[name] ?? D.star, o = d0.opts ?? {};
+  const p0 = new Pix(o.size ?? N, o.s ?? 2);
+  d0.fn(p0);
+  render(p0, o);
+  const src = render.last;
+  const S = src.width, H = src.height;
+  const base = src.getContext('2d').getImageData(0, 0, S, H).data;
+  const frames = [];
+  const blank = () => new Uint8ClampedArray(base.length);
+  const at = (x, y) => (y * S + x) * 4;
+  let n = 0, dur = 2.4;
+  if (kind === 'spin') {
+    const spin = 8, idle = 10;
+    // horizontal extent of the coin body
+    let x0 = S, x1 = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) if (base[at(x, y) + 3] > 200) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    const cx = (x0 + x1) / 2;
+    for (let f = 0; f < idle; f++) frames.push(base);
+    for (let f = 1; f <= spin; f++) {
+      const c = Math.cos((f / (spin + 1)) * Math.PI * 2);
+      const w = Math.sign(c || 1) * Math.max(0.14, Math.abs(c));
+      const out = blank(), dark = c < 0 ? 0.78 : 1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
+        const sx = Math.round(cx + (x - cx) / w);
+        if (sx < 0 || sx >= S) continue;
+        const si = at(sx, y), di = at(x, y);
+        if (!base[si + 3]) continue;
+        const edge = Math.abs(w) < 0.4 && base[si + 3] > 200 ? 0.82 : 1;
+        out[di] = base[si] * dark * edge; out[di + 1] = base[si + 1] * dark * edge; out[di + 2] = base[si + 2] * dark * edge; out[di + 3] = base[si + 3];
+      }
+      frames.push(out);
+    }
+    dur = 2.6;
+  } else if (kind === 'glint') {
+    const idle = 8, sweep = 7;
+    for (let f = 0; f < idle; f++) frames.push(base);
+    for (let f = 0; f < sweep; f++) {
+      const out = new Uint8ClampedArray(base);
+      const t = -4 + ((S + H + 8) * f) / (sweep - 1);
+      for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
+        const i = at(x, y);
+        if (base[i + 3] < 250 || lumA(base, i) < 45) continue;
+        const dd = Math.abs(x + y - t);
+        const k = dd < 1.2 ? 0.8 : dd < 2.4 ? 0.42 : 0;
+        if (!k) continue;
+        out[i] += (255 - out[i]) * k; out[i + 1] += (255 - out[i + 1]) * k; out[i + 2] += (255 - out[i + 2]) * k;
+      }
+      frames.push(out);
+    }
+    dur = 3.2;
+  } else if (kind === 'flicker') {
+    const bright = (m, halo) => {
+      const out = new Uint8ClampedArray(base);
+      for (let i = 0; i < out.length; i += 4) if (base[i + 3]) { out[i] = Math.min(255, base[i] * m); out[i + 1] = Math.min(255, base[i + 1] * m); out[i + 2] = Math.min(255, base[i + 2] * m); }
+      if (halo) for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
+        const i = at(x, y);
+        if (base[i + 3]) continue;
+        const nb = (xx, yy) => xx >= 0 && yy >= 0 && xx < S && yy < H && base[at(xx, yy) + 3] > 200;
+        if (nb(x + 1, y) || nb(x - 1, y) || nb(x, y + 1) || nb(x, y - 1)) { out[i] = 255; out[i + 1] = 246; out[i + 2] = 160; out[i + 3] = 150; }
+      }
+      return out;
+    };
+    const hi = bright(1.32, true), lo = bright(0.78, false), mid = bright(1.12, false);
+    for (let f = 0; f < 9; f++) frames.push(base);
+    frames.push(hi, lo, hi, mid, base, hi, base);
+    dur = 2.2;
+  } else if (kind === 'bubble') {
+    // interior liquid pixels: opaque, surrounded by opaque, mid luminance, saturated
+    const inner = (x, y) => {
+      if (x < 1 || y < 1 || x >= S - 1 || y >= H - 1) return false;
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (base[at(x + dx, y + dy) + 3] < 250) return false;
+      const i = at(x, y), l = lumA(base, i), mx = Math.max(base[i], base[i + 1], base[i + 2]), mn = Math.min(base[i], base[i + 1], base[i + 2]);
+      return l > 50 && l < 225 && mx - mn > 45;
+    };
+    const cols = [];
+    for (let x = 0; x < S; x++) {
+      let yb = -1;
+      for (let y = H - 1; y >= 0; y--) if (inner(x, y)) { yb = y; break; }
+      if (yb > 0) { let yt = yb; while (yt > 0 && inner(x, yt - 1)) yt--; if (yb - yt >= 4) cols.push({ x, yb, yt }); }
+    }
+    const F = 12;
+    const picks = cols.length ? [cols[Math.floor(cols.length * 0.3)], cols[Math.floor(cols.length * 0.62)], cols[Math.floor(cols.length * 0.85)]] : [];
+    for (let f = 0; f < F; f++) {
+      const out = new Uint8ClampedArray(base);
+      picks.forEach((c, b) => {
+        if (!c) return;
+        const span = c.yb - c.yt, ph = ((f + b * 4) % F) / F, y = Math.round(c.yb - ph * span);
+        if (y < c.yt) return;
+        const i = at(c.x, y);
+        out[i] = 255; out[i + 1] = 255; out[i + 2] = 255;
+        if (ph > 0.4 && y - 1 >= c.yt && c.x + 1 < S && inner(c.x + 1, y)) { const j = at(c.x + 1, y); out[j] = Math.min(255, out[j] + 90); out[j + 1] = Math.min(255, out[j + 1] + 90); out[j + 2] = Math.min(255, out[j + 2] + 90); }
+      });
+      frames.push(out);
+    }
+    dur = 1.6;
+  } else return null;
+  n = frames.length;
+  const c = document.createElement('canvas');
+  c.width = S * n;
+  c.height = H;
+  const g2 = c.getContext('2d');
+  frames.forEach((fd, k) => g2.putImageData(new ImageData(fd instanceof Uint8ClampedArray ? fd : new Uint8ClampedArray(fd), S, H), k * S, 0));
+  const res = { url: c.toDataURL(), n, dur };
+  animCache.set(key, res);
+  return res;
+}
 export const ICON_COLORS = C;

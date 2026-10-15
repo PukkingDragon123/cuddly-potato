@@ -3,7 +3,7 @@
 // stamp), a WINNER tag, then the rewards (trophies, coins, the vial you won,
 // XP, calories) popping in with roll-up numbers. Resolves with the button
 // pressed.
-import { h, icon, button, panel, bar, rollNumber, sparkle, burst, confetti, bump } from '../../ui/ui.js';
+import { h, icon, animIcon, button, panel, bar, rollNumber, sparkle, burst, confetti, bump } from '../../ui/ui.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { VIALS } from '../../data/vials.js';
@@ -43,6 +43,7 @@ export async function showResult(parent, opts) {
     result === 'win' ? icon('crown', 'res-crown') : result === 'loss' ? icon('skull', 'res-crown') : null,
     h('div', { class: `res-title ${result}` }, letters),
     h('div', { class: 'res-sub t-d' }, result === 'win' ? 'YOUR LAB WINS!' : result === 'draw' ? 'NOBODY BLINKED' : 'THE RIVAL LAB WINS'));
+  setTimeout(() => wrap.classList.add('settled'), 2600);
   const wrap = h('div', { class: `res-wrap r-${result}` }, h('div', { class: 'res-flash' }), titleEl, t1.el, h('div', { class: 'res-vs' }, 'VS'), t0.el);
   parent.appendChild(wrap);
   audio.play(result === 'win' ? 'levelUp' : result === 'draw' ? 'bell' : 'error');
@@ -88,7 +89,7 @@ export async function showResult(parent, opts) {
     const items = [];
     const add = (ic, value, label, o = {}) => {
       const v = h('div', { class: 'v' }, '0');
-      const el = h('div', { class: `res-rw sk-panel-dark k-${ic}${o.neg ? ' neg' : ''}` }, h('div', { class: 'px-rays w res-rw-rays' }), o.img ?? icon(ic), v, h('div', { class: 'l' }, label));
+      const el = h('div', { class: `res-rw sk-panel-dark k-${ic}${o.neg ? ' neg' : ''}` }, h('div', { class: 'px-rays w res-rw-rays' }), o.img ?? animIcon(ic), v, h('div', { class: 'l' }, label));
       items.push({ el, v, value, sign: o.sign, text: o.text, neg: o.neg });
     };
     // the 3D vial render, even when the caller didn't pass a thumbnail function
