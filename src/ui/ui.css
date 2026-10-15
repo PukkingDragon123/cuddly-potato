@@ -908,8 +908,8 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 .speech-b b { color: #d4106a; }
 .speech-b em { font-style: normal; color: #1a6fd8; }
 /* stepped pixel tail (ink outline + white fill), slides to stay over the speaker; --tu = tail/outline pixel */
-.speech-tail { position: absolute; left: var(--tx); top: 100%; width: calc(var(--tu) * 7); height: calc(var(--tu) * 4); translate: -50% 0; background: var(--ink); clip-path: polygon(0 0, 100% 0, 100% 25%, 85.7% 25%, 85.7% 50%, 71.4% 50%, 71.4% 75%, 57.1% 75%, 57.1% 100%, 42.9% 100%, 42.9% 75%, 28.6% 75%, 28.6% 50%, 14.3% 50%, 14.3% 25%, 0 25%); }
-.speech-tail::after { content: ''; position: absolute; left: var(--tu); top: calc(var(--tu) * -1); width: calc(var(--tu) * 5); height: calc(var(--tu) * 4); background: #e9f0ff; clip-path: polygon(0 0, 100% 0, 100% 50%, 80% 50%, 80% 75%, 60% 75%, 60% 100%, 40% 100%, 40% 75%, 20% 75%, 20% 50%, 0 50%); }
+.speech-tail { position: absolute; left: var(--tx); top: 100%; width: calc(var(--tu) * 11); height: calc(var(--tu) * 6); translate: -50% 0; background: var(--ink); clip-path: polygon(100% 0%, 100% 16.67%, 90.91% 16.67%, 90.91% 33.33%, 81.82% 33.33%, 81.82% 50%, 72.73% 50%, 72.73% 66.67%, 63.64% 66.67%, 63.64% 83.33%, 54.55% 83.33%, 54.55% 100%, 45.45% 100%, 45.45% 83.33%, 36.36% 83.33%, 36.36% 66.67%, 27.27% 66.67%, 27.27% 50%, 18.18% 50%, 18.18% 33.33%, 9.09% 33.33%, 9.09% 16.67%, 0% 16.67%, 0% 0%); }
+.speech-tail::after { content: ''; position: absolute; left: var(--tu); top: calc(var(--tu) * -1); width: calc(var(--tu) * 9); height: calc(var(--tu) * 6); background: #e9f0ff; clip-path: polygon(100% 0%, 100% 16.67%, 100% 16.67%, 100% 33.33%, 88.89% 33.33%, 88.89% 50%, 77.78% 50%, 77.78% 66.67%, 66.67% 66.67%, 66.67% 83.33%, 55.56% 83.33%, 55.56% 100%, 44.44% 100%, 44.44% 83.33%, 33.33% 83.33%, 33.33% 66.67%, 22.22% 66.67%, 22.22% 50%, 11.11% 50%, 11.11% 33.33%, 0% 33.33%, 0% 16.67%, 0% 16.67%, 0% 0%); }
 .speech.below .speech-b { transform-origin: var(--tx) 0; }
 .speech.below .speech-tail { top: auto; bottom: 100%; scale: 1 -1; }
 .speech.below .speech-tail::after { background: #fff; }

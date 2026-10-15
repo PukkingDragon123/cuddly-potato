@@ -624,7 +624,7 @@ export function updateWorldUI(dt) {
     const bands = hudBands();
     const m = 6, W = bands.W, H = bands.H;
     const ax = s.x, ay = s.y - b.offsetY;
-    const tail = 14;
+    const tail = 16;
     // horizontal: keep the whole bubble on screen, the tail slides to stay over the speaker
     const left = Math.max(m, Math.min(W - m - b.w, ax - b.w / 2));
     // vertical: above the head, or flipped below it when the top HUD / screen edge is in the way
