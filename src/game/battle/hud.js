@@ -390,7 +390,11 @@ export class BattleHUD {
     this.layoutT = (this.layoutT ?? 0) - dt;
     if (this.layoutT <= 0) {
       this.layoutT = 0.5;
-      plateBounds.minY = this.root.style.display === 'none' ? 0 : this.mini.getBoundingClientRect().bottom + 4;
+      const hidden = this.root.style.display === 'none';
+      plateBounds.minY = hidden ? 0 : this.mini.getBoundingClientRect().bottom + 4;
+      plateBounds.maxY = hidden ? engine.height : this.deck.getBoundingClientRect().top;
+      const c = this.cmdEl.getBoundingClientRect();
+      plateBounds.clearL = !hidden && c.width ? { right: c.right, top: c.top } : null;
     }
     // timer
     const tl = sim.timeLeft;

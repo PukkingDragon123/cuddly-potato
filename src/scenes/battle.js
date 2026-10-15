@@ -117,7 +117,7 @@ export class BattleScene {
       this.offClose = peer?.onClose(() => this.peerLost());
       this.offMsg = peer?.on((m) => { if (m.t === 'emote' && params.role === 'guest') this.hud?.showEmote(1, m.e); });
     } else {
-      this.sim = new BattleSim({ sides: cfg.sides, boss: cfg.boss, seed: cfg.seed, timeLimit: mode === 'tutorial' ? 300 : undefined, noOvertime: mode === 'tutorial' });
+      this.sim = new BattleSim({ sides: cfg.sides, boss: cfg.boss, seed: cfg.seed, timeLimit: mode === 'tutorial' ? 300 : undefined, noOvertime: mode === 'tutorial', baseFloor: mode === 'tutorial' ? 0.3 : 0 });
       this.ai = new BattleAI(this.sim, 1, this.aiOpts);
     }
     this.sim.paused = true;
@@ -581,7 +581,16 @@ export class BattleScene {
       await say({ ...J, chibi: ch }, text, opts);
       if (!this.ended) sim.paused = false;
     };
-    const until = (kind) => new Promise((res) => (this.onTut = (k, slot, id) => { if (k === kind) { this.onTut = null; res({ slot, id }); } }));
+    const until = (kind) => {
+      if (this.ai) this.ai.hold = true;
+      return new Promise((res) => (this.onTut = (k, slot, id) => {
+        if (k === kind) {
+          this.onTut = null;
+          if (this.ai) this.ai.hold = false;
+          res({ slot, id });
+        }
+      }));
+    };
     const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
     if (ch) ch.expr('happy', 'grin', 3);
     const cmdPos = () => {
@@ -631,7 +640,7 @@ export class BattleScene {
     await waitFor(() => sim.t > 35 || sim.over);
     if (!sim.over) {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
-      this.view.focus(sim.sides[0].labX + 6, 5);
+      this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 6), 8);
       await wait(0.6);
       await talk('That tent is kinda sad. *TAP YOUR BASE* to upgrade it: Tent, Shack, Trailer... all the way to *MEGA HQ*! Each tier = more HP, a stronger zapper and *more max POWER*.');
       this.lockInput = 'lab';
@@ -673,7 +682,7 @@ export class BattleScene {
         sim.upgradeLab(0);
         await wait(0.9);
       }
-      this.view.focus(sim.sides[0].labX + 5, 6);
+      this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 5), 8);
       m.charge = 1;
       sim.emit('megaReady', { side: 0 });
       await wait(0.8);

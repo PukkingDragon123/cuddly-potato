@@ -191,7 +191,7 @@ function vialMesh(color) {
 
 const _v = new THREE.Vector3();
 /** Plates never rise above this screen y (the HUD's top bar sets it). */
-export const plateBounds = { minY: 0 };
+export const plateBounds = { minY: 0, maxY: Infinity, clearL: null };
 function placeEl(el, pos, dy = 0) {
   const s = engine.toScreen(pos);
   if (!s.visible || s.x < -80 || s.x > engine.width + 80) {
@@ -894,7 +894,7 @@ export class BattleView {
       const ch = this.cmds[i];
       if (ch && state === 'ready' && !ch.busy && Math.random() < dt * 0.6) { ch.play('sitCheer'); ch.expr('star', 'grin', 1); ch.reactT = 1.2; }
     }
-    this.baseBadge?.update(this, this.labs[0], sim.sides[0]);
+    this.baseBadge?.update(this, this.labs[0], sim.sides[0], plateBounds);
   }
 
   /** What a tap at a screen point hit on YOUR side: 'commander' | 'base' | null. */

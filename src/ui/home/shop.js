@@ -54,7 +54,7 @@ const VIAL_BLURB = {
   snackPack: '15+ Snack Squad cards',
   testTube: '7+ cards',
 };
-const COIN_ART = { coinPile: 'coin', coinBag: 'bag', coinVault: 'chest' };
+const COIN_ART = { coinPile: 'coinStack', coinBag: 'coinPile', coinVault: 'coinChest' };
 
 export function mount(el, ctx) {
   let day = todayKey();
@@ -112,7 +112,7 @@ export function mount(el, ctx) {
     const done = p.shop.freeClaimed || shopBought('free');
     const r = off.free;
     const tile = h('div', { class: `mn-gift panel sk-panel-gold ${done ? 'sold' : ''}` },
-      h('div', { class: 'mn-gift-rays' }),
+      h('div', { class: 'px-rays mn-gift-rays' }),
       h('div', { class: 'mn-gift-art' }, rewardArt(r)),
       h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)', zIndex: 1 } },
         h('span', { class: 't-d outline t-lg c-gold' }, 'DAILY GIFT'),
@@ -214,7 +214,7 @@ export function mount(el, ctx) {
     const sold = shopBought(key);
     const ic = COIN_ART[o.id] ?? 'coin';
     const tile = h('div', { class: `mn-ctile ${sold ? 'sold' : ''}` },
-      h('div', { class: 'mn-ctile-art' }, icon(ic, 'mn-ctile-ic'), o.coins >= 5000 ? icon('coin', 'mn-ctile-c1') : null, o.coins >= 25000 ? icon('coin', 'mn-ctile-c2') : null),
+      h('div', { class: 'mn-ctile-art' }, h('div', { class: 'px-rays mn-ctile-rays' }), icon(ic, 'mn-ctile-ic')),
       h('div', { class: 'mn-ctile-amt t-d outline c-gold' }, fmtN(o.coins)),
       h('div', { class: 'mn-ctile-n' }, o.label),
       priceButton('bucks', o.price, sold, () => buy({

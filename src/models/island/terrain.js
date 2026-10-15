@@ -97,7 +97,7 @@ export function buildTerrain(spec) {
       const x = cx(i);
       let L, cliff;
       const em = (x / 76) ** 2 + ((z + 1) / 70) ** 2;
-      if (em > 3.2) { L = 1 - Math.sqrt(em); cliff = 1; } // far from the original island: skip the noise
+      if (em > 2.0) { L = 1 - Math.sqrt(em); cliff = 1; } // far from the original island (open sea): skip the noise
       else {
         const th = Math.atan2(z, x);
         const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(x * 0.035, z * 0.035, 2, 3) - 0.5) * 0.22;
@@ -109,7 +109,7 @@ export function buildTerrain(spec) {
       for (const B of lobes) {
         const dx = (x - B.x) / B.rx, dz = (z - B.z) / B.rz;
         const e = dx * dx + dz * dz;
-        if (e > 3.2) continue;
+        if (e > 2.0 || (L > 0.35 && e > 0.25)) continue; // open sea, or deep inside another landmass
         const th = Math.atan2(dz, dx), s = B.seed ?? 0;
         const R = 1 + 0.06 * Math.sin(3 * th + s) + 0.045 * Math.sin(5 * th + 2.1 + s) + 0.03 * Math.sin(11 * th + s * 0.7) + (fbm(x * 0.035, z * 0.035, 2, 3 + s) - 0.5) * 0.22;
         const Lb = 1 - Math.sqrt(e) / R;
@@ -334,14 +334,17 @@ export function buildTerrain(spec) {
       const beach = (y <= 1.0 + bn && landF[id] < 0.2 && cliffF[id] < 0.6) || (y <= 1.5 + bn && landF[id] < 0.1 && cliffF[id] < 0.75);
       if (beach && m !== MAT.SNOW && m !== MAT.BASALT) m = MAT.SAND;
       for (const [px, pz, , pr, po] of spec.peaks) {
+        if (Math.abs(x - px) > pr * 3 || Math.abs(z - pz) > pr * 3) continue;
         const d = Math.hypot(x - px, z - pz);
         if (po?.mat) { if (d < pr * (po.matR ?? 2.2) * (0.9 + bn * 0.4)) m = po.mat; }
         else if (d < pr * 1.25 && y > 9) m = m === MAT.SNOW ? m : MAT.ROCK;
       }
       if (roadD[id] < RW) m = MAT.ROAD;
       for (const Z of zones) {
+        const pr = (Z.plinthR ?? 7.6) + 1.6;
+        if (Math.abs(x - Z.x) > pr || Math.abs(z - Z.z) > pr) continue;
         const d = Math.hypot(x - Z.x, z - Z.z);
-        if (d < (Z.plinthR ?? 7.6) + 1.6 && Math.abs(y - (Z.y - 0.5)) < 0.3) m = MAT.PLAZA;
+        if (d < pr && Math.abs(y - (Z.y - 0.5)) < 0.3) m = MAT.PLAZA;
       }
       mat[id] = m;
       colBiome[id] = B ? B.id : 0;

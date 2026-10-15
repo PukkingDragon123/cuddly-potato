@@ -8,9 +8,11 @@
 //                 then off to Beast Island (home)
 //   visit      -> later visits from home: wander-free lab with Jimmy's lines
 //
-// The room is a bubbly toy lab: bubbling tubes along the walls, glowing
-// neon, the specimen tank with the Beast Tiger, a MEGA-TECH containment tube
-// with Panthar floating inside, consoles, monitors and pipes.
+// The room is a bubbly voxel toy lab (models/props/labDecor.js): bubbling
+// specimen tubes with creatures inside, voxel neon tube signs, a detailed
+// ceiling, pipes with valves and gauges, live pixel-art monitors, Feastables
+// crates and lab clutter - around the specimen tank with the Beast Tiger and
+// a MEGA-TECH containment tube with Panthar floating inside.
 import * as THREE from 'three';
 import { engine, addLights } from '../core/engine.js';
 import { audio } from '../core/audio.js';
@@ -21,7 +23,7 @@ import { CHARACTERS } from '../data/characters.js';
 import { createSwarm } from '../models/swarmModels.js';
 import * as Props from '../models/props.js';
 import { makeVial } from '../models/props/vials.js';
-import { glassMat } from '../models/props/common.js';
+import { buildLabRoom } from '../models/props/labDecor.js';
 import { h, button, say, speech, modal, pointAt, $ui, closeDialogue } from '../ui/ui.js';
 import { charPortrait } from '../ui/thumbs.js';
 import { state, rollVial, applyVial, setDeck } from '../game/state.js';
@@ -29,7 +31,6 @@ import { STARTER_TROOPS } from '../data/cards.js';
 import { game } from '../game/game.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
-const glow = (c, k = 2.4, opacity = 1) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k), toneMapped: false, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
 
 const CSS = `
 .lb-wrap { position: absolute; inset: 0; pointer-events: none; }
@@ -55,86 +56,6 @@ const JIMMY_LINES = [
   'Upgrade your base early - a tent will NOT stop a Steel Panther.',
 ];
 
-/** Neon sign: glowing tube letters on a dark backing board (redrawn once the pixel font loads). */
-function neonSign(text, color = '#ff2e88', w = 1024, hgt = 256) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = hgt;
-  const ctx = c.getContext('2d');
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  const draw = () => {
-    ctx.clearRect(0, 0, w, hgt);
-    ctx.font = `${Math.round(hgt * 0.78)}px "Jersey 10", "Arial Black", sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    // soft halo, coloured tube, white-hot core
-    ctx.shadowColor = color;
-    ctx.shadowBlur = hgt * 0.12;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = hgt * 0.07;
-    ctx.strokeText(text, w / 2, hgt / 2 + hgt * 0.04);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff6fb';
-    ctx.fillText(text, w / 2, hgt / 2 + hgt * 0.04);
-    tex.needsUpdate = true;
-  };
-  draw();
-  document.fonts?.load?.(`${Math.round(hgt * 0.78)}px "Jersey 10"`).then(draw).catch(() => {});
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false, color: new THREE.Color(1.9, 1.9, 1.9) });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w / hgt, 1), mat);
-  const board = new THREE.Mesh(new THREE.BoxGeometry(w / hgt + 0.3, 1.15, 0.08), new THREE.MeshStandardMaterial({ color: 0x120c24, roughness: 0.6 }));
-  board.position.z = -0.06;
-  const root = new THREE.Group();
-  root.add(board, m);
-  root.material = mat;
-  return root;
-}
-
-/** A glass tube of glowing liquid with bubbles rising through it. */
-function bubbleTube(color, H = 2.6, R = 0.34) {
-  const root = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({ color: 0x8a93aa, roughness: 0.35, metalness: 0.7 });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.1, R + 0.14, 0.26, 18), metal);
-  base.position.y = 0.13;
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.12, R + 0.08, 0.2, 18), metal);
-  cap.position.y = H + 0.36;
-  const liquid = new THREE.Mesh(new THREE.CylinderGeometry(R - 0.03, R - 0.03, H * 0.86, 18), glow(color, 1.15, 0.72));
-  liquid.position.y = 0.26 + (H * 0.86) / 2;
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 18, 1, true), glassMat(0xd8f8ff, 0.22));
-  glass.position.y = 0.26 + H / 2;
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(R + 0.02, 0.035, 6, 20).rotateX(Math.PI / 2), glow(color, 2.6));
-  ring.position.y = 0.3 + H * 0.86;
-  root.add(base, liquid, glass, cap, ring);
-  const bubbles = [];
-  const bMat = glow(0xeaffff, 1.6, 0.8);
-  for (let i = 0; i < 9; i++) {
-    const s = 0.04 + Math.random() * 0.05;
-    const b = new THREE.Mesh(new THREE.SphereGeometry(s, 6, 5), bMat);
-    b.userData = { a: Math.random() * 6.28, r: Math.random() * (R - 0.1), sp: 0.35 + Math.random() * 0.6, ph: Math.random() * 6 };
-    b.position.y = 0.3 + Math.random() * H * 0.8;
-    root.add(b);
-    bubbles.push(b);
-  }
-  let t = 0;
-  return {
-    root,
-    update(dt) {
-      t += dt;
-      for (const b of bubbles) {
-        const u = b.userData;
-        b.position.y += dt * u.sp;
-        if (b.position.y > 0.26 + H * 0.84) b.position.y = 0.32;
-        b.position.x = Math.cos(u.a) * u.r + Math.sin(t * 3 + u.ph) * 0.03;
-        b.position.z = Math.sin(u.a) * u.r;
-      }
-      ring.material.opacity = 1;
-      liquid.material.opacity = 0.66 + Math.sin(t * 2 + R * 10) * 0.06;
-    },
-  };
-}
-
 export class LabScene {
   constructor() {
     const scene = (this.scene = new THREE.Scene());
@@ -158,49 +79,25 @@ export class LabScene {
 
   // -------------------------------------------------------------------------
   buildRoom() {
+    const t0 = performance.now();
     const s = this.scene;
     const P = (name, ...args) => {
       try { return typeof Props[name] === 'function' ? Props[name](...args) : null; } catch (e) { console.warn('prop failed', name, e); return null; }
     };
-    const place = (o, x, y, z, ry = 0, sc = 1) => {
-      if (!o) return null;
-      o.position.set(x, y, z);
-      o.rotation.y = ry;
-      o.scale.multiplyScalar(sc);
-      s.add(o);
-      return o;
-    };
-    // floor + walls
-    const floor = P('makeFloorTiles', 22, 16);
-    if (floor) { floor.position.z = -1; floor.traverse((o) => { if (o.isMesh) o.receiveShadow = true; }); s.add(floor); }
-    const back = P('makeWallPanel', 22, 7.5);
-    if (back) { back.position.set(0, 0, -8); s.add(back); }
-    for (const side of [-1, 1]) {
-      const w = P('makeWallPanel', 16, 7.5);
-      if (!w) continue;
-      w.rotation.y = side * -Math.PI / 2;
-      w.position.set(side * 10, 0, -1);
-      s.add(w);
-    }
-    // neon signs
-    const sign = neonSign('BEAST LAB', '#ff2e88');
-    sign.scale.setScalar(1.15);
-    sign.position.set(0, 6.85, -7.85);
-    s.add(sign);
-    const sign2 = neonSign('MEGA-TECH', '#ffd84a', 512, 128);
-    sign2.scale.setScalar(0.62);
-    sign2.position.set(-5.6, 5.25, -5.9);
-    s.add(sign2);
-    this.signs = [sign, sign2];
+    // the room: floor, walls, ceiling, neon signs, specimen tubes, monitors, props and clutter
+    const room = buildLabRoom();
+    s.add(room.root);
+    this.room = room;
+    this.signs = room.signs;
+    this.updaters.push((dt) => room.update(dt));
 
     // the Beast Tiger's specimen tank (back centre)
-    const tank = P('makeTank');
+    const tank = P('makeTank', { liquidOpacity: 0.2 });
     this.tankPos = new THREE.Vector3(0, 0, -4.6);
     if (tank) {
       tank.root.position.copy(this.tankPos);
       tank.root.scale.setScalar(1.15);
       s.add(tank.root);
-      for (const part of [tank.liquid, tank.glass]) part?.traverse?.((o) => { if (o.material?.transparent) o.material.opacity = Math.min(o.material.opacity, part === tank.liquid ? 0.16 : 0.2); });
       this.updaters.push((dt) => tank.update(dt));
     }
     this.tiger = createSwarm('beastTiger', { scale: 1.25 });
@@ -213,13 +110,12 @@ export class LabScene {
     this.tankLight = tankLight;
 
     // MEGA containment tube (back left) with Panthar floating inside
-    const megaTank = P('makeTank', { color: 0xff2ea8 });
+    const megaTank = P('makeTank', { color: 0xff2ea8, style: 'mega', liquidOpacity: 0.26 });
     this.megaPos = new THREE.Vector3(-5.6, 0, -5.4);
     if (megaTank) {
       megaTank.root.position.copy(this.megaPos);
       megaTank.root.scale.setScalar(0.95);
       s.add(megaTank.root);
-      for (const part of [megaTank.liquid, megaTank.glass]) part?.traverse?.((o) => { if (o.material?.transparent) o.material.opacity = Math.min(o.material.opacity, part === megaTank.liquid ? 0.22 : 0.2); });
       this.updaters.push((dt) => megaTank.update(dt));
     }
     try {
@@ -234,61 +130,6 @@ export class LabScene {
     s.add(megaLight);
     this.megaLight = megaLight;
 
-    // bubbling tubes along the walls
-    const tubeCols = [0x29e0ff, 0xff2ea8, 0x7cff3a, 0xffd23f, 0xb05cff, 0x29e0ff];
-    const tubeSpots = [[-9.2, -6.6], [-9.2, -4.6], [9.2, -6.6], [9.2, -4.6], [3.6, -7.3], [-2.7, -7.3]];
-    tubeSpots.forEach(([x, z], i) => {
-      const tb = bubbleTube(tubeCols[i], 2.4 + (i % 3) * 0.4, 0.32 + (i % 2) * 0.06);
-      tb.root.position.set(x, 0, z);
-      s.add(tb.root);
-      this.updaters.push(tb.update);
-    });
-    // small tube cluster on the shelf side
-    for (let i = 0; i < 4; i++) {
-      const tb = bubbleTube(tubeCols[(i + 2) % tubeCols.length], 0.9, 0.16);
-      tb.root.position.set(6.4 + i * 0.42, 0.95, -3.0 - (i % 2) * 0.3);
-      s.add(tb.root);
-      this.updaters.push(tb.update);
-    }
-
-    // furniture
-    place(P('makeMonitorWall'), 5.4, 0, -7.4);
-    place(P('makeConsole'), -3.2, 0, -3.2, 0.55);
-    place(P('makeComputer'), 6.6, 0, -3.4, -0.5);
-    place(P('makePipes', 8), -7.8, 0, -7.2, Math.PI / 2);
-    place(P('makePipes', 8), 7.8, 0, -7.2, -Math.PI / 2);
-    place(P('makeLabShelf'), -9, 0, -1.5, Math.PI / 2);
-    place(P('makeVialRack'), 9, 0, -1.2, -Math.PI / 2);
-    this.door = place(P('makeLabDoor'), -9.7, 0, 2, Math.PI / 2);
-    // workbench where the first pack waits
-    place(P('makeLabDesk'), this.benchPos.x, 0, this.benchPos.z);
-    place(P('makeMug'), this.benchPos.x - 1.0, this.benchPos.y, this.benchPos.z + 0.38, 0.4, 1.2);
-    // ceiling light strips
-    for (let i = -2; i <= 2; i++) {
-      const l = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.4), glow(0xdff6ff, 1.9));
-      l.position.set(i * 3.8, 7.3, -2);
-      s.add(l);
-    }
-    // neon trims along the walls (pink baseboard, cyan chair rail) for that bubbly lab glow
-    const trim = (w, y, col, x, z, ry) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.07, 0.05), glow(col, 2.1));
-      m.position.set(x, y, z);
-      m.rotation.y = ry;
-      s.add(m);
-    };
-    trim(19.6, 0.16, 0xff2e88, 0, -7.9, 0);
-    trim(19.6, 3.9, 0x29e0ff, 0, -7.9, 0);
-    for (const side of [-1, 1]) {
-      trim(15.6, 0.16, 0xff2e88, side * 9.9, -1, Math.PI / 2);
-      trim(15.6, 3.9, 0x29e0ff, side * 9.9, -1, Math.PI / 2);
-    }
-    // glowing floor strip to the bench
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 7).rotateX(-Math.PI / 2), glow(0x29e0ff, 2.2, 0.85));
-    strip.position.set(-0.9, 0.02, -1.6);
-    const strip2 = strip.clone();
-    strip2.position.x = 0.9;
-    s.add(strip, strip2);
-
     // characters
     this.jimmy = new Chibi(CHARACTERS.jimmy, { scale: 1.05 });
     this.jimmy.root.position.set(-2.2, 0, 1.0);
@@ -300,6 +141,7 @@ export class LabScene {
     this.tech.play('talk');
     s.add(this.tech.root);
     this.techT = 3;
+    this.buildMs = performance.now() - t0;
   }
 
   // -------------------------------------------------------------------------
@@ -572,7 +414,7 @@ export class LabScene {
       this.tech.play(['talk', 'point', 'idle', 'facepalm'][Math.floor(Math.random() * 4)]);
     }
     // flickery neon + pulsing tank lights
-    this.signs[0].material.color.setScalar(Math.random() < 0.012 ? 0.5 : 1.9);
+    for (const sg of this.signs) sg.material.color.setScalar(Math.random() < 0.012 ? 0.7 : 2.6);
     this.tankLight.intensity = 7 + Math.sin(this.t * 2) * 1.2;
     this.megaLight.intensity = 6 + Math.sin(this.t * 3.1) * 2;
     if (Math.random() < dt * 1.5) fx.bubbles(new THREE.Vector3((Math.random() - 0.5) * 14, 0.2, -2 - Math.random() * 4), { count: 2, color: [0x9ff2ff, 0xffb0e0, 0xc8ff9a][Math.floor(Math.random() * 3)], speed: 0.8 });

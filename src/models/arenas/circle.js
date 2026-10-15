@@ -9,6 +9,9 @@ import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, vnoise, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, paintClouds, paintRidge, paintTrees, paintSun, px, disc, skyTexture, parallaxWidth,
   treeGrid, signGrid,
+  pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx, paintRange, fitSkyAuto,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, addFlag,
+  leafyTreeGrid, pineTreeGrid, bushGrid, flowerGrid, tuftGrid,
 } from './kit.js';
 
 const LH = FIELD.LANE_HALF;
@@ -577,71 +580,223 @@ function paintRVs(ctx, w, ground, seed) {
   }
 }
 
+// --------------------------------------------------------------------------- postcard props (far farm + suburb)
+
+/** Suburban house: lap siding, porch, shuttered windows with sky reflections, shingled gable roof (0.13 scale). */
+const houseGrid = (col, seed) => () => {
+  const g = new VoxGrid();
+  const roof = [0x5a4a6a, 0x8a3a3a, 0x3a5a7a, 0x4a5a4a][seed % 4], roofD = shade(roof, -0.2), trim = 0xffffff, sh = shade(col, -0.3);
+  g.box(-17, 0, -12, 16, 1, 11, 0xb8b0a8);
+  g.box(-16, 2, -11, 15, 20, 10, (x, y) => (y % 2 === 0 ? shade(col, -0.08) : col));
+  for (const x of [-16, 15]) g.box(x, 2, 10, x, 20, 10, trim);
+  for (const wx of [-12, 6]) for (const wy of [6]) {
+    g.box(wx - 1, wy - 1, 11, wx + 5, wy + 7, 11, trim);
+    g.box(wx, wy, 11, wx + 4, wy + 6, 11, (x, y) => (x === wx + 2 || y === wy + 3 ? trim : y > wy + 4 ? 0xd8f0ff : 0x7ab8e0));
+    g.box(wx - 2, wy, 11, wx - 2, wy + 6, 11, sh).box(wx + 6, wy, 11, wx + 6, wy + 6, 11, sh);
+    g.box(wx, wy - 2, 12, wx + 4, wy - 1, 12, 0x8a5a3a).box(wx, wy - 1, 12, wx + 4, wy - 1, 12, (x) => [0xff6fb8, 0xffd23f, 0xe8343c][x % 3]);
+  }
+  g.box(-3, 2, 11, 3, 15, 11, trim);
+  g.box(-2, 2, 11, 2, 14, 11, shade(col, -0.45));
+  g.set(1, 8, 12, 0xffc21a);
+  g.box(-7, 0, 12, 6, 1, 16, 0xa89a8a);
+  g.box(-7, 16, 11, 6, 16, 16, roof);
+  for (const x of [-7, 6]) g.box(x, 2, 16, x, 15, 16, trim);
+  for (let i = 0; i <= 13; i++) g.box(-18, 21 + i, -13 + i, 17, 21 + i, 12 - i, (x, y, z) => ((x + y * 2) % 5 === 0 ? roofD : roof));
+  g.box(-18, 21, 12, 17, 21, 13, roofD);
+  g.box(-11, 22, -7, -8, 36, -4, 0xb8553a).box(-12, 36, -8, -7, 37, -3, 0x8a3a28);
+  g.box(-2, 25, 0, 1, 28, 0, 0x7ab8e0);
+  return g;
+};
+
+/** Red gambrel barn with white trim, X doors and a hayloft (0.13 scale). */
+const barnGrid = () => {
+  const g = new VoxGrid();
+  const red = 0xc0362c, redD = 0x962a22, white = 0xf4f0e8;
+  g.box(-20, 0, -16, 19, 22, 15, (x, y) => (x % 3 === 0 ? redD : red));
+  for (let y = 23; y < 40; y++) {
+    const inset = y < 31 ? Math.floor((y - 22) * 0.9) : 7 + Math.floor((y - 30) * 1.8);
+    if (inset > 19) break;
+    g.box(-20 + inset, y, -16, 19 - inset, y, 15, (x) => (x % 3 === 0 ? redD : red));
+    g.box(-21 + inset, y, -17, -20 + inset, y, 16, 0x4a4a52).box(19 - inset, y, -17, 20 - inset, y, 16, 0x4a4a52);
+  }
+  for (const x of [-20, 19]) g.box(x, 0, 16, x, 22, 16, white);
+  g.box(-8, 0, 16, 7, 15, 16, white);
+  g.box(-7, 0, 16, 6, 14, 16, red);
+  g.line(-7, 0, 17, 6, 14, 17, white, 0).line(6, 0, 17, -7, 14, 17, white, 0);
+  g.box(-4, 26, 16, 3, 31, 16, white).box(-3, 27, 16, 2, 30, 16, 0x5a3a28);
+  return g;
+};
+const siloGrid = () => {
+  const g = new VoxGrid();
+  g.cylinder(-0.5, -0.5, 0, 44, 8, (x, y) => (y % 6 === 0 ? 0x9aa2ae : x < -3 ? 0xd8dde4 : 0xc4ccd6));
+  for (let y = 45; y < 52; y++) g.cylinder(-0.5, -0.5, y, y, Math.sqrt(Math.max(0, 64 - (y - 44) ** 2 * 1.3)), 0x8a96a8);
+  return g;
+};
+/** Farm windpump lattice tower; the fan spins separately (0.12 scale). */
+const windpumpGrid = () => {
+  const g = new VoxGrid();
+  for (let y = 0; y < 58; y++) {
+    const r = Math.round(7 - y * 0.1);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g.set(sx * r, y, sz * r, 0x8a8e96);
+    if (y % 9 === 0) { g.line(-r, y, -r, r, y, -r, 0x9aa0a8); g.line(-r, y, r, r, y, r, 0x9aa0a8); g.line(-r, y, -r, -r, y, r, 0x9aa0a8); g.line(r, y, -r, r, y, r, 0x9aa0a8); }
+  }
+  g.box(-2, 56, -2, 1, 60, 3, 0x6a6e78);
+  g.box(-1, 58, -14, 0, 59, -3, 0x6a6e78).box(-1, 56, -20, 0, 62, -14, 0xe8343c);
+  return g;
+};
+const windFanGrid = () => {
+  const g = new VoxGrid();
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    for (let r = 3; r < 12; r++) g.set(Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r), 0, r > 9 ? 0xf0f0f0 : 0xb8bec8);
+  }
+  g.box(-1, -1, -1, 1, 1, 1, 0x4a4e58);
+  return g;
+};
+/** Hot-air balloon with coloured gores and a wicker basket (scale ~0.1). */
+const balloonGrid = (cols) => () => {
+  const g = new VoxGrid();
+  const R = 16;
+  for (let x = -R; x <= R; x++) for (let y = -R; y <= R + 4; y++) for (let z = -R; z <= R; z++) {
+    const yy = y < 0 ? y * 1.25 : y;
+    const r = R * (y < 0 ? 1 + y / (R * 2.2) : 1);
+    const d = Math.hypot(x, yy * 0.9, z);
+    if (d > R || d < R - 2 || r <= 0) continue;
+    const gore = Math.floor(((Math.atan2(z, x) / (Math.PI * 2)) + 1) * 12) % 3;
+    let c = cols[gore];
+    if (Math.abs(y - 4) < 1) c = 0xffd23f;
+    if (y > R - 3) c = shade(cols[0], -0.15);
+    g.set(x, y + 30, z, x < -6 && y > 2 ? shade(c, 0.15) : c);
+  }
+  for (const [x, z] of [[-4, -4], [3, -4], [-4, 3], [3, 3]]) g.line(x * 2, 12, z * 2, x, 4, z, 0x5a4a3a);
+  g.box(-4, 0, -4, 3, 4, 3, (x, y) => ((x + y) % 2 ? 0xa07040 : 0x8a5a30));
+  g.box(-1, 5, -1, 0, 6, 0, 0xff8a2a, true);
+  return g;
+};
+/** BEAST BURGERS food truck with an awning and menu board (0.1 scale). */
+const foodTruckGrid = () => {
+  const g = new VoxGrid();
+  g.box(-22, 3, -9, 21, 26, 8, (x, y) => (y < 6 ? 0xd8dde4 : y > 23 ? 0xf4f4f8 : 0x29b6f6));
+  g.box(22, 3, -9, 30, 18, 8, 0x29b6f6).box(23, 12, -9, 29, 17, 8, 0x8ad0f0);
+  g.box(-14, 10, 9, 10, 20, 9, 0x2a2a36);
+  g.box(-13, 11, 9, 9, 19, 9, 0x5a4030);
+  g.box(-16, 21, 9, 12, 21, 13, (x) => (Math.floor(x / 3) & 1 ? 0xffffff : 0xe8343c));
+  g.box(-15, 8, 10, 11, 9, 11, 0xd8dde4);
+  g.box(-20, 27, -3, 21, 32, 0, 0xffd23f);
+  text(g, 'BEAST BURGERS', 0, 27, 1, '+z', 0xe8343c, { center: true });
+  for (const x of [-15, 20]) for (const z of [-10, 8]) g.box(x - 3, 0, z, x + 3, 5, z + 1, 0x22222c);
+  g.box(-8, 27, -8, -5, 31, -5, 0x9aa2ae);
+  return g;
+};
+
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
   // ---- sky: golden afternoon, low warm sun on the left
-  const sky = skyTexture('circle', [[0, 0x4f86d4], [0.4, 0x8fc0ec], [0.72, 0xffd8a6], [1, 0xffb26e]], (ctx, w, h) => {
-    paintSun(ctx, w * 0.18, h * 0.2, 7, 0xfff0b0, 0xffe2a0);
-    paintClouds(ctx, w, h, { n: 5, y0: 6, y1: h * 0.36, size: 6, seed: 21, color: 0xfff3e2, shade: 0xf2c2a2, light: 0xffffff });
-    for (const [bx, by] of [[0.62, 0.16], [0.66, 0.13], [0.7, 0.17], [0.4, 0.1]]) {
-      px(ctx, Math.round(w * bx), Math.round(h * by), 1, 1, 0x4a3a40);
-      px(ctx, Math.round(w * bx) - 1, Math.round(h * by) - 1, 1, 1, 0x4a3a40);
-      px(ctx, Math.round(w * bx) + 1, Math.round(h * by) - 1, 1, 1, 0x4a3a40);
-    }
-  });
+  const sky = skyTexture('circle2', [[0, 0x3a72c8], [0.28, 0x6aa6e4], [0.5, 0xa8d0f0], [0.66, 0xffe0b0], [0.82, 0xffc88a], [1, 0xffb070]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    skyGlow(P, w * 0.4, h * 0.36, w * 0.55, h * 0.5, 0xffe8b8, 0.65, { bands: 6, pow: 1.3 });
+    paintSunPx(P, Math.round(w * 0.4), Math.round(h * 0.3), 10, { color: 0xfff2c0, core: 0xffffff, halo: 0xffe2a0, halo2: 0xfff4d8, haloR: 6, haloA: 0.6 });
+    paintStreaks(P, w, { n: 10, y0: h * 0.06, y1: h * 0.3, len: [20, 60], color: 0xfff4e8, shade: 0xf0c8a8, seed: 21, alpha: 0.7 });
+    const warm = { light: 0xfffaf0, color: 0xfff0dc, shade: 0xf4c4a0, dark: 0xd8a088 };
+    paintCumulus(P, w * 0.12, h * 0.22, 16, 11, { ...warm, sunX: 1 });
+    paintCumulus(P, w * 0.62, h * 0.14, 10, 12, { ...warm, sunX: -1 });
+    paintCumulus(P, w * 0.86, h * 0.3, 14, 13, { ...warm, sunX: -1 });
+    paintCumulus(P, w * 0.28, h * 0.44, 7, 14, { ...warm, sunX: 1 });
+    paintCloudBank(P, w, Math.round(h * 0.6), { s: 8, seed: 15, light: 0xfff6ea, color: 0xffe8d0, shade: 0xf6c8a4, dark: 0xe8b090, alpha: 0.85 });
+    paintBirdsPx(P, [[w * 0.5, h * 0.24, 1], [w * 0.53, h * 0.21, 1], [w * 0.56, h * 0.25, 0], [w * 0.47, h * 0.2, 0]], 0x5a4a50, 0.7);
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
+  fitSkyAuto(K, sky);
 
-  // ---- parallax pixel layers (far -> near)
-  const w1 = parallaxWidth(-160);
-  K.parallax('hills', {
-    z: -160, y: -4, w: w1, h: 34, tw: Math.round(w1 * 2), th: 68,
+  // ---- far layers: hazy pixel hills, voxel farmland hills with a farm, a suburb street, drifting clouds + balloons
+  K.parallax('farHills', {
+    z: -170, y: -4, w: parallaxWidth(-170), h: 32, tw: 520, th: 72,
     paint: (ctx, w, h) => {
-      paintClouds(ctx, w, h, { n: 9, y0: 4, y1: 22, size: 5, seed: 13, color: 0xfff0dc, shade: 0xf0c8a8 });
-      paintRidge(ctx, w, h, { base: 0.5, amp: 9, freq: 0.012, seed: 3, color: 0x9ab4b0, rim: 0xffe2b0, dark: 0x86a0a4 });
-      const tops = paintRidge(ctx, w, h, { base: 0.66, amp: 6, freq: 0.02, seed: 8, color: 0x8fb070, rim: 0xffe8a8, dark: 0x789a62 });
-      // patchwork fields
+      const P = pixbuf(ctx, w, h);
+      paintRange(P, w, h, { base: 0.62, amp: 12, freq: 0.014, seed: 3, round: true, lit: 0xa8c0b8, mid: 0x98b2ac, dark: 0x88a2a2, rim: 0xffe8c0, gullies: false, haze: [0xf8dcb8, 0.55, 0.8] });
+      const tops = paintRange(P, w, h, { base: 0.78, amp: 7, freq: 0.022, seed: 8, round: true, lit: 0x9cb878, mid: 0x8aa86c, dark: 0x7a9862, rim: 0xffe8a8, gullies: false, haze: [0xf4dcb0, 0.8, 0.6] });
       const R = mulberry32(5);
-      for (let i = 0; i < 70; i++) {
-        const x = Math.floor(R() * w), fw = 8 + Math.floor(R() * 18);
-        const y = tops[Math.min(w - 1, x)] + 3 + Math.floor(R() * 10);
-        px(ctx, x, y, fw, 2 + Math.floor(R() * 2), [0xd8c070, 0xa8c070, 0x9ab868, 0xe0cc80][Math.floor(R() * 4)], 0.8);
+      for (let i = 0; i < 90; i++) {
+        const x = Math.floor(R() * w), fw = 6 + Math.floor(R() * 14), y = Math.round(tops[x] + 3 + R() * 8);
+        P.rect(x, y, fw, 2, [0xd8c070, 0xa8c070, 0x9ab868, 0xe0cc80, 0xb89060][Math.floor(R() * 5)], 0.75);
       }
-      paintTrees(ctx, w, Math.round(h * 0.74), { seed: 9, size: 3, step: 6, jitter: 9, color: 0x6a9a58, trunk: 0x5a4a3a });
+      for (let i = 0; i < 60; i++) { const x = Math.floor(R() * w), y = Math.round(tops[x] + 1 + R() * 4); P.disc(x, y, 1, 0x6a9a58); }
+      P.flush();
     },
   });
-  const w2 = parallaxWidth(-110);
-  K.parallax('suburb', {
-    z: -110, y: -4, w: w2, h: 26, tw: Math.round(w2 * 2.5), th: 65,
-    paint: (ctx, w, h) => {
-      const ground = Math.round(h * (17 / 26));
-      paintTrees(ctx, w, ground - 2, { seed: 17, size: 5, step: 9, jitter: 10, color: 0x5a9a48, trunk: 0x5a3a20 });
-      paintPoles(ctx, w, ground, { step: 52, h: 16, x0: 30 });
-      paintHouses(ctx, w, h, ground, { seed: 6 });
-      paintWaterTower(ctx, Math.round(w * 0.71), ground, 0.8);
-      paintGradient(ctx, 0, ground, w, h - ground, [[0, 0x6aa850], [1, 0x5a9a48]], { bands: 3 });
-      const R = mulberry32(2);
-      for (let i = 0; i < w / 6; i++) px(ctx, Math.floor(R() * w), ground + 1 + Math.floor(R() * 4), 3, 1, 0x4a8a3a);
-    },
-  });
-  const w3 = parallaxWidth(-70);
-  K.parallax('treeline', {
-    z: -70, y: -3, w: w3, h: 12, tw: Math.round(w3 * 3.5), th: 42,
-    paint: (ctx, w, h) => {
-      const ground = Math.round(h * (9 / 12));
-      paintTrees(ctx, w, ground, { seed: 31, size: 7, step: 7, jitter: 8, color: 0x4f9a3e, trunk: 0x5a3a20 });
-      paintTrees(ctx, w, ground + 1, { seed: 32, size: 5, step: 11, jitter: 10, color: 0x3f8a36, kind: 'pine' });
-      paintRVs(ctx, w, ground + 1, 8);
-      // white production canopies
-      for (const cx of [w * 0.12, w * 0.44, w * 0.8]) {
-        px(ctx, cx - 9, ground - 9, 18, 2, 0xffffff);
-        for (let i = 0; i < 3; i++) px(ctx, cx - 9 + i, ground - 10 - i, 18 - i * 2, 1, 0xf4f4f8);
-        px(ctx, cx - 9, ground - 7, 18, 1, C.red);
-        px(ctx, cx - 9, ground - 7, 1, 8, 0xc8ccd4);
-        px(ctx, cx + 8, ground - 7, 1, 8, 0xc8ccd4);
+  // rolling farmland hills rising behind the town (heights shared with the farm buildings on top)
+  const FH = { z: -74, s: 1.2, D: 12 };
+  const farmH = (xv, zv) => {
+    const back = zv / (FH.D - 1);
+    const n = vnoise(xv * 0.045 + 3, 6, 0.5) * 0.7 + vnoise(xv * 0.12, 7, zv * 0.2) * 0.3;
+    return Math.max(1, Math.round(1 + (2 + n * 7) * (0.35 + 0.65 * back)));
+  };
+  const onHill = (x, zv) => farmH(Math.floor(x / FH.s), zv) * FH.s - 0.6;
+  voxRange(K, 'farmHills', {
+    x0: -150, x1: 150, z: FH.z, depth: FH.D, scale: FH.s, y: -0.6, h: farmH,
+    col: (xv, y, zv, h) => {
+      const j = hash3(xv, y, zv);
+      if (y === h - 1) {
+        const f = Math.floor((xv + vnoise(zv * 0.3, 2, 1) * 6) / 7) * 7 + Math.floor(zv / 4) * 13;
+        const c = [0xd8c068, 0x9ac458, 0x6aa848, 0xb08a58, 0xc8d070][Math.floor(hash3(f, 3, 9) * 5)];
+        return (xv + zv) % 3 === 0 ? shade(c, -0.07) : j < 0.08 ? 0x5a8a3a : c;
       }
-      paintGradient(ctx, 0, ground, w, h - ground, [[0, 0x5aa840], [1, 0x4a9a3a]], { bands: 2 });
+      return y === h - 2 ? 0x6a9a48 : j < 0.3 ? 0x8a6a4a : 0x7a5a3a;
     },
   });
+  {
+    const zv = 8, z = FH.z - zv * FH.s;
+    K.mesh('barn', barnGrid, { scale: 0.13 }, -34, onHill(-34, zv), z, 0.25, 1);
+    K.mesh('silo', siloGrid, { scale: 0.13 }, -28.6, onHill(-28.6, zv), z - 1.6, 0, 1);
+    K.inst('hay', () => {
+      const g = new VoxGrid();
+      g.cylinder(-0.5, -0.5, 0, 6, 4, (x, y, z) => ((x + y + z) % 3 === 0 ? 0xc8a050 : 0xe0c070), 'z');
+      return g;
+    }, { scale: 0.13 }, [[-39, onHill(-39, 6), FH.z - 6 * FH.s, 0.3], [-37.4, onHill(-37.4, 6), FH.z - 6 * FH.s + 0.6, 0.9], [-24, onHill(-24, 6), FH.z - 6 * FH.s, 0.1]]);
+    const pines = [];
+    for (let i = 0; i < 40; i++) { const x = K.rand(-140, 140), zz = Math.floor(K.rand(3, FH.D)); if (Math.abs(x + 31) < 8 || Math.abs(x - 38) < 4) continue; pines.push([x, onHill(x, zz), FH.z - zz * FH.s, K.rand(0, 6), K.rand(0.2, 0.3)]); }
+    K.inst('hillPine', () => pineTreeGrid({ leaf: 0x3f8a46, seed: 6, r: 4, layers: 4 }), { scale: 1 }, pines);
+  }
+  {
+    const wx = 38, wz = FH.z - 7 * FH.s, wy = onHill(38, 7);
+    K.mesh('windpump', windpumpGrid, { scale: 0.12 }, wx, wy, wz, -0.3, 1);
+    const fan = K.mesh('windpumpFan', windFanGrid, { scale: 0.12, pivot: 'center' }, wx + 0.05, wy + 7.0, wz + 0.55, -0.3, 1);
+    fan.rotation.order = 'YXZ';
+    K.onUpdate((dt) => { fan.rotation.z -= dt * 2.2; });
+  }
+  {
+    // a suburban street behind the bleachers: houses, picket fences, mailboxes, street trees
+    const cols = [0x8fd0ff, 0xffd8a8, 0xc8f0c0, 0xffffff, 0xf8c8d8, 0xfff0a8];
+    const xs = [-58, -46, -34, -22, 22, 34, 46, 58, -70, 70];
+    xs.forEach((x, i) => K.mesh('house' + (i % 6), houseGrid(cols[i % 6], i), { scale: 0.13 }, x, 0, -47 - (i % 2) * 1.5, (i % 2 ? 0.1 : -0.08), 1));
+    K.inst('picket', () => {
+      const g = new VoxGrid();
+      for (let x = 0; x < 60; x++) { if (x % 3 === 0) g.box(x, 0, 0, x, 6, 0, 0xffffff).set(x, 7, 0, 0xf0f0f0); }
+      g.box(0, 2, -1, 59, 2, -1, 0xe8e8e8).box(0, 5, -1, 59, 5, -1, 0xe8e8e8);
+      return g;
+    }, { scale: 0.1, pivot: [30, 0, 0] }, xs.map((x) => [x, 0, -43.6]));
+    const st = [];
+    for (let x = -76; x <= 76; x += 6) if (Math.abs(x) > 14) st.push([x + K.rand(-1.2, 1.2), 0, -41.5 + K.rand(-0.6, 0.6), K.rand(0, 6), K.rand(0.12, 0.15)]);
+    swayInst(K, 'streetTree', () => leafyTreeGrid({ seed: 11, leaf: 0x5aae40, h: 9, r: 6 }), { scale: 1 }, st, { amp: 0.025, speed: 0.9 });
+  }
+  addClouds(K, { id: 'circleCloud', n: 7, kinds: 3, x0: -130, x1: 130, y0: 11, y1: 16, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.5, seed: 9, len: 20, height: 8, color: 0xfff2e2, shade: 0xf4c8a8, dark: 0xe0b098, light: 0xfffaf2 });
+  {
+    // hot-air balloons drifting over the farmland
+    const balloons = [
+      K.mesh('balloonA', balloonGrid([0xe8343c, 0xffffff, 0x29b6f6]), { scale: 0.11 }, 0, 0, 0),
+      K.mesh('balloonB', balloonGrid([0xffd23f, 0xff8a2a, 0xe8343c]), { scale: 0.09 }, 0, 0, 0),
+      K.mesh('balloonC', balloonGrid([0x5fdc4a, 0xffffff, 0xff2e88]), { scale: 0.08 }, 0, 0, 0),
+    ];
+    const path = [[-30, 10.4, -58, 0.45, 0], [20, 12.6, -66, 0.3, 40], [52, 9.2, -62, 0.38, 80]];
+    K.onUpdate((dt, t) => {
+      balloons.forEach((b, i) => {
+        const [x0, y0, z0, v, off] = path[i];
+        b.position.set(((x0 + t * v + off + 90) % 180) - 90, y0 + Math.sin(t * 0.35 + i * 2) * 0.6, z0);
+        b.rotation.y = Math.sin(t * 0.1 + i) * 0.4;
+      });
+    });
+  }
 
   // ---- ground: fine near the lane (holds the circle + camp), coarse far away
   const grassCol = (x, z) => {
@@ -653,7 +808,8 @@ export function buildBattle(K) {
     return c;
   };
   K.ground({ id: 'groundNear', x0: -60, x1: 60, z0: -20, z1: 20, scale: 0.5, color: (x, z) => grassCol(x, z) });
-  K.ground({ id: 'groundFar', x0: -110, x1: 110, z0: -70, z1: -20, scale: 1, color: (x, z) => grassCol(x, z) });
+  K.ground({ id: 'groundFar', x0: -110, x1: 110, z0: -70, z1: -20, scale: 1, color: (x, z) => (Math.abs(z + 45.4) < 1.1 ? (hash3(Math.floor(x), 1, 2) < 0.5 ? 0x6a6e78 : 0x5e626c) : Math.abs(z + 43.8) < 0.5 ? 0xd8d0c0 : grassCol(x, z)) });
+  K.ground({ id: 'groundHorizon', x0: -170, x1: 170, z0: -130, z1: -70, scale: 2, color: (x, z) => (vnoise(x * 0.05, 4, z * 0.05) > 0.5 ? 0x7aae50 : 0x6aa048) });
   K.ground({ id: 'groundFront', x0: -60, x1: 60, z0: 20, z1: 44, scale: 1, color: (x, z) => grassCol(x, z) });
 
   // the giant painted circle (fine voxels, a hair above the grass)
@@ -865,7 +1021,13 @@ export function buildBattle(K) {
   }, { scale: 0.115, pivot: [60, 0, 0] }, [[-16.2, 0, -27.5], [0, 0, -28.9], [16.2, 0, -27.5]]);
 
   // ---- the LAST TO LEAVE billboard, a fence and trees far behind
-  K.mesh('billboard', () => signGrid('LAST TO LEAVE', { textScale: 3, pad: 3, legH: 36, bg: C.red, frame: 0xffd23f, color: 0xffffff, leg: 0x6b7386 }), { scale: 0.16 }, 0, 0, -38);
+  K.mesh('billboard', () => signGrid('LAST TO LEAVE', { textScale: 3, pad: 3, legH: 40, bg: C.red, frame: 0xffd23f, color: 0xffffff, leg: 0x6b7386 }), { scale: 0.13 }, -11, 0, -38, 0.12);
+  {
+    const W = textW('LAST TO LEAVE', 3) + 6, bulbs = [];
+    for (let x = -W / 2 + 1; x < W / 2 - 1; x += 3) for (const y of [40.5, 40 + 21 - 0.5]) bulbs.push([-11 + x * 0.13 * Math.cos(0.12) + 0.32 * Math.sin(0.12), y * 0.13, -38 + 0.32 * Math.cos(0.12) - x * 0.13 * Math.sin(0.12)]);
+    for (let y = 43; y < 59; y += 3) for (const x of [-W / 2 + 0.5, W / 2 - 1.5]) bulbs.push([-11 + x * 0.13 * Math.cos(0.12) + 0.32 * Math.sin(0.12), y * 0.13, -38 + 0.32 * Math.cos(0.12) - x * 0.13 * Math.sin(0.12)]);
+    blinkInst(K, 'marquee', () => new VoxGrid().set(0, 0, 0, 0xfff0a0, true), { scale: 0.13, pivot: 'center' }, bulbs, { groups: 2, rate: 3, mode: 'chase' });
+  }
   K.inst('fence', () => {
     const g = new VoxGrid();
     for (let x = 0; x < 30; x++) {
@@ -913,6 +1075,34 @@ export function buildBattle(K) {
   const litter = [];
   for (let i = 0; i < 14; i++) litter.push([K.rand(-20, 20), 0.005, K.rand(LH + 1, 9), K.rand(0, 6), 1]);
   K.inst('droppedBill', () => new VoxGrid().box(0, 0, 0, 3, 0, 1, (x) => (x === 1 || x === 2 ? 0x8fe08a : C.cashD)), { scale: 0.09, pivot: [0, 0, 0] }, litter);
+
+  // ---- postcard extras: string lights over the bleacher fronts, a food truck, flags, birds, butterflies
+  {
+    const wire = [], bulbs = [];
+    for (const [x0, x1, z] of [[-26, -6.5, -20.6], [6.5, 26, -20.6]]) {
+      const n = Math.round((x1 - x0) / 0.5);
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, x = x0 + (x1 - x0) * u, y = 4.3 - Math.sin(u * Math.PI) * 0.9;
+        wire.push([x, y, z]);
+        if (i % 2 === 0) bulbs.push([x, y - 0.12, z]);
+      }
+    }
+    K.inst('lightWire', () => new VoxGrid().set(0, 0, 0, 0x3a3038), { scale: 0.05, pivot: 'center' }, wire.map((p) => [p[0], p[1], p[2], 0, [10, 1, 1]]));
+    blinkInst(K, 'stringBulb', () => new VoxGrid().set(0, 0, 0, 0xffe8a0, true).set(0, 1, 0, 0x3a3038), { scale: 0.07, pivot: 'center' }, bulbs, { groups: 3, rate: 0.35, mode: 'twinkle', duty: -0.6 });
+    K.inst('lightPole', () => new VoxGrid().box(0, 0, 0, 0, 46, 0, C.woodD).box(-1, 0, -1, 1, 1, 1, C.woodD), { scale: 0.1 }, [[-26, 0, -20.6], [-6.5, 0, -20.6], [6.5, 0, -20.6], [26, 0, -20.6]]);
+  }
+  {
+    const tx = -27, tz = -15.5;
+    K.mesh('foodTruck', foodTruckGrid, { scale: 0.1, ao: true }, tx, 0, tz, 0.35, 1, { shadow: true });
+    addPuffs(K, { id: 'grillSmoke', sources: [[tx - 0.6, 3.2, tz - 0.4]], n: 7, life: 3.2, rise: 3, drift: [1.2, -0.3], size: [0.4, 1.4], scale: 0.1, color: 0xe8e4e0, light: 0xffffff, shade: 0xc8c0bc, opacity: 0.8, seed: 4 });
+  }
+  addFlag(K, { id: 'cflagA', x: -15.6, y: 6.6, z: -28.6, w: 14, h: 8, vox: 0.1, pattern: (u, v) => (v > 3 && u < 6 ? (u + v) % 2 ? 0xffffff : 0x1d4fa0 : v % 2 ? 0xe8343c : 0xffffff), poleH: 6.6 });
+  addFlag(K, { id: 'cflagB', x: 16.4, y: 6.6, z: -28.6, w: 14, h: 8, vox: 0.1, pattern: (u, v) => (v < 3 ? 0x29b6f6 : v < 5 ? 0xffffff : 0xff2e88), poleH: 6.6, phase: 2 });
+  addBirds(K, { id: 'circleFlock', n: 6, mode: 'flock', x0: -70, x1: 70, y: 11, z: -45, speed: 2.6, dir: -1, color: 0x3a3440, wingTip: 0x221e28, belly: 0x4a4450, beak: 0x3a3440, head: 0x3a3440, vox: 0.07, flap: 10, soar: 0.2, seed: 7 });
+  addSparkles(K, { id: 'circleButterfly', n: 8, area: [-20, 20, 0.25, 0.5, LH + 1.2, 6.5], color: 0xffffff, color2: 0xffb030, cross: true, scale: 0.05, rate: 0.5, wander: 0.8, sharp: 0.6, seed: 3 });
+  const cfl = [[], []];
+  for (let i = 0; i < 40; i++) cfl[i % 2].push([K.rand(-36, 36), 0, K.rand(LH + 1.1, 11), K.rand(0, 6), K.rand(0.06, 0.08)]);
+  [0xffe14a, 0xffffff].forEach((c, i) => swayInst(K, 'cflower' + i, () => flowerGrid(c, { center: i ? 0xffd23f : 0xff8a2a }), { scale: 1 }, cfl[i], { amp: 0.1, speed: 1.8 }));
 
   return {
     sky,

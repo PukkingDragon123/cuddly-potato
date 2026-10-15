@@ -8,6 +8,7 @@
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, px, disc, skyTexture, parallaxWidth, signGrid,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addFlag, fitSkyAuto,
 } from './kit.js';
 import { shelfGrid, checkoutGrid, makeCartCorral } from '../props/grocery.js';
 import { cartGrid } from '../props/labParts.js';
@@ -247,11 +248,39 @@ const hangSignGrid = (label, bg, fg) => () => {
 
 // --------------------------------------------------------------------------- battle
 
+/** Giant inflatable Beast mascot balloon (round blue panther head with ears, eyes, grin and a logo sash). */
+const mascotGrid = () => {
+  const g = new VoxGrid();
+  const R = 13;
+  for (let x = -R; x <= R; x++) for (let y = -R; y <= R; y++) for (let z = -R; z <= R; z++) {
+    const d = Math.hypot(x / 1.05, y, z / 0.9);
+    if (d > R) continue;
+    let c = y > 6 && x < -3 ? 0x6ad0ff : y < -8 ? 0x1477c9 : 0x29b6f6;
+    if (z > 7 && y < -1 && y > -7 && Math.abs(x) < 7 && Math.hypot(x / 7, (y + 4) / 4) < 1) c = y > -3 ? 0xffffff : 0x15121f; // grin
+    if (z > 9 && y > 1 && y < 7 && (Math.abs(x - 5) < 3 || Math.abs(x + 5) < 3)) c = (y > 4 && Math.abs(Math.abs(x) - 4.5) < 1) ? 0x15121f : 0xffffff; // eyes
+    g.set(x, y, z, c);
+  }
+  for (const sx of [-1, 1]) for (let y = 0; y < 8; y++) g.box(sx * 9 - 2 + Math.round(y * 0.3 * sx), R - 2 + y, -2, sx * 9 + 2 - Math.round(y * 0.3 * -sx) - y * 0, R - 2 + y, 2, y > 5 ? 0xff2e88 : 0x29b6f6);
+  for (let x = -R - 1; x <= R + 1; x++) for (let z = -R; z <= R; z++) { const d = Math.hypot(x / 1.05, z / 0.9); if (d <= R + 0.5 && d > R - 1.5) g.set(x, -10, z, 0xff2e88); }
+  return g;
+};
+/** Floor-scrubber robot (faces +z). */
+const scrubBotGrid = () => {
+  const g = new VoxGrid();
+  g.box(-5, 1, -6, 4, 7, 5, (x, y) => (y === 7 ? 0xffffff : y === 4 ? 0x29b6f6 : 0xf4f6fa));
+  g.box(-3, 8, -2, 2, 10, 3, 0xd8dee8).box(-2, 9, 4, 1, 9, 4, 0x6fd8ff, true);
+  g.box(-6, 0, -4, -6, 2, -1, 0x22222c).box(5, 0, -4, 5, 2, -1, 0x22222c);
+  g.set(0, 11, 0, 0xffd23f, true);
+  text(g, 'BEAST', 0, 2, 6, '+z', 0xff2e88, { center: true });
+  return g;
+};
+
 export function buildBattle(K) {
   // ---- "sky" fallback: the store's far interior (ceiling + back wall) in case anything peeks through
   const sky = skyTexture('mart', [[0, 0x6a7486], [0.3, 0x9aa4b4], [0.38, 0xe4e8ee], [1, 0xdfe4ec]], (ctx, w, h) => {
     for (let y = 4; y < h * 0.32; y += 5) px(ctx, 0, y, w, 1, 0xd8e4f0);
   });
+  fitSkyAuto(K, sky);
 
   // ---- parallax: ever deeper aisles and the back wall of the megastore
   const w1 = parallaxWidth(-160);
@@ -418,36 +447,43 @@ export function buildBattle(K) {
   {
     const lanes = [[-10.8, 3], [-5.6, 4]];
     for (const [x, n] of lanes) K.mesh('checkout' + n, () => checkoutGrid(n), { scale: 0.1, ao: true }, x, 0, -7.2, 0, 1, { shadow: true });
-    const boxGeo = new THREE.BoxGeometry(0.22, 0.2, 0.26);
+    const kinds = [
+      (c) => { const g = new VoxGrid(); g.box(-2, 0, -1, 1, 4, 1, c).box(-2, 2, 2, 1, 3, 2, 0xffffff).set(-1, 4, 2, 0xffd23f); return g; }, // cereal box
+      (c) => { const g = new VoxGrid(); g.cylinder(-0.5, -0.5, 0, 3, 1.4, (x, y) => (y === 3 ? 0xd0d6e0 : y === 1 ? 0xffffff : c)); return g; }, // soda can
+      (c) => { const g = new VoxGrid(); g.box(-1, 0, -1, 1, 3, 1, 0xf4f6fa).box(-1, 1, 2, 1, 2, 2, c).box(0, 4, 0, 0, 4, 0, c); return g; }, // milk jug
+      (c) => { const g = new VoxGrid(); g.box(-2, 0, -1, 1, 3, 0, c).box(-2, 4, -1, 1, 4, 0, shade(c, -0.2)).box(-1, 1, 1, 0, 2, 1, 0xffd23f); return g; }, // chips
+    ];
     const items = [];
-    lanes.forEach(([x], li) => {
-      for (let i = 0; i < 5; i++) {
-        const m = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({ color: PROD[(i * 3 + li) % PROD.length] }));
-        m.userData = { x0: x - 1.1, o: i / 5 };
-        m.position.set(0, 1.08, -7.2 - 0.06);
-        m.castShadow = true;
-        K.add(m);
-        items.push(m);
+    const ims = kinds.map((fn, k) => liveInstances(K, 'checkoutItem' + k, () => fn(PROD[(k * 3 + 1) % PROD.length]), { scale: 0.06, ao: true }, 3));
+    lanes.forEach(([x], li) => { for (let i = 0; i < 5; i++) items.push({ k: (i + li) % 4, x0: x - 1.1, o: i / 5 }); });
+    const used = [0, 0, 0, 0];
+    for (const it of items) it.slot = used[it.k]++;
+    K.onUpdate((dt, t) => {
+      for (const it of items) {
+        const k = (t * 0.12 + it.o) % 1;
+        setInstance(ims[it.k], it.slot, it.x0 + k * 1.45, 0.98, -7.26, 0.3 + it.o * 3, 0, 0, k < 0.96 ? 1 : 0.0001);
       }
+      for (const im of ims) im.instanceMatrix.needsUpdate = true;
     });
-    K.onUpdate((dt, t) => { for (const m of items) { const k = (t * 0.12 + m.userData.o) % 1; m.position.x = m.userData.x0 + k * 1.45; m.visible = k < 0.96; } });
   }
   K.mesh('pyramid', pyramidGrid, { scale: 0.1, ao: true }, 0.8, 0, -9.4, 0.2, 1, { shadow: true });
   // balloons bobbing over the promo
   {
-    const bGeo = new THREE.SphereGeometry(0.28, 10, 8);
-    const balloons = [];
-    for (let i = 0; i < 5; i++) {
-      const b = new THREE.Mesh(bGeo, new THREE.MeshPhongMaterial({ color: [C.pink, C.blue, C.yellow, C.green, C.purple][i], shininess: 80 }));
-      b.scale.set(1, 1.2, 1);
-      b.userData = { x: -1.2 + i * 0.55, y: 3.4 + (i % 2) * 0.35, o: i * 1.3 };
-      K.add(b);
-      balloons.push(b);
-    }
-    const strGeo = new THREE.BoxGeometry(0.015, 1.6, 0.015);
-    const strMat = new THREE.MeshBasicMaterial({ color: 0xd0d0d0 });
-    for (const b of balloons) { const s = new THREE.Mesh(strGeo, strMat); s.position.y = -1.0; b.add(s); }
-    K.onUpdate((dt, t) => { for (const b of balloons) { const u = b.userData; b.position.set(u.x + Math.sin(t * 0.9 + u.o) * 0.08, u.y + Math.sin(t * 1.3 + u.o) * 0.12, -9.6); b.rotation.z = Math.sin(t * 0.9 + u.o) * 0.08; } });
+    const cols = [C.pink, C.blue, C.yellow, C.green, C.purple];
+    const balloons = cols.map((c, i) => K.mesh('vballoon' + i, () => {
+      const g = new VoxGrid();
+      g.ellipsoid(0, 16, 0, 3.4, 4.2, 3.4, (x, y, z) => (x < -1 && y > 17 ? shade(c, 0.35) : y < 13 ? shade(c, -0.15) : c));
+      g.set(0, 11, 0, shade(c, -0.25)).set(-1, 11, 0, shade(c, -0.25));
+      for (let y = 0; y < 11; y++) g.set(Math.round(Math.sin(y * 0.6) * 0.6), y, 0, 0xd8d8e0);
+      return g;
+    }, { scale: 0.075, pivot: [0, 0, 0] }, 0, 0, 0));
+    K.onUpdate((dt, t) => {
+      for (let i = 0; i < 5; i++) {
+        const b = balloons[i];
+        b.position.set(-1.2 + i * 0.55 + Math.sin(t * 0.9 + i * 1.3) * 0.08, 2.4 + (i % 2) * 0.35 + Math.sin(t * 1.3 + i * 1.3) * 0.12, -9.6);
+        b.rotation.z = Math.sin(t * 0.9 + i * 1.3) * 0.08;
+      }
+    });
   }
   // TV wall with animated screens
   {
@@ -533,6 +569,58 @@ export function buildBattle(K) {
     return g;
   }, { scale: 0.08, ao: true }, [[-7.4, 0, 4.2, 0.4], [13.2, 0, 5.6, -0.6]], { receive: false });
 
+
+  // ---- postcard extras: the giant inflatable Beast mascot, hanging promo banners, a floor-scrubber bot, a delivery drone
+  {
+    const mascot = K.mesh('mascot', mascotGrid, { scale: 0.1, pivot: 'center' }, -11, 7.6, -30);
+    K.inst('mascotTether', () => new VoxGrid().box(0, 0, 0, 0, 30, 0, 0x8a94a6), { scale: 0.1 }, [[-12.4, 8.4, -30], [-9.6, 8.4, -30]]);
+    K.onUpdate((dt, t) => { mascot.rotation.y = Math.sin(t * 0.25) * 0.5; mascot.position.y = 7.6 + Math.sin(t * 0.8) * 0.12; mascot.rotation.z = Math.sin(t * 0.6) * 0.04; });
+  }
+  {
+    const pats = [
+      (u, v) => (v < 2 || v > 13 ? C.yellow : u === 0 || u === 7 ? C.yellow : C.red),
+      (u, v) => (v < 2 || v > 13 ? C.white : (u + v) % 4 < 2 ? C.blue : C.blueD),
+      (u, v) => (v < 2 || v > 13 ? C.white : C.pink),
+    ];
+    const spots = [[-17.5, -18, 0], [-6.2, -22, 1], [6.2, -22, 2], [17.5, -18, 1], [-12, -30, 2], [12, -30, 0]];
+    spots.forEach(([x, z, k], i) => {
+      addFlag(K, { id: 'banner' + i, x, y: 8.4, z, ry: 0, w: 8, h: 16, vox: 0.12, pattern: pats[k], pole: false, speed: 1.4, amp: 0.05, phase: i });
+    });
+  }
+  {
+    const bot = K.mesh('scrubBot', scrubBotGrid, { scale: 0.07, ao: true }, 0, 0, -11.6, 0, 1, { shadow: true });
+    const brush = K.mesh('scrubBrush', () => new VoxGrid().box(-5, 0, -5, 4, 0, 4, (x, z) => ((x + z) & 1 ? 0xffd23f : 0xff8a2a)), { scale: 0.07, pivot: 'center' }, 0, 0.04, -11.6);
+    K.onUpdate((dt, t) => {
+      const k = (t * 0.035) % 2, dir = k < 1 ? 1 : -1, u = k < 1 ? k : 2 - k;
+      const x = -24 + u * 48;
+      bot.position.x = x; brush.position.x = x + dir * 0.45;
+      bot.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      brush.rotation.y = t * 9;
+    });
+    addSparkles(K, { id: 'floorShine', n: 14, area: [-24, 24, 0.02, 0.04, -12.4, -10.8], color: 0xffffff, scale: 0.06, rate: 0.8, sharp: 5, seed: 7 });
+  }
+  {
+    const drone = new THREE.Group();
+    K.mesh('delDrone', () => {
+      const g = new VoxGrid();
+      g.box(-3, 0, -3, 2, 1, 2, 0xffd23f).box(-2, -4, -2, 1, -1, 1, C.cardboard).box(-2, -3, 2, 1, -2, 2, C.pink);
+      for (const [x, z] of [[-6, -6], [5, -6], [-6, 5], [5, 5]]) { g.line(x < 0 ? -3 : 2, 1, z < 0 ? -3 : 2, x, 1, z, 0x3d4352); g.box(x - 2, 2, z, x + 2, 2, z, 0x3d4352); }
+      g.set(-6, 0, 5, 0xff3060, true).set(5, 0, 5, 0x30ff80, true);
+      return g;
+    }, { scale: 0.07, pivot: [0, 0, 0], ao: true }, 0, 0, 0, 0, 1, { parent: drone });
+    K.add(drone);
+    K.onUpdate((dt, t) => {
+      const k = (t * 0.05) % 1;
+      drone.position.set(-30 + k * 60, 5.6 + Math.sin(t * 2) * 0.12, -14 + Math.sin(k * Math.PI * 2) * 2);
+      drone.rotation.y = Math.PI / 2 + Math.sin(t) * 0.1;
+    });
+  }
+  blinkInst(K, 'openSign', () => {
+    const g = new VoxGrid();
+    text(g, 'OPEN 24/7', 0, 0, 0, '+z', 0xff4fa3, { center: true, glow: true });
+    return g;
+  }, { scale: 0.09 }, [[-14.2, 4.2, -22.6]], { groups: 1, mode: 'twinkle', rate: 0.3, duty: -0.85 });
+  K.mesh('openBoard', () => new VoxGrid().box(-18, -2, 0, 17, 6, 0, 0x1a1626), { scale: 0.09, pivot: [0, 0, 0] }, -14.2, 4.2, -22.75);
 
   return {
     sky,

@@ -168,6 +168,12 @@
     linear-gradient(rgba(20, 24, 70, 0.0), rgba(12, 16, 54, 0.88) 18%, rgba(8, 12, 40, 0.95));
   box-shadow: 0 calc(var(--px) * -1) 0 rgba(255, 255, 255, 0.08);
 }
+/* hazard-striped lip + steel rivets along the top of the lab console */
+.bh-deck::after {
+  content: ''; position: absolute; left: calc(var(--u) * 1.2); right: calc(var(--u) * 1.2); top: calc(var(--u) * 0.9 - var(--px) * 3); height: calc(var(--px) * 2); z-index: -1; pointer-events: none; opacity: 0.8;
+  background: var(--tx-hazard) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)); box-shadow: 0 var(--px) 0 var(--ink), 0 calc(var(--px) * -1) 0 var(--ink);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
 /* blueprint grid behind the hand, fading in from the top */
 .bh-deck::before {
   content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0.7;

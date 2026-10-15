@@ -22,19 +22,26 @@
 // Layout (x east, z south / toward the default camera): beach + dock + lighthouse in the south, the road
 // zig-zags north through the zones (heights 1 -> 23), the river runs from the summit lagoon over a tall
 // waterfall down to the south beach (two bridges), peaks + the giant panther monument guard the summit.
+// Past the Paradise summit the road crosses a jungle isthmus into the NORTHERN WILDS (a second big
+// landmass across Shipwreck Bay): the Lost Jungle Temple in a waterfall valley, the Laser Maze Vault on the
+// east cliffs, the Haunted Mansion hill, the TeamSeas Reef on the bay shore, the Volcano Forge on the flank
+// of a smoking volcano (crater lake + lava river) and, floating high above it all on a space-elevator
+// tether, the Zero-G Space Station.
 import * as THREE from 'three';
 import { makeArenaZone } from '../arenas/index.js';
 import { Mats } from '../../core/voxel.js';
 import { instanced } from '../props/common.js';
 import { mulberry32, clamp } from '../../core/util.js';
-import { buildTerrain, MAT, VY, X0, Z0, NX, CS } from './terrain.js';
-import { makeOcean, makeRiver, lagoonTexture, columnWater } from './water.js';
+import { buildTerrain, MAT, VY, X0, Z0, NX, NZ, CS } from './terrain.js';
+import { makeOcean, makeRiver, lagoonTexture, lavaLakeTexture, columnWater } from './water.js';
 import { makeSky, Billboards, makeDistantIslands, HORIZON } from './sky.js';
 import * as P from './props.js';
 
-export const ZONE_ORDER = ['lab', 'circle', 'factory', 'mart', 'redlight', 'antarctica', 'reactor', 'pyramid', 'island'];
+export const ZONE_ORDER = ['lab', 'circle', 'factory', 'mart', 'redlight', 'antarctica', 'reactor', 'pyramid', 'island', 'jungle', 'laser', 'haunted', 'reef', 'volcano', 'space'];
 
 // Zone layout: plinth top height y, plateau radius rp, blend width rb.
+// Optional: cam [dx, dz] (direction from the zone toward its camera), pitch (deg), ground (terrain
+// height under a floating zone).
 const ZONES = [
   { id: 'lab', name: 'BEAST LAB', trophies: 0, color: 0x29b6f6, x: -30, z: 50, y: 1.0, rp: 10, rb: 8 },
   { id: 'circle', name: 'THE CIRCLE', trophies: 300, color: 0xff4a4a, x: 10, z: 44, y: 3.0, rp: 10, rb: 6 },
@@ -45,15 +52,36 @@ const ZONES = [
   { id: 'reactor', name: 'REACTOR', trophies: 2300, color: 0x7cff3a, x: -44, z: -30, y: 16.0, rp: 10, rb: 4 },
   { id: 'pyramid', name: 'LOST PYRAMID', trophies: 2800, color: 0xffb84a, x: -6, z: -40, y: 19.0, rp: 10, rb: 4 },
   { id: 'island', name: 'PARADISE', trophies: 3400, color: 0x3ff2c8, x: 38, z: -44, y: 23.0, rp: 14, rb: 3 },
+  // ---- the Northern Wilds
+  { id: 'jungle', name: 'JUNGLE TEMPLE', trophies: 4000, color: 0x5fdc4a, x: 68, z: -100, y: 13.0, rp: 10, rb: 5 },
+  { id: 'laser', name: 'LASER VAULT', trophies: 4600, color: 0xff3d55, x: 100, z: -132, y: 21.0, rp: 10, rb: 4 },
+  { id: 'haunted', name: 'HAUNTED HILL', trophies: 5200, color: 0xb05cff, x: 56, z: -164, y: 27.0, rp: 10, rb: 4 },
+  { id: 'reef', name: 'TEAMSEAS REEF', trophies: 5800, color: 0x29e0ff, x: 4, z: -108, y: 3.0, rp: 10, rb: 5 },
+  { id: 'volcano', name: 'VOLCANO FORGE', trophies: 6500, color: 0xff6a1f, x: -30, z: -146, y: 33.0, rp: 10, rb: 4, cam: [0.47, 0.88] },
+  { id: 'space', name: 'SPACE STATION', trophies: 7200, color: 0x8f9bff, x: 12, z: -182, y: 64.0, ground: 37.0, rp: 9, rb: 4, pitch: 26 },
 ];
-// Trophy road control points (passes through every zone centre).
+// Trophy road control points (passes through every zone centre, in trophy order).
 const ROAD = [
   [-30, 50], [-12, 53], [10, 44], [24, 40], [36, 36], [50, 26], [56, 12], [42, -4], [30, 2], [16, 6], [2, 12],
   [-12, 20], [-28, 16], [-46, 8], [-55, -8], [-54, -20], [-44, -30], [-32, -42], [-18, -36], [-6, -40], [6, -50], [20, -52], [38, -44],
+  // over the isthmus into the Northern Wilds
+  [52, -52], [62, -62], [67, -76], [66, -90], [68, -100],
+  [80, -106], [91, -116], [100, -132],
+  [98, -146], [86, -158], [70, -166], [56, -164],
+  [44, -156], [34, -142], [24, -126], [14, -112], [4, -108],
+  [-8, -114], [-18, -124], [-26, -136], [-30, -146],
+  [-22, -160], [-8, -172], [4, -180], [12, -182],
 ];
 const RIVER = [[28, -38], [27, -33], [26, -28.5], [24.5, -23], [21.5, -17], [19.5, -10], [21, -3], [24.5, 3], [25, 10], [22.5, 17], [25, 24], [30, 30], [29.5, 38], [31, 46], [29, 54], [31.5, 62], [33, 70], [34, 80]];
-const BASINS = [[24.5, -21.5, 9.5, 6, 3]];
+const JUNGLE_RIVER = [[72, -150], [75, -140], [79, -128], [85, -116], [90, -104], [96, -95], [104, -89], [114, -85]];
+const LAVA_RIVER = [[-44, -172], [-47, -163], [-51, -152], [-56, -140], [-61, -128], [-66, -116], [-72, -104]];
+const BASINS = [[24.5, -21.5, 9.5, 6, 3], [72, -150, 24.5, 4.6, 3]];
 const LAGOON = [28, -38, 4.4, 22.5];
+const LAGOONS = [
+  { x: LAGOON[0], z: LAGOON[1], r: LAGOON[2], y: LAGOON[3] },
+  { x: 72, z: -150, r: 3.2, y: 24.5 }, // jungle river spring
+  { x: -44, z: -172, r: 4.8, y: 44, lava: true, rim: true }, // volcano crater lake
+];
 const BIOMES = [
   { id: 1, x: -46, z: 8, r: 24, mat: MAT.SNOW, plaza: [0xe8f2fc, 0xc8dcf0, 0xf6fbff] },
   { id: 2, x: -46, z: -32, r: 22, mat: MAT.ASH, plaza: [0x6a6278, 0x4a4458, 0x7a7288] },
@@ -61,8 +89,28 @@ const BIOMES = [
   { id: 4, x: 52, z: 26, r: 17, mat: MAT.CANDY, plaza: [0xffe0ec, 0xff9ec8, 0xffffff] },
   { id: 5, x: 38, z: -44, r: 22, mat: MAT.LUSH },
   { id: 6, x: 2, z: 12, r: 15, mat: MAT.PASTEL, plaza: [0xffe4ec, 0xf2b8c8, 0xfff2f6] },
+  { id: 7, x: 70, z: -104, r: 30, mat: MAT.JUNGLE, plaza: [0xbcc6a4, 0x98a884, 0xd0d8b8] },
+  { id: 8, x: 102, z: -132, r: 15, mat: MAT.TECH, plaza: [0x9aa4b4, 0x7a8494, 0xb8c2d0] },
+  { id: 9, x: 56, z: -166, r: 24, mat: MAT.SPOOKY, plaza: [0x6a6078, 0x4a4258, 0x7e7490] },
+  { id: 10, x: 2, z: -104, r: 16, mat: MAT.SAND, plaza: [0xf8ecc8, 0xe0cc9c, 0xfff6e2] },
+  { id: 11, x: -40, z: -160, r: 30, mat: MAT.BASALT, plaza: [0x4a4048, 0x2e2830, 0x5c5260] },
+  { id: 12, x: 12, z: -182, r: 13, mat: MAT.TECH, plaza: [0xd8dce8, 0xb0b6c8, 0xeef0f8] },
+  { id: 13, x: 26, z: -132, r: 18, mat: MAT.LUSH },
 ];
-const PEAKS = [[12, -62, 31, 7], [60, -40, 25, 6], [-24, -60, 25, 6], [-62, -42, 23, 7], [-70, 22, 15, 5]];
+const VOLCANO = { x: -44, z: -172 };
+const PEAKS = [
+  [12, -62, 31, 7], [60, -40, 25, 6], [-24, -60, 25, 6], [-62, -42, 23, 7], [-70, 22, 15, 5],
+  // Northern Wilds: the volcano (cone + crater) and the ridge peaks around the lobe
+  [VOLCANO.x, VOLCANO.z, 66, 11, { cone: true, base: 2.6, exp: 1.1, crater: [7, 8], mat: MAT.BASALT, matR: 2.5 }],
+  [90, -180, 30, 7], [30, -200, 26, 7], [-64, -194, 30, 7], [116, -154, 24, 6], [-70, -150, 20, 6],
+];
+// extra landmasses: the north lobe (Northern Wilds) + the jungle isthmus joining it to the summit
+const LOBES = [
+  { x: 26, z: -146, rx: 92, rz: 58, seed: 1.7, cliff: (th) => clamp(0.55 - 0.55 * Math.sin(th) + 0.3 * Math.max(0, Math.cos(th)), 0, 1) },
+  { x: 66, z: -82, rx: 22, rz: 24, seed: 4.1, cliff: () => 0.35 },
+];
+// island centre + extent (overview framing, clouds, boats)
+const CX = 18, CZ = -66;
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const PLINTH_R = (P.PLINTH_A * 0.25);
@@ -81,11 +129,16 @@ export async function makeBeastIsland(opts = {}) {
 
   // ------------------------------------------------------------------ terrain
   const T = buildTerrain({
-    zones: ZONES.map((z) => ({ ...z, plinthR: PLINTH_R })),
-    road: ROAD, river: RIVER, peaks: PEAKS, biomes: BIOMES,
+    // floating zones shape the ground under them at their anchor height
+    zones: ZONES.map((z) => ({ ...z, y: z.ground ?? z.y, plinthR: PLINTH_R })),
+    road: ROAD, peaks: PEAKS, biomes: BIOMES, lobes: LOBES,
     biomeById: Object.fromEntries(BIOMES.map((b) => [b.id, b])),
-    lagoon: LAGOON, riverStartY: LAGOON[3] - 0.35, basins: BASINS,
-    riverWidth: (u) => 1.05 + u * 1.25,
+    rivers: [
+      { pts: RIVER, startY: LAGOON[3] - 0.35, width: (u) => 1.05 + u * 1.25 },
+      { pts: JUNGLE_RIVER, startY: LAGOONS[1].y - 0.35, width: (u) => 0.9 + u * 1.15 },
+      { pts: LAVA_RIVER, startY: LAGOONS[2].y - 0.35, width: (u) => 0.8 + u * 0.7, lava: true },
+    ],
+    lagoons: LAGOONS, basins: BASINS,
     roadHalf: 1.5,
     log: opts.log === 'verbose',
   });
@@ -104,27 +157,34 @@ export async function makeBeastIsland(opts = {}) {
   // ------------------------------------------------------------------ water
   const ocean = makeOcean(T);
   root.add(ocean.mesh);
-  const river = makeRiver(T.river);
-  root.add(river.group);
-  const lagTex = lagoonTexture();
-  const lagCols = [];
-  T.forDisc(LAGOON[0], LAGOON[1], LAGOON[2] * 1.5, (id) => {
-    if (T.mat[id] === MAT.CHANNEL && T.hv[id] * VY <= LAGOON[3] - 0.75) lagCols.push([id % NX, Math.floor(id / NX)]);
+  const rivers = T.rivers.map((samples) => makeRiver(samples, { lava: samples.lava }));
+  for (const rv of rivers) root.add(rv.group);
+  const lagTex = lagoonTexture(), lavaTex = lavaLakeTexture();
+  const lagoons = LAGOONS.map((LG) => {
+    const cols = [];
+    const want = LG.lava ? MAT.LAVACH : MAT.CHANNEL;
+    T.forDisc(LG.x, LG.z, LG.r * 1.5, (id) => {
+      if (T.mat[id] === want && T.hv[id] * VY <= LG.y - 0.75) cols.push([id % NX, Math.floor(id / NX)]);
+    });
+    const mat = new THREE.MeshBasicMaterial({ map: LG.lava ? lavaTex : lagTex });
+    if (LG.lava) mat.color.setScalar(1.3);
+    const m = columnWater(cols, LG.y - 0.32, { X0, Z0, CS }, mat);
+    m.name = LG.lava ? 'craterLake' : 'lagoon';
+    root.add(m);
+    return m;
   });
-  const lagoon = columnWater(lagCols, LAGOON[3] - 0.32, { X0, Z0, CS }, new THREE.MeshBasicMaterial({ map: lagTex }));
-  lagoon.name = 'lagoon';
-  root.add(lagoon);
   updaters.push((dt, t) => {
     ocean.update(t);
-    river.update(dt, t);
+    for (const rv of rivers) rv.update(dt, t);
     lagTex.offset.set(Math.sin(t * 0.3) * 0.08, t * 0.04);
+    lavaTex.offset.set(t * 0.01, Math.sin(t * 0.2) * 0.05);
   });
 
   // ------------------------------------------------------------------ road polyline (final heights)
   const roadDense = T.road;
   const bridges = findBridges(T);
   const roadY = (p, k) => {
-    for (const Z of ZONES) if (Math.hypot(p.x - Z.x, p.z - Z.z) < PLINTH_R - 0.2) return Z.y;
+    for (const Z of ZONES) if (Math.hypot(p.x - Z.x, p.z - Z.z) < PLINTH_R - 0.2) return Z.ground ?? Z.y;
     for (const B of bridges) if (k >= B.k0 && k <= B.k1) return B.deckAt(k);
     return T.heightAt(p.x, p.z);
   };
@@ -171,7 +231,7 @@ export async function makeBeastIsland(opts = {}) {
     const { toNext, dir } = camDir(k);
     const ry = Math.atan2(dir.x, dir.y);
     const look = V(Z.x + toNext.x * 4, Z.y + 0.8, Z.z + toNext.y * 4);
-    const { pos: camPos } = frameCamera(T, look, dir, 46, 50);
+    const { pos: camPos } = frameCamera(T, look, dir, 46, Z.pitch ?? 50);
 
     const group = new THREE.Group();
     group.name = 'zone:' + Z.id;
@@ -338,13 +398,13 @@ export async function makeBeastIsland(opts = {}) {
   // sky clouds orbit over the open sea (never between a zone camera and its arena)
   const skyClouds = [];
   for (let i = 0; i < 16; i++) {
-    skyClouds.push({ a: (i / 16) * Math.PI * 2 + R() * 0.3, r: 112 + R() * 95, y: 26 + R() * 22, w: 26 + R() * 20, f: i % 4, flip: R() < 0.5, sp: 0.004 + R() * 0.004 });
+    skyClouds.push({ a: (i / 16) * Math.PI * 2 + R() * 0.3, r: 205 + R() * 90, y: 30 + R() * 26, w: 30 + R() * 24, f: i % 4, flip: R() < 0.5, sp: 0.003 + R() * 0.003 });
   }
   updaters.push((dt, t) => {
     for (let i = 0; i < skyClouds.length; i++) {
       const C = skyClouds[i];
       const a = C.a + t * C.sp;
-      billboards.set(i, Math.cos(a) * C.r, C.y, Math.sin(a) * C.r, C.w, C.w * 0.5, C.f, 1, C.flip);
+      billboards.set(i, CX + Math.cos(a) * C.r, C.y, CZ + Math.sin(a) * C.r * 1.15, C.w, C.w * 0.5, C.f, 1, C.flip);
     }
     billboards.commit();
   });
@@ -354,6 +414,7 @@ export async function makeBeastIsland(opts = {}) {
   // ------------------------------------------------------------------ landmarks
   const exclude = [];
   addLandmarks({ T, root, updaters, exclude, R });
+  addNorthLandmarks({ T, root, updaters, exclude, R, zones });
   lap('landmarks');
   addRoadside({ T, root, bridges, exclude });
   if (opts.decor !== false) addDecor({ T, root, exclude, R });
@@ -375,7 +436,7 @@ export async function makeBeastIsland(opts = {}) {
     /** Fog range that keeps the island crisp for a camera this far from its target. */
     fogFor: (camDist) => ({ color: HORIZON, near: Math.max(260, camDist * 1.25), far: Math.max(900, camDist * 3.6) }),
     lights: { sky: 0xd8f0ff, ground: 0x8a7a5a, hemi: 1.15, sun: 2.5, sunColor: 0xfff0d6, dir: [34, 62, 44], rim: 0.7, rimColor: 0xa8dcff, shadowExtent: 34 },
-    overview: { camPos: V(2, 172, 150), camLook: V(2, 2, 5) },
+    overview: { camPos: V(CX, 322, CZ + 258), camLook: V(CX, 4, CZ - 4) },
     heightAt: (x, z) => T.heightAt(x, z),
     terrain: T,
     dispose() {
@@ -386,9 +447,10 @@ export async function makeBeastIsland(opts = {}) {
       for (const m of terrainMats) m.dispose();
       ocean.mesh.geometry.dispose();
       ocean.mesh.material.dispose();
-      river.group.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.dispose(); } });
-      lagoon.geometry.dispose();
+      for (const rv of rivers) rv.group.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.dispose(); } });
+      for (const m of lagoons) { m.geometry.dispose(); m.material.dispose(); }
       lagTex.dispose();
+      lavaTex.dispose();
     },
   };
 }
@@ -397,9 +459,11 @@ export async function makeBeastIsland(opts = {}) {
 function camDir(k) {
   const Z = ZONES[k], next = ZONES[k + 1], prev = ZONES[k - 1];
   const toNext = next ? new THREE.Vector2(next.x - Z.x, next.z - Z.z).normalize() : new THREE.Vector2(Z.x - prev.x, Z.z - prev.z).normalize();
+  if (Z.cam) return { toNext, dir: new THREE.Vector2(Z.cam[0], Z.cam[1]).normalize() };
   return { toNext, dir: toNext.clone().multiplyScalar(-0.62).add(new THREE.Vector2(0.1, 0.62)).normalize() };
 }
-const summitDir = () => camDir(ZONES.length - 1).dir;
+const SUMMIT = ZONE_ORDER.indexOf('island');
+const summitDir = () => camDir(SUMMIT).dir;
 
 // ---------------------------------------------------------------------------
 // Camera framing: pitch up until the line of sight clears the terrain.
@@ -520,7 +584,7 @@ function addLandmarks({ T, root, updaters, exclude }) {
   root.add(lh);
   exclude.push([lx, lz, 3.5]);
   // --- giant panther head monument behind the summit arena, facing its camera
-  const S8 = ZONES[8], sd = summitDir();
+  const S8 = ZONES[SUMMIT], sd = summitDir();
   const hx = S8.x - sd.x * 14, hz = S8.z - sd.y * 14;
   const head = P.mesh(P.geo('pantherHead', P.pantherHeadGrid, 0.25, 'bottom'), { receive: true });
   head.position.set(hx, T.minHeight(hx, hz, 3) - 1.2, hz);
@@ -555,6 +619,275 @@ function addLandmarks({ T, root, updaters, exclude }) {
 }
 
 // ---------------------------------------------------------------------------
+// Northern Wilds landmarks + life: shipwreck, volcano smoke + lava spatter + steam, the space elevator,
+// giant jungle trees + parrots, the haunted tree + mist + bats + ghosts, comms tower + helicopter,
+// reef corals, trash booms, floating trash and the cleanup boats.
+
+const _o = new THREE.Object3D();
+_o.rotation.order = 'YXZ';
+const setM = (im, i, x, y, z, ry = 0, rx = 0, rz = 0, s = 1) => {
+  _o.position.set(x, y, z);
+  _o.rotation.set(rx, ry, rz);
+  _o.scale.setScalar(s);
+  _o.updateMatrix();
+  im.setMatrixAt(i, _o.matrix);
+};
+function liveIM(geo, n, o = {}) {
+  const im = new THREE.InstancedMesh(geo, o.mats ?? Mats.pair, n);
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.frustumCulled = false;
+  im.castShadow = !!o.shadow;
+  return im;
+}
+/** Flapping flyers circling around points: list of { cx, cy, cz, r, sp, ph, fl }. */
+function addFlyers(root, updaters, bodyGeo, wingGeo, list, name, o = {}) {
+  const bodies = liveIM(bodyGeo, list.length, { shadow: true }), wings = liveIM(wingGeo, list.length * 2, { shadow: true });
+  bodies.name = name;
+  root.add(bodies, wings);
+  const m4 = new THREE.Matrix4(), w4 = new THREE.Matrix4(), rz = new THREE.Matrix4(), ry = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  updaters.push((dt, t) => {
+    list.forEach((G, i) => {
+      const a = G.ph + t * G.sp;
+      p.set(G.cx + Math.cos(a) * G.r, G.cy + Math.sin(t * 0.7 + G.ph) * (o.bob ?? 0.8), G.cz + Math.sin(a) * G.r * (G.squash ?? 1));
+      const heading = Math.atan2(-Math.sin(a) * Math.sign(G.sp), Math.cos(a) * Math.sign(G.sp) * (G.squash ?? 1));
+      e.set(0, heading, -Math.sign(G.sp) * 0.35, 'YXZ');
+      q.setFromEuler(e);
+      m4.compose(p, q, one);
+      bodies.setMatrixAt(i, m4);
+      const flap = Math.sin(t * G.fl + G.ph) * (o.flap ?? 0.55);
+      for (const s of [1, -1]) {
+        w4.makeTranslation(0, o.hinge ?? 0.1, 0);
+        w4.multiply(rz.makeRotationZ(s * flap));
+        if (s < 0) w4.multiply(ry.makeRotationY(Math.PI));
+        m4.compose(p, q, one).multiply(w4);
+        wings.setMatrixAt(i * 2 + (s > 0 ? 0 : 1), m4);
+      }
+    });
+    bodies.instanceMatrix.needsUpdate = true;
+    wings.instanceMatrix.needsUpdate = true;
+  });
+}
+const flock = (R, cx, cy, cz, n, r0, r1, dir = 1) => Array.from({ length: n }, () => ({ cx: cx + (R() - 0.5) * 6, cy: cy + R() * 4, cz: cz + (R() - 0.5) * 6, r: r0 + R() * (r1 - r0), sp: (0.35 + R() * 0.25) * dir, ph: R() * 6.28, fl: 7 + R() * 4 }));
+
+function addNorthLandmarks({ T, root, updaters, exclude, R }) {
+  const Zid = (id) => ZONES.find((z) => z.id === id);
+  const dirOf = (id) => camDir(ZONE_ORDER.indexOf(id)).dir;
+  // free ground near (x, z): land, off the road + rivers, clear of the plinths
+  const spot = (x, z, clear = 3, maxR = 16) => {
+    for (let r = 0; r <= maxR; r += 1) for (let a = 0; a < (r ? 16 : 1); a++) {
+      const px = x + Math.cos((a / 16) * 6.283) * r, pz = z + Math.sin((a / 16) * 6.283) * r;
+      const id = T.colAt(px, pz);
+      if (id < 0 || T.hv[id] < 2 || T.mat[id] === MAT.CHANNEL || T.mat[id] === MAT.LAVACH) continue;
+      if (T.roadD[id] < T.RW + clear || T.riverD[id] < T.riverW[id] + clear) continue;
+      if (ZONES.some((Z) => Math.hypot(px - Z.x, pz - Z.z) < PLINTH_R + clear + 1)) continue;
+      return [px, T.minHeight(px, pz, 1.0), pz];
+    }
+    return null;
+  };
+  const fx = new Billboards(40, { name: 'fxClouds' });
+  root.add(fx.mesh);
+  const fxUpd = [];
+  updaters.push((dt, t) => { for (const u of fxUpd) u(t); fx.commit(); });
+
+  // ---- shipwreck run aground in Shipwreck Bay
+  const ws = [[-30, -83], [-26, -82], [-34, -84], [-20, -82], [-38, -86]].find(([x, z]) => T.maxHeight(x, z, 7) === 0) ?? [-30, -83];
+  const wreck = P.mesh(P.geo('shipwreck', P.shipwreckGrid, 0.25, 'bottom'), {});
+  wreck.position.set(ws[0], -1.5, ws[1]);
+  wreck.rotation.set(-0.06, 2.2, 0.17, 'YXZ');
+  wreck.name = 'shipwreck';
+  root.add(wreck);
+  exclude.push([ws[0], ws[1], 9]);
+
+  // ---- volcano: smoke plume from the crater, lava spatter, steam where the lava river meets the sea
+  const CL = LAGOONS[2];
+  const puffs = Array.from({ length: 14 }, (_, i) => ({ slot: i, ph: i / 14, sp: 0.04 + R() * 0.02, ox: (R() - 0.5) * 3, oz: (R() - 0.5) * 3, f: i % 4, flip: R() < 0.5 }));
+  puffs.forEach((p, i) => fx.setTint(p.slot, i % 3 ? 0x8a8494 : 0x6a6474));
+  fxUpd.push((t) => {
+    for (const p of puffs) {
+      const k = (t * p.sp + p.ph) % 1;
+      const drift = k * k * 24, w = 6 + k * 18;
+      fx.set(p.slot, CL.x + p.ox + drift, CL.y + 3 + k * 36, CL.z + p.oz - drift * 0.35, w, w * 0.6, p.f, k < 0.1 ? k / 0.1 : 1 - Math.max(0, (k - 0.55) / 0.45), p.flip);
+    }
+  });
+  const mouth = LAVA_RIVER[LAVA_RIVER.length - 1];
+  const steam = Array.from({ length: 5 }, (_, i) => ({ slot: 14 + i, ph: i / 5, f: (i + 1) % 4 }));
+  steam.forEach((p) => fx.setTint(p.slot, 0xf4f8ff));
+  fxUpd.push((t) => {
+    for (const p of steam) {
+      const k = (t * 0.12 + p.ph) % 1;
+      fx.set(p.slot, mouth[0] + 2 + k * 4, 0.5 + k * 10, mouth[1] + 1 + Math.sin(p.ph * 9) * 2, 3 + k * 7, (3 + k * 7) * 0.6, p.f, 1 - k, false);
+    }
+  });
+  const spatMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  spatMat.color.setRGB(2.3, 0.9, 0.25);
+  const spat = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), spatMat, 22);
+  spat.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  spat.frustumCulled = false;
+  root.add(spat);
+  const sp = Array.from({ length: 22 }, () => ({ a: R() * 6.28, r: R() * 3.4, ph: R(), up: 3 + R() * 6, out: 1 + R() * 2.5 }));
+  updaters.push((dt, t) => {
+    sp.forEach((b, i) => {
+      const k = (t * 0.55 + b.ph) % 1;
+      const s = k < 0.85 ? 1 : 0.001;
+      setM(spat, i, CL.x + Math.cos(b.a) * (b.r + k * b.out), CL.y - 0.3 + Math.sin(k * Math.PI) * b.up, CL.z + Math.sin(b.a) * (b.r + k * b.out), k * 6, k * 4, 0, s * (1 - k * 0.6));
+    });
+    spat.instanceMatrix.needsUpdate = true;
+  });
+
+  // ---- space elevator: anchor pad, lattice tether, climber pods, energy rings, orbiting satellites
+  const S = Zid('space');
+  const gy = T.heightAt(S.x, S.z);
+  const anchor = P.mesh(P.geo('elevAnchor', P.elevatorAnchorGrid, 0.25, 'bottom'), { receive: true });
+  anchor.position.set(S.x, gy - 0.22, S.z);
+  anchor.name = 'elevatorAnchor';
+  root.add(anchor);
+  const top = S.y - 6.2, base = gy + 0.4, segH = 3;
+  const nSeg = Math.ceil((top - base) / segH);
+  const tether = instanced(P.geo('tetherSeg', P.tetherSegGrid, 0.25, 'bottom'), Array.from({ length: nSeg }, (_, i) => [S.x, base + i * segH, S.z, 0, 1]), { shadow: true });
+  tether.name = 'elevatorTether';
+  root.add(tether);
+  const pods = liveIM(P.geo('climber', P.climberGrid, 0.25, 'bottom'), 2, { shadow: true });
+  root.add(pods);
+  const rings = liveIM(P.geo('beamRing', P.beamRingGrid, 0.25, 'center'), 6);
+  root.add(rings);
+  const sats = liveIM(P.geo('satellite', P.satelliteGrid, 0.2, 'center'), 3, { shadow: true });
+  root.add(sats);
+  updaters.push((dt, t) => {
+    for (let i = 0; i < 2; i++) {
+      const u = (Math.sin(t * 0.12 + i * Math.PI) + 1) / 2;
+      setM(pods, i, S.x + (i ? 0.9 : -0.9), base + 2 + u * (top - base - 5), S.z, i * Math.PI / 2);
+    }
+    pods.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < 6; i++) {
+      const u = ((t * 0.22 + i / 6) % 1);
+      setM(rings, i, S.x - 0.12, base + 1 + u * (top - base - 1), S.z - 0.12, t, 0, 0, 0.8 + Math.sin(u * Math.PI) * 0.6);
+    }
+    rings.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < 3; i++) {
+      const a = t * (0.08 + i * 0.03) + i * 2.1, r = 15 + i * 4;
+      setM(sats, i, S.x + Math.cos(a) * r, S.y + 3 + i * 3 + Math.sin(a * 2) * 1.5, S.z + Math.sin(a) * r, -a, 0.3, Math.sin(t * 0.3 + i) * 0.3);
+    }
+    sats.instanceMatrix.needsUpdate = true;
+  });
+  exclude.push([S.x, S.z, 6]);
+
+  // ---- jungle: giant emergent trees + macaw flocks
+  const J = Zid('jungle');
+  const kap = [];
+  for (const [x, z] of [[J.x - 15, J.z - 14], [J.x + 13, J.z - 19], [J.x - 18, J.z + 6], [J.x + 18, J.z + 9]]) {
+    const p = spot(x, z, 4, 10);
+    if (p && kap.length < 3) { kap.push([p[0], p[1] - 0.3, p[2], R() * 6.28, 0.85 + R() * 0.25]); exclude.push([p[0], p[2], 6]); }
+  }
+  if (kap.length) root.add(Object.assign(instanced(P.geo('kapok', () => P.kapokGrid(2), 0.3, 'bottom'), kap, { shadow: true, receive: true }), { name: 'kapokTrees' }));
+  const parrotCols = [0xe8343c, 0x29b6f6, 0x5fdc4a];
+  parrotCols.forEach((c, k) => addFlyers(root, updaters, P.geo('parrotB' + k, () => P.parrotBodyGrid(c), 0.07, 'center'), P.geo('parrotW' + k, () => P.parrotWingGrid(c), 0.07, [0, 0, 0]),
+    flock(R, J.x + (k - 1) * 8, J.y + 13 + k * 2, J.z - 6, 3, 5, 10, k & 1 ? -1 : 1), 'parrots'));
+
+  // ---- haunted hill: giant dead tree, low lavender mist, bats, ghosts
+  const Hh = Zid('haunted'), hd = dirOf('haunted');
+  const tp = spot(Hh.x - hd.x * 15, Hh.z - hd.y * 15, 3, 10);
+  if (tp) {
+    const tree = P.mesh(P.geo('spookyGiant', P.spookyGiantGrid, 0.2, 'bottom'), {});
+    tree.position.set(tp[0], tp[1] - 0.2, tp[2]);
+    tree.rotation.y = Math.atan2(hd.x, hd.y);
+    tree.scale.setScalar(1.35);
+    tree.name = 'hauntedTree';
+    root.add(tree);
+    exclude.push([tp[0], tp[2], 5]);
+  }
+  const mist = Array.from({ length: 16 }, (_, i) => ({ slot: 19 + i, a: (i / 16) * 6.28 + R() * 0.3, r: 12 + R() * 7, y: Hh.y - 1.2 + R() * 1.6, w: 7 + R() * 4, f: i % 4, flip: R() < 0.5, ph: R() * 6 }));
+  mist.forEach((m, i) => fx.setTint(m.slot, i & 1 ? 0xc8b8e8 : 0xa898d0));
+  fxUpd.push((t) => {
+    for (const m of mist) {
+      const a = m.a + t * 0.025;
+      fx.set(m.slot, Hh.x + Math.cos(a) * m.r, m.y + Math.sin(t * 0.4 + m.ph) * 0.3, Hh.z + Math.sin(a) * m.r, m.w, m.w * 0.4, m.f, 0.75 + Math.sin(t * 0.3 + m.ph) * 0.2, m.flip);
+    }
+  });
+  addFlyers(root, updaters, P.geo('batBody', P.batBodyGrid, 0.07, 'center'), P.geo('batWing', P.batWingGrid, 0.07, [0, 0, 0]),
+    [...flock(R, Hh.x, Hh.y + 9, Hh.z, 6, 4, 9, 1), ...flock(R, Hh.x - 6, Hh.y + 13, Hh.z + 4, 5, 6, 11, -1)], 'bats', { flap: 0.9, bob: 1.4 });
+  const ghosts = liveIM(P.geo('ghost', P.ghostGrid, 0.08, 'bottom'), 4, { shadow: true });
+  root.add(ghosts);
+  updaters.push((dt, t) => {
+    for (let i = 0; i < 4; i++) {
+      const a = t * 0.18 * (i & 1 ? -1 : 1) + i * 1.57, r = 11.5 + i * 1.3;
+      const x = Hh.x + Math.cos(a) * r, z = Hh.z + Math.sin(a) * r;
+      setM(ghosts, i, x, Math.max(Hh.y - 0.5, T.heightAt(x, z)) + 1.2 + Math.sin(t * 1.6 + i) * 0.4, z, -a + (i & 1 ? 0 : Math.PI), 0, Math.sin(t * 2 + i) * 0.12, 1 + (i % 2) * 0.25);
+    }
+    ghosts.instanceMatrix.needsUpdate = true;
+  });
+
+  // ---- laser vault: comms tower on the cliff + a security helicopter circling
+  const Lz = Zid('laser'), ld = dirOf('laser');
+  const cp = spot(Lz.x - ld.x * 14, Lz.z - ld.y * 14, 3, 10);
+  if (cp) {
+    const tower = P.mesh(P.geo('commTower', P.commTowerGrid, 0.2, 'bottom'), {});
+    tower.position.set(cp[0], cp[1] - 0.1, cp[2]);
+    tower.name = 'commTower';
+    root.add(tower);
+    exclude.push([cp[0], cp[2], 3]);
+  }
+  const heli = new THREE.Group();
+  heli.name = 'helicopter';
+  const hb = P.mesh(P.geo('heliBody', P.heliBodyGrid, 0.1, 'bottom'), {});
+  const hr = P.mesh(P.geo('heliRotor', P.heliRotorGrid, 0.1, 'center'), {});
+  hr.position.set(0, 1.15, 0.3);
+  heli.add(hb, hr);
+  root.add(heli);
+  updaters.push((dt, t) => {
+    const a = t * 0.16;
+    heli.position.set(Lz.x + Math.cos(a) * 17, Lz.y + 11 + Math.sin(t * 0.5) * 0.6, Lz.z + Math.sin(a) * 17);
+    heli.rotation.set(0.12, -a, -0.18, 'YXZ');
+    hr.rotation.y = t * 22;
+  });
+
+  // ---- TeamSeas reef: coral heads in the shallows, a trash boom, floating plastic, cleanup boats
+  const Rf = Zid('reef');
+  const corals = [];
+  for (let i = 0; i < 240 && corals.length < 26; i++) {
+    const a = R() * 6.28, r = 10 + R() * 18;
+    const x = Rf.x + Math.cos(a) * r, z = Rf.z + Math.sin(a) * r;
+    if (T.heightAt(x, z) > 0 || T.maxHeight(x, z, 3.5) === 0) continue;
+    corals.push([x, -0.35 + R() * 0.15, z, R() * 6.28, 0.8 + R() * 0.6]);
+  }
+  for (let k = 0; k < 3; k++) {
+    const list = corals.filter((_, i) => i % 3 === k);
+    if (list.length) root.add(instanced(P.geo('coral' + k, () => P.LOWPOLY.coral(k + 1), 0.13, 'bottom'), list, { receive: true }));
+  }
+  const boomPts = [];
+  for (let i = 0; i < 26; i++) {
+    const u = i / 25;
+    boomPts.push([Rf.x - 16 + u * 30, Rf.z + 22 + Math.sin(u * Math.PI) * 4.5]);
+  }
+  const boomOk = boomPts.filter(([x, z]) => T.heightAt(x, z) === 0);
+  const boom = liveIM(P.geo('boom', P.boomGrid, 0.1, 'center'), Math.max(1, boomOk.length));
+  root.add(boom);
+  const trashGeo = [0, 1].map((k) => P.geo('trash' + k, () => P.trashGrid(k + 3), 0.08, 'center'));
+  const trashItems = Array.from({ length: 16 }, () => [Rf.x - 12 + R() * 22, Rf.z + 25 + R() * 6, R() * 6.28]).filter(([x, z]) => T.heightAt(x, z) === 0);
+  const trash = trashGeo.map((g) => { const im = liveIM(g, Math.max(1, trashItems.length)); root.add(im); return im; });
+  const cBoats = [0, 1].map((i) => {
+    const m = P.mesh(P.geo('cleanupBoat', P.cleanupBoatGrid, 0.13, 'bottom'), {});
+    m.name = 'cleanupBoat';
+    root.add(m);
+    return m;
+  });
+  updaters.push((dt, t) => {
+    boomOk.forEach(([x, z], i) => {
+      const n = boomOk[Math.min(boomOk.length - 1, i + 1)], p = boomOk[Math.max(0, i - 1)];
+      setM(boom, i, x, -0.05 + Math.sin(t * 1.4 + i * 0.6) * 0.06, z, Math.atan2(-(n[1] - p[1]), n[0] - p[0]), 0, Math.sin(t * 1.1 + i) * 0.05);
+    });
+    boom.instanceMatrix.needsUpdate = true;
+    trashItems.forEach(([x, z, r], i) => setM(trash[i & 1], i >> 1, x + Math.sin(t * 0.2 + r) * 0.8, -0.02 + Math.sin(t * 1.3 + r * 3) * 0.05, z + Math.cos(t * 0.17 + r) * 0.6, r + t * 0.1));
+    for (const im of trash) im.instanceMatrix.needsUpdate = true;
+    cBoats.forEach((m, i) => {
+      const a = t * 0.05 + i * Math.PI;
+      const x = Rf.x - 2 + Math.cos(a) * 22, z = Rf.z + 30 + Math.sin(a) * 4;
+      m.position.set(x, -0.15 + Math.sin(t * 2 + i) * 0.05, z);
+      m.rotation.set(0, Math.atan2(-Math.sin(a) * 22, Math.cos(a) * 4), Math.sin(t * 1.5 + i) * 0.04, 'YXZ');
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Lamp posts along the trophy road
 function addRoadside({ T, root, bridges, exclude }) {
   const items = [];
@@ -578,31 +911,50 @@ function addRoadside({ T, root, bridges, exclude }) {
 }
 
 // ---------------------------------------------------------------------------
-// Vegetation + scenery scatter (instanced per kind)
+// Vegetation + scenery scatter (instanced per kind, split into a south + north chunk so each can be culled)
+const NORTH_Z = -76;
 function addDecor({ T, root, exclude, R }) {
   const LP = P.LOWPOLY;
   const kinds = {
-    palm: { fn: () => LP.palm(0x4cba3a, 1), s: 0.17, items: [], shadow: true },
-    palm2: { fn: () => LP.palm(0x5fd04a, 2), s: 0.17, items: [], shadow: true },
-    round: { fn: () => LP.round(0x4cba3a, 1), s: 0.24, items: [], shadow: true },
-    round2: { fn: () => LP.round(0x6ad04a, 2), s: 0.24, items: [], shadow: true },
-    sakura: { fn: () => LP.round(0xff9ec8, 3), s: 0.22, items: [], shadow: true },
-    pine: { fn: () => LP.pine(0x3fae4a), s: 0.2, items: [], shadow: true },
-    snowpine: { fn: () => LP.pine(0x3a9a5a, true), s: 0.2, items: [], shadow: true },
-    lolly: { fn: P.lollipopGrid, s: 0.12, items: [], shadow: true },
-    cane: { fn: P.candyCaneGrid, s: 0.11, items: [], shadow: true },
-    cactus: { fn: LP.cactus, s: 0.17, items: [], shadow: true },
-    dead: { fn: P.deadTreeGrid, s: 0.14, items: [], shadow: true },
-    crystal: { fn: P.crystalGrid, s: 0.14, items: [], shadow: false },
-    bush: { fn: () => LP.bush(0x4fb441), s: 0.2, items: [] },
-    pinkbush: { fn: () => LP.bush(0xff8ac0), s: 0.2, items: [] },
-    rock: { fn: () => LP.rock(0x9aa2b4, 1), s: 0.22, items: [], shadow: true },
-    sandrock: { fn: () => LP.rock(0xe0a058, 2), s: 0.22, items: [], shadow: true },
-    darkrock: { fn: () => LP.rock(0x4a4256, 3), s: 0.22, items: [], shadow: true },
-    icerock: { fn: () => LP.rock(0xcfe8fb, 4), s: 0.22, items: [], shadow: true },
-    flowers: { fn: () => LP.flowers(1), s: 0.12, items: [] },
-    flowers2: { fn: () => LP.flowers(2), s: 0.12, items: [] },
-    tuft: { fn: () => LP.tuft(0x4fb441), s: 0.12, items: [] },
+    palm: { fn: () => LP.palm(0x4cba3a, 1), s: 0.17, shadow: true },
+    palm2: { fn: () => LP.palm(0x5fd04a, 2), s: 0.17, shadow: true },
+    round: { fn: () => LP.round(0x4cba3a, 1), s: 0.24, shadow: true },
+    round2: { fn: () => LP.round(0x6ad04a, 2), s: 0.24, shadow: true },
+    sakura: { fn: () => LP.round(0xff9ec8, 3), s: 0.22, shadow: true },
+    pine: { fn: () => LP.pine(0x3fae4a), s: 0.2, shadow: true },
+    snowpine: { fn: () => LP.pine(0x3a9a5a, true), s: 0.2, shadow: true },
+    lolly: { fn: P.lollipopGrid, s: 0.12, shadow: true },
+    cane: { fn: P.candyCaneGrid, s: 0.11, shadow: true },
+    cactus: { fn: LP.cactus, s: 0.17, shadow: true },
+    dead: { fn: P.deadTreeGrid, s: 0.14, shadow: true },
+    crystal: { fn: P.crystalGrid, s: 0.14, shadow: false },
+    bush: { fn: () => LP.bush(0x4fb441), s: 0.2 },
+    pinkbush: { fn: () => LP.bush(0xff8ac0), s: 0.2 },
+    rock: { fn: () => LP.rock(0x9aa2b4, 1), s: 0.22, shadow: true },
+    sandrock: { fn: () => LP.rock(0xe0a058, 2), s: 0.22, shadow: true },
+    darkrock: { fn: () => LP.rock(0x4a4256, 3), s: 0.22, shadow: true },
+    icerock: { fn: () => LP.rock(0xcfe8fb, 4), s: 0.22, shadow: true },
+    flowers: { fn: () => LP.flowers(1), s: 0.12 },
+    flowers2: { fn: () => LP.flowers(2), s: 0.12 },
+    tuft: { fn: () => LP.tuft(0x4fb441), s: 0.12 },
+    // Northern Wilds
+    jungle: { fn: () => LP.jungle(0x2f9a3e, 1), s: 0.22, shadow: true },
+    jungle2: { fn: () => LP.jungle(0x3fb04a, 2), s: 0.2, shadow: true },
+    fern: { fn: () => LP.fern(0x3fae48), s: 0.14 },
+    jbush: { fn: () => LP.bush(0x2f9a3e), s: 0.22 },
+    shroom: { fn: () => LP.mushroom(0xe8343c), s: 0.1 },
+    spooky: { fn: () => LP.spooky(1), s: 0.17, shadow: true },
+    spooky2: { fn: () => LP.spooky(2), s: 0.15, shadow: true },
+    pumpkin: { fn: () => LP.pumpkin(false), s: 0.11, shadow: true },
+    lantern: { fn: () => LP.pumpkin(true), s: 0.11, shadow: true },
+    tomb: { fn: () => LP.tombstone(1), s: 0.12, shadow: true },
+    tomb2: { fn: () => LP.tombstone(3), s: 0.12, shadow: true },
+    purplebush: { fn: () => LP.bush(0x6a4a8a), s: 0.2 },
+    glowshroom: { fn: () => LP.mushroom(0xb05cff), s: 0.1 },
+    obsidian: { fn: () => LP.obsidian(1), s: 0.16, shadow: true },
+    obsidian2: { fn: () => LP.obsidian(2), s: 0.13, shadow: true },
+    basaltrock: { fn: () => LP.rock(0x3a3440, 5), s: 0.24, shadow: true },
+    techrock: { fn: () => LP.rock(0x8e96a4, 6), s: 0.2, shadow: true },
   };
   const table = {
     [MAT.GRASS]: [['round', 0.095], ['round2', 0.08], ['palm', 0.05], ['bush', 0.06], ['rock', 0.04], ['flowers', 0.03], ['flowers2', 0.025], ['tuft', 0.06]],
@@ -614,9 +966,14 @@ function addDecor({ T, root, exclude, R }) {
     [MAT.ASH]: [['dead', 0.1], ['crystal', 0.05], ['darkrock', 0.1]],
     [MAT.CANDY]: [['lolly', 0.16], ['cane', 0.08], ['pinkbush', 0.08], ['sakura', 0.06]],
     [MAT.ROCK]: [['rock', 0.08], ['pine', 0.12], ['bush', 0.05]],
+    [MAT.JUNGLE]: [['jungle', 0.2], ['jungle2', 0.16], ['palm2', 0.05], ['fern', 0.12], ['jbush', 0.1], ['shroom', 0.02], ['flowers2', 0.04]],
+    [MAT.SPOOKY]: [['spooky', 0.1], ['spooky2', 0.08], ['tomb', 0.07], ['tomb2', 0.06], ['pumpkin', 0.05], ['lantern', 0.025], ['purplebush', 0.07], ['glowshroom', 0.02]],
+    [MAT.BASALT]: [['obsidian', 0.07], ['obsidian2', 0.06], ['basaltrock', 0.08], ['dead', 0.05]],
+    [MAT.TECH]: [['techrock', 0.03], ['tuft', 0.02]],
   };
+  const items = {};
   const step = 2.1;
-  for (let x = -88; x < 88; x += step) for (let z = -86; z < 86; z += step) {
+  for (let x = X0 + 2; x < X0 + NX * CS - 2; x += step) for (let z = Z0 + 2; z < Z0 + NZ * CS - 2; z += step) {
     const px = x + (R() - 0.5) * step * 0.9, pz = z + (R() - 0.5) * step * 0.9;
     const id = T.colAt(px, pz);
     if (id < 0) continue;
@@ -625,27 +982,30 @@ function addDecor({ T, root, exclude, R }) {
     if (!tb) continue;
     if (T.roadD[id] < T.RW + 1.0 || T.riverD[id] < T.riverW[id] + 1.0) continue;
     if (ZONES.some((Z) => Math.hypot(px - Z.x, pz - Z.z) < PLINTH_R + 2.6)) continue;
-    if (Math.hypot(px - LAGOON[0], pz - LAGOON[1]) < LAGOON[2] + 1.5) continue;
+    if (LAGOONS.some((LG) => Math.hypot(px - LG.x, pz - LG.z) < LG.r + 1.5)) continue;
     if (exclude.some(([ex, ez, er]) => Math.hypot(px - ex, pz - ez) < er)) continue;
     const y = T.hv[id] * VY;
     if (y < 0.5) continue;
     // only on flat-ish ground (not on a 1-column ledge)
     if (T.minHeight(px, pz, 0.6) < y - 0.6) continue;
+    // the Northern Wilds' open meadows stay a little sparser (keeps the triangle budget in check)
+    if (pz < NORTH_Z && (m === MAT.GRASS || m === MAT.LUSH) && R() < 0.35) continue;
     let r = R();
     for (const [k, p] of tb) {
       if (r < p) {
-        const K = kinds[k];
-        const big = k === 'palm' || k === 'palm2' || k === 'round' || k === 'round2' || k === 'pine' || k === 'snowpine';
-        K.items.push([px, y, pz, R() * Math.PI * 2, (big ? 0.8 + R() * 0.45 : 0.75 + R() * 0.5)]);
+        const big = k === 'palm' || k === 'palm2' || k === 'round' || k === 'round2' || k === 'pine' || k === 'snowpine' || k === 'jungle' || k === 'jungle2';
+        const key = k + (pz < NORTH_Z ? ':n' : ':s');
+        (items[key] ??= []).push([px, y, pz, R() * Math.PI * 2, (big ? 0.8 + R() * 0.45 : 0.75 + R() * 0.5)]);
         break;
       }
       r -= p;
     }
   }
-  for (const [k, K] of Object.entries(kinds)) {
-    if (!K.items.length) continue;
-    const im = instanced(P.geo('d_' + k, K.fn, K.s, 'bottom'), K.items, { shadow: !!K.shadow, receive: true });
-    im.name = 'decor:' + k;
+  for (const [key, list] of Object.entries(items)) {
+    const k = key.split(':')[0];
+    const K = kinds[k];
+    const im = instanced(P.geo('d_' + k, K.fn, K.s, 'bottom'), list, { shadow: !!K.shadow, receive: true });
+    im.name = 'decor:' + key;
     root.add(im);
   }
 }
@@ -655,7 +1015,8 @@ function addDecor({ T, root, exclude, R }) {
 function addLife({ T, root, updaters, R }) {
   // boats
   const boats = [];
-  for (const [kind, rx, rz, sp, ph] of [['speed', 98, 92, 0.07, 0.3], ['sail', 112, 104, -0.03, 2.2], ['tug', 104, 96, 0.04, 4.1], ['speed', 120, 110, -0.05, 5.3]]) {
+  // boats circle the whole (bigger) island, outside the coastline
+  for (const [kind, rx, rz, sp, ph] of [['speed', 128, 160, 0.05, 0.3], ['sail', 140, 172, -0.022, 2.2], ['tug', 134, 166, 0.03, 4.1], ['speed', 146, 178, -0.04, 5.3], ['sail', 130, 168, 0.025, 3.3]]) {
     const m = P.mesh(P.geo('boat_' + kind, () => P.boatGrid(kind), 0.13, 'bottom'), {});
     m.name = 'boat:' + kind;
     root.add(m);
@@ -664,7 +1025,7 @@ function addLife({ T, root, updaters, R }) {
   updaters.push((dt, t) => {
     for (const b of boats) {
       const a = b.ph + t * b.sp;
-      const x = Math.cos(a) * b.rx, z = Math.sin(a) * b.rz;
+      const x = CX + Math.cos(a) * b.rx, z = CZ + Math.sin(a) * b.rz;
       const vx = -Math.sin(a) * b.rx * Math.sign(b.sp), vz = Math.cos(a) * b.rz * Math.sign(b.sp);
       b.m.position.set(x, -0.12 + Math.sin(t * 2 + b.ph) * 0.06, z);
       b.m.rotation.y = Math.atan2(vx, vz);
@@ -672,7 +1033,7 @@ function addLife({ T, root, updaters, R }) {
     }
   });
   // gulls
-  const flocks = [[-30, 9, 60], [-56, 16, 38], [30, 30, -30], [52, 14, 30], [-6, 26, -40]];
+  const flocks = [[-30, 9, 60], [-56, 16, 38], [30, 30, -30], [52, 14, 30], [-6, 26, -40], [-8, 12, -86], [20, 10, -96], [112, 26, -120]];
   const gulls = [];
   flocks.forEach(([x, y, z], f) => {
     for (let i = 0; i < 3; i++) gulls.push({ cx: x + (R() - 0.5) * 6, cy: y + R() * 4, cz: z + (R() - 0.5) * 6, r: 5 + R() * 6, sp: (0.35 + R() * 0.25) * (f % 2 ? -1 : 1), ph: R() * 6.28, fl: 6 + R() * 3 });

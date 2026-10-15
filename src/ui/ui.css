@@ -567,5 +567,5 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
 #ui .tt-start { color: #fff; text-shadow: var(--outline), 0 0 calc(var(--u) * 3) rgba(127, 230, 255, 0.9); }
 
 @media (prefers-reduced-motion: reduce) {
-  .lab-bg::after, .btn.lg::before, .btn.xl::before, .btn.fizz::before, .panel::after, .bar > .fill, .ribbon, .lab-fizz > i, .new-tag, .banner-big::before { animation: none !important; }
+  .lab-bg::after, .btn.lg::before, .btn.xl::before, .btn.fizz::before, .panel::after, .bar > .fill, .ribbon, .lab-fizz > i, .new-tag, .banner-big::before, .px-rays, .px-stars, .btn.shine::after, .btn.pulse, .badge { animation: none !important; }
 }

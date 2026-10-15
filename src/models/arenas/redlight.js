@@ -8,6 +8,8 @@
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, vnoise, mulberry32, text, textW, canvasTex,
   paintGradient, paintClouds, paintSun, px, disc, skyTexture, parallaxWidth,
+  pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx, fitSkyAuto,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, addFlag, tuftGrid,
 } from './kit.js';
 
 const LH = FIELD.LANE_HALF;
@@ -330,14 +332,101 @@ function paintEscher(ctx, w, h, seed, o = {}) {
   }
 }
 
+// --------------------------------------------------------------------------- postcard props
+
+/** Pastel stair-maze tower: stacked blocks with zig-zag stairs climbing the faces, doorways and white rails (0.3 scale). */
+const stairTowerGrid = (seed, H) => () => {
+  const g = new VoxGrid();
+  const R = mulberry32(seed * 101 + 7);
+  const W = 9 + Math.floor(R() * 5), D = 7;
+  let y = 0, k = 0;
+  while (y < H) {
+    const h = 4 + Math.floor(R() * 3), w = W - Math.floor(R() * 3), col = PASTEL[(seed + k) % PASTEL.length], colD = shade(col, -0.14);
+    const x0 = -Math.floor(w / 2) + Math.floor((R() - 0.5) * 3);
+    g.box(x0, y, -D, x0 + w - 1, y + h - 1, 0, (x, yy, z) => (z === 0 ? col : x === x0 || x === x0 + w - 1 ? colD : col));
+    // doorway / window holes on the front
+    if (R() < 0.7) { const dx = x0 + 2 + Math.floor(R() * (w - 5)); g.box(dx, y + 1, 0, dx + 1, y + Math.min(3, h - 2), 0, 0x5a4a6a); g.box(dx, y + 1 + Math.min(3, h - 2), 0, dx + 1, y + 1 + Math.min(3, h - 2), 0, 0xffffff); }
+    // a flight of stairs climbing across the front
+    const dir = k % 2 ? 1 : -1, sx = dir > 0 ? x0 - 1 : x0 + w;
+    for (let s2 = 0; s2 < h; s2++) {
+      const x = sx + dir * (s2 + 0);
+      g.box(x, y, 1, x, y + s2, 2, PASTEL[(seed + k + 2) % PASTEL.length]);
+      g.set(x, y + s2 + 1, 2, 0xffffff);
+    }
+    y += h;
+    k++;
+  }
+  g.box(-2, y, -4, 1, y + 2, -2, 0xffffff);
+  return g;
+};
+
+/** Giant golden piggy bank stuffed with cash (0.12 scale). */
+const piggyGrid = () => {
+  const g = new VoxGrid();
+  const gold = 0xffc21a, goldL = 0xffe680, goldD = 0xc8901a;
+  for (let x = -16; x <= 15; x++) for (let y = 0; y <= 22; y++) for (let z = -11; z <= 10; z++) {
+    const d = ((x + 0.5) / 16) ** 2 + ((y - 12) / 10.5) ** 2 + ((z + 0.5) / 11) ** 2;
+    if (d > 1) continue;
+    const shell = d > 0.8;
+    if (!shell) continue;
+    const window = z > 6 && Math.abs(x) < 9 && y > 7 && y < 16;
+    g.set(x, y, z, window ? (hash3(x, y, z) < 0.5 ? 0x6fcf5f : 0xb8f0a0) : y > 17 && x < 0 ? goldL : y < 6 ? goldD : gold);
+  }
+  for (let x = -6; x <= 5; x++) for (let y = 4; y <= 18; y++) for (let z = -8; z <= 6; z++) if (hash3(x, y, z) < 0.25) g.set(x, y, z, hash3(z, x, y) < 0.5 ? 0x3f8f45 : 0x6fcf5f);
+  // snout, ears, legs, slot, eyes, curly tail
+  g.box(15, 9, -4, 18, 15, 3, gold).box(19, 10, -3, 19, 14, 2, goldL).set(19, 12, -2, goldD).set(19, 12, 1, goldD);
+  for (const z of [-7, 5]) g.box(8, 21, z, 11, 24, z + 1, goldD);
+  for (const [x, z] of [[-10, -7], [-10, 6], [8, -7], [8, 6]]) g.box(x, -3, z - 1, x + 2, 1, z + 1, goldD);
+  g.box(-4, 22, -1, 3, 22, 0, 0x5a3a10);
+  for (const z of [-5, 4]) g.box(12, 15, z, 13, 16, z, 0x15121f);
+  for (let i = 0; i < 6; i++) g.set(-17 - (i % 2), 12 + Math.round(Math.sin(i) * 2), Math.round(Math.cos(i * 1.6) * 1.5), goldD);
+  text(g, '456', 0, 3, 11, '+z', 0xffffff, { center: true });
+  return g;
+};
+
+/** Masked courtyard guard in a pink jumpsuit (circle / triangle / square masks), 0.075 scale. */
+const guardGrid = (k) => () => {
+  const g = new VoxGrid();
+  const suit = 0xff5a8a, suitD = 0xd83a6a, black = 0x1a1622;
+  for (const sx of [-1, 1]) { g.box(sx * 3 - 2, 0, -2, sx * 3 + 1, 2, 2, black); g.box(sx * 3 - 2, 3, -2, sx * 3 + 1, 11, 1, suitD); }
+  g.box(-6, 12, -3, 5, 23, 2, (x, y) => (y === 15 ? black : suit));
+  g.box(-4, 13, 3, 3, 14, 3, suit);
+  for (const sx of [-1, 1]) g.box(sx * 7 - 1, 12, -2, sx * 7, 22, 1, suit).box(sx * 7 - 1, 10, -2, sx * 7, 11, 1, black);
+  g.box(-4, 24, -3, 3, 32, 3, black);
+  g.box(-5, 30, -4, 4, 33, 4, suitD);
+  const sym = [['.###.', '#...#', '#...#', '#...#', '.###.'], ['..#..', '.#.#.', '.#.#.', '#...#', '#####'], ['#####', '#...#', '#...#', '#...#', '#####']][k % 3];
+  sym.forEach((row, r) => [...row].forEach((c, i) => { if (c === '#') g.set(i - 2, 30 - r, 4, 0xffffff); }));
+  return g;
+};
+
+/** Dalgona honeycomb cookie with a pressed shape (lies flat). */
+const dalgonaGrid = (k) => () => {
+  const g = new VoxGrid();
+  for (let x = -6; x <= 5; x++) for (let z = -6; z <= 5; z++) if (Math.hypot(x + 0.5, z + 0.5) <= 6) g.set(x, 0, z, Math.hypot(x + 0.5, z + 0.5) > 5 ? 0xb8742a : 0xd89a40);
+  const S = [['..#..', '.#.#.', '#...#', '.#.#.', '..#..'], ['..#..', '.#.#.', '#...#', '#####', '.....'], ['#.#.#', '.###.', '#####', '.###.', '#.#.#'], ['.###.', '#...#', '#...#', '#...#', '.###.']][k % 4];
+  S.forEach((row, r) => [...row].forEach((c, i) => { if (c === '#') g.set(i - 2, 1, r - 2, 0x8a4a14); }));
+  return g;
+};
+
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
   // ---- sky: bright pastel blue with puffy clouds (the courtyard walls repeat it as a mural)
-  const sky = skyTexture('redlight', [[0, 0x5cb4f0], [0.55, 0x9ad6ff], [1, 0xdaf0ff]], (ctx, w, h) => {
-    paintSun(ctx, w * 0.24, h * 0.16, 6, 0xfff8d8, 0xfff4e0);
-    paintClouds(ctx, w, h, { n: 6, y0: 8, y1: h * 0.42, size: 6, seed: 51, color: 0xffffff, shade: 0xd8e8f8 });
-  });
+  const sky = skyTexture('redlight2', [[0, 0x4a9ae8], [0.35, 0x6cb8f4], [0.62, 0xa8dcff], [0.85, 0xd4eeff], [1, 0xeaf6ff]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    skyGlow(P, w * 0.42, h * 0.2, w * 0.3, h * 0.3, 0xf0faff, 0.6, { bands: 5, pow: 1.5 });
+    paintSunPx(P, Math.round(w * 0.42), Math.round(h * 0.18), 8, { color: 0xfff8d8, core: 0xffffff, halo: 0xe8f6ff, halo2: 0xfffcf0 });
+    paintStreaks(P, w, { n: 8, y0: h * 0.06, y1: h * 0.3, len: [18, 50], color: 0xffffff, shade: 0xd4e8f8, seed: 51, alpha: 0.7 });
+    const puffy = { light: 0xffffff, color: 0xf6faff, shade: 0xc8dcf2, dark: 0xa8c4e4 };
+    paintCumulus(P, w * 0.14, h * 0.28, 15, 31, { ...puffy, sunX: 1 });
+    paintCumulus(P, w * 0.58, h * 0.13, 9, 32, { ...puffy, sunX: -1 });
+    paintCumulus(P, w * 0.86, h * 0.26, 14, 33, { ...puffy, sunX: -1 });
+    paintCumulus(P, w * 0.3, h * 0.42, 7, 34, { ...puffy, sunX: 1 });
+    paintCloudBank(P, w, Math.round(h * 0.6), { s: 9, seed: 35, light: 0xffffff, color: 0xf0f8ff, shade: 0xd0e4f6, dark: 0xc0d8f0, alpha: 0.9 });
+    paintBirdsPx(P, [[w * 0.62, h * 0.3, 1], [w * 0.65, h * 0.27, 1], [w * 0.68, h * 0.31, 0]], 0x3a4a6a, 0.7);
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
+  fitSkyAuto(K, sky);
 
   // ---- parallax: impossible pastel staircases towering over the courtyard walls
   const w1 = parallaxWidth(-160);
@@ -351,36 +440,16 @@ export function buildBattle(K) {
       for (let i = 0; i < 18; i++) { const x = Math.floor(R() * w), y = Math.floor(h * (0.3 + R() * 0.3)); px(ctx, x, y, 3, h - y, [0xe8d0e0, 0xd0e8e0, 0xe0dcf0][i % 3]); }
     },
   });
-  const w2 = parallaxWidth(-110);
-  K.parallax('stairsNear', {
-    z: -110, y: -4, w: w2, h: 30, tw: Math.round(w2 * 2.2), th: 66,
-    paint: (ctx, w, h) => {
-      paintEscher(ctx, w, h, 9, { n: 55, y0: h * 0.38, y1: h, s: 1.2 });
-      const R = mulberry32(4);
-      for (let i = 0; i < 14; i++) { const x = Math.floor(R() * w), y = Math.floor(h * (0.4 + R() * 0.3)); px(ctx, x, y, 4, h - y, PASTEL[i % 6]); px(ctx, x + 3, y, 1, h - y, shade(PASTEL[i % 6], -0.2)); }
-    },
-  });
-  const w3 = parallaxWidth(-70);
-  K.parallax('dorms', {
-    z: -70, y: -3, w: w3, h: 21, tw: Math.round(w3 * 3), th: 63,
-    paint: (ctx, w, h) => {
-      // pastel block buildings with arched windows, painted-sky panels and rooftop stairs
-      const R = mulberry32(12);
-      let x = -4;
-      while (x < w) {
-        const bw = 24 + Math.floor(R() * 26), bh = 30 + Math.floor(R() * 24);
-        const col = PASTEL[Math.floor(R() * PASTEL.length)];
-        const top = h - bh;
-        px(ctx, x, top, bw, bh, col);
-        px(ctx, x, top, bw, 2, 0xffffff);
-        px(ctx, x + bw - 3, top, 3, bh, shade(col, -0.15));
-        if (R() < 0.45) { paintGradient(ctx, x + 3, top + 4, bw - 8, Math.floor(bh * 0.4), [[0, 0x7cc4f4], [1, 0xc4e6ff]], { bands: 3 }); px(ctx, x + 6, top + 8, 8, 3, 0xffffff); }
-        else for (let wy = top + 5; wy < h - 8; wy += 7) for (let wx = x + 3; wx < x + bw - 6; wx += 6) { px(ctx, wx, wy + 1, 3, 4, 0x5a4a6a); px(ctx, wx, wy, 3, 1, 0xffffff); }
-        if (R() < 0.6) paintFlight(ctx, x + 2 + Math.floor(R() * (bw - 20)), top, 4, R() < 0.5 ? 1 : -1, PASTEL[Math.floor(R() * 6)], { sx: 4, sy: 3 });
-        x += bw + Math.floor(R() * 3);
-      }
-    },
-  });
+  // 3D pastel stair-maze towers rising behind the courtyard walls
+  const towers = [[-34, -58, 0, 16], [-17, -66, 1, 20], [-3, -52, 2, 13], [12, -62, 3, 18], [27, -55, 4, 15], [42, -64, 5, 19], [-48, -64, 6, 17], [56, -58, 7, 14]];
+  for (const [x, z, seed, h] of towers) K.mesh('stairTower' + seed, stairTowerGrid(seed, h), { scale: 0.3 }, x, 0, z, (seed % 3 - 1) * 0.12, 1);
+  K.inst('stairBridge', () => {
+    const g = new VoxGrid();
+    for (let x = 0; x < 40; x++) { g.box(x, 0, -2, x, 0, 1, x % 2 ? PASTEL[1] : PASTEL[3]); if (x % 4 === 0) g.box(x, 1, -2, x, 2, -2, 0xffffff).box(x, 1, 1, x, 2, 1, 0xffffff); }
+    g.box(0, 2, -2, 39, 2, -2, 0xffffff).box(0, 2, 1, 39, 2, 1, 0xffffff);
+    return g;
+  }, { scale: 0.3, pivot: [0, 0, 0] }, [[-31, 9.6, -58.5, -0.12], [-1, 8.2, -52.5, -0.3], [29, 9.0, -55.5, -0.1]]);
+  addClouds(K, { id: 'rlCloud', n: 7, kinds: 3, x0: -130, x1: 130, y0: 13, y1: 19, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.5, seed: 12, len: 20, height: 8, color: 0xf6faff, shade: 0xcadcf2, dark: 0xb4cce8, light: 0xffffff });
 
   // ---- ground: warm courtyard sand with ripples + pebbles
   const sandCol = (x, z) => {
@@ -490,8 +559,6 @@ export function buildBattle(K) {
   K.mesh('bareTree', bareTreeGrid, { scale: 0.15 }, -7.8, 0, -25.5, 0.4, 1, { shadow: true });
   {
     // big round STOP / GO lamps on the wall top
-    const lampGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.25, 20);
-    lampGeo.rotateX(Math.PI / 2);
     const red = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }), green = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
     K.mesh('lampHousing', () => {
       const g = new VoxGrid();
@@ -499,7 +566,9 @@ export function buildBattle(K) {
       g.box(-21, -1, -2, 20, -1, 1, C.white).box(-21, 10, -2, 20, 10, 1, C.white);
       return g;
     }, { scale: 0.1 }, 9.6, WH + 0.1, WZ + 0.3);
-    for (const [x, m] of [[8.6, red], [10.6, green]]) { const l = new THREE.Mesh(lampGeo, m); l.position.set(x, WH + 0.6, WZ + 0.55); K.add(l); }
+    const lampDisc = () => { const g = new VoxGrid(); g.cylinder(-0.5, -0.5, 0, 1, 7, (x, y, z) => (Math.hypot(x + 0.5, y + 0.5) > 6 ? 0x777777 : 0xffffff), 'z'); g.box(-2, 2, 2, -1, 3, 2, 0xffffff); return g; };
+    for (const [x, m] of [[8.6, red], [10.6, green]]) K.mesh('stopGoLamp', lampDisc, { scale: 0.105, pivot: 'center' }, x, WH + 0.6, WZ + 0.5, 0, 1, { mats: m });
+    K.mesh('lampVisors', () => { const g = new VoxGrid(); for (const cx of [-10, 9]) for (let x = -8; x <= 7; x++) for (let z = 0; z < 4; z++) { const r = 8 - z * 0.6; if (Math.abs(x + 0.5) <= r) g.set(cx + x, 8 - Math.round(z * 0.4), 2 + z, C.ink); } return g; }, { scale: 0.1, pivot: [0, 0, 0] }, 9.6, WH + 0.0, WZ + 0.4);
     const RED = new THREE.Color(2.4, 0.15, 0.15), GREEN = new THREE.Color(0.2, 2.2, 0.45), DIM_R = new THREE.Color(0.25, 0.04, 0.05), DIM_G = new THREE.Color(0.04, 0.2, 0.08);
     // countdown board on the mural wall
     const cv = document.createElement('canvas');
@@ -566,9 +635,41 @@ export function buildBattle(K) {
     }
   }
 
+  // ---- postcard extras: the golden piggy bank, masked guards, dalgona cookies, birds
+  {
+    const px0 = 15.5, pz0 = -25.5;
+    K.mesh('piggyPlinth', () => new VoxGrid().box(-14, 0, -9, 13, 5, 8, (x, y) => (y === 5 ? C.white : y === 0 ? C.pinkD : C.pink)), { scale: 0.12 }, px0, 0, pz0);
+    const pig = K.mesh('piggyBank', piggyGrid, { scale: 0.12 }, px0, 0.72, pz0, -0.35, 1, { shadow: true });
+    K.onUpdate((dt, t) => { pig.rotation.y = -0.35 + Math.sin(t * 0.3) * 0.08; });
+    addSparkles(K, { id: 'piggyGlint', n: 10, area: [px0 - 1.8, px0 + 1.8, 1.2, 3.8, pz0 - 0.5, pz0 + 1.4], color: 0xffffff, color2: 0xffe680, cross: true, scale: 0.06, rate: 0.7, seed: 3 });
+    // cash raining into the coin slot
+    const bills = liveInstances(K, 'piggyBill', () => new VoxGrid().box(0, 0, 0, 3, 0, 1, (x) => (x === 1 || x === 2 ? 0x8fe08a : 0x3f8f45)), { scale: 0.09, pivot: 'center' }, 6);
+    K.onUpdate((dt, t) => {
+      for (let i = 0; i < 6; i++) {
+        const k = (t * 0.25 + i / 6) % 1;
+        setInstance(bills, i, px0 + Math.sin(t * 1.3 + i) * 0.4, 6.8 - k * 3.6, pz0 + Math.cos(t + i) * 0.2, t * 2 + i, Math.sin(t * 3 + i), 0, k < 0.97 ? 1 : 0.0001);
+      }
+      bills.instanceMatrix.needsUpdate = true;
+    });
+  }
+  {
+    const guards = [[-14.5, -27.4, 0], [-11.6, -28.2, 1], [6.2, -28.4, 2], [22.6, -24.6, 0]];
+    const meshes = guards.map(([x, z, k]) => K.mesh('guard' + k, guardGrid(k), { scale: 0.075, ao: true }, x, 0, z, 0, 1, { shadow: true }));
+    K.onUpdate((dt, t) => { meshes.forEach((m, i) => { m.rotation.y = Math.sin(t * 0.4 + i * 1.7) * 0.5; }); });
+  }
+  {
+    const dal = [];
+    for (let i = 0; i < 12; i++) dal.push([K.rand(-24, 24), 0.004, K.rand(LH + 1.2, 8), K.rand(0, 6), 1]);
+    for (let v = 0; v < 4; v++) K.inst('dalgona' + v, dalgonaGrid(v), { scale: 0.05 }, dal.filter((_, i) => i % 4 === v));
+  }
+  addBirds(K, { id: 'rlBirds', n: 6, mode: 'flock', x0: -70, x1: 70, y: 12.4, z: -46, speed: 2.8, dir: 1, color: 0x2e3a52, wingTip: 0x1a2236, belly: 0x3a465e, beak: 0x2e3a52, head: 0x2e3a52, vox: 0.07, flap: 10, soar: 0.2, seed: 6 });
+  const rtufts = [];
+  for (let i = 0; i < 40; i++) rtufts.push([K.rand(-40, 40), 0, K.rand(LH + 1.2, 12), K.rand(0, 6), K.rand(0.06, 0.08)]);
+  swayInst(K, 'sandGrass', () => tuftGrid(0xb8c870, { light: 0xd8e090, dark: 0x8aa050 }), { scale: 1 }, rtufts, { amp: 0.12, speed: 2 });
+
   return {
     sky,
-    fog: { color: 0xd8ecfa, near: 60, far: 175 },
+    fog: { color: 0xd8ecfa, near: 70, far: 260 },
     lights: { sky: 0xe4f2ff, ground: 0x9a8a6a, hemi: 1.2, sun: 2.2, sunColor: 0xfff4e4, dir: [-7, 14, 10], rim: 0.9, rimColor: 0xffd8e8 },
     dust: 0xe8d8b0,
   };

@@ -7,6 +7,9 @@
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, vnoise, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, paintClouds, paintRidge, paintSkyline, paintStars, paintSun, px, disc, skyTexture, parallaxWidth,
+  pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx, paintRange, paintStarfield, fitSkyAuto,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, addFall, addFlag,
+  leafyTreeGrid, bushGrid, tuftGrid,
 } from './kit.js';
 
 const LH = FIELD.LANE_HALF;
@@ -333,32 +336,74 @@ function paintSmoke(ctx, x, top, seed) {
   }
 }
 
+/** Gingerbread cottage with icing trim, gumdrop roof studs and a candy-cane door (0.12 scale). */
+const gingerHouseGrid = () => {
+  const g = new VoxGrid();
+  const gb = 0xb8743a, gbD = 0x8e5428, icing = 0xfff8fc;
+  g.box(-12, 0, -9, 11, 16, 8, (x, y, z) => ((x + y + z) % 5 === 0 ? gbD : gb));
+  for (let i = 0; i <= 11; i++) g.box(-14, 17 + i, -11 + i, 13, 17 + i, 10 - i, (x, y) => (y === 17 || (x + y) % 6 === 0 ? icing : 0x9a5a2c));
+  for (let x = -14; x <= 13; x++) if (x % 3 === 0) g.set(x, 16, 11, icing).set(x, 15, 11, x % 6 === 0 ? icing : null);
+  for (let i = 0; i < 9; i++) { const x = -11 + i * 3, y = 19 + (i % 3) * 2; g.set(x, y + 1, 9 - (y - 17), CANDY[i % 7]); }
+  g.box(-3, 0, 9, 2, 10, 9, (x, y) => ((x + y) & 1 ? 0xe8343c : 0xfff8f4));
+  for (const wx of [-10, 5]) { g.box(wx, 6, 9, wx + 4, 11, 9, icing); g.box(wx + 1, 7, 9, wx + 3, 10, 9, 0xffe08a); }
+  g.box(-8, 22, -4, -6, 30, -2, 0xe8343c).box(-9, 30, -5, -5, 31, -1, icing);
+  for (let x = -12; x <= 11; x += 2) g.set(x, 0, 10, CANDY[(x + 12) % 7]);
+  return g;
+};
+
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
   // ---- sky: purple -> pink candy sky with a soft golden sun and sparkles
-  const sky = skyTexture('factory', [[0, 0x6a3cc0], [0.35, 0xb066d8], [0.7, 0xff9ad0], [1, 0xffd2dc]], (ctx, w, h) => {
-    paintStars(ctx, w, h, { n: 40, ymax: h * 0.35, seed: 8, tint: 0xffd0f0 });
-    paintSun(ctx, w * 0.8, h * 0.24, 6, 0xfff0c0, 0xffd0e8);
-    paintClouds(ctx, w, h, { n: 6, y0: 8, y1: h * 0.4, size: 6, seed: 33, color: 0xffd8f0, shade: 0xe8a0d0, light: 0xffffff });
-  });
+  const sky = skyTexture('factory2', [[0, 0x5a30b0], [0.22, 0x8a4ccc], [0.45, 0xc070d8], [0.66, 0xff9ad0], [0.84, 0xffc4dc], [1, 0xffe0e8]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    paintStarfield(P, w, h, { n: 70, ymax: h * 0.32, seed: 8, tint: 0xffd0f0 });
+    // rainbow arc
+    const cx = w * 0.5, cy = h * 0.95, R0 = h * 0.62;
+    const bands = [0xff5a6a, 0xff9a4a, 0xffe060, 0x7ae070, 0x5ac0f0, 0x9a7af0];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const d = Math.hypot((x - cx) / 1.25, y - cy) - R0;
+      if (d < 0 || d >= bands.length * 2) continue;
+      P.dither(x, y, bands[Math.floor(d / 2)], 0.55 * Math.min(1, (cy - y) / (h * 0.5)), 3);
+    }
+    skyGlow(P, w * 0.62, h * 0.24, w * 0.3, h * 0.3, 0xffe8f4, 0.6, { bands: 5, pow: 1.5 });
+    paintSunPx(P, Math.round(w * 0.62), Math.round(h * 0.24), 9, { color: 0xfff0c0, core: 0xffffff, halo: 0xffd0e8, halo2: 0xfff0f8, haloR: 5 });
+    const candy = { light: 0xffffff, color: 0xffe0f2, shade: 0xf4a8d4, dark: 0xd88ac0 };
+    paintCumulus(P, w * 0.13, h * 0.26, 15, 21, { ...candy, sunX: 1 });
+    paintCumulus(P, w * 0.4, h * 0.15, 9, 22, { light: 0xffffff, color: 0xe8f0ff, shade: 0xb8c8f4, dark: 0x9aa8e4, sunX: 1 });
+    paintCumulus(P, w * 0.88, h * 0.3, 14, 23, { ...candy, sunX: -1 });
+    paintCumulus(P, w * 0.74, h * 0.45, 8, 24, { light: 0xffffff, color: 0xfff0d8, shade: 0xf4c8a8, sunX: -1 });
+    paintCloudBank(P, w, Math.round(h * 0.62), { s: 9, seed: 25, light: 0xffffff, color: 0xffe4f2, shade: 0xf4b4d8, dark: 0xe8a0cc, alpha: 0.92 });
+    for (let i = 0; i < 26; i++) { const x = (i * 53) % w, y = 8 + ((i * 29) % Math.round(h * 0.4)); P.set(x, y, 0xffffff); P.set(x - 1, y, 0xffd0f0, 0.6); P.set(x + 1, y, 0xffd0f0, 0.6); P.set(x, y - 1, 0xffd0f0, 0.6); P.set(x, y + 1, 0xffd0f0, 0.6); }
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
+  fitSkyAuto(K, sky);
 
   // ---- parallax pixel layers (far -> near)
-  const w1 = parallaxWidth(-160);
   K.parallax('candyMountains', {
-    z: -160, y: -4, w: w1, h: 36, tw: Math.round(w1 * 2), th: 72,
+    z: -170, y: -4, w: parallaxWidth(-170), h: 40, tw: 520, th: 80,
     paint: (ctx, w, h) => {
-      paintClouds(ctx, w, h, { n: 8, y0: 4, y1: 20, size: 5, seed: 41, color: 0xffe0f4, shade: 0xe8b0d8 });
-      paintRidge(ctx, w, h, { base: 0.5, amp: 16, freq: 0.025, seed: 4, color: 0xb88ae0, rim: 0xf0d8ff, dark: 0x9a70c8, snow: 0xfff4fa, peaks: true });
-      const tops = paintRidge(ctx, w, h, { base: 0.66, amp: 12, freq: 0.03, seed: 9, color: 0xe890c8, rim: 0xffd0ec, dark: 0xc870a8, snow: 0xfff8fc, peaks: true });
-      // rainbow sprinkles on the frosting
+      const P = pixbuf(ctx, w, h);
+      paintRange(P, w, h, { base: 0.5, amp: 20, freq: 0.022, seed: 4, ridged: true, lit: 0xc89ae8, mid: 0xb488dc, dark: 0x9a74c8, rim: 0xf4e0ff, snow: 0xfff4fa, snowLit: 0xffffff, snowShade: 0xf0c8e8, snowLine: 0.45, haze: [0xf8c8e4, 0.55, 0.8] });
+      const tops = paintRange(P, w, h, { base: 0.7, amp: 11, freq: 0.03, seed: 9, round: true, lit: 0xf0a0d0, mid: 0xe490c4, dark: 0xd07ab4, rim: 0xffe0f2, snow: 0xfff8fc, snowLine: 0.4, gullies: false, haze: [0xffd8ec, 0.75, 0.7] });
       const R = mulberry32(12);
-      for (let i = 0; i < w * 0.5; i++) {
-        const x = Math.floor(R() * w), y = tops[x] + 1 + Math.floor(R() * 8);
-        px(ctx, x, y, 1, 1, CANDY[Math.floor(R() * 7)], 0.9);
-      }
+      for (let i = 0; i < w * 0.6; i++) { const x = Math.floor(R() * w), y = Math.round(tops[x] + 1 + R() * 8); P.set(x, y, CANDY[Math.floor(R() * 7)], 0.9); }
+      P.flush();
     },
   });
+  // frosted chocolate mountains with sprinkles (3D voxels)
+  voxRange(K, 'chocMountains', {
+    x0: -150, x1: 150, z: -100, depth: 5, scale: 1.7, base: 2, amp: 9, freq: 0.07, seed: 5, ridged: true,
+    col: (xv, y, zv, h) => {
+      const j = hash3(xv, y, zv);
+      const icing = 2 + 9 * 0.6 - hash3(xv, 3, zv) * 1.5;
+      if (y >= icing) return j < 0.12 ? CANDY[Math.floor(hash3(zv, xv, y) * 7)] : y === h - 1 ? 0xfff4fa : 0xffd8ec;
+      if (y >= icing - 1 && hash3(xv, 7, zv) < 0.5) return 0xffd8ec; // drips
+      const layer = Math.floor(y / 2) % 3;
+      return [0x6a3c24, 0x5a3220, 0x7d4a2d][layer] + (j < 0.1 ? 0x0a0806 : 0);
+    },
+  });
+  addClouds(K, { id: 'cottonCloud', n: 8, kinds: 3, x0: -130, x1: 130, y0: 12, y1: 18, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.55, seed: 6, len: 20, height: 8, color: 0xffe2f2, shade: 0xf4b0d8, dark: 0xe49ccc, light: 0xffffff });
   const w2 = parallaxWidth(-110);
   K.parallax('factorySkyline', {
     z: -110, y: -4, w: w2, h: 24, tw: Math.round(w2 * 2.4), th: 58,
@@ -452,23 +497,20 @@ export function buildBattle(K) {
   K.onUpdate((dt) => { riverTex.offset.x -= dt * 0.045; });
   // rising chocolate bubbles + floating marshmallows
   {
-    const bubGeo = new THREE.SphereGeometry(0.12, 8, 6);
-    const bubMat = new THREE.MeshPhongMaterial({ color: 0x8a5230, shininess: 90, specular: 0xaa8a7a });
-    const bubbles = [];
-    for (let i = 0; i < 14; i++) {
-      const b = new THREE.Mesh(bubGeo, bubMat);
-      b.userData = { x: K.rand(-26, 26), z: K.rand(RIVER.z0 + 0.6, RIVER.z1 - 0.6), o: K.rand(0, 1), s: K.rand(0.6, 1.3) };
-      K.add(b);
-      bubbles.push(b);
-    }
+    const bub = liveInstances(K, 'chocBubble', () => {
+      const g = new VoxGrid();
+      g.box(-1, 0, -1, 1, 1, 1, 0x8a5230).box(-2, 0, -1, 2, 0, 1, 0x7a4628).box(-1, 0, -2, 1, 0, 2, 0x7a4628).set(-1, 1, -1, 0xd8a070);
+      return g;
+    }, { scale: 0.07 }, 14);
+    const bubbles = Array.from({ length: 14 }, () => ({ x: K.rand(-26, 26), z: K.rand(RIVER.z0 + 0.6, RIVER.z1 - 0.6), o: K.rand(0, 1), s: K.rand(0.6, 1.3) }));
     const mallows = K.inst('marshmallow', () => new VoxGrid().box(-1, 0, -1, 1, 1, 1, (x, y) => (y ? 0xfff8f4 : 0xffd8e8)), { scale: 0.12 },
       Array.from({ length: 9 }, () => [K.rand(-28, 28), RIVER.y - 0.06, K.rand(RIVER.z0 + 0.5, RIVER.z1 - 0.5), K.rand(0, 6)]));
     K.onUpdate((dt, t) => {
-      for (const b of bubbles) {
-        const u = b.userData, k = (t * 0.5 + u.o) % 1;
-        b.position.set(u.x, RIVER.y + Math.sin(k * Math.PI) * 0.08 - 0.05, u.z);
-        b.scale.setScalar(u.s * (0.3 + k * 0.9) * (k > 0.92 ? (1 - k) * 12 : 1));
+      for (let i = 0; i < 14; i++) {
+        const u = bubbles[i], k = (t * 0.5 + u.o) % 1;
+        setInstance(bub, i, u.x, RIVER.y - 0.06 + Math.sin(k * Math.PI) * 0.05, u.z, 0, 0, 0, Math.max(0.0001, u.s * (0.3 + k * 0.9) * (k > 0.92 ? (1 - k) * 12 : 1)));
       }
+      bub.instanceMatrix.needsUpdate = true;
       mallows.position.x = ((t * 0.55 + 30) % 60) - 30;
     });
   }
@@ -487,66 +529,18 @@ export function buildBattle(K) {
   {
     const cx = -4.4, cz = -10.4; // cz = front face of the spout
     K.mesh('cliff', cliffGrid, { scale: 0.25 }, cx, -0.25, cz - 1.12, 0, 1, { shadow: true });
-    const fallTex = tileTex('fac_fall3', 24, 48, (ctx, w, h) => {
-      const R = mulberry32(9);
-      for (let x = 0; x < w; x++) {
-        // every column is a long streak of slightly different chocolate
-        const c = [0xa0623a, 0x96582f, 0xaa6c40, 0x8e522c][Math.floor(R() * 4)];
-        px(ctx, x, 0, 1, h, c);
-        for (let k = 0; k < 2; k++) {
-          const y = Math.floor(R() * h), L = 14 + Math.floor(R() * 26), hc = R() < 0.35 ? 0xd8a070 : R() < 0.5 ? 0xb87a48 : 0x7a4424;
-          px(ctx, x, y, 1, L, hc);
-          if (y + L > h) px(ctx, x, 0, 1, y + L - h, hc);
-        }
-      }
-      // ragged, splashing side edges
-      for (let y = 0; y < h; y++) for (const x of [0, 1, w - 2, w - 1]) if (R() < (x === 0 || x === w - 1 ? 0.6 : 0.25)) ctx.clearRect(x, y, 1, 1);
-    });
-    const top = (CLIFF_H - 2) * 0.25 - 0.25, fallH = top - RIVER.y + 0.05, r = 2.0, th = 0.66;
-    const fall = new THREE.Mesh(new THREE.CylinderGeometry(r, r, fallH, 12, 1, true, -th, th * 2), new THREE.MeshPhongMaterial({ map: fallTex, alphaTest: 0.5, shininess: 90, specular: 0xb09080, emissive: 0x2a1408 }));
-    fall.position.set(cx, (top + RIVER.y) / 2, cz - r * Math.cos(th) + 0.02);
-    fall.name = 'waterfall';
-    K.add(fall);
-    const lip = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 2 * r * Math.sin(th) + 0.1, 10, 1), new THREE.MeshPhongMaterial({ color: 0xa8683c, shininess: 90, specular: 0xb09080 }));
-    lip.rotation.z = Math.PI / 2;
-    lip.position.set(cx, top, cz + 0.05);
-    K.add(lip);
-    // creamy foam where it lands
-    const foamPuffs = [];
-    const fGeo = new THREE.IcosahedronGeometry(0.28, 0);
-    const fMat = new THREE.MeshLambertMaterial({ color: 0xf0d8b8, emissive: 0x403020, flatShading: true });
-    for (let i = 0; i < 8; i++) {
-      const m = new THREE.Mesh(fGeo, fMat);
-      m.userData = { x: cx + (i / 7 - 0.5) * 2.6, z: cz + 0.65 + (i % 2) * 0.25, o: i * 0.7 };
-      K.add(m);
-      foamPuffs.push(m);
-    }
-    K.onUpdate((dt, t) => { for (const m of foamPuffs) { const u = m.userData; m.position.set(u.x, RIVER.y + 0.05 + Math.abs(Math.sin(t * 3 + u.o)) * 0.12, u.z); m.scale.setScalar(0.8 + Math.sin(t * 4 + u.o) * 0.25); m.rotation.y = t + u.o; } });
-    K.onUpdate((dt) => { fallTex.offset.y += dt * 0.55; });
-    // splash: bouncing droplets + a pulsing foam ring
-    const dropGeo = new THREE.SphereGeometry(0.1, 6, 5);
-    const dropMat = new THREE.MeshPhongMaterial({ color: 0x8a5230, shininess: 80 });
-    const drops = [];
-    for (let i = 0; i < 12; i++) {
-      const d = new THREE.Mesh(dropGeo, dropMat);
-      d.userData = { a: (i / 12) * Math.PI * 2, o: i / 12, v: K.rand(1.5, 2.4) };
-      K.add(d);
-      drops.push(d);
-    }
-    const foam = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.3, 20), new THREE.MeshBasicMaterial({ color: 0xe8c8a0, transparent: true, opacity: 0.6, depthWrite: false }));
-    foam.rotation.x = -Math.PI / 2;
-    foam.position.set(cx, RIVER.y + 0.02, cz + 0.9);
-    K.add(foam);
+    const top = (CLIFF_H - 2) * 0.25 - 0.25;
+    addFall(K, { id: 'chocFall', x: cx, z: cz - 0.2, top, bottom: RIVER.y, width: 2.5, vox: 0.14, colors: [0x6a3a1e, 0x8e522c, 0xb87a48, 0xf0d8b8], speed: 3.0, n: 36, seed: 7 });
+    K.mesh('chocLip', () => new VoxGrid().box(-9, 0, 0, 8, 1, 2, (x, y, z) => (y && z === 2 ? 0xc48a5c : y ? 0xa8683c : 0x8e522c)), { scale: 0.14, pivot: [0, 0, 0] }, cx, top - 0.16, cz - 0.42);
+    addPuffs(K, { id: 'chocFoam', sources: [[cx - 1.1, RIVER.y + 0.05, cz + 0.8], [cx, RIVER.y + 0.05, cz + 1.0], [cx + 1.1, RIVER.y + 0.05, cz + 0.8]], n: 4, life: 2.2, rise: 0.35, drift: [0, 0.9], size: [0.9, 1.4], scale: 0.07, color: 0xf0d8b8, light: 0xfff0dc, shade: 0xc89a6a, seed: 5 });
+    const drops = liveInstances(K, 'chocDrop', () => new VoxGrid().box(0, 0, 0, 1, 1, 1, 0x8a5230).set(0, 1, 0, 0xc48a5c), { scale: 0.06, pivot: 'center' }, 12);
+    const dd = Array.from({ length: 12 }, (_, i) => ({ a: (i / 12) * Math.PI * 2, o: i / 12, v: K.rand(1.5, 2.4) }));
     K.onUpdate((dt, t) => {
-      for (const d of drops) {
-        const u = d.userData, k = (t * 1.1 + u.o) % 1;
-        const rr = 0.3 + k * 1.1;
-        d.position.set(cx + Math.cos(u.a) * rr * 1.6, RIVER.y + u.v * k - 2.6 * k * k, cz + 0.9 + Math.sin(u.a) * rr * 0.5);
-        d.visible = d.position.y > RIVER.y - 0.05;
+      for (let i = 0; i < 12; i++) {
+        const u = dd[i], k = (t * 1.1 + u.o) % 1, rr = 0.3 + k * 1.1, y = RIVER.y + u.v * k - 2.6 * k * k;
+        setInstance(drops, i, cx + Math.cos(u.a) * rr * 1.6, y, cz + 0.9 + Math.sin(u.a) * rr * 0.5, t * 3, 0, 0, y > RIVER.y - 0.05 ? 1 : 0.0001);
       }
-      const k = (t * 0.8) % 1;
-      foam.scale.setScalar(0.8 + k * 0.8);
-      foam.material.opacity = 0.65 * (1 - k);
+      drops.instanceMatrix.needsUpdate = true;
     });
     // gumdrops + a lollipop on the cliff top
     K.mesh('gumCliff', gumdropGrid(17), { scale: 0.08, ao: true }, cx - 1.9, top + 0.2, cz - 1.6, 0.4, 1, { shadow: true, receive: false });
@@ -644,26 +638,7 @@ export function buildBattle(K) {
   const stacks = [[FX - 7.5, FZ - 1, 34], [FX - 3.5, FZ - 1.5, 40], [FX + 7.5, FZ - 0.5, 30]];
   for (const [x, z, h] of stacks) K.mesh('stack' + h, stackGrid(h), { scale: 0.25 }, x, 4.5, z, 0, 1, { shadow: true });
   {
-    const puffGeo = new THREE.IcosahedronGeometry(0.7, 1);
-    const puffs = [];
-    stacks.forEach(([x, z, h], si) => {
-      for (let i = 0; i < 6; i++) {
-        const col = [0xff9ad0, 0xffb8e0, 0xf890c8][(i + si) % 3];
-        const m = new THREE.Mesh(puffGeo, new THREE.MeshLambertMaterial({ color: col, emissive: shade(col, -0.45), transparent: true, opacity: 0.85, depthWrite: false, flatShading: true }));
-        m.userData = { x, z, y: 4.5 + (h + 2) * 0.25, o: i / 6 + si * 0.13, r: K.rand(0, 6) };
-        K.add(m);
-        puffs.push(m);
-      }
-    });
-    K.onUpdate((dt, t) => {
-      for (const m of puffs) {
-        const u = m.userData, k = (t * 0.16 + u.o) % 1;
-        m.position.set(u.x + k * 3.2 + Math.sin(t + u.r) * 0.2, u.y + k * 5.5, u.z + k * 0.5);
-        m.scale.setScalar(0.45 + k * 1.9);
-        m.rotation.set(u.r + t * 0.3, u.r, 0);
-        m.material.opacity = 0.9 * Math.min(1, k * 6) * (1 - k);
-      }
-    });
+    addPuffs(K, { id: 'stackSmoke', sources: stacks.map(([x, z, h]) => [x, 4.5 + (h + 2) * 0.25, z]), n: 6, life: 6.2, rise: 5.5, drift: [3.2, 0.5], wobble: 0.3, size: [0.45, 2.0], scale: 0.18, r: 4, color: 0xffb8e0, light: 0xffe0f2, shade: 0xf090c8, opacity: 0.88, seed: 11 });
   }
   // a few chocolate tanks / vats beside the factory
   K.inst('vat', () => {
@@ -700,11 +675,25 @@ export function buildBattle(K) {
   }
   const tufts = [];
   for (let i = 0; i < 70; i++) tufts.push([K.rand(-40, 40), 0, K.rand(LH + 1.1, 13), K.rand(0, 6), K.rand(0.6, 1.2)]);
-  K.inst('tuft', () => {
-    const g = new VoxGrid();
-    for (const [x, h] of [[0, 3], [1, 2], [-1, 2], [2, 1]]) for (let y = 0; y < h; y++) g.set(x, y, 0, y === h - 1 ? C.mintL : C.mintD);
-    return g;
-  }, { scale: 0.08 }, tufts);
+  swayInst(K, 'mintTuft', () => tuftGrid(C.mint, { light: C.mintL, dark: C.mintD }), { scale: 0.08 }, tufts.map((t) => [t[0], 0, t[2], t[3], t[4]]), { amp: 0.12, speed: 2 });
+
+  // ---- postcard extras: cotton-candy grove, gingerbread cottages, candy birds, river glints, swaying mint grass
+  {
+    const trees = [];
+    for (let i = 0; i < 22; i++) {
+      const x = K.rand(-60, 60), z = K.rand(-58, -24);
+      if (Math.abs(x - 3) < 13 && z < -26) continue;
+      trees.push([x, 0, z, K.rand(0, 6), K.rand(0.12, 0.16)]);
+    }
+    const cotton = [[0xffb8e0, 0xe890c8], [0xa8e0ff, 0x80c0f0], [0xd8b8ff, 0xb090e8]];
+    cotton.forEach(([leaf, leafD], v) => swayInst(K, 'cottonTree' + v, () => leafyTreeGrid({ seed: 20 + v, leaf, leafD, leafL: 0xffffff, trunk: 0xf4e8e0, h: 9, r: 6 }), { scale: 1 }, trees.filter((_, i) => i % 3 === v), { amp: 0.03, speed: 0.9 }));
+    const houses = [[-34, -42, 0.3], [-42, -47, 0.1], [-26, -50, 0.2], [32, -43, -0.25], [41, -48, -0.1], [25, -52, -0.2]];
+    K.inst('gingerHouse', gingerHouseGrid, { scale: 0.12 }, houses.map(([x, z, ry]) => [x, 0, z, ry]));
+    addPuffs(K, { id: 'gingerSmoke', sources: houses.map(([x, z]) => [x - 0.9, 4.6, z - 0.3]), n: 4, life: 4, rise: 2.4, drift: [0.8, 0], size: [0.3, 0.9], scale: 0.1, color: 0xf8f0f4, light: 0xffffff, shade: 0xe0c8d8, opacity: 0.85, seed: 3 });
+  }
+  addBirds(K, { id: 'candyBirds', n: 6, mode: 'flock', x0: -70, x1: 70, y: 10.6, z: -40, speed: 3, dir: 1, color: 0xff7ac0, wingTip: 0x29b6f6, belly: 0xffd0e8, beak: 0xffd23f, vox: 0.07, flap: 11, soar: 0.2, seed: 9 });
+  addSparkles(K, { id: 'riverGlint', n: 26, area: [-30, 30, RIVER.y + 0.02, RIVER.y + 0.05, RIVER.z0 + 0.4, RIVER.z1 - 0.4], color: 0xfff0dc, scale: 0.08, rate: 0.9, sharp: 4, seed: 4 });
+  addSparkles(K, { id: 'sugarSparkle', n: 14, area: [-24, 24, 1.2, 4.5, -16, -8], color: 0xffffff, color2: 0xff9ad0, cross: true, scale: 0.05, rate: 0.7, wander: 0.4, seed: 6 });
 
   return {
     sky,

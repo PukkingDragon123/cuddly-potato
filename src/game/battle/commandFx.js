@@ -217,7 +217,7 @@ export class BaseBadge {
   dispose() {
     this.el.remove();
   }
-  update(view, lab, side) {
+  update(view, lab, side, bounds = null) {
     const sim = view.sim;
     const nx = BASE_UPGRADES[side.overclock + 1];
     if (!nx || !lab || !side.lab.alive || sim.over || sim.cinematic) {
@@ -237,8 +237,14 @@ export class BaseBadge {
     // a sign standing on the ground just in front of the base
     const x = lab.root.position.x + (lab.centerX ?? 0) + 0.4;
     const s = view.engineToScreen(_b.set(x, 0.15, 2.6));
-    if (!s.visible) { this.el.style.display = 'none'; return; }
+    const hw = (this.el.offsetWidth || 120) / 2, hh = (this.el.offsetHeight || 40) / 2;
+    // hide when the base is off screen (the HUD base button still works); otherwise keep it fully visible
+    if (!s.visible || s.x < -hw * 0.5) { this.el.style.display = 'none'; return; }
     this.el.style.display = '';
-    this.el.style.transform = `translate3d(${Math.round(s.x)}px, ${Math.round(s.y)}px, 0)`;
+    let px = Math.max(hw + 6, Math.min(window.innerWidth - hw - 6, s.x));
+    let py = Math.min(s.y, (bounds?.maxY ?? Infinity) - hh - 8);
+    // stay clear of the Commander portrait column above the deck
+    if (bounds?.clearL && py + hh > bounds.clearL.top) px = Math.max(px, bounds.clearL.right + hw + 6);
+    this.el.style.transform = `translate3d(${Math.round(px)}px, ${Math.round(py)}px, 0)`;
   }
 }

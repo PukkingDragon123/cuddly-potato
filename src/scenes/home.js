@@ -311,9 +311,9 @@ export class HomeScene {
     this.labEl = h('div', { class: 'hm-mini sk-panel-dark hit', onclick: () => game.go('lab', { visit: true }) }, icon('flask'), h('div', { class: 't' }, 'LAB'));
     root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl, this.labEl));
     root.appendChild(h('div', { class: 'hm-side right' },
-      button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only', { icon: 'gear' }),
-      button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only', { icon: 'friends' }),
-      this.roadBtn = button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only', { icon: 'road' })));
+      button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
+      button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only hm-sb hm-sb-fr', { icon: 'friends' }),
+      this.roadBtn = button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only hm-sb hm-sb-road', { icon: 'road' })));
     // tags over the island
     this.tagLayer = h('div', { class: 'hm-tags' });
     for (const pk of this.pickables) if (pk.tag) this.tagLayer.appendChild(pk.tag);

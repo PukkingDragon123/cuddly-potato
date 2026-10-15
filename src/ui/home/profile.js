@@ -10,9 +10,10 @@ import { BANNERS, LAB_SKINS } from '../../data/season.js';
 import { currentArena, BOSSES, SECRETS } from '../../data/arenas.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { bannerEl, cmdImg, labBadge, unlockHint, notify, deny, refreshCtx, fmtN, subHead, chip } from './common.js';
+import { labSkinImg } from '../thumbs.js';
 
 export const NAME_MAX = 16;
-const LAB_TINT = { default: '#29b6f6', martLab: '#ff4fa3', chocoLab: '#8e5a3c', goldVault: '#ffd23f' };
+const LAB_TINT = { default: '#29b6f6', martLab: '#ff4fa3', chocoLab: '#8e5a3c', goldVault: '#ffd23f', mansion: '#b05cff' };
 
 function favouriteCard() {
   const s = state.p.stats;
@@ -127,7 +128,7 @@ export function openProfile(ctx) {
       const have = p.cosmetics.labSkins.includes(id);
       const sel = p.cosmetics.labSkin === id;
       const t = h('div', { class: `mn-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'}` },
-        h('div', { class: 'mn-pk-art mn-labskin-art', style: { '--lt': LAB_TINT[id] ?? '#5a628a' } }, icon('lab', 'mn-labskin-ic'), have ? null : icon('lock', 'mn-pk-lock')),
+        h('div', { class: 'mn-pk-art mn-labskin-art', style: { '--lt': LAB_TINT[id] ?? '#5a628a' } }, labSkinImg(id, 160, 'smooth mn-labskin-3d'), have ? null : icon('lock', 'mn-pk-lock')),
         h('div', { class: 'mn-pk-n' }, l.name),
         h('div', { class: 'mn-pk-s' }, have ? (sel ? 'Equipped' : l.desc) : unlockHint('labSkin', id)),
         sel ? h('div', { class: 'mn-pk-tick' }, icon('check', 's')) : null);

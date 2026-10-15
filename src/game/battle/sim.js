@@ -999,6 +999,8 @@ export class BattleSim {
     }
     if (d <= 0) return;
     b.hp -= d;
+    // tutorial safety net: your base can't fall below this fraction (Jimmy "goes easy")
+    if (this.cfg.baseFloor && b.side === 0) b.hp = Math.max(b.hp, b.maxHp * this.cfg.baseFloor);
     const atk = 1 - b.side;
     this.sides[atk].stats.dmg += d;
     this.sides[atk].stats.towerDmg += d;

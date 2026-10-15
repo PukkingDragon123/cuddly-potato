@@ -1,17 +1,21 @@
 // PASS tab: FOOD SEASON pass (free + premium tracks, tiers from Calories,
 // claim / claim all, buy premium), daily season challenges and the NPC quest
 // chains (Jimmy's rematch, Nolan, Juan).
-import { h, icon, button, bar, sparkle, bump, rich } from '../ui.js';
+// The pass is a season poster (3D hero renders, pixel food, season clock,
+// a Calorie test tube) above a vertical track: free pods | glowing lab-flask
+// tier markers on a goo-filled spine | premium pods. Every 5th tier is a big
+// milestone row. Claims burst, coins fly into the top bar.
+import { h, icon, iconURL, button, bar, sparkle, bump, rich, burst, flyIcons } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import {
   state, passTier, passClaimable, claimPass, buyPremiumPass, refreshDaily, challengeList, claimChallenge,
   questState, acceptQuest, completeQuest,
 } from '../../game/state.js';
-import { SEASON, PASS_TIERS } from '../../data/season.js';
+import { SEASON, PASS_TIERS, seasonEndMs, isMilestoneTier } from '../../data/season.js';
 import { QUEST_CHAINS, QUEST_NPC_ZONE, BOSSES, arenaById } from '../../data/arenas.js';
 import {
-  screenShell, secHead, segTabs, chip, timerChip, midnightMs, rewardTile, rewardLabel, rewardDef, showRewards, confirmBox, deny,
-  refreshCtx, flyText, charImg, fmtN,
+  screenShell, secHead, segTabs, chip, timerChip, midnightMs, rewardTile, rewardLabel, rewardDef, rewardArt, showRewards, confirmBox, deny,
+  refreshCtx, flyText, charImg, fmtN, countdown, currencyPill, swarmImg, cmdFullImg,
 } from './common.js';
 import { openBoss } from './boss.js';
 
@@ -46,33 +50,77 @@ export function mount(el, ctx, opts = {}) {
   const shell = screenShell(el, { cls: 'mn-pass', render, after });
 
   function after() {
-    if (sub !== 'pass' || scrolledTo) return;
+    if (sub !== 'pass') return;
+    layoutSpine();
+    if (scrolledTo) return;
     scrolledTo = true;
-    const target = shell.scroll.querySelector('.mn-prow .claim') ?? shell.scroll.querySelector('.mn-prow.cur');
+    const target = shell.scroll.querySelector('.ps-pod.claim') ?? shell.scroll.querySelector('.ps-row.cur');
     if (target) {
-      const row = target.closest('.mn-prow');
-      shell.scroll.scrollTop = Math.max(0, row.offsetTop - shell.scroll.clientHeight * 0.4);
+      const row = target.closest('.ps-row');
+      shell.scroll.scrollTop = Math.max(0, row.offsetTop - shell.scroll.clientHeight * 0.42);
     }
+  }
+  /** The goo-filled spine runs from the first flask to the last; the fill stops at your progress. */
+  function layoutSpine() {
+    const trk = shell.scroll.querySelector('.ps-track');
+    if (!trk) return;
+    const nodes = [...trk.querySelectorAll('.ps-node')];
+    if (!nodes.length) return;
+    const cy = (n) => n.offsetTop + n.closest('.ps-row').offsetTop + n.offsetHeight / 2;
+    const y0 = cy(nodes[0]), y1 = cy(nodes[nodes.length - 1]);
+    const spine = trk.querySelector('.ps-spine'), fill = trk.querySelector('.ps-spine-fill');
+    spine.style.top = y0 + 'px';
+    spine.style.height = Math.max(0, y1 - y0) + 'px';
+    const tier = passTier();
+    const frac = tier >= PASS_TIERS.length ? 0 : (state.p.calories - tier * SEASON.calPerTier) / SEASON.calPerTier;
+    let y = y0;
+    if (tier >= nodes.length) y = y1;
+    else if (tier > 0) { const a = cy(nodes[tier - 1]), b = cy(nodes[tier]); y = a + (b - a) * frac; }
+    else y = y0 + (cy(nodes[Math.min(1, nodes.length - 1)]) - y0) * frac * 0.5;
+    fill.style.top = y0 + 'px';
+    const hgt = Math.max(0, y - y0);
+    if (!fill.dataset.done) {
+      fill.dataset.done = '1';
+      fill.style.height = '0px';
+      requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.height = hgt + 'px'; }));
+    } else fill.style.height = hgt + 'px';
+    trk.style.setProperty('--fy', hgt + 'px');
   }
 
   // ---------------------------------------------------------------- pass
-  function claim(i, track, tileEl) {
+  const SMALL = new Set(['coins', 'bucks', 'calories']);
+  function claim(i, track, podEl) {
     const got = claimPass(i, track);
     if (!got.length) return;
     audio.play('chaching');
-    shell.lock(800);
-    if (tileEl) { tileEl.classList.add('claimed', 'just'); sparkle(tileEl, { count: 18 }); }
+    shell.lock(1100);
+    if (podEl) {
+      podEl.classList.add('claimed', 'just');
+      podEl.classList.remove('claim');
+      burst(podEl.querySelector('.mn-rw') ?? podEl, { color: track === 'premium' ? '#ffd84a' : '#7aff6a', count: 20 });
+    }
     refreshCtx(ctx);
+    if (got.every((g) => SMALL.has(g.kind))) {
+      // quick claim: currencies fly into the top bar, no popup
+      for (const g of got) {
+        if (g.kind !== 'calories') flyIcons(podEl, g.kind === 'coins' ? 'coin' : 'bucks', currencyPill(g.kind), { count: 6 });
+        flyText(podEl, `+${fmtN(g.amount)}`, g.kind === 'bucks' ? 'c-pink' : 'c-gold');
+      }
+      setTimeout(() => shell.render(), 950);
+      return;
+    }
     const vial = got.some((g) => g.kind === 'vial');
     showRewards(got, { title: `TIER ${i + 1}!`, color: track === 'premium' ? 'gold' : 'pink', note: vial ? 'Vials go to your vial slots on Beast Island.' : null }).then(() => shell.render());
   }
   function claimAll() {
     const got = [];
+    const pods = [...shell.scroll.querySelectorAll('.ps-pod.claim')];
     for (let i = 0; i < Math.min(passTier(), PASS_TIERS.length); i++) {
       for (const tr of ['free', 'premium']) if (passClaimable(i, tr)) got.push(...claimPass(i, tr));
     }
     if (!got.length) return;
     audio.play('chaching');
+    pods.slice(0, 6).forEach((el, k) => setTimeout(() => burst(el, { count: 10, rays: false }), k * 70));
     refreshCtx(ctx);
     // merge currencies so the popup stays readable
     const merged = [];
@@ -82,15 +130,16 @@ export function mount(el, ctx, opts = {}) {
       else merged.push(g);
     }
     for (const k of ['coins', 'bucks', 'calories']) if (sum[k]) merged.unshift({ type: k, amount: sum[k] });
-    showRewards(merged, { title: 'CLAIMED ALL!', note: got.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null }).then(() => shell.render());
+    shell.lock(500);
+    setTimeout(() => showRewards(merged, { title: 'CLAIMED ALL!', note: got.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null }).then(() => shell.render()), 420);
   }
   async function buyPremium(btn) {
     if (state.p.pass.premium) return;
     if (state.p.bucks < SEASON.premiumCost) return deny(ctx, `Not enough Beast Bucks! The Premium Pass costs *${SEASON.premiumCost}*.`, btn);
     const ok = await confirmBox({
       title: 'PREMIUM PASS', color: 'gold', yes: 'BUY', price: { cur: 'bucks', amount: SEASON.premiumCost },
-      art: h('div', { class: 'mn-premart' }, icon('crown', 'mn-premart-ic'), icon('burger', 'mn-premart-b')),
-      text: 'Unlock the <b>Premium track</b>: Chef Juan &amp; Golden Juan outfits, Swarm skins, animated banners, Lab skins and way more vials!',
+      art: h('div', { class: 'mn-premart' }, h('div', { class: 'px-rays' }), rewardArt(SEASON.showcase[2] ?? { type: 'cmdSkin', id: 'juanGold' })),
+      text: `Unlock the <b>Premium track</b>: ${PASS_TIERS.length} extra rewards including Golden Juan, new Swarms, outfits, the Mansion Lab and a <b>Golden MEGA</b>!`,
     });
     if (!ok) return;
     if (!buyPremiumPass()) return deny(ctx, 'Not enough Beast Bucks!', btn);
@@ -98,65 +147,116 @@ export function mount(el, ctx, opts = {}) {
     audio.jingle('victory');
     refreshCtx(ctx);
     shell.render();
-    const hd = shell.scroll.querySelector('.mn-passhead');
-    if (hd) { sparkle(hd, { count: 40, colors: ['#ffd84a', '#ffffff', '#ff7ac0'] }); bump(hd); }
+    const hd = shell.scroll.querySelector('.ps-prem');
+    if (hd) { burst(hd, { count: 36, colors: ['#ffd84a', '#ffffff', '#ff7ac0'], scale: 1 }); bump(hd); }
   }
 
   function passView() {
     const p = state.p;
+    const N = PASS_TIERS.length;
     const tier = passTier();
-    const max = tier >= PASS_TIERS.length;
-    const into = p.calories - tier * SEASON.calPerTier;
+    const max = tier >= N;
+    const into = max ? SEASON.calPerTier : p.calories - tier * SEASON.calPerTier;
     const claimN = passClaimCount();
-    const head = h('div', { class: 'mn-passhead panel sk-panel-pink' },
-      h('div', { class: 'mn-passhead-art' }, icon('burger', 'mn-ph-b1'), icon('calorie', 'mn-ph-b2')),
-      h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)', zIndex: 1 } },
-        h('span', { class: 't-xs c-pink t-d' }, `SEASON ${SEASON.id}`),
-        h('span', { class: 't-d outline mn-passhead-t' }, SEASON.name),
-        h('span', { class: 't-sm' }, SEASON.tagline),
-        h('div', { class: 'mn-passbar-row' },
-          h('div', { class: 'mn-tierbadge t-d outline' }, h('small', {}, 'TIER'), h('span', {}, String(tier))),
-          bar(max ? 1 : into / SEASON.calPerTier, 'orange', max ? 'PASS COMPLETE!' : `${fmtN(into)} / ${SEASON.calPerTier}`, { icon: 'calorie', cls: 'mn-calbar' }))));
-    const prem = p.pass.premium
-      ? h('div', { class: 'mn-premium on' }, icon('crown', 'l'), h('div', { class: 'col grow', style: { gap: 0 } }, h('b', { class: 't-d outline c-gold t-lg' }, 'PREMIUM ACTIVE'), h('span', { class: 't-xs' }, 'Both tracks unlocked. Enjoy the feast!')))
-      : h('div', { class: 'mn-premium panel sk-panel-gold' },
-        icon('crown', 'l'),
-        h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.3)' } }, h('b', { class: 't-d outline c-gold t-lg' }, 'GET THE PREMIUM PASS'), h('span', { class: 't-xs' }, 'Outfits, skins, animated banners and extra vials on every tier!')),
-        (() => { const b = button('BUY', (e) => buyPremium(e.currentTarget), 'yellow shine', { price: { cur: 'bucks', amount: SEASON.premiumCost }, sound: 'tap' }); if (p.bucks < SEASON.premiumCost) b.classList.add('poor'); return b; })());
-    const ctrl = h('div', { class: 'mn-trackhead' },
-      h('span', { class: 't-d outline' }, 'FREE'),
-      claimN > 1 ? button(`CLAIM ALL (${claimN})`, claimAll, 'green sm pulse', { icon: 'gift' }) : h('span', { class: 't-d outline c-muted' }, 'TIERS'),
-      h('span', { class: 't-d outline c-gold' }, icon('crown', 's'), ' PREMIUM'));
-    const track = h('div', { class: 'mn-track' });
-    PASS_TIERS.forEach((t, i) => {
-      const reached = i < tier;
-      const cur = i === tier;
-      const row = h('div', { class: `mn-prow ${reached ? 'reached' : ''} ${cur ? 'cur' : ''} ${i === tier - 1 ? 'last' : ''}` },
-        passTile(i, 'free', t.free, reached),
-        h('div', { class: 'mn-pnode' }, h('span', { class: 't-d outline' }, String(i + 1)), cur ? h('div', { class: 'mn-pnode-you' }, icon('calorie', 's')) : null),
-        passTile(i, 'premium', t.premium, reached));
-      track.appendChild(row);
-    });
-    const fill = tier <= 0 ? 0 : Math.min(1, (Math.min(tier, PASS_TIERS.length) - 0.5) / PASS_TIERS.length);
-    track.style.setProperty('--f', fill.toFixed(4));
-    return [head, prem, ctrl, track];
+    return [hero(tier, into, max), premiumPanel(), lanesHead(claimN), track(tier), seasonEnd()];
   }
 
-  function passTile(i, trackName, r, reached) {
+  /** Season poster: pixel food + sunburst, 3D hero renders, title, season clock and the Calorie tube. */
+  function hero(tier, into, max) {
+    const N = PASS_TIERS.length;
+    const frac = max ? 1 : into / SEASON.calPerTier;
+    const foods = ['pizza', 'donut', 'soda', 'fries', 'choco', 'burger'].map((n, i) => icon(n, `ps-food f${i}`));
+    const art = h('div', { class: 'ps-hero-art' },
+      h('div', { class: 'px-rays ps-hero-rays' }),
+      swarmImg(SEASON.hero.swarm, 'base', null, 192, 'ps-hero-swarm'),
+      cmdFullImg(SEASON.hero.cmd, SEASON.hero.cmdSkin, { w: 120, h: 150, priority: true }, 'ps-hero-cmd'));
+    const flaskBadge = (n, kind, cls) => h('div', { class: 'ps-tierflask ' + cls }, h('img', { src: iconURL(kind), alt: '' }), h('b', { class: 't-d outline' }, String(n)));
+    const xp = h('div', { class: 'ps-xp' },
+      flaskBadge(Math.min(tier, N), tier > 0 ? 'flaskOn' : 'flaskOff', 'cur'),
+      h('div', { class: 'ps-tube' },
+        h('i', { class: 'ps-tube-fill', style: { width: Math.max(0, Math.min(1, frac)) * 100 + '%' } }),
+        h('span', { class: 'ps-tube-lbl t-d outline' }, icon('calorie', 's'), max ? 'PASS COMPLETE!' : `${fmtN(into)} / ${SEASON.calPerTier}`)),
+      flaskBadge(max ? N : tier + 1, max ? 'flaskGold' : 'flaskCur', 'next'));
+    return h('div', { class: 'ps-hero sk-plate-hazard' },
+      h('div', { class: 'ps-hero-bg' }), ...foods, art,
+      h('div', { class: 'ps-hero-txt' },
+        h('div', { class: 'ps-hero-chips' },
+          h('span', { class: 'ps-sn t-d' }, icon('ticket', 's'), `SEASON ${SEASON.id}`),
+          h('span', { class: 'ps-timer' }, icon('clock', 's'), h('span', { class: 'c-muted' }, 'Ends in'), countdown(seasonEndMs(), 'c-gold t-d', true))),
+        h('div', { class: 'ps-title t-d t-3d' }, ...SEASON.name.split(' ').map((w) => h('span', {}, w))),
+        h('div', { class: 'ps-tagline' }, SEASON.tagline),
+        h('div', { class: 'ps-tiers t-d' }, `TIER ${Math.min(tier, N)} / ${N}`)),
+      xp);
+  }
+
+  function premiumPanel() {
+    const p = state.p;
+    const show = h('div', { class: 'ps-show' }, ...SEASON.showcase.map((r, i) => h('div', { class: `ps-show-i s${i}` }, rewardArt(r))));
+    if (p.pass.premium) {
+      return h('div', { class: 'ps-prem on panel sk-panel-gold' }, h('div', { class: 'px-stars' }), show,
+        h('div', { class: 'ps-prem-txt' }, h('b', { class: 't-d ps-prem-t' }, icon('crown', 's'), ' PREMIUM ACTIVE'), h('span', { class: 't-xs' }, 'Both tracks unlocked. Enjoy the feast!')));
+    }
+    const b = button('BUY', (e) => buyPremium(e.currentTarget), 'yellow shine ps-prem-buy', { price: { cur: 'bucks', amount: SEASON.premiumCost }, sound: 'tap' });
+    if (p.bucks < SEASON.premiumCost) b.classList.add('poor');
+    return h('div', { class: 'ps-prem panel sk-panel-gold' }, h('div', { class: 'px-stars' }), show,
+      h('div', { class: 'ps-prem-txt' },
+        h('b', { class: 't-d ps-prem-t' }, 'PREMIUM PASS'),
+        h('span', { class: 't-xs' }, `${PASS_TIERS.length} extra rewards: Golden Juan, new Swarms, the Mansion Lab and a GOLDEN MEGA!`)),
+      b);
+  }
+
+  function lanesHead(claimN) {
+    return h('div', { class: 'ps-lanes' },
+      h('span', { class: 'ps-lane free t-d outline' }, icon('gift', 's'), 'FREE'),
+      claimN > 1 ? button(`CLAIM ALL (${claimN})`, claimAll, 'green sm pulse', { icon: 'gift' }) : h('span', { class: 'ps-lane mid t-d outline' }, `${PASS_TIERS.length} TIERS`),
+      h('span', { class: `ps-lane prem t-d outline ${state.p.pass.premium ? '' : 'locked'}` }, icon(state.p.pass.premium ? 'crown' : 'lock', 's'), 'PREMIUM'));
+  }
+
+  function track(tier) {
+    const trk = h('div', { class: 'ps-track' }, h('div', { class: 'ps-spine' }), h('div', { class: 'ps-spine-fill' }));
+    PASS_TIERS.forEach((t, i) => {
+      const reached = i < tier, cur = i === tier, ms = isMilestoneTier(i);
+      const fl = reached ? (ms ? 'flaskGold' : 'flaskOn') : cur ? 'flaskCur' : ms ? 'flaskPrem' : 'flaskOff';
+      const node = h('div', { class: 'ps-node' },
+        h('img', { class: 'ps-flask', src: iconURL(fl), alt: '' }),
+        h('b', { class: 'ps-node-n t-d outline' }, String(i + 1)),
+        cur ? h('div', { class: 'ps-you t-d' }, icon('calorie', 's'), 'NEXT') : null);
+      trk.appendChild(h('div', { class: `ps-row ${reached ? 'reached' : ''} ${cur ? 'cur' : ''} ${ms ? 'ms' : ''}`, 'data-i': i },
+        ms ? h('div', { class: 'ps-ms-tag t-d' }, h('span', {}, `TIER ${i + 1}`)) : null,
+        passTile(i, 'free', t.free, reached, ms), node, passTile(i, 'premium', t.premium, reached, ms)));
+    });
+    return trk;
+  }
+
+  function seasonEnd() {
+    return h('div', { class: 'ps-end sk-plate-dark plate' },
+      icon('gate', 'ps-end-ic'),
+      h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.4)', minWidth: 0 } },
+        h('b', { class: 't-d outline ps-end-t' }, `SEASON ${SEASON.id + 1}: COMING SOON`),
+        h('span', { class: 't-xs c-muted' }, 'A brand new theme, new Swarms and new rewards when this season ends.')),
+      h('span', { class: 'ps-timer' }, icon('clock', 's'), countdown(seasonEndMs(), 'c-gold t-d', true)));
+  }
+
+  function passTile(i, trackName, r, reached, ms = false) {
     const p = state.p;
     const premium = trackName === 'premium';
     const claimed = !!(premium ? p.pass.premium_[i] : p.pass.free[i]);
     const can = passClaimable(i, trackName);
     const locked = premium && !p.pass.premium;
-    const tile = h('div', { class: `mn-ptile ${premium ? 'prem' : 'free'} ${claimed ? 'claimed' : ''} ${can ? 'claim' : ''} ${locked ? 'plock' : ''} ${reached ? '' : 'future'}` },
-      rewardTile(r),
-      h('div', { class: 'mn-ptile-txt' }, h('div', { class: 'mn-ptile-n' }, rewardLabel(r)), can ? h('div', { class: 'mn-ptile-claim t-d outline' }, 'CLAIM!') : null),
-      claimed ? h('div', { class: 'mn-ptile-ck' }, icon('check')) : null,
-      locked ? h('div', { class: 'mn-ptile-lk' }, icon('lock', 's')) : null);
+    const sk = can ? 'sk-pod-green' : claimed ? 'sk-pod-dim' : premium ? 'sk-pod-gold' : 'sk-pod';
+    const tile = h('div', { class: `ps-pod ${sk} ${premium ? 'prem' : 'free'} ${claimed ? 'claimed' : ''} ${can ? 'claim' : ''} ${locked ? 'plock' : ''} ${reached ? 'reached' : 'future'} ${ms ? 'ms' : ''}` },
+      ms && !claimed ? h('div', { class: 'px-rays w ps-pod-rays' }) : null,
+      premium && !claimed && !locked ? h('div', { class: 'px-stars' }) : null,
+      h('div', { class: 'ps-pod-art' }, rewardTile(r)),
+      h('div', { class: 'ps-pod-n' }, rewardLabel(r)),
+      can ? h('div', { class: 'ps-pod-claim t-d outline' }, 'CLAIM!') : null,
+      claimed ? h('div', { class: 'ps-pod-ck' }, icon('check')) : null,
+      locked ? h('div', { class: 'ps-pod-lk' }, icon('lock')) : null);
     tile.addEventListener('click', () => {
       if (can) return claim(i, trackName, tile);
       if (claimed) return audio.play('tap');
       audio.play('deny');
+      bump(tile, 'shake-x');
       if (locked) ctx.toast?.('Get the *Premium Pass* to unlock this reward!', { icon: 'crown' });
       else ctx.toast?.(`Reach *Tier ${i + 1}* (${fmtN((i + 1) * SEASON.calPerTier)} Calories) to claim ${rewardLabel(r)}.`, { icon: 'calorie' });
     });

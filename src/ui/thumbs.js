@@ -206,7 +206,7 @@ export async function arenaThumb(id, o = {}) {
   if (!A.ARENA_THEMES?.includes(id)) return null;
   const z = await A.makeArenaZone(id);
   try { z.update?.(0.016, 2.5); } catch (e) { /* animated bits are optional */ }
-  const url = engine.renderThumb(z.root, { w, h: hh, yaw: o.yaw ?? -0.38, pitch: o.pitch ?? 0.6, zoom: o.zoom ?? 0.6 });
+  const url = engine.renderThumb(z.root, { w, h: hh, yaw: o.yaw ?? -0.38, pitch: o.pitch ?? 0.68, zoom: o.zoom ?? 0.88 });
   arenaUrls.set(k, url);
   return url;
 }

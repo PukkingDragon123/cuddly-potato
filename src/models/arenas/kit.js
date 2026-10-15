@@ -862,28 +862,37 @@ export function addSparkles(K, o) {
   return im;
 }
 
-/** Voxel cloud (flat shaded belly, bright top). o: { len, height, depth, color, light, shade, dark } */
+/** Voxel cloud (flat shaded belly, bright puffy top). o: { len, height, depth, color, light, shade, dark } */
 export function cloudGrid(seed = 1, o = {}) {
   const g = new VoxGrid();
   const R = mulberry32(seed * 977 + 13);
   const L = o.len ?? 22, Hh = o.height ?? 7, D = o.depth ?? 5;
-  const n = 3 + Math.floor(R() * 3);
+  const n = 4 + Math.floor(R() * 3);
   for (let i = 0; i < n; i++) {
-    const u = n === 1 ? 0 : i / (n - 1) - 0.5;
-    const r = Hh * (0.5 + R() * 0.35) * (1 - Math.abs(u) * 0.6);
-    g.ellipsoid(u * L * 0.8 + (R() - 0.5) * 2, r * 0.45, 0, r * 1.25, r, Math.min(D, r * 0.75), 1);
+    const u = i / (n - 1) - 0.5;
+    const r = Hh * (0.55 + R() * 0.4) * (1 - Math.abs(u) * 0.9);
+    g.ellipsoid(u * L * 0.85 + (R() - 0.5) * 2, r * 0.5, 0, r * 1.1, r, Math.min(D, r * 0.8), 1);
   }
+  for (let i = 0; i < 2; i++) { const r = Hh * (0.5 + R() * 0.3); g.ellipsoid((R() - 0.5) * L * 0.4, Hh * 0.75, (R() - 0.5) * 2, r * 1.1, r * 0.9, Math.min(D, r * 0.7), 1); }
   g.carve((x, y) => y < 0);
   const top = g.bounds().maxY;
   const light = o.light ?? 0xffffff, base = o.color ?? 0xf2f6fc, sh = o.shade ?? 0xc6d4ea, dark = o.dark ?? shade(sh, -0.1);
   g.paint((x, y, z) => {
     const t = y / Math.max(1, top), j = (hash3(x, y, z + seed) - 0.5) * 0.18;
     if (y === 0) return dark;
-    if (t + j < 0.3) return sh;
-    if (!g.has(x, y + 1, z) && t + j > 0.5) return light;
+    if (t + j < 0.22) return sh;
+    if (!g.has(x, y + 1, z) && t + j > 0.42) return light;
     return base;
   });
   return g;
+}
+
+const cloudMats = new Map();
+/** Unlit vertex-colour material for clouds / far billboards (keeps painted brightness, still fogged). */
+export function unlitPair(key = 'u') {
+  let m = cloudMats.get(key);
+  if (!m) { m = [new THREE.MeshBasicMaterial({ vertexColors: true }), Mats.glow]; cloudMats.set(key, m); }
+  return m;
 }
 
 /**
@@ -900,7 +909,7 @@ export function addClouds(K, o = {}) {
   for (let k = 0; k < kinds; k++) {
     const list = all.filter((c) => c.k === k);
     if (!list.length) continue;
-    const im = K.inst((o.id ?? 'cloud') + k, () => cloudGrid(k + 1 + (o.seed ?? 5) * 10, o), { scale: o.scale ?? 1, jitter: 0.03 }, list.map((c) => [c.x, c.y, c.z, 0, c.s]), { receive: false, mats: o.mats });
+    const im = K.inst((o.id ?? 'cloud') + k, () => cloudGrid(k + 1 + (o.seed ?? 5) * 10, o), { scale: o.scale ?? 1, jitter: 0.03 }, list.map((c) => [c.x, c.y, c.z, 0, c.s]), { receive: false, mats: o.mats ?? (o.lit ? undefined : unlitPair()) });
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     im.frustumCulled = false;
     sets.push([im, list]);
@@ -1086,7 +1095,8 @@ export function addFall(K, o) {
     }
     im.instanceMatrix.needsUpdate = true;
   });
-  if (o.spray !== false) addPuffs(K, { id: o.id + 'Spray', sources: Array.from({ length: Math.max(2, Math.round(o.width / 0.7)) }, (_, i, a) => [o.x + (i / Math.max(1, a.length - 1) - 0.5) * o.width * cr, o.bottom, o.z + 0.4 - (i / Math.max(1, a.length - 1) - 0.5) * o.width * sr]), n: 3, life: 1.6, rise: 0.8, drift: [0, 0.5], size: [0.5, 1.3], scale: v * 0.8, color: foam, light: 0xffffff, shade: light, seed: 9 });
+  const ns = Math.max(2, Math.round(o.width / 0.7));
+  if (o.spray !== false) addPuffs(K, { id: o.id + 'Spray', sources: Array.from({ length: ns }, (_, i) => [o.x + (i / (ns - 1) - 0.5) * o.width * cr, o.bottom, o.z + 0.4 - (i / (ns - 1) - 0.5) * o.width * sr]), n: 3, life: 1.6, rise: 0.8, drift: [0, 0.5], size: [0.5, 1.3], scale: v * 0.8, color: foam, light: 0xffffff, shade: light, seed: 9 });
   return im;
 }
 
@@ -1247,4 +1257,52 @@ export function tuftGrid(col = 0x4cb83a, o = {}) {
   const light = o.light ?? shade(col, 0.25), dark = o.dark ?? shade(col, -0.25);
   for (const [x, z, h] of o.blades ?? [[0, 0, 4], [1, 0, 3], [-1, 1, 3], [2, 1, 2], [-2, 0, 2], [0, -1, 3]]) for (let y = 0; y < h; y++) g.set(x + (y === h - 1 && x > 0 ? 1 : 0), y, z, y === h - 1 ? light : y === 0 ? dark : col);
   return g;
+}
+
+/** Keep a screen-space sky texture cover-fitted to the window aspect (also works outside the battle view). */
+export function fitSkyAuto(K, tex) {
+  let last = 0;
+  K.onUpdate(() => {
+    const a = typeof window !== 'undefined' ? window.innerWidth / Math.max(1, window.innerHeight) : 16 / 9;
+    if (Math.abs(a - last) < 1e-3) return;
+    last = a;
+    coverFit(tex, a);
+  });
+  return tex;
+}
+
+/**
+ * 3D voxel skyline band (city blocks / factory halls) with window grids, roof
+ * kit, chimneys and antennas; a few windows lit (glow). Greedy-meshed.
+ * o: { x0, x1, z, depth, scale, minH, maxH, minW, maxW, gap, seed, walls: [hex...], window, lit: [hex...], litP, roof, antenna, chimney }
+ */
+export function voxSkyline(K, id, o = {}) {
+  const s = o.scale ?? 0.8, D = o.depth ?? 6, seed = o.seed ?? 3;
+  const R = mulberry32(seed * 313 + 1);
+  const walls = o.walls ?? [0x4a5262, 0x5a6272, 0x3e4656], win = o.window ?? 0x2a3040, lit = o.lit ?? [0xffe08a, 0xfff2c0], litP = o.litP ?? 0.12;
+  return K.mesh(id, () => {
+    const g = new VoxGrid();
+    let x = Math.floor((o.x0 ?? -120) / s);
+    const xe = Math.ceil((o.x1 ?? 120) / s);
+    while (x < xe) {
+      const bw = (o.minW ?? 5) + Math.floor(R() * ((o.maxW ?? 12) - (o.minW ?? 5)));
+      const bh = (o.minH ?? 6) + Math.floor(R() * ((o.maxH ?? 18) - (o.minH ?? 6)));
+      const bd = Math.max(2, D - Math.floor(R() * 3)), wall = walls[Math.floor(R() * walls.length)], z0 = -Math.floor(R() * 2);
+      const shaded = shade(wall, -0.12);
+      for (let xx = x; xx < x + bw; xx++) for (let y = 0; y < bh; y++) for (let z = z0 - bd + 1; z <= z0; z++) {
+        let c = xx === x || xx === x + bw - 1 ? shaded : wall;
+        if (z === z0 && y > 0 && y < bh - 1 && (xx - x) % 2 === 1 && y % 2 === 1 && xx < x + bw - 1) {
+          const h = hash3(xx, y, seed);
+          g.set(xx, y, z, h < litP ? lit[Math.floor(h * 97) % lit.length] : win, h < litP);
+          continue;
+        }
+        if (y === bh - 1) c = o.roof ?? shade(wall, 0.12);
+        g.set(xx, y, z, c);
+      }
+      if (o.chimney && R() < o.chimney) { const cx = x + 1 + Math.floor(R() * (bw - 2)); for (let y = bh; y < bh + 4 + Math.floor(R() * 6); y++) g.set(cx, y, z0 - 1, y % 3 === 0 ? 0xb8442a : 0x8a8a84); }
+      if (o.antenna && R() < o.antenna) { const cx = x + Math.floor(bw / 2); for (let y = bh; y < bh + 3 + Math.floor(R() * 4); y++) g.set(cx, y, z0 - 1, 0x6a6e78); }
+      x += bw + Math.floor(R() * ((o.gap ?? 2) + 1));
+    }
+    return g;
+  }, { scale: s, pivot: [0, 0, 0], jitter: o.jitter ?? 0.04 }, 0, o.y ?? 0, o.z ?? -90, 0, 1, { receive: false });
 }

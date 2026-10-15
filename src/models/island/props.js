@@ -588,3 +588,463 @@ export const LOWPOLY = {
     return g;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Northern Wilds: vegetation brushes (low triangle, chunky voxels)
+
+Object.assign(LOWPOLY, {
+  /** Rainforest tree: buttress roots, tall trunk, two canopy tiers and hanging vines. */
+  jungle(leaf = 0x2f9a3e, seed = 1) {
+    const g = new VoxGrid();
+    const bark = 0x8a6a4a, barkD = 0x6a4e34;
+    g.box(-2, 0, -2, 1, 1, 1, barkD);
+    for (const [dx, dz] of [[-3, 0], [2, -1], [0, 2], [-1, -3]]) g.box(dx, 0, dz, dx, 2, dz, barkD);
+    const lean = hash3(seed, 4, 4) < 0.5 ? 1 : -1;
+    let x = 0;
+    for (let y = 2; y < 20; y++) {
+      if (y === 12) x += lean;
+      g.box(x - 1, y, -1, x, y, 0, y % 5 === 0 ? barkD : bark);
+    }
+    g.line(x, 14, 0, x + 4 * lean, 17, 1, barkD);
+    const L = leaf, Ld = shade(leaf, -0.24), Ll = shade(leaf, 0.2);
+    blob(g, x - 6, 18, -6, 12, 3, 12, band(L), 3);
+    blob(g, x - 4 + lean * 2, 21, -4, 8, 2, 8, band(Ll), 2);
+    blob(g, x + 4 * lean - 3, 16, -2, 6, 2, 6, band(Ld), 2);
+    // vines + bromeliads
+    for (let k = 0; k < 6; k++) {
+      const vx = x - 5 + Math.floor(hash3(seed, k, 1) * 11), vz = -5 + Math.floor(hash3(seed, k, 2) * 10);
+      const len = 3 + Math.floor(hash3(seed, k, 3) * 7);
+      if (g.has(vx, 18, vz)) for (let y = 17; y > 17 - len; y--) g.set(vx, y, vz, k & 1 ? 0x1f7a36 : 0x2a8a3c);
+    }
+    g.set(x, 13, 1, 0xff4fa3).set(x - 1, 9, 1, 0xffd23f);
+    return g;
+  },
+  /** Low fern: arching fronds. */
+  fern(leaf = 0x3fae48) {
+    const g = new VoxGrid();
+    for (let a = 0; a < 7; a++) {
+      const an = (a / 7) * Math.PI * 2 + 0.3;
+      for (let r = 0; r <= 5; r++) {
+        const y = r < 3 ? r : 5 - r;
+        g.set(Math.round(Math.cos(an) * r), Math.max(0, y), Math.round(Math.sin(an) * r), r > 3 ? shade(leaf, 0.2) : r === 0 ? shade(leaf, -0.2) : leaf);
+      }
+    }
+    return g;
+  },
+  /** Twisted dead tree with grey-purple bark. */
+  spooky(seed = 1) {
+    const g = new VoxGrid();
+    const c = 0x4a3e58, cl = 0x5e5070, cd = 0x342a40;
+    g.box(-1, 0, -1, 0, 9, 0, c);
+    g.box(-2, 0, -2, 1, 0, 1, cd);
+    const s = hash3(seed, 1, 1) < 0.5 ? 1 : -1;
+    g.line(0, 6, 0, 4 * s, 10, 1, cl);
+    g.line(4 * s, 10, 1, 6 * s, 10, 3, cl);
+    g.line(6 * s, 10, 3, 6 * s, 12, 4, c);
+    g.line(-1, 8, 0, -5 * s, 13, -1, cl);
+    g.line(-5 * s, 13, -1, -6 * s, 15, -1, c);
+    g.line(0, 9, 0, 1, 15, -2, c);
+    g.line(1, 15, -2, 3, 16, -2, cl);
+    g.set(1, 4, 1, cd).set(0, 5, 1, 0x1a141f); // knot hole
+    return g;
+  },
+  pumpkin(lantern = false) {
+    const g = new VoxGrid();
+    const o = 0xff8a1a, od = 0xd8600e, ol = 0xffa84a;
+    for (let x = -3; x <= 3; x++) for (let y = 0; y <= 4; y++) for (let z = -3; z <= 3; z++) {
+      if ((x / 3.6) ** 2 + ((y - 2) / 2.7) ** 2 + (z / 3.6) ** 2 > 1) continue;
+      g.set(x, y, z, (x + 10) % 2 === 0 ? od : y === 4 ? ol : o);
+    }
+    g.box(0, 5, 0, 0, 6, 0, 0x3f7a2a).set(1, 6, 0, 0x5fa83a);
+    if (lantern) {
+      g.set(-2, 3, 3, 0xffd23f, true).set(1, 3, 3, 0xffd23f, true);
+      for (let x = -2; x <= 1; x++) g.set(x, 1, 3, 0xffb02a, true);
+    }
+    return g;
+  },
+  tombstone(seed = 1) {
+    const g = new VoxGrid();
+    const s = 0x9a96a8, sd = 0x7a7688, sl = 0xb8b4c6;
+    const kind = Math.floor(hash3(seed, 2, 2) * 3);
+    if (kind === 2) {
+      // cross
+      g.box(0, 0, 0, 1, 9, 1, s);
+      g.box(-2, 6, 0, 3, 7, 1, s);
+      g.box(0, 9, 0, 1, 9, 1, sl);
+    } else {
+      g.box(-2, 0, 0, 2, 6, 1, (x, y) => (y === 6 ? sl : x === -2 ? sd : s));
+      g.box(-1, 7, 0, 1, 7, 1, sl);
+      if (kind === 1) { g.box(-1, 2, 2, 1, 2, 2, sd); g.box(0, 1, 2, 0, 4, 2, sd); }
+      else g.box(-1, 4, 2, 1, 4, 2, sd).box(-1, 2, 2, 1, 2, 2, sd);
+    }
+    g.box(-2, 0, 2, 2, 0, 5, 0x4a3a40);
+    g.set(-2, 1, 0, 0x5a8a4a).set(2, 0, -1, 0x5a8a4a);
+    return g;
+  },
+  mushroom(cap = 0xe8343c) {
+    const g = new VoxGrid();
+    g.box(0, 0, 0, 0, 2, 0, 0xf4ecd8);
+    g.box(-2, 3, -2, 2, 3, 2, cap);
+    g.box(-1, 4, -1, 1, 4, 1, shade(cap, 0.12));
+    g.set(-1, 4, 1, 0xffffff).set(2, 3, 0, 0xffffff).set(0, 3, -2, 0xffffff);
+    g.box(2, 0, 2, 2, 1, 2, 0xf4ecd8).box(1, 2, 1, 3, 2, 3, shade(cap, -0.1));
+    return g;
+  },
+  /** Obsidian spike cluster with a hot glowing seam. */
+  obsidian(seed = 1) {
+    const g = new VoxGrid();
+    const o = 0x241e2c, ol = 0x4a3a5a, op = 0x6a4a8a;
+    for (const [x, z, h] of [[0, 0, 9], [2, 1, 5], [-2, -1, 6], [1, -2, 4], [-1, 2, 3]]) {
+      const hh = h + Math.floor(hash3(seed, x, z) * 3);
+      for (let y = 0; y < hh; y++) {
+        const w = y < hh - 3 ? 1 : 0;
+        g.box(x, y, z, x + w, y, z + w, y === hh - 1 ? op : (x + y) % 3 === 0 ? ol : o);
+      }
+    }
+    g.box(-3, 0, -3, 3, 0, 3, (x, y, z) => (Math.abs(x) + Math.abs(z) > 4 ? undefined : 0x2e2830));
+    g.set(0, 1, 2, 0xff6a1f, true).set(1, 0, 2, 0xff8a2a, true);
+    return g;
+  },
+  coral(seed = 1) {
+    const g = new VoxGrid();
+    const cols = [0xff6fb0, 0xff8a4a, 0xb05cff, 0xffd23f, 0x5ce1e6];
+    const c = cols[Math.floor(hash3(seed, 1, 9) * cols.length)], c2 = cols[Math.floor(hash3(seed, 2, 9) * cols.length)];
+    // brain coral dome + branching staghorn
+    for (let x = -3; x <= 3; x++) for (let z = -3; z <= 3; z++) for (let y = 0; y <= 2; y++) {
+      if ((x / 3.4) ** 2 + (z / 3.4) ** 2 + (y / 2.6) ** 2 > 1) continue;
+      g.set(x, y, z, (x + z + y) % 2 ? c : shade(c, -0.15));
+    }
+    for (const [dx, dz] of [[3, 2], [-2, 3], [2, -3]]) {
+      g.line(dx, 0, dz, dx, 4, dz, c2);
+      g.line(dx, 3, dz, dx + Math.sign(dx), 5, dz, c2);
+      g.line(dx, 2, dz, dx, 4, dz + Math.sign(dz), shade(c2, 0.15));
+    }
+    return g;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Northern Wilds landmarks
+
+/** Giant rainforest emergent tree (voxel ~0.3): flared buttresses, vines, epiphytes. Trunk base at y = 0. */
+export function kapokGrid(seed = 1) {
+  const g = new VoxGrid();
+  const bark = 0x9a7a58, barkD = 0x6e543a, barkL = 0xb89270, moss = 0x4a9a3a;
+  const H = 62;
+  for (let y = 0; y < H; y++) {
+    const r = 3.2 + Math.max(0, 9 - y) * 0.5;
+    for (let x = -Math.ceil(r) - 1; x <= Math.ceil(r); x++) for (let z = -Math.ceil(r) - 1; z <= Math.ceil(r); z++) {
+      const dx = x + 0.5, dz = z + 0.5;
+      const a = Math.atan2(dz, dx);
+      // buttress fins: 5 flares near the ground
+      const fin = y < 12 ? Math.max(0, Math.cos(a * 5 + seed) - 0.55) * (12 - y) * 0.9 : 0;
+      const rr = (y < 12 ? 3.2 : r) + fin;
+      if (dx * dx + dz * dz > rr * rr) continue;
+      const streak = hash3(x, y >> 3, z) < 0.25;
+      g.set(x, y, z, y < 3 ? moss : streak ? barkD : (y % 9 === 0 ? barkL : bark));
+    }
+  }
+  // spreading limbs + canopy umbrella
+  const leaf = [0x2f9a3e, 0x3fae48, 0x55c25a, 0x1f7a36];
+  const limbs = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2 + seed;
+    const len = 14 + hash3(seed, k, 1) * 6;
+    const ex = Math.round(Math.cos(a) * len), ez = Math.round(Math.sin(a) * len), ey = H - 4 + Math.round(hash3(seed, k, 2) * 6);
+    g.line(0, H - 10, 0, ex, ey, ez, barkD, 1);
+    limbs.push([ex, ey, ez]);
+  }
+  for (const [ex, ey, ez] of [...limbs, [0, H + 2, 0]]) {
+    const rx = 9 + hash3(ex, ey, ez) * 4, ry = 3.2, rz = 9 + hash3(ez, ex, 2) * 4;
+    for (let x = Math.floor(-rx); x <= rx; x++) for (let z = Math.floor(-rz); z <= rz; z++) for (let y = -2; y <= 3; y++) {
+      const d = (x / rx) ** 2 + (y / ry) ** 2 + (z / rz) ** 2;
+      if (d > 1 + (hash3(x + ex, y, z + ez) - 0.5) * 0.25) continue;
+      g.set(ex + x, ey + y, ez + z, y >= 2 ? leaf[2] : y <= -1 ? leaf[3] : ((x >> 2) + (z >> 2)) & 1 ? leaf[0] : leaf[1]);
+    }
+  }
+  // hanging lianas + flowers
+  for (let k = 0; k < 40; k++) {
+    const x = Math.round((hash3(seed, k, 3) - 0.5) * 40), z = Math.round((hash3(seed, k, 4) - 0.5) * 40);
+    let top = -1;
+    for (let y = H + 6; y > 20; y--) if (g.has(x, y, z)) { top = y; break; }
+    if (top < 0) continue;
+    const len = 6 + Math.floor(hash3(seed, k, 5) * 16);
+    for (let y = top - 1; y > top - len; y--) if (!g.has(x, y, z)) g.set(x, y, z, (y & 3) === 0 ? 0x2a8a3c : 0x1f6a30);
+    if (k % 5 === 0) g.set(x, top - len, z, [0xff4fa3, 0xffd23f, 0xff6a3a][k % 3]);
+  }
+  return g;
+}
+
+/** Shipwreck (voxel 0.25): a broken galleon hull with a snapped mast and tattered sail. Bow toward +z. */
+export function shipwreckGrid() {
+  const g = new VoxGrid();
+  const W = [0x8a5a34, 0x7a4e2c, 0x9a6a3c], WD = 0x4a301c, barn = 0xb8c0a8, moss = 0x4a8a5a;
+  const L = 64;
+  const hwAt = (z) => (z < 8 ? 6 + z * 0.4 : z < 44 ? 9 : 9 * Math.sqrt(Math.max(0, 1 - ((z - 44) / (L - 44)) ** 2)));
+  for (let z = 0; z < L; z++) {
+    const hw = hwAt(z);
+    const sheer = z > 50 ? Math.round((z - 50) * 0.35) : z < 6 ? Math.round((6 - z) * 0.5) : 0;
+    for (let y = 0; y <= 12 + sheer; y++) {
+      const w = Math.max(0.8, hw - (y < 4 ? (4 - y) * 1.3 : 0));
+      for (let x = -Math.ceil(w); x < Math.ceil(w); x++) {
+        if (Math.abs(x + 0.5) > w) continue;
+        const shell = Math.abs(x + 0.5) > w - 1.3 || y === 0;
+        if (!shell && y > 1) continue; // hollow
+        const c = y < 3 ? (hash3(x, y, z) < 0.35 ? barn : moss) : y === 9 ? WD : W[(y + (z >> 3)) % 3];
+        g.set(x, y, z, c);
+      }
+    }
+  }
+  // smashed hole on the starboard side + missing deck planks
+  g.carve((x, y, z) => x > 3 && y > 2 && y < 9 && z > 18 && z < 30 && (z - 24) ** 2 / 36 + (y - 5.5) ** 2 / 9 < 1);
+  for (let z = 6; z < 50; z++) for (let x = -8; x < 8; x++) if (Math.abs(x + 0.5) < hwAt(z) - 1 && hash3(x >> 1, 3, z >> 1) < 0.62) g.set(x, 11, z, (z & 1) ? 0xa87a4a : 0x946a40);
+  // gun ports
+  for (let z = 10; z < 44; z += 6) for (const s of [-1, 1]) { const x = s > 0 ? 8 : -9; g.box(x, 7, z, x, 8, z + 1, 0x1a1210); }
+  // stern castle
+  g.box(-8, 13, 0, 7, 18, 9, (x, y, z) => (y === 18 ? WD : z === 0 && y > 14 && (x & 3) === 1 ? 0x3a5a6a : W[(y + x) & 1 ? 0 : 2]));
+  // snapped main mast (tilted stump) + intact foremast with tattered sail + crow's nest
+  g.box(-1, 11, 30, 0, 22, 31, WD);
+  g.line(0, 22, 30, 5, 26, 34, WD, 0);
+  for (let y = 11; y < 42; y++) g.box(-1, y, 46, 0, y, 47, y % 6 === 0 ? 0x5a3a20 : WD);
+  g.box(-8, 32, 46, 7, 32, 47, WD);
+  for (let y = 22; y < 32; y++) for (let x = -7; x <= 6; x++) {
+    if (hash3(x, y, 7) < 0.18 + (31 - y) * 0.02 && y < 28) continue; // torn holes
+    g.set(x, y, 48, (y + x) % 7 === 0 ? 0xc8b896 : 0xe8dcc0);
+  }
+  g.box(-3, 40, 44, 2, 41, 49, WD);
+  g.set(0, 43, 46, 0x15121f).box(1, 42, 46, 4, 43, 46, 0x15121f); // pirate flag
+  text(g, 'X', 2, 42, 47, '+z', 0xffffff);
+  // bowsprit
+  g.line(0, 13, L - 2, 0, 19, L + 10, WD, 0);
+  return g;
+}
+
+/** Twisted giant dead tree (voxel 0.2) for the haunted hill, with a rope swing and lanterns. */
+export function spookyGiantGrid() {
+  const g = new VoxGrid();
+  const c = 0x3e3250, cl = 0x54466a, cd = 0x2a2236;
+  for (let y = 0; y < 34; y++) {
+    const r = 3.2 + Math.max(0, 6 - y) * 0.5;
+    const ox = Math.round(Math.sin(y * 0.12) * 2);
+    g.cylinder(ox - 0.5, -0.5, y, y, r, (x, yy, z) => (hash3(x, yy >> 1, z) < 0.3 ? cd : c));
+  }
+  const branch = (x0, y0, z0, pts) => { let p = [x0, y0, z0]; for (const q of pts) { g.line(...p, ...q, cl, 1); p = q; } };
+  branch(2, 26, 0, [[10, 32, 2], [16, 34, 6], [20, 38, 6]]);
+  branch(-1, 28, 0, [[-9, 34, -2], [-15, 40, -1], [-17, 44, 2]]);
+  branch(1, 32, 0, [[3, 42, -4], [0, 48, -6], [2, 52, -5]]);
+  branch(0, 22, 1, [[-6, 24, 6], [-12, 25, 8]]);
+  // twig tips
+  for (const [x, y, z] of [[20, 38, 6], [-17, 44, 2], [2, 52, -5], [-12, 25, 8], [16, 34, 6]]) {
+    g.line(x, y, z, x + 2, y + 3, z, cd);
+    g.line(x, y, z, x - 2, y + 2, z + 1, cd);
+  }
+  // rope swing on the low branch + hanging lanterns (warm glow)
+  for (let y = 12; y < 24; y++) { g.set(-8, y, 7, 0xc8a870); g.set(-11, y, 7, 0xc8a870); }
+  g.box(-12, 11, 6, -7, 11, 8, 0x8a5a2a);
+  for (const [x, y, z] of [[14, 30, 6], [-14, 36, -1]]) {
+    g.box(x, y - 3, z, x, y, z, 0x2a2238);
+    g.box(x - 1, y - 6, z - 1, x + 1, y - 4, z + 1, 0x2a2238);
+    g.set(x, y - 5, z, 0xffc84a, true);
+  }
+  // roots
+  for (let a = 0; a < 6; a++) { const an = a * 1.05; g.line(0, 2, 0, Math.round(Math.cos(an) * 8), 0, Math.round(Math.sin(an) * 8), cd, 0); }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Space elevator (voxel 0.25)
+
+/** Ground anchor: an octagonal launch pad ring with clamps and beacons around the tether. */
+export function elevatorAnchorGrid() {
+  const g = new VoxGrid();
+  const m = 0xc8ced8, md = 0x8e96a4, mdd = 0x4a5262, blue = 0x8f9bff;
+  for (let x = -14; x <= 13; x++) for (let z = -14; z <= 13; z++) {
+    const o = Math.max(Math.abs(x + 0.5), Math.abs(z + 0.5), (Math.abs(x + 0.5) + Math.abs(z + 0.5)) / 1.38);
+    if (o > 13.5) continue;
+    g.set(x, 0, z, o > 12.5 ? blue : o > 11.5 ? 0xffc21a : ((x >> 2) + (z >> 2)) & 1 ? m : 0xd8dce6);
+    g.set(x, -1, z, md);
+  }
+  // clamp towers holding the tether
+  for (const [x, z] of [[-4, -4], [3, -4], [-4, 3], [3, 3]]) {
+    g.box(x, 1, z, x, 9, z, mdd);
+    g.line(x, 9, z, x > 0 ? 1 : -2, 12, z > 0 ? 1 : -2, md);
+    g.set(x, 10, z, 0xff3a3a, true);
+  }
+  g.box(-2, 1, -2, 1, 3, 1, mdd);
+  return g;
+}
+/** One tether segment (lattice of 4 corner rails + cross bracing), height 12 voxels. */
+export function tetherSegGrid() {
+  const g = new VoxGrid();
+  const c = 0xb8c0cc, d = 0x6b7386;
+  for (const [x, z] of [[-2, -2], [1, -2], [-2, 1], [1, 1]]) g.box(x, 0, z, x, 11, z, c);
+  for (let y = 0; y < 12; y++) {
+    const k = y % 6;
+    g.set(-2 + Math.min(3, k), y, -2, d).set(1 - Math.min(3, k), y, 1, d);
+    g.set(-2, y, -2 + Math.min(3, k), d).set(1, y, 1 - Math.min(3, k), d);
+  }
+  g.box(-1, 0, -1, 0, 11, 0, 0x8f9bff);
+  return g;
+}
+/** Elevator climber pod (windows glow). */
+export function climberGrid() {
+  const g = new VoxGrid();
+  const w = 0xeef0f8, d = 0x4a5262;
+  g.box(-4, 0, -4, 3, 6, 3, (x, y, z) => (y === 0 || y === 6 ? d : w));
+  for (const [x, z] of [[-4, -1], [3, -1], [-1, -4], [-1, 3]]) g.box(x, 2, z, x, 4, z + 1, 0x9fd8ff, true);
+  g.box(-3, 7, -3, 2, 7, 2, 0x8f9bff);
+  g.box(-1, -1, -1, 0, -1, 0, 0xffc21a, true);
+  return g;
+}
+export function satelliteGrid() {
+  const g = new VoxGrid();
+  g.box(-2, -2, -2, 1, 1, 1, 0xffc21a);
+  g.box(-2, 2, -2, 1, 2, 1, 0xd8dce6);
+  for (const s of [-1, 1]) {
+    const x0 = s > 0 ? 2 : -3;
+    g.box(x0, 0, 0, x0 + s * 1, -1, -1, 0x8e96a4);
+    g.box(s > 0 ? 4 : -13, -2, -1, s > 0 ? 12 : -5, 1, -1, (x) => ((x & 3) === 0 ? 0xc8ced8 : 0x2a3a8a));
+  }
+  g.line(0, 3, 0, 0, 6, 0, 0xc8ced8);
+  g.set(0, 7, 0, 0xff3a3a, true);
+  return g;
+}
+
+/** Lattice comms tower with dishes (voxel 0.2). */
+export function commTowerGrid() {
+  const g = new VoxGrid();
+  const r = 0xe8343c, w = 0xf4f6fa, d = 0x5a6272;
+  for (let y = 0; y < 60; y++) {
+    const hw = Math.max(1, Math.round(5 - y * 0.07));
+    const col = Math.floor(y / 6) % 2 ? r : w;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g.set(sx * hw - (sx < 0 ? 0 : 1), y, sz * hw - (sz < 0 ? 0 : 1), col);
+    if (y % 6 === 0) for (let k = -hw; k < hw; k++) { g.set(k, y, -hw, d); g.set(k, y, hw - 1, d); g.set(-hw, y, k, d); g.set(hw - 1, y, k, d); }
+  }
+  for (const [y, s] of [[34, 1], [46, -1]]) {
+    for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) if (a * a + b * b <= 10) g.set(s * 4 + (s > 0 ? Math.round((a * a + b * b) / 6) : -Math.round((a * a + b * b) / 6)), y + a, b, w);
+  }
+  g.box(0, 60, 0, 0, 64, 0, d);
+  g.set(0, 65, 0, 0xff3a3a, true);
+  return g;
+}
+
+/** Ocean-cleanup boat with a trash net boom (voxel 0.12), bow +z. */
+export function cleanupBoatGrid() {
+  const g = new VoxGrid();
+  const L = 30;
+  for (let z = 0; z < L; z++) {
+    const hw = z < 20 ? 6 : 6 * Math.sqrt(Math.max(0, 1 - ((z - 20) / 10) ** 2));
+    for (let y = 0; y <= 5; y++) for (let x = -6; x < 6; x++) {
+      if (Math.abs(x + 0.5) > Math.max(0.6, hw - (y === 0 ? 1.5 : 0))) continue;
+      g.set(x, y, z, y <= 1 ? 0x1a3a6a : y === 4 ? 0x29e0ff : 0xf6f8fc);
+    }
+  }
+  g.box(-4, 6, 4, 3, 11, 13, (x, y) => (y === 11 ? 0x29e0ff : 0xf6f8fc));
+  g.box(-3, 9, 13, 2, 10, 13, 0x24324e);
+  g.box(-1, 12, 7, 0, 15, 8, 0x3d4352);
+  g.set(0, 16, 7, 0xffd23f);
+  // A-frame crane + net full of trash at the stern
+  g.line(-5, 6, 2, 0, 16, -3, 0xffa62a);
+  g.line(4, 6, 2, -1, 16, -3, 0xffa62a);
+  for (let x = -3; x <= 2; x++) for (let y = 8; y <= 13; y++) if ((x + y) & 1) g.set(x, y, -4, 0x4a5a5a);
+  for (const [x, y, c] of [[-2, 9, 0x5ce1e6], [1, 10, 0xe8343c], [0, 12, 0xffffff], [-1, 11, 0x5fdc4a]]) g.set(x, y, -5, c);
+  text(g, 'TEAMSEAS', 7, 2, 25, '+x', 0x1a3a6a, {});
+  return g;
+}
+/** Floating boom segment: orange float + net skirt (voxel 0.1). */
+export function boomGrid() {
+  const g = new VoxGrid();
+  g.box(-6, 0, -1, 5, 1, 0, (x) => ((x + 6) % 4 < 2 ? 0xff8a1a : 0xffd23f));
+  g.box(-6, -1, -1, 5, -1, -1, 0x2a3a3a);
+  return g;
+}
+/** Bits of floating plastic (voxel 0.08). */
+export function trashGrid(seed = 1) {
+  const g = new VoxGrid();
+  const cols = [0x5ce1e6, 0xffffff, 0xe8343c, 0x5fdc4a, 0xffd23f, 0x3a6a9a];
+  for (let k = 0; k < 6; k++) {
+    const x = Math.round((hash3(seed, k, 1) - 0.5) * 10), z = Math.round((hash3(seed, k, 2) - 0.5) * 10);
+    const c = cols[Math.floor(hash3(seed, k, 3) * cols.length)];
+    if (k % 3 === 0) g.box(x, 0, z, x + 2, 0, z, c).set(x + 3, 0, z, 0xffffff); // bottle
+    else g.box(x, 0, z, x + 1, 0, z + 1, c);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Flyers: bats (haunted hill) + parrots (jungle). Body faces +z, wing extends +x from the hinge.
+export function batBodyGrid() {
+  const g = new VoxGrid();
+  g.box(-1, 0, -2, 1, 2, 1, 0x2a2236);
+  g.box(-1, 1, 2, 1, 3, 3, 0x2a2236);
+  g.set(-1, 4, 2, 0x2a2236).set(1, 4, 2, 0x2a2236);
+  g.set(-1, 2, 4, 0xff3a5a, true).set(1, 2, 4, 0xff3a5a, true);
+  return g;
+}
+export function batWingGrid() {
+  const g = new VoxGrid();
+  for (let x = 0; x <= 7; x++) {
+    const w = x < 3 ? 2 : x < 6 ? 1 : 0;
+    for (let z = -w; z <= w; z++) g.set(x, 0, z - 1, x % 3 === 2 ? 0x1a1424 : 0x3a2e4a);
+  }
+  return g;
+}
+export function parrotBodyGrid(color = 0xe8343c) {
+  const g = new VoxGrid();
+  g.box(-1, 0, -3, 1, 2, 2, color);
+  g.box(-1, 1, 3, 1, 3, 4, color);
+  g.box(0, 1, 5, 0, 2, 6, 0xfff2c8);
+  g.set(-1, 3, 4, 0x15121f).set(1, 3, 4, 0x15121f);
+  g.box(0, 0, -7, 0, 1, -4, shade(color, -0.2));
+  g.box(0, 0, -9, 0, 0, -8, 0x29b6f6);
+  return g;
+}
+export function parrotWingGrid(color = 0xe8343c) {
+  const g = new VoxGrid();
+  for (let x = 0; x <= 8; x++) {
+    const w = x < 5 ? 2 : 1;
+    for (let z = -w; z <= w - 1; z++) g.set(x, 0, z, x >= 6 ? 0x29b6f6 : x >= 4 ? 0xffd23f : color);
+  }
+  return g;
+}
+/** Little floating ghost (voxel 0.08). */
+export function ghostGrid() {
+  const g = new VoxGrid();
+  const w = 0xf2f0ff, s = 0xd0cce8;
+  g.ellipsoid(0, 9, 0, 4, 4, 3.5, w);
+  g.box(-4, 3, -3, 4, 8, 3, (x, y, z) => ((x * x) / 18 + (z * z) / 11 > 1 ? undefined : y < 4 && (x + 8) % 3 === 0 ? undefined : y < 5 ? s : w));
+  g.set(-2, 10, 4, 0x15121f).set(1, 10, 4, 0x15121f).set(-2, 9, 4, 0x15121f).set(1, 9, 4, 0x15121f);
+  g.box(-1, 6, 4, 0, 7, 4, 0x15121f);
+  g.box(-6, 7, 0, -5, 8, 0, w).box(5, 8, 0, 6, 9, 0, w);
+  return g;
+}
+
+/** Glowing energy ring that climbs the space-elevator tether (voxel 0.25). */
+export function beamRingGrid() {
+  const g = new VoxGrid();
+  for (let a = 0; a < 24; a++) {
+    const an = (a / 24) * Math.PI * 2;
+    g.set(Math.round(Math.cos(an) * 4.2 - 0.5), 0, Math.round(Math.sin(an) * 4.2 - 0.5), a & 1 ? 0x8f9bff : 0xc8d0ff, true);
+  }
+  return g;
+}
+/** Little security helicopter (voxel 0.1), nose +z; rotor separate. */
+export function heliBodyGrid() {
+  const g = new VoxGrid();
+  const r = 0x2a2e3a, rl = 0x3d4352, y = 0xffd23f;
+  g.ellipsoid(0, 5, 4, 4, 4, 6, (x, yy, z) => (z > 6 && yy > 4 ? 0x8fd8ff : yy === 3 ? y : r));
+  g.box(0, 6, -14, 0, 7, -2, rl);
+  g.box(0, 7, -15, 0, 11, -13, r);
+  g.box(-2, 9, -15, 2, 9, -14, y);
+  for (const s of [-1, 1]) { g.box(s * 4, 0, -2, s * 4, 0, 10, rl); g.box(s * 3, 1, 1, s * 3, 1, 1, rl).box(s * 3, 1, 7, s * 3, 1, 7, rl); }
+  g.box(-1, 10, 3, 0, 10, 4, rl);
+  g.set(0, 2, 10, 0xffffff, true);
+  g.set(0, 12, -14, 0xff3a3a, true);
+  return g;
+}
+export function heliRotorGrid() {
+  const g = new VoxGrid();
+  for (let k = -12; k <= 12; k++) { g.set(k, 0, 0, 0x4a5262); g.set(0, 0, k, 0x4a5262); }
+  g.box(-1, 0, -1, 1, 1, 1, 0x2a2e3a);
+  return g;
+}

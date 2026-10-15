@@ -7,6 +7,8 @@
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintStars, paintSun, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
+  pixbuf, skyGlow, paintMoonPx, paintStarfield, paintAuroraPx, paintStreaks, paintRange,
+  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, pineTreeGrid,
 } from './kit.js';
 
 const C = {
@@ -484,6 +486,67 @@ const signpostGrid = () => {
   return g;
 };
 
+// --------------------------------------------------------------------------- postcard props
+
+/** RV BEAST: red research icebreaker with a white bridge, cranes, helideck and a funnel (0.16 scale, bow toward +x). */
+const icebreakerGrid = () => {
+  const g = new VoxGrid();
+  const red = 0xc8302c, redD = 0x8a1e1c, white = 0xf2f4f8;
+  for (let x = -40; x <= 40; x++) {
+    const bow = Math.max(0, x - 26) / 14, stern = Math.max(0, -x - 34) / 6;
+    const hw = Math.round(8 - bow * bow * 7 - stern * 2);
+    for (let z = -hw; z <= hw; z++) for (let y = 0; y < 12; y++) {
+      if (y < Math.round(bow * 6)) continue;
+      g.set(x, y, z, y < 3 ? 0x2a2a36 : y === 11 ? white : y === 8 ? 0xffffff : z === hw || z === -hw ? red : redD);
+    }
+  }
+  text(g, 'BEAST', -6, 4, 9, '+z', 0xffffff, {});
+  g.box(-30, 12, -6, -6, 20, 5, (x, y) => (y === 16 || y === 19 ? 0x3a4a6a : white));
+  g.box(-28, 21, -5, -12, 26, 4, (x, y) => (y === 24 ? 0x2a3a5a : white));
+  for (let x = -27; x <= -13; x += 2) g.set(x, 24, 5, 0x9ad8ff).set(x, 17, 6, 0x9ad8ff);
+  g.box(-22, 27, -1, -21, 34, 0, 0xd8dde4).box(-24, 33, -3, -19, 33, 2, 0xd8dde4);
+  g.box(-10, 12, -3, -5, 30, 2, (x, y) => (y > 26 ? 0x22222c : y > 24 ? 0xffd23f : red));
+  g.box(-40, 12, -7, -31, 12, 6, 0x3a3e4a);
+  for (const [x, z] of [[-36, -4], [-36, 3]]) g.set(x, 13, z, 0xffd23f);
+  for (const x of [4, 16]) { g.box(x, 12, -1, x + 1, 22, 0, 0xffd23f); g.line(x, 22, 0, x + 9, 17, 0, 0xffd23f); }
+  g.box(-2, 12, -6, 22, 14, 5, 0x5a3a28);
+  return g;
+};
+/** Orca (black + white, side profile toward +x). */
+const orcaGrid = () => {
+  const g = new VoxGrid();
+  for (let x = -14; x <= 14; x++) {
+    const r = 4.2 * Math.sin(((x + 14) / 29) * Math.PI) + 0.6;
+    for (let y = -Math.round(r); y <= Math.round(r); y++) for (let z = -Math.round(r * 0.7); z <= Math.round(r * 0.7); z++) {
+      if (y * y + (z / 0.75) ** 2 > r * r) continue;
+      const white = (y < -r * 0.25 && x > -6) || (x > 6 && x < 10 && y > 0 && y < 2 && Math.abs(z) > r * 0.4);
+      g.set(x, y, z, white ? 0xf4f8ff : 0x14161e);
+    }
+  }
+  for (let k = 0; k < 6; k++) g.box(-2 + Math.floor(k / 2), 4 + k, 0, 1 - Math.floor(k / 3), 4 + k, 0, 0x14161e);
+  for (const z of [-3, 3]) g.box(-17, -1 + (z > 0 ? 1 : 0), z - 1, -14, 0 + (z > 0 ? 1 : 0), z, 0x14161e);
+  return g;
+};
+/** Ski-equipped polar plane (faces +x). */
+const skiPlaneGrid = () => {
+  const g = new VoxGrid();
+  g.box(-16, -2, -2, 20, 2, 1, (x, y) => (y === 0 ? 0xe8343c : 0xf2f4f8));
+  g.box(14, 0, -2, 18, 2, 1, 0x7ab8e0);
+  g.box(-2, 2, -24, 4, 3, 23, (x, y, z) => (Math.abs(z) > 20 ? 0xe8343c : 0xf2f4f8));
+  g.box(-18, 2, -1, -14, 9, 0, 0xe8343c).box(-18, 2, -8, -15, 3, 7, 0xf2f4f8);
+  for (const z of [-8, 7]) { g.box(4, -3, z, 4, -1, z, 0x3a3e4a); g.box(0, -4, z - 1, 10, -4, z + 1, 0x9aa2b0); }
+  return g;
+};
+/** Fat Weddell seal lounging (faces +x). */
+const sealGrid = () => {
+  const g = new VoxGrid();
+  g.ellipsoid(0, 3, 0, 9, 3.2, 4, (x, y) => (y < 2 ? 0x9aa2b0 : (x + y) % 5 === 0 ? 0x4a5262 : 0x6a7282));
+  g.ellipsoid(9, 5, 0, 3, 2.6, 2.6, 0x6a7282);
+  g.set(11, 6, 2, 0x15121f).set(11, 6, -2, 0x15121f).set(12, 5, 0, 0x2a2a36);
+  g.box(-12, 1, -3, -9, 2, 2, 0x5a6272);
+  return g;
+};
+
 // --------------------------------------------------------------------------- dynamic helpers
 
 const _D = new THREE.Object3D();
@@ -697,17 +760,16 @@ const crevCol = (d) => (d < 0.45 ? C.deep : d < 0.8 ? C.iceDD : d < 1.1 ? C.iceD
 
 export function buildBattle(K) {
   // ---- sky: polar night, stars, moon and a faint aurora glow
-  const sky = skyTexture('antarctica', [[0, 0x040820], [0.16, 0x0a1846], [0.3, 0x123a6a], [0.4, 0x1c5a78], [0.55, 0x235f7c], [1, 0x1a3c62]], (ctx, w, h) => {
-    paintStars(ctx, w, h, { n: 120, ymax: h * 0.4, seed: 21, tint: 0xa8ffe0 });
-    for (let x = 0; x < w; x++) {
-      const top = 8 + vnoise(x * 0.08, 2, 1) * 10, len = 6 + vnoise(x * 0.2, 5, 1) * 10;
-      for (let y = top; y < top + len; y++) if (bayer(x, y | 0) < 0.35 * (y - top) / len) px(ctx, x, y | 0, 1, 1, 0x2ad69a, 0.45);
-    }
-    paintSun(ctx, w * 0.82, h * 0.1, 4, 0xf4f6ff, 0xa8c8ff);
-    disc(ctx, w * 0.82 + 2, h * 0.1 - 1, 3, 0xdfe6f6);
-    px(ctx, Math.round(w * 0.82) - 2, Math.round(h * 0.1) + 1, 1, 1, 0xc8d2e8);
-  });
-
+  const sky = skyTexture('antarctica2', [[0, 0x030616], [0.14, 0x081440], [0.3, 0x10306a], [0.42, 0x1a4c78], [0.56, 0x235f7c], [1, 0x1a3c62]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    paintStarfield(P, w, h, { n: 260, ymax: h * 0.5, seed: 21, tint: 0xa8ffe0, milky: [w * 0.05, h * 0.02, w * 0.95, h * 0.42, 14], milkyColor: 0x4a5aa8 });
+    paintAuroraPx(P, w, { y: h * 0.36, amp: 9, freq: 0.035, height: 34, seed: 2, colors: [0x5affa0, 0x3ae0c8, 0x9a6aff], alpha: 0.55 });
+    paintAuroraPx(P, w, { y: h * 0.27, amp: 6, freq: 0.05, height: 22, seed: 7, colors: [0x7affc0, 0x5ad0ff, 0xff7ad8], alpha: 0.35 });
+    skyGlow(P, w * 0.5, h * 0.62, w * 0.6, h * 0.25, 0x2a7a9a, 0.5, { bands: 5, pow: 1.4 });
+    paintMoonPx(P, Math.round(w * 0.62), Math.round(h * 0.12), 8, { color: 0xf4f6ff, dark: 0x6a7ab8, halo: 0x8aa8e8, haloA: 0.4, phase: 0.45, seed: 9 });
+    paintStreaks(P, w, { n: 6, y0: h * 0.18, y1: h * 0.42, len: [24, 60], color: 0x3a5a8a, shade: 0x2a4a7a, seed: 4, alpha: 0.5 });
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
   fitSky(K, sky);
 
   // ---- aurora ribbons (behind the mountains)
@@ -726,20 +788,15 @@ export function buildBattle(K) {
     },
     fogTint: [0x1c4a74, 0.28],
   });
-  K.parallax('glacier', {
-    z: -124, y: -3, w: parallaxWidth(-124), h: 22, tw: 352, th: 66,
-    paint: (ctx, w, h) => {
-      paintPeaks(ctx, w, h, { seed: 8, n: 11, top0: 0.25, top1: 0.6, k0: 2.2, k1: 3.6, snowH: 40, snowL: 0xd6e4f6, snowS: 0x88a2d0, rockL: 0x5a6a90, rockS: 0x3a4668, ridge: 0xf4f8ff, streak: 0.66 });
-      // ice-cliff coastline meeting the sea (sea plane hides below y = -1)
-      const wl = Math.round(h - (2 / 22) * h);
-      for (let x = 0; x < w; x++) {
-        const ch = 4 + Math.round(vnoise(x * 0.09, 4, 2) * 5);
-        px(ctx, x, wl - ch, 1, ch, (x >> 1) % 3 === 0 ? 0x6aa6d8 : 0x9ccbea);
-        px(ctx, x, wl - ch, 1, 1, 0xe8f2ff);
-      }
-      px(ctx, 0, wl, w, h - wl, 0x0e2448);
+  voxRange(K, 'glacierRange', {
+    x0: -160, x1: 160, z: -116, depth: 7, scale: 1.3, base: 1, amp: 10, freq: 0.07, seed: 12, ridged: true, y: -1.6,
+    col: (xv, y, zv, h) => {
+      const j = hash3(xv, y, zv), streak = hash3(xv, 2, zv >> 1);
+      if (y < 2) return (xv & 1) ? 0x7ab4e0 : 0xa8d4f0; // ice-cliff coastline
+      if (y === h - 1) return j < 0.2 ? 0xe4eefa : 0xffffff;
+      if (streak < 0.22 && y < h - 2 && y > 2) return j < 0.5 ? 0x2e3a5c : 0x46557a; // exposed rock ribs
+      return j < 0.25 ? 0xc4d6f0 : y % 3 === 0 ? 0xd8e6f6 : 0xeaf2fc;
     },
-    fogTint: [0x1c4a74, 0.18],
   });
   K.parallax('bergs', {
     z: -88, y: -2.2, w: parallaxWidth(-88), h: 9, tw: 320, th: 36,
@@ -874,11 +931,7 @@ export function buildBattle(K) {
 
   // ---- landmarks: station, wind turbines, dish, ice cliffs
   K.mesh('station', stationGrid, { scale: 0.19, pivot: [0, 0, 4] }, -3.5, 0, -22, 0, 1, { shadow: true });
-  const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), glowMat(0xff3a3a));
-  beacon.position.set(-3.5 - 24 * 0.19, 41.6 * 0.19, -22 - 6 * 0.19);
-  K.add(beacon);
-  beacon.material = beacon.material.clone();
-  beacon.material.color.setRGB(2.2, 0.4, 0.4);
+  const [beacon] = blinkInst(K, 'stationBeacon', () => new VoxGrid().box(-1, -1, -1, 1, 1, 1, 0xff4a4a, true).set(0, 2, 0, 0xffb0b0, true), { scale: 0.1, pivot: 'center' }, [[-3.5 - 24 * 0.19, 41.6 * 0.19, -22 - 6 * 0.19]], { groups: 1 });
   K.onUpdate((dt, t) => { beacon.visible = (t % 1.6) < 0.45; });
   for (const [x, z, s, ph] of [[13, -27, 0.13, 0], [-19, -31, 0.12, 1.3], [30, -33, 0.11, 2.1]]) {
     K.mesh('windTower', windTowerGrid, { scale: 0.13 }, x, 0, z, 0, s / 0.13);
@@ -920,9 +973,60 @@ export function buildBattle(K) {
   // ---- falling snow
   addSnowfall(K, 700, [-46, 46, -26, 18, 17]);
 
+  // ---- postcard extras: the RV BEAST icebreaker, breaching orcas, a ski plane flyover, seals on floes, ice glints
+  {
+    const ship = K.mesh('icebreaker', icebreakerGrid, { scale: 0.16 }, 18, -1.15, -68, -0.18, 1);
+    K.onUpdate((dt, t) => { ship.position.y = -1.15 + Math.sin(t * 0.6) * 0.08; ship.rotation.z = Math.sin(t * 0.45) * 0.02; ship.rotation.x = Math.sin(t * 0.5 + 1) * 0.012; });
+    blinkInst(K, 'shipLights', () => new VoxGrid().set(0, 0, 0, 0xfff0b0, true), { scale: 0.14, pivot: 'center' }, [[18 - 3.2, 2.9, -67.2], [18 + 0.8, 4.3, -67.6], [18 + 3.6, 2.2, -68.4]], { groups: 3, rate: 0.5, mode: 'twinkle', duty: -0.4 });
+    addPuffs(K, { id: 'shipSmoke', sources: [[18.6, 5.6, -68.4]], n: 7, life: 5, rise: 4, drift: [3.5, 0], size: [0.5, 1.8], scale: 0.16, color: 0x8a96b0, light: 0xb0bccc, shade: 0x6a7690, opacity: 0.85, seed: 8 });
+  }
+  {
+    // two orcas taking turns to breach out of the sea beyond the shelf
+    const orca = [K.mesh('orca', orcaGrid, { scale: 0.09, pivot: 'center' }, -20, -6, -46), K.mesh('orca', orcaGrid, { scale: 0.08, pivot: 'center' }, 30, -6, -52)];
+    const splash = addPuffs(K, { id: 'orcaSplash', sources: [[-20, -1.0, -46], [30, -1.0, -52]], n: 6, life: 1.3, rise: 1.6, drift: [0, 0.4], wobble: 0.5, ease: 0.5, size: [1, 0.2], scale: 0.09, color: 0xe8f6ff, light: 0xffffff, shade: 0xa8d2ee, seed: 5 });
+    splash.visible = false;
+    K.onUpdate((dt, t) => {
+      let any = false;
+      orca.forEach((m, i) => {
+        const k = ((t + i * 7) % 14) / 2.4; // jump lasts 2.4 s every 14 s
+        if (k > 1) { m.visible = false; return; }
+        m.visible = true;
+        const x0 = i ? 30 : -20, z0 = i ? -52 : -46;
+        m.position.set(x0 - 3 + k * 6, -1.6 + Math.sin(k * Math.PI) * 3.4, z0);
+        m.rotation.set(0, 0, (0.5 - k) * 2.2 * 0.8);
+        if (k < 0.2 || k > 0.8) any = true;
+      });
+      splash.visible = any;
+    });
+  }
+  {
+    // ski plane crossing the sky with blinking nav lights
+    const plane = new THREE.Group();
+    K.mesh('skiPlane', skiPlaneGrid, { scale: 0.09, pivot: 'center' }, 0, 0, 0, 0, 1, { parent: plane });
+    const nav = blinkInst(K, 'planeNav', () => new VoxGrid().set(0, 0, 0, 0xff4040, true), { scale: 0.12, pivot: 'center' }, [[0, 0.05, 2.1]], { groups: 1, parent: plane });
+    K.onUpdate((dt, t) => { nav[0].visible = (t % 1.2) < 0.3; });
+    const prop = K.mesh('planeProp', () => new VoxGrid().box(-6, 0, 0, 5, 0, 0, 0x2a2e3a), { scale: 0.09, pivot: 'center' }, 2.2, 0, 0, 0, 1, { parent: plane });
+    prop.rotation.order = 'YXZ';
+    K.add(plane);
+    K.onUpdate((dt, t) => {
+      const k = (t * 0.018) % 1;
+      plane.position.set(-80 + k * 160, 13 + Math.sin(t * 0.4) * 0.4, -70);
+      plane.rotation.z = Math.sin(t * 0.3) * 0.05;
+      prop.rotation.x = t * 30;
+    });
+  }
+  {
+    const seals = [[-24, -1.0, -38.5, 0.4], [6, -1.0, -40.5, -0.6], [36, -1.0, -36.6, 2.8]];
+    K.inst('sealFloe', () => { const g = new VoxGrid(); g.box(-7, 0, -4, 6, 1, 3, (x, y) => (y ? C.snowW : C.ice)); g.set(-7, 1, -4, null).set(6, 1, 3, null); return g; }, { scale: 0.22 }, seals);
+    const sealMeshes = seals.map(([x, y, z, ry]) => K.mesh('seal', sealGrid, { scale: 0.06, ao: true }, x, y + 0.44, z, ry, 1));
+    K.onUpdate((dt, t) => { sealMeshes.forEach((m, i) => { m.rotation.z = Math.max(0, Math.sin(t * 0.7 + i * 2)) * 0.18; }); });
+  }
+  addSparkles(K, { id: 'iceGlint', n: 30, area: [-30, 30, 0.05, 1.2, -16, -4], color: 0xdff6ff, scale: 0.05, rate: 0.8, sharp: 6, seed: 12 });
+  addSparkles(K, { id: 'seaGlint', n: 24, area: [-50, 50, -0.95, -0.9, -60, -36], color: 0xbfe8ff, scale: 0.12, rate: 0.6, sharp: 6, seed: 14 });
+
   return {
     sky,
-    fog: { color: 0x2a5c84, near: 70, far: 230 },
+    fog: { color: 0x2a5c84, near: 80, far: 300 },
     lights: { sky: 0xa4bcec, ground: 0x4a5a84, hemi: 1.0, sun: 1.7, sunColor: 0xd0dcff, dir: [-6, 14, 10], rim: 0.85, rimColor: 0x8affd0 },
     dust: 0xf2f8ff,
     bloom: { strength: 0.8, threshold: 1.7, radius: 0.25 },

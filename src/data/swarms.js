@@ -31,6 +31,9 @@ export const SERIES = {
   megaTech: { id: 'megaTech', name: 'Mega-Tech', color: '#3d8bff', desc: 'Micro Beasts in futuristic Mega-Tech armour.' },
   fireIce: { id: 'fireIce', name: 'Fire & Ice', color: '#ff6a3d', desc: 'Lava-hot and ice-cold beasts from the Fire & Ice packs.' },
   battleFusion: { id: 'battleFusion', name: 'Battle Fusion', color: '#b45cff', desc: 'Super-mutants fused in the Lab for one thing: battle.' },
+  wildlands: { id: 'wildlands', name: 'Wild Lands', color: '#2fd47a', desc: 'Jungle and reef beasts from the wildest corners of Beast Island.' },
+  spooky: { id: 'spooky', name: 'Spooky Squad', color: '#7af0c8', desc: 'Ghosts and ghouls from the Haunted Mansion.' },
+  cosmic: { id: 'cosmic', name: 'Cosmic Crew', color: '#7a6cff', desc: 'Zero-G beasts from the Beast Space Station.' },
 };
 
 // role: melee | ranged | tank | swarm | support | kamikaze | flying | siege
@@ -300,6 +303,80 @@ export const SWARMS = {
     elixir: 3, hp: 820, dmg: 82, atk: 1.1, range: 1.0, speed: 1.2, kb: 2, size: 1.05,
     traits: { slow: { amt: 0.35, dur: 1.5 } },
     desc: 'A filthy mop with a bucket for a body. Slaps enemies with soggy slime that slows them down.',
+  },
+
+  // ----- Wave 3: two troops per new arena (Lost Jungle Temple, Laser Maze Vault, Haunted Mansion,
+  //       TeamSeas Reef, Volcano Forge, Zero-G Space Station)
+  vineViper: {
+    name: 'Vine Viper', series: 'wildlands', rarity: 'common', role: 'ranged', arena: 'jungle',
+    elixir: 3, hp: 420, dmg: 70, atk: 1.2, range: 4.4, speed: 1.1, kb: 2, size: 1,
+    traits: { slow: { amt: 0.25, dur: 1.5 }, burn: { dps: 14, dur: 3, poison: true } }, projectile: 'acid',
+    desc: 'Found coiled round a lost temple idol! A jungle viper wrapped in vines with an orchid crown. Spits venom that slows and poisons.',
+  },
+  templeGolem: {
+    name: 'Temple Golem', series: 'wildlands', rarity: 'epic', role: 'tank', arena: 'jungle',
+    elixir: 6, hp: 3000, dmg: 165, atk: 1.8, range: 1.0, speed: 0.8, kb: 1, size: 1.45,
+    traits: { armor: 0.15, knock: true },
+    desc: 'The Lost Temple woke up ANGRY. A walking pyramid of mossy stone with jade eyes. Shrugs off 15% of damage and punches enemies flying.',
+  },
+  laserLynx: {
+    name: 'Laser Lynx', series: 'megaTech', rarity: 'rare', role: 'ranged', arena: 'laser',
+    elixir: 4, hp: 520, dmg: 100, atk: 1.5, range: 4.6, speed: 1.25, kb: 2, size: 1.05,
+    traits: { pierce: true }, projectile: 'laser',
+    desc: 'Guards the Laser Maze Vault. A snow lynx with a Mega-Tech shoulder cannon whose beam pierces EVERY enemy in line.',
+  },
+  vaultBot: {
+    name: 'Vault Bot', series: 'technoTerrors', rarity: 'rare', role: 'tank', arena: 'laser',
+    elixir: 4, hp: 1050, dmg: 108, atk: 1.3, range: 0.85, speed: 1.05, kb: 1, size: 1.15,
+    traits: { armor: 0.3 },
+    desc: 'A walking bank safe stuffed with gold bars. Its vault-door mouth is ringed with steel fangs and its armour shrugs off 30% of damage.',
+  },
+  ghostPanther: {
+    name: 'Ghost Panther', series: 'spooky', rarity: 'epic', role: 'flying', arena: 'haunted',
+    elixir: 4, hp: 820, dmg: 110, atk: 1.0, range: 0.9, speed: 1.8, kb: 2, size: 1.1,
+    traits: { flying: true, ambush: 2 },
+    desc: 'A phantom Panther that haunts the mansion halls, still rattling its broken chains. Flies, and its first spectral pounce deals DOUBLE damage.',
+  },
+  pumpkinBrute: {
+    name: 'Pumpkin Brute', series: 'spooky', rarity: 'common', role: 'melee', arena: 'haunted',
+    elixir: 3, hp: 720, dmg: 66, atk: 1.3, range: 0.95, speed: 1.05, kb: 2, size: 1.15,
+    traits: { area: true },
+    desc: 'A hulking jack-o\'-lantern with a candle for a heart. Its gourd fists smash whole groups at once.',
+  },
+  sharkByte: {
+    name: 'Shark Byte', series: 'wildlands', rarity: 'rare', role: 'melee', arena: 'reef',
+    elixir: 3, hp: 680, dmg: 70, atk: 0.6, range: 0.75, speed: 2.4, kb: 2, size: 1.05,
+    desc: 'A hammerhead in scuba flippers and a swim ring, rescued in the reef cleanup. Very fast, and it bites almost twice a second.',
+  },
+  jellyZapper: {
+    name: 'Jelly Zapper', series: 'wildlands', rarity: 'common', role: 'flying', arena: 'reef',
+    elixir: 3, hp: 380, dmg: 64, atk: 1.3, range: 2.8, speed: 1.2, kb: 2, size: 0.95,
+    traits: { flying: true, chain: 2 }, projectile: 'zap',
+    desc: 'A shocking jellyfish from the TeamSeas reef. Floats over the brawl and zaps lightning that jumps to a second enemy.',
+  },
+  magmaTitan: {
+    name: 'Magma Titan', series: 'fireIce', rarity: 'legendary', role: 'tank', arena: 'volcano',
+    elixir: 8, hp: 4400, dmg: 230, atk: 1.8, range: 1.3, speed: 0.75, kb: 3, size: 1.55,
+    traits: { area: true, burn: { dps: 40, dur: 3 } },
+    desc: 'Forged in the heart of the volcano. A colossal obsidian titan with a magma core: every slam splashes burning lava over whole crowds.',
+  },
+  emberImps: {
+    name: 'Ember Imps', series: 'fireIce', rarity: 'common', role: 'swarm', arena: 'volcano',
+    elixir: 2, hp: 125, dmg: 40, atk: 0.8, range: 0.6, speed: 2.1, kb: 1, size: 0.62, count: 3,
+    traits: { burn: { dps: 12, dur: 2 } },
+    desc: 'Three cheeky fire imps with red-hot pitchforks. Every jab sets the target on fire.',
+  },
+  astroPanther: {
+    name: 'Astro Panther', series: 'cosmic', rarity: 'legendary', role: 'flying', arena: 'space',
+    elixir: 6, hp: 1450, dmg: 145, atk: 1.5, range: 3.6, speed: 1.5, kb: 2, size: 1.35,
+    traits: { flying: true, area: true }, projectile: 'missile',
+    desc: 'The first Panther in SPACE! Rides twin rocket tanks over the battle and fires mini-rocket volleys that blast whole areas.',
+  },
+  ufoGrabber: {
+    name: 'UFO Grabber', series: 'cosmic', rarity: 'epic', role: 'flying', arena: 'space',
+    elixir: 5, hp: 1100, dmg: 122, atk: 1.3, range: 3.2, speed: 1.3, kb: 2, size: 1.15,
+    traits: { flying: true, stun: { chance: 0.45, dur: 0.8 } }, projectile: 'zap',
+    desc: 'A living flying saucer with an alien pilot and an arcade claw. Its stun beam stops enemies in their tracks.',
   },
 
   // ----- Mega Forms (not collectable directly; unlocked with a Mega Serum)

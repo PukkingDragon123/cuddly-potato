@@ -6,6 +6,8 @@
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintSkyline, paintRidge, paintSun, px, disc, skyTexture, parallaxWidth, canvasTex,
+  pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx,
+  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, voxSkyline,
 } from './kit.js';
 
 const C = {
@@ -408,15 +410,70 @@ function addBubbles(K, n, spots, y0) {
   });
 }
 
+// --------------------------------------------------------------------------- postcard props
+
+/** Tower crane lattice mast (0.14 scale); the jib slews separately. */
+const craneMastGrid = () => {
+  const g = new VoxGrid();
+  g.box(-5, 0, -5, 4, 2, 4, 0x6a6e66);
+  for (let y = 3; y < 66; y++) {
+    for (const [x, z] of [[-3, -3], [2, -3], [-3, 2], [2, 2]]) g.set(x, y, z, C.yellow);
+    if (y % 6 === 0) { g.line(-3, y, -3, 2, y + 5, -3, 0xd8b830); g.line(-3, y, 2, 2, y + 5, 2, 0xd8b830); g.line(-3, y, -3, -3, y + 5, 2, 0xd8b830); g.line(2, y, -3, 2, y + 5, 2, 0xd8b830); }
+  }
+  g.box(-3, 62, -3, 2, 65, 2, 0x4a4e46);
+  g.box(-2, 62, 3, 1, 64, 3, 0x9ad8ff);
+  return g;
+};
+const craneJibGrid = () => {
+  const g = new VoxGrid();
+  for (let x = -14; x <= 40; x++) {
+    g.set(x, 0, -1, C.yellow).set(x, 0, 1, C.yellow);
+    if (x % 3 === 0) g.line(x, 0, -1, x, 3 - Math.floor(Math.abs(x) / 16), 0, 0xd8b830);
+    g.set(x, 3 - Math.floor(Math.abs(x) / 16), 0, C.yellow);
+  }
+  g.box(-14, -3, -2, -9, 0, 2, 0x8a8e86);
+  g.box(-1, 1, -1, 1, 9, 1, C.yellow);
+  g.line(0, 9, 0, 38, 2, 0, 0x3a3e36).line(0, 9, 0, -13, 1, 0, 0x3a3e36);
+  return g;
+};
+const craneLoadGrid = () => {
+  const g = new VoxGrid();
+  for (let y = 0; y < 22; y++) g.set(0, y + 12, 0, 0x2a2e26);
+  g.box(-9, 0, -5, 8, 11, 4, (x, y) => (x % 3 === 0 ? 0xd8b020 : C.yellow));
+  g.box(-4, 3, 5, 3, 8, 5, C.ink);
+  for (const [a, b] of [[0, 2], [-2, -1], [2, -1], [0, 0]]) g.set(a, 5 + b, 6, C.yellow);
+  return g;
+};
+/** High-voltage pylon (0.16 scale). */
+const pylonGrid = () => {
+  const g = new VoxGrid();
+  for (let y = 0; y < 62; y++) {
+    const r = Math.max(1, Math.round(9 - y * 0.13));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.set(sx * r, y, sz * Math.max(1, Math.round(r * 0.5)), 0x3a4030);
+    if (y % 7 === 0) g.line(-r, y, 0, r, y + 6, 0, 0x4a5038);
+  }
+  for (const y of [52, 60]) g.box(-14, y, -1, 13, y, 0, 0x3a4030);
+  for (const x of [-14, 13]) for (const y of [52, 60]) g.box(x, y - 2, -1, x, y - 1, 0, 0xc8ccb8);
+  return g;
+};
+
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
   // ---- sky: sickly green-yellow dusk with smog bands and a hazy sun
-  const sky = skyTexture('reactor', [[0, 0x1c1a26], [0.1, 0x30382c], [0.19, 0x5a7a34], [0.26, 0xa8b844], [0.31, 0xe6cc52], [0.36, 0xf4a450], [0.5, 0xd88848], [1, 0x7a5a3a]], (ctx, w, h) => {
-    paintSun(ctx, w * 0.3, h * 0.25, 6, 0xfff4b0, 0xf8e070);
-    paintClouds(ctx, w, h, { n: 7, y0: 5, y1: h * 0.2, size: 5, seed: 13, color: 0x6a6a4a, shade: 0x46443a, light: 0xa0a060 });
-    for (let i = 0; i < 4; i++) px(ctx, 0, Math.round(h * (0.24 + i * 0.03)), w, 1, i % 2 ? 0xe8c060 : 0xb8c050, 0.45);
-  });
+  const sky = skyTexture('reactor2', [[0, 0x16141e], [0.1, 0x262c26], [0.2, 0x46602c], [0.3, 0x8aa83c], [0.4, 0xd8c84a], [0.48, 0xf4a850], [0.62, 0xd88848], [1, 0x7a5a3a]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    skyGlow(P, w * 0.36, h * 0.42, w * 0.45, h * 0.3, 0xffd870, 0.6, { bands: 6, pow: 1.3 });
+    paintSunPx(P, Math.round(w * 0.36), Math.round(h * 0.36), 11, { color: 0xfff0a0, core: 0xfffce0, halo: 0xf8d060, halo2: 0xffe890, haloR: 5, haloA: 0.55 });
+    const smog = { light: 0xb8b878, color: 0x7a7a54, shade: 0x54523e, dark: 0x3e3c30 };
+    paintCloudBank(P, w, Math.round(h * 0.14), { ...smog, s: 10, seed: 41, depth: 6 });
+    paintCumulus(P, w * 0.14, h * 0.24, 13, 42, { ...smog, sunX: 1 });
+    paintCumulus(P, w * 0.72, h * 0.22, 15, 43, { ...smog, sunX: -1 });
+    paintCumulus(P, w * 0.55, h * 0.36, 8, 44, { light: 0xe8d890, color: 0xa8a068, shade: 0x7a7450, dark: 0x5a5640, sunX: -1 });
+    paintStreaks(P, w, { n: 12, y0: h * 0.3, y1: h * 0.5, len: [30, 90], color: 0xe8c060, shade: 0xb8c050, seed: 45, alpha: 0.55 });
+    paintBirdsPx(P, [[w * 0.42, h * 0.28, 1], [w * 0.46, h * 0.25, 1], [w * 0.49, h * 0.29, 0]], 0x1e1e1a, 0.8);
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
   fitSky(K, sky);
 
   // ---- parallax pixel layers
@@ -447,24 +504,7 @@ export function buildBattle(K) {
     },
     fogTint: [0xd0b870, 0.3],
   });
-  K.parallax('refinery', {
-    z: -118, y: -3, w: parallaxWidth(-118), h: 20, tw: 352, th: 60,
-    paint: (ctx, w, h) => {
-      const R = mulberry32(9);
-      paintRidge(ctx, w, h, { base: 0.86, amp: 3, freq: 0.05, seed: 3, color: 0x4a5032, rim: 0x6a7040 });
-      // storage spheres, tank farms, pipe racks, flare stack
-      let x = 4;
-      while (x < w) {
-        const kind = R();
-        if (kind < 0.35) { const r = 5 + R() * 4 | 0; disc(ctx, x + r, h - 8 - r, r, 0x5a6448); disc(ctx, x + r - 1, h - 9 - r, r - 2, 0x66714f); px(ctx, x + 1, h - 8, 1, 8, 0x3a4028); px(ctx, x + 2 * r - 1, h - 8, 1, 8, 0x3a4028); x += 2 * r + 4; }
-        else if (kind < 0.65) { const tw = 8 + R() * 8 | 0, th = 8 + R() * 10 | 0; px(ctx, x, h - th - 4, tw, th, 0x525c40); px(ctx, x, h - th - 4, tw, 1, 0x7a8452); px(ctx, x, h - th, tw, 1, 0xd8b830); x += tw + 3; }
-        else if (kind < 0.85) { const rw = 16 + R() * 14 | 0; for (let k = 0; k < 3; k++) px(ctx, x, h - 10 - k * 4, rw, 1, 0x3e4630); for (let k = 0; k < rw; k += 5) px(ctx, x + k, h - 18, 1, 14, 0x3e4630); x += rw + 4; }
-        else { px(ctx, x, h - 40, 2, 36, 0x3e4630); for (let k = 0; k < 5; k++) px(ctx, x - 1 + (k & 1), h - 42 - k, 3 - (k >> 1), 1, k < 2 ? 0xffe04a : 0xff8a2a); x += 8; }
-      }
-      px(ctx, 0, h - 4, w, 4, 0x3a4028);
-    },
-    fogTint: [0xd0b870, 0.18],
-  });
+  voxSkyline(K, 'refineryBlocks', { x0: -140, x1: 140, z: -104, depth: 6, scale: 0.9, minH: 5, maxH: 15, minW: 5, maxW: 13, gap: 3, seed: 9, walls: [0x4a5440, 0x56604a, 0x3e4636, 0x5e5a46], window: 0x262a20, lit: [0xd8ff6a, 0xffe07a], litP: 0.1, chimney: 0.35, antenna: 0.3 });
   K.parallax('yard', {
     z: -78, y: -2, w: parallaxWidth(-78), h: 13, tw: 320, th: 52,
     paint: (ctx, w, h) => {
@@ -632,9 +672,39 @@ export function buildBattle(K) {
   for (let i = 0; i < 40; i++) debris.push([K.rand(-40, 40), 0, K.rand(LH + 1.6, 14), K.rand(0, 6), K.rand(0.5, 1.2)]);
   K.inst('debris', () => { const g = new VoxGrid(); g.box(0, 0, 0, 1, 0, 0, C.concD); g.set(0, 1, 0, C.conc2); return g; }, { scale: 0.12 }, debris);
 
+  // ---- postcard extras: tower crane swinging a hazard container, voxel pylons, steam vents, toxic fireflies, crows
+  {
+    const cx = -14, cz = -33;
+    K.mesh('craneMast', craneMastGrid, { scale: 0.14 }, cx, 0, cz);
+    const jib = K.mesh('craneJib', craneJibGrid, { scale: 0.14, pivot: [0, 0, 0] }, cx, 66 * 0.14, cz);
+    const load = K.mesh('craneLoad', craneLoadGrid, { scale: 0.1, pivot: [0, 1, 0] }, 0, 0, 0);
+    K.onUpdate((dt, t) => {
+      const a = Math.sin(t * 0.16) * 1.1 + 0.4;
+      jib.rotation.y = a;
+      const r = 30 * 0.14 + Math.sin(t * 0.3) * 0.8;
+      load.position.set(cx + Math.cos(a) * r, 66 * 0.14 - 2.4 + Math.sin(t * 0.5) * 0.6, cz - Math.sin(a) * r);
+      load.rotation.y = a + Math.sin(t * 0.7) * 0.2;
+    });
+    blinkInst(K, 'craneTip', () => new VoxGrid().set(0, 0, 0, 0xff3a2a, true), { scale: 0.16, pivot: 'center' }, [[cx, 66 * 0.14 + 1.3, cz]], { groups: 1, mode: 'twinkle', rate: 0.7, duty: 0.3 });
+  }
+  K.inst('pylon', pylonGrid, { scale: 0.16 }, [-58, -30, 2, 34, 62].map((x) => [x, 0, -60, 0]));
+  {
+    const wire = [];
+    const px0 = [-58, -30, 2, 34, 62];
+    for (let i = 0; i < px0.length - 1; i++) for (const dz of [-0.9, 0.9]) for (let k = 0; k <= 28; k++) {
+      const u = k / 28, x = px0[i] + (px0[i + 1] - px0[i]) * u;
+      wire.push([x, 9.6 - Math.sin(u * Math.PI) * 1.4, -60 + dz, 0, [12, 1, 1]]);
+    }
+    K.inst('pylonWire', () => new VoxGrid().set(0, 0, 0, 0x22261c), { scale: 0.09, pivot: 'center' }, wire);
+  }
+  addPuffs(K, { id: 'ventSteam', sources: [[-36, 1.2, -8.4], [-12, 1.2, -8.4], [12, 1.2, -8.4], [36, 1.2, -8.4], [-20.5, 2.4, -15.5], [12.5, 2.4, -16]], n: 4, life: 3, rise: 2.6, drift: [0.8, -0.2], size: [0.35, 1.1], scale: 0.1, color: 0xe8ecdc, light: 0xffffff, shade: 0xb8bca8, opacity: 0.75, seed: 6 });
+  addSparkles(K, { id: 'toxicFly', n: 22, area: [-28, 28, 0.3, 2.2, -6.2, -3.6], color: 0xb8ff4a, scale: 0.06, rate: 0.6, wander: 0.6, sharp: 1.5, seed: 11 });
+  addSparkles(K, { id: 'puddleFly', n: 12, area: [-30, 30, 0.2, 0.9, LH + 1.5, 8], color: 0x9dff3a, scale: 0.05, rate: 0.5, wander: 0.5, sharp: 1.5, seed: 13 });
+  addBirds(K, { id: 'crows', n: 5, mode: 'circle', cx: 9.5, cy: 15.5, cz: -30, r: 6, rz: 0.5, speed: 0.28, color: 0x1e1e24, wingTip: 0x101014, belly: 0x2a2a30, beak: 0x3a3a3a, head: 0x1e1e24, vox: 0.06, flap: 8, soar: 0.6, seed: 4 });
+
   return {
     sky,
-    fog: { color: 0xc8b878, near: 70, far: 210 },
+    fog: { color: 0xc8b878, near: 75, far: 260 },
     lights: { sky: 0xe8ecd4, ground: 0x5e5648, hemi: 1.1, sun: 2.2, sunColor: 0xffcc90, dir: [-9, 11, 8], rim: 0.8, rimColor: 0xb8ff7a },
     dust: 0xb8b8a0,
     bloom: { strength: 0.6, threshold: 1.7, radius: 0.25 },

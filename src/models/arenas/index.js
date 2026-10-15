@@ -14,6 +14,13 @@ const MODULES = {
   reactor: () => import('./reactor.js'),
   pyramid: () => import('./pyramid.js'),
   island: () => import('./island.js'),
+  // the Northern Wilds
+  jungle: () => import('./jungle.js'),
+  laser: () => import('./laser.js'),
+  haunted: () => import('./haunted.js'),
+  reef: () => import('./reef.js'),
+  volcano: () => import('./volcano.js'),
+  space: () => import('./space.js'),
 };
 export const ARENA_THEMES = Object.keys(MODULES);
 

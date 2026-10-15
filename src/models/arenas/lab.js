@@ -7,7 +7,7 @@ import {
   paintGradient, paintClouds, paintRidge, paintTrees, paintSkyline, paintSun, px, disc, skyTexture, parallaxWidth,
   treeGrid, rockGrid, signGrid,
   pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx, paintRange,
-  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, addFlag,
+  setInstance, liveInstances, fitSkyAuto, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, addFlag,
   leafyTreeGrid, pineTreeGrid, bushGrid, flowerGrid, tuftGrid,
 } from './kit.js';
 
@@ -200,12 +200,11 @@ const hqGrid = () => {
   // entrance: recessed glass doors, canopy, columns, sign
   g.box(-9, 2, 11, 8, 15, 13, null);
   g.box(-9, 2, 11, 8, 15, 11, (x, y) => (x % 4 === 0 || y === 9 ? FRAME : y > 12 ? GLASSL : GLASS));
-  g.box(-12, 16, 13, 11, 17, 19, C.blue);
-  g.box(-12, 17, 19, 11, 17, 19, C.pink);
-  for (const x of [-11, 10]) g.box(x, 2, 18, x, 15, 18, C.metal);
-  g.box(-21, 20, 14, 20, 30, 14, NAVY);
-  text(g, 'BEAST LAB', 0, 23, 15, '+z', C.pink, { center: true, scale: 1, sy: 1, depth: 1 });
-  g.box(-21, 20, 15, 20, 20, 15, C.blue).box(-21, 30, 15, 20, 30, 15, C.blue);
+  g.box(-19, 15, 13, 18, 21, 19, C.blue);
+  g.box(-19, 15, 20, 18, 21, 20, NAVY);
+  g.box(-19, 15, 20, 18, 15, 20, C.pink).box(-19, 21, 20, 18, 21, 20, C.pink);
+  text(g, 'BEAST LAB', 0, 16, 21, '+z', 0xffffff, { center: true });
+  for (const x of [-17, 16]) g.box(x, 2, 18, x + 1, 14, 19, C.metal);
   // steps
   for (let k = 0; k < 3; k++) g.box(-14 + k, k, 14 + 6 - k * 2, 13 - k, k, 14 + 7 - k * 2, k ? 0xe2e8f2 : 0xb8c4d4);
   // rooftop AC units with fan grilles (left wing) and solar rows (left + centre)
@@ -465,10 +464,10 @@ function ledFrames() {
 export function buildBattle(K) {
   const LH = FIELD.LANE_HALF;
   // ---- sky (screen space, 320x180 pixel art): deep blue -> pale horizon, sun with rays, cumulus, streaks, birds
-  const sky = skyTexture('lab2', [[0, 0x1f6fe0], [0.3, 0x3c9cf4], [0.62, 0x8fd2ff], [0.8, 0xc4ecff], [1, 0xeaf8ff]], (ctx, w, h) => {
+  const sky = skyTexture('lab2', [[0, 0x2a7ee8], [0.3, 0x4aa8f6], [0.62, 0x94d6ff], [0.8, 0xc8eeff], [1, 0xeaf8ff]], (ctx, w, h) => {
     const P = pixbuf(ctx, w, h);
     skyGlow(P, w * 0.5, h * 0.95, w * 0.7, h * 0.45, 0xf4fcff, 0.7, { bands: 5, pow: 1.4 });
-    paintSunPx(P, Math.round(w * 0.6), Math.round(h * 0.2), 9, { color: 0xfff6c8, halo: 0xe8f8ff, halo2: 0xfffbe6, rays: 12, rayColor: 0xf0faff, rayLen: 5 });
+    paintSunPx(P, Math.round(w * 0.57), Math.round(h * 0.17), 9, { color: 0xfff6c8, halo: 0xe8f8ff, halo2: 0xfffbe6 });
     paintStreaks(P, w, { n: 9, y0: h * 0.08, y1: h * 0.34, len: [16, 54], color: 0xffffff, shade: 0xcfe8fb, seed: 3, alpha: 0.75 });
     paintCumulus(P, w * 0.16, h * 0.3, 15, 1, { light: 0xffffff, color: 0xf2f8ff, shade: 0xbcd6f0, dark: 0x9cbce0, sunX: 1 });
     paintCumulus(P, w * 0.43, h * 0.16, 9, 2, { light: 0xffffff, color: 0xf4faff, shade: 0xc4dcf4, sunX: 1 });
@@ -478,6 +477,7 @@ export function buildBattle(K) {
     paintBirdsPx(P, [[w * 0.36, h * 0.3, 1], [w * 0.39, h * 0.27, 1], [w * 0.42, h * 0.31, 0], [w * 0.53, h * 0.36, 1]], 0x2a4a7a, 0.75);
     P.flush();
   }, { w: 320, h: 180, bands: 14 });
+  fitSkyAuto(K, sky);
 
   // ---- far pixel range + voxel mountains + forested voxel hills
   const w1 = parallaxWidth(-170);
@@ -506,8 +506,8 @@ export function buildBattle(K) {
       const x = K.rand(-110, 110), z = K.rand(-73, -60);
       (i % 3 ? pines : oaks).push([x, K.rand(2.2, 4.6), z, K.rand(0, 6), K.rand(0.16, 0.26)]);
     }
-    K.inst('farPine', () => pineTreeGrid({ leaf: 0x2f8a4a, seed: 3 }), { scale: 1 }, pines);
-    K.inst('farOak', () => leafyTreeGrid({ seed: 5, leaf: 0x4caa3a, h: 7, r: 6 }), { scale: 1 }, oaks);
+    K.inst('farPine', () => pineTreeGrid({ leaf: 0x2f8a4a, seed: 3, r: 4, layers: 4 }), { scale: 1 }, pines.map((p) => [p[0], p[1], p[2], p[3], p[4] * 1.4]));
+    K.inst('farOak', () => leafyTreeGrid({ seed: 5, leaf: 0x4caa3a, h: 4, r: 4 }), { scale: 1 }, oaks.map((p) => [p[0], p[1], p[2], p[3], p[4] * 1.5]));
   }
   // wind turbines on the ridge
   {
@@ -520,7 +520,7 @@ export function buildBattle(K) {
     }
     K.onUpdate((dt) => { for (let i = 0; i < rotors.length; i++) rotors[i].rotation.z -= dt * (0.9 + i * 0.12); });
   }
-  addClouds(K, { id: 'labCloud', n: 9, kinds: 3, x0: -130, x1: 130, y0: 11, y1: 17, z0: -85, z1: -125, s0: 0.9, s1: 1.4, scale: 0.9, speed: 0.6, seed: 4, color: 0xf4faff, shade: 0xc4daf2, light: 0xffffff });
+  addClouds(K, { id: 'labCloud', n: 7, kinds: 3, x0: -130, x1: 130, y0: 12, y1: 18, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.6, seed: 4, len: 20, height: 8, color: 0xf4faff, shade: 0xc8dcf2, dark: 0xb4cce8, light: 0xffffff });
 
   // ---- ground + lane
   const grassCol = (x, z) => {
@@ -540,6 +540,7 @@ export function buildBattle(K) {
       return grassCol(x, z);
     },
   });
+  K.ground({ id: 'groundFront', x0: -60, x1: 60, z0: 20, z1: 44, scale: 1, color: grassCol });
   K.ground({ id: 'groundHorizon', x0: -170, x1: 170, z0: -130, z1: -70, scale: 2, color: (x, z) => (vnoise(x * 0.05, 1, z * 0.05) > 0.5 ? 0x5cae4a : 0x4c9e42) });
   K.lane({
     x0: -24, x1: 24, scale: 0.25,
@@ -566,25 +567,25 @@ export function buildBattle(K) {
   }, { scale: 0.25, pivot: [0, 0, 0] }, 0.02, 0.005, 1.4);
 
   // ---- the HQ campus: building, LED wall, flags, reflecting pool + fountain, antenna beacons
-  K.mesh('hq', hqGrid, { scale: 0.2 }, HQ.x, 0, HQ.z, 0, 1, { shadow: false });
+  K.mesh('hq', hqGrid, { scale: 0.2, pivot: [0, 0, 0] }, HQ.x, 0, HQ.z, 0, 1, { shadow: false });
   {
     const frames = ledFrames();
     const mat = new THREE.MeshBasicMaterial({ map: frames[0], toneMapped: false });
     const led = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.6), mat);
-    led.position.set(HQ.x + 0.0, 6.1 + 0.2, HQ.z + 13 * 0.2 + 0.25);
+    led.position.set(HQ.x, 6.05, HQ.z + 2.95);
     led.name = 'ledWall';
     K.add(led);
-    K.mesh('ledFrame', () => new VoxGrid().box(-34, -14, 0, 33, 13, 0, (x, y) => (Math.abs(y) === 14 || y === 13 || x === -34 || x === 33 ? C.blue : NAVY)), { scale: 0.1, pivot: [0, 0, 0] }, HQ.x, 6.3, HQ.z + 2.73);
+    K.mesh('ledFrame', () => new VoxGrid().box(-34, -14, 0, 33, 13, 0, (x, y) => (Math.abs(y) === 14 || y === 13 || x === -34 || x === 33 ? C.blue : NAVY)), { scale: 0.1, pivot: [0, 0, 0] }, HQ.x, 6.05, HQ.z + 2.83);
     let last = -1;
     K.onUpdate((dt, t) => { const f = Math.floor(t / 2.2) % 4; if (f !== last) { last = f; mat.map = frames[f]; } });
     // NB the LED wall replaces part of the curtain wall above the entrance
   }
-  blinkInst(K, 'hqBeacon', beaconGrid(0xff2e88), { scale: 0.12, pivot: 'center' }, [[HQ.x, 11.75, HQ.z], [HQ.x - 14, 7.2, HQ.z - 0.5], [HQ.x + 13.8, 7.2, HQ.z - 0.5]], { groups: 1, mode: 'twinkle', rate: 0.6, duty: 0.2 });
-  K.inst('hqMast', mastGrid(26), { scale: 0.1 }, [[HQ.x, 11.4, HQ.z], [HQ.x - 14, 4.6, HQ.z - 0.5], [HQ.x + 13.8, 4.6, HQ.z - 0.5]]);
+  blinkInst(K, 'hqBeacon', beaconGrid(0xff2e88), { scale: 0.12, pivot: 'center' }, [[HQ.x - 0.1, 14.1, HQ.z - 0.1], [HQ.x - 13.9, 9.7, HQ.z - 0.3], [HQ.x + 13.9, 9.7, HQ.z - 0.3]], { groups: 1, mode: 'twinkle', rate: 0.6, duty: 0.2 });
+  K.inst('hqMast', mastGrid(26), { scale: 0.1 }, [[HQ.x - 0.1, 11.4, HQ.z - 0.1], [HQ.x - 13.9, 7.0, HQ.z - 0.3], [HQ.x + 13.9, 7.0, HQ.z - 0.3]]);
   // helicopter idling on the pad (rotor spins)
   {
     const hx = HQ.x + 10.6, hz = HQ.z - 0.1, hy = 5.82;
-    K.mesh('heli', () => {
+    const heli = K.mesh('heli', () => {
       const g = new VoxGrid();
       g.ellipsoid(0, 3, 0, 7, 3.2, 3.2, (x, y) => (y > 4 && x > 1 ? GLASS : y === 3 ? C.pink : 0xf4f8ff));
       g.box(-16, 3, -1, -6, 4, 0, 0xf4f8ff).box(-17, 4, -1, -15, 8, 0, C.blue);
@@ -593,7 +594,25 @@ export function buildBattle(K) {
       return g;
     }, { scale: 0.08, ao: true }, hx, hy, hz, 0.4, 1);
     const rot = K.mesh('heliRotor', () => new VoxGrid().box(-22, 0, -1, 21, 0, 0, 0x3a4252).box(-1, 0, -22, 0, 0, 21, 0x3a4252), { scale: 0.08, pivot: 'center' }, hx, hy + 0.72, hz, 0.4, 1);
-    K.onUpdate((dt) => { rot.rotation.y += dt * 3.2; });
+    // every 46 s: spool up, lift off, loop around the campus, land again
+    K.onUpdate((dt, t) => {
+      const k = t % 46;
+      let x = hx, y = hy, z = hz, ry = 0.4, roll = 0, spin = 3;
+      if (k > 4 && k < 40) {
+        spin = 16;
+        const up = Math.min(1, (k - 4) / 4), down = Math.min(1, (40 - k) / 4), f = Math.min(up, down);
+        const a = Math.max(0, Math.min(1, (k - 8) / 28)) * Math.PI * 2;
+        x = hx + (Math.cos(a) - 1) * 13 * Math.min(1, (k - 8) / 3 + 1) * (k > 8 && k < 36 ? 1 : 0);
+        z = hz + Math.sin(a) * 9 * (k > 8 && k < 36 ? 1 : 0);
+        y = hy + f * 3.4 + Math.sin(t * 1.3) * 0.08;
+        ry = 0.4 + (k > 8 && k < 36 ? -a : 0);
+        roll = k > 8 && k < 36 ? 0.18 : 0;
+      }
+      heli.position.set(x, y, z);
+      heli.rotation.set(0, ry, roll, 'YXZ');
+      rot.position.set(x, y + 0.72, z);
+      rot.rotation.y += dt * spin;
+    });
   }
   // flags out front
   const flagPat = (a, b) => (u, v) => (v === 3 || v === 4 ? b : (u + v) % 11 === 0 ? shade(a, 0.15) : a);
@@ -621,13 +640,6 @@ export function buildBattle(K) {
   }
 
   // ---- midground: monorail, biodome, water tower, dish, lamps, planters, tanks
-  {
-    const RY = 3.6, RZ = -19.5;
-    K.mesh('railBeam', railBeamGrid, { scale: 0.12, pivot: [0, 0, 0] }, 0, RY, RZ);
-    K.inst('railPillar', railPillarGrid, { scale: 0.12 }, [-56, -42, -28, -14, 14, 28, 42, 56].map((x) => [x, 0, RZ - 0.06]));
-    const train = K.mesh('train', trainGrid, { scale: 0.12, pivot: [0, 0, 0] }, 0, RY + 0.36, RZ + 0.03);
-    K.onUpdate((dt, t) => { train.position.x = ((t * 5.5) % 150) - 85; });
-  }
   K.mesh('biodome', biodomeGrid, { scale: 0.13 }, -21, 0, -30, 0, 1);
   K.mesh('waterTower', waterTowerGrid, { scale: 0.12 }, 23.5, 0, -29, -0.3, 1);
   const dish = K.mesh('dish', dishGrid, { scale: 0.13, ao: true }, -25, 0, -14, 0.5, 1, { shadow: true });

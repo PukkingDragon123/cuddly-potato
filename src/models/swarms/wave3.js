@@ -840,9 +840,814 @@ function vaultBot() {
   };
 }
 
+// ===========================================================================
+// Ghost Panther (Haunted Mansion): the Panther sculpt as a see-through phantom.
+// Pale ecto-mint fur fading to teal, glowing green eyes, the magenta bolts, a
+// wispy spectral tail instead of hind legs, ghost-fire licking up its back and
+// broken iron shackles rattling on its front paws. Flies.
+function ghostPanther() {
+  const K = {
+    fur: 0xc8fff0, top: 0xeafffa, low: 0x3ab8aa, dark: 0x1f8a86, light: 0xf2fffb, muzzle: 0xe4fff8, inner: 0xb08aff,
+    claw: 0x2a1a4a, socket: 0x24163e, pupil: 0x8cffb0, iron: 0x5a5a72, ironL: 0x9a9ab4, ecto: 0x7cffd0,
+  };
+  // hollow ghost eyes: dark sockets with glowing ecto pupils
+  const S = { fur: K.fur, dark: K.dark, light: K.light, muzzle: K.muzzle, bolt: MAG, claw: K.claw, inner: K.inner, nose: 0x2a1a4a, iris: 0x2a1a4a, eye: K.socket, pupil: K.pupil };
+  // fur fades from bright ecto-white on top to teal underneath
+  const furFn = (x, y, z) => mixHex(K.low, K.top, Math.max(0, Math.min(1, (y - 4) / 22)));
+  const m = pantherMold(S, { furFn });
+  const g = m.grids, j = m.joints;
+  g.head.forEach((x, y, z, c) => { if (c === K.pupil) g.head.set(x, y, z, c, true); });
+  // the rear of the body thins into the spectral wisp (no hind legs)
+  g.body.carve((x, y, z) => z < -5 && y < 10 - (z + 5) * 0.4);
+  // ghost-fire licking up the spine
+  const EC = [K.low, K.ecto, 0xbffff0, WHITE];
+  for (const [x, z, h, gl] of [[-0.5, 2, 5], [-2, -1, 6, 1], [1, -1, 5], [-0.5, -4, 6], [-1.5, -7, 4, 1], [0.5, -8, 4]]) flame(g.body, x, 16.5, z, h, { w: 1.3, lean: -0.5, glow: !!gl, cols: EC });
+  // ecto drips off the jaw
+  for (const [x, z, n] of [[-4, 17, 2], [3, 15, 3]]) for (let i = 0; i < n; i++) g.jaw.set(x, 8 - i, z, K.ecto, i === n - 1);
+  // broken shackles on the front paws: iron cuff + dangling chain links
+  for (const k of ['legFL', 'legFR']) {
+    const L = g[k], cx = k === 'legFL' ? -5 : 4, cz = 4;
+    cyl(L, 'y', cx, cz + 0.5, 4, 6, 3.2, 3.2, (x, y) => (y === 5 ? K.ironL : K.iron), { hollow: 1.2 });
+    let px = cx + (k === 'legFL' ? -3 : 3), py = 4.5, pz = cz - 1;
+    for (let i = 0; i < 3; i++) {
+      const vert = i % 2 === 0;
+      for (let a = 0; a < 8; a++) {
+        const t = (a / 8) * Math.PI * 2;
+        const ox = vert ? 0 : Math.round(Math.cos(t) * 1.2), oy = Math.round(Math.sin(t) * 1.4), oz = vert ? Math.round(Math.cos(t) * 1.2) : 0;
+        L.set(Math.round(px + ox), Math.round(py + oy), Math.round(pz + oz), a % 3 === 0 ? K.ironL : K.iron);
+      }
+      py -= 1.8; pz -= 1.1; px += k === 'legFL' ? -0.4 : 0.4;
+    }
+  }
+  // the spectral wisp tail: swirls back and curls up to a flickering tip
+  const TJ = [-0.5, 11, -8];
+  const tail = G();
+  const wp = [[-0.5, 11, -8], [-0.5, 8.5, -12], [0.2, 6.8, -16.5], [1.6, 7.6, -20.5], [2.2, 11, -22.5], [1.2, 14.5, -21.5], [0, 16, -18.8]];
+  chain(tail, wp, [5.4, 4.6, 3.6, 2.8, 2, 1.3, 0.6], (x, y, z) => {
+    const sw = Math.sin((z + y) * 0.55 + x * 0.3);
+    return sw > 0.75 ? K.dark : sw < -0.8 ? K.top : mixHex(K.low, K.top, Math.max(0, Math.min(1, (y - 5) / 14)));
+  });
+  tail.set(0, 16, -19, WHITE, true); tail.set(-1, 16, -18, K.ecto, true);
+  return {
+    gait: 'float', voxel: 0.05, jitter: 0.02, finish: 'translucent',
+    parts: [
+      jp('legFL', g.legFL, j.legFL), jp('legFR', g.legFR, j.legFR),
+      jp('body', g.body, BODYJ),
+      jp('head', g.head, j.head),
+      jp('jaw', g.jaw, j.jaw, j.head, { parent: 'head', rot: [0.12, 0, 0] }),
+      jp('tail', tail, TJ),
+    ],
+    muzzle: [-0.5, 14, 22],
+  };
+}
+
+// ===========================================================================
+// Pumpkin Brute (Haunted Mansion): a hulking jack-o'-lantern. Ribbed pumpkin
+// body with an angry carved face lit by the candle inside (glowing eyes with
+// dark pupils, a jagged grin of square pumpkin teeth), a cut lid with a curly
+// stem that pops up when it smashes, thick vine arms with warty gourd fists
+// and stubby root legs. Smashes whole groups at once.
+function pumpkinBrute() {
+  const K = {
+    or: 0xff8a1a, orD: 0xd2560e, orL: 0xffb04a, groove: 0xb84408, flesh: 0xffd08a, candle: 0xd8861a, candleD: 0xe8701a, inside: 0x3a1408,
+    vine: 0x3f8a2a, vineD: 0x24601c, vineL: 0x7cc84a, gourd: 0x4a9a2a, wart: 0x9ad85a, stem: 0x6a5a2a, stemD: 0x4a3a1a, root: 0x7a5232, rootD: 0x4e321c,
+  };
+  const PC = [-0.5, 15.5, 0], AX = 11, AY = 8.6, AZ = 9.6;
+  const ang = (x, z) => Math.atan2(z - PC[2], x - PC[0]);
+  const lobe = (x, z) => (1 - Math.cos(ang(x, z) * 10)) / 2; // 0 lobe centre .. 1 groove
+  const pumpkin = (x, y, z) => {
+    const gr = lobe(x, z);
+    if (gr > 0.86) return K.groove;
+    const t = (y - (PC[1] - AY)) / (AY * 2);
+    const base = t > 0.72 ? K.orL : t < 0.25 ? K.orD : K.or;
+    return gr > 0.6 ? shade(base, -0.1) : base;
+  };
+
+  // ------------------------------------------------------------ the pumpkin (body)
+  const body = G();
+  blob(body, PC[0], PC[1], PC[2], AX, AY, AZ, pumpkin, { p: 2.1 });
+  body.carve((x, y, z) => {
+    const d = ((x + 0.5 - PC[0] - 0.5) / (AX + 0.35)) ** 2 + ((y + 0.5 - PC[1] - 0.5) / (AY + 0.35)) ** 2 + ((z + 0.5 - PC[2] - 0.5) / (AZ + 0.35)) ** 2;
+    return d > 1 - 0.13 * lobe(x, z);
+  });
+  // the lid is cut out of the top (zig-zag cut line)
+  const cutY = (x, z) => 22 + ((Math.round(ang(x, z) * 4) & 1) ? 1 : 0);
+  const lidIn = (x, y, z) => Math.hypot(x - PC[0], z - PC[2]) < 5.6 && y >= cutY(x, z);
+  const lid = G();
+  body.forEach((x, y, z, c) => { if (lidIn(x, y, z)) lid.set(x, y, z, c); });
+  body.carve((x, y, z) => lidIn(x, y, z));
+  body.forEach((x, y, z) => { if (Math.hypot(x - PC[0], z - PC[2]) < 6.4 && Math.hypot(x - PC[0], z - PC[2]) >= 5.6 && y >= 21 && !body.has(x, y + 1, z)) body.set(x, y, z, K.groove); });
+  // carved face: angry triangle eyes lit from inside, pupils, a nose and a jagged grin
+  const carveFace = (poly, backCol, glowFn) => {
+    for (let x = -12; x <= 11; x++) for (let y = 4; y <= 24; y++) {
+      if (!inPoly(x + 0.5, y + 0.5, poly)) continue;
+      const z = frontZ(body, x, y, -5, 14);
+      if (z === null) continue;
+      body.del(x, y, z); body.del(x, y, z - 1);
+      const inner = [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => inPoly(x + dx + 0.5, y + dy + 0.5, poly));
+      const gl = glowFn ? glowFn(x, y, inner) : false;
+      body.set(x, y, z - 2, gl === 'pupil' ? INK : gl === 'rim' ? K.candleD : backCol, gl === true);
+    }
+  };
+  const eyeL = [[-10.4, 22.4], [-2.2, 19], [-5.4, 15.8], [-9.6, 16.8]];
+  const eyeR = eyeL.map(([x, y]) => [-1 - x, y]);
+  const eyeFn = (px) => (x, y, inner) => (x >= px && x <= px + 1 && y >= 16 && y <= 17 ? 'pupil' : inner ? true : 'rim');
+  carveFace(eyeL, K.candle, eyeFn(-5));
+  carveFace(eyeR, K.candle, eyeFn(3));
+  carveFace([[-2, 15.6], [1, 15.6], [-0.5, 13.4]], K.inside);
+  const grin = [[-10, 14.2], [-6, 12.8], [-0.5, 12.4], [5, 12.8], [9, 14.2], [6, 9.4], [-0.5, 7.6], [-7, 9.4]];
+  carveFace(grin, K.inside, (x, y) => (Math.abs(x + 0.5) <= 1 && y <= 9 ? true : Math.abs(x + 0.5) <= 2.5 && y <= 10 ? 'rim' : false));
+  // square pumpkin-flesh teeth left standing in the grin (two hang from the top, three rise from the bottom)
+  const colY = (x, top) => { let r = null; for (let y = 4; y <= 16; y++) if (inPoly(x + 0.5, y + 0.5, grin)) { if (top) r = y; else if (r === null) r = y; } return r; };
+  for (const [x0, top] of [[-6, true], [-2, true], [2, true], [-4, false], [0, false], [5, false]]) {
+    for (let x = x0; x <= x0 + 1; x++) {
+      const ye = colY(x, top);
+      if (ye === null) continue;
+      for (let k = 0; k < (top ? 2 : 1); k++) {
+        const y = top ? ye - k : ye + k;
+        const z = frontZ(body, x, y, -5, 14);
+        if (z !== null) body.set(x, y, z + 1, K.flesh);
+      }
+    }
+  }
+  stamp(body, BOLT, { M: MAG }, { axis: '-x', y: 19, z: -3 });
+  stamp(body, BOLT_R, { M: MAG }, { axis: 'x', y: 19, z: 1 });
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ lid: stem, curly tendril and a leaf (pops up on attacks)
+  const LJ = [-0.5, 22, -5];
+  chain(lid, [[-0.5, 23, 0], [-0.3, 26, -0.5], [0.6, 28.5, -1.4], [1.8, 29.6, -1]], [1.7, 1.5, 1.3, 1], (x, y) => ((y + 40) % 2 ? K.stem : K.stemD));
+  const curl = [];
+  for (let i = 0; i <= 16; i++) { const a = i * 0.55, r = 3.2 - i * 0.14; curl.push([-2.5 + Math.cos(a) * r, 25.5 + i * 0.25, -1 + Math.sin(a) * r]); }
+  for (let i = 1; i < curl.length; i++) capsule(lid, curl[i - 1], curl[i], 0.5, 0.5, K.vine);
+  leaf(lid, [1.5, 24, -1], [8, 26.5, -4], 2.6, { leaf: K.vine, vein: K.vineD, edge: K.vineL }, { plane: 'xz', cup: -1 });
+
+  // ------------------------------------------------------------ vine arms with warty gourd fists
+  const arm = G();
+  chain(arm, [[-10, 16, 0], [-13, 13, 1], [-14.5, 9.5, 2.5]], [2.4, 2.1, 2], (x, y, z) => ((x + y + z + 60) % 4 === 0 ? K.vineD : (x + y + 60) % 5 === 0 ? K.vineL : K.vine));
+  for (const [a, b] of [[[-11, 15, 2.4], [-12.6, 16.8, 3.4]], [[-13.6, 11.2, 3.6], [-15.4, 12.6, 4.6]]]) capsule(arm, a, b, 0.5, 0.3, K.vineL); // tendrils
+  blob(arm, -15, 6.5, 3.5, 3.5, 3.4, 3.6, (x, y, z) => (n3(x, y, z, 8) < 0.12 ? K.wart : (y + 40) % 3 === 0 ? K.vineD : K.gourd), { p: 2.2 });
+  for (const [x, y, z] of [[-17, 8, 6], [-14, 9, 6], [-12, 6, 6], [-17, 4, 5]]) blob(arm, x, y, z, 0.8, 0.8, 0.8, K.wart);
+
+  // ------------------------------------------------------------ root legs
+  const leg = G();
+  capsule(leg, [-4.5, 8, 0], [-5, 3, 0.5], 2.4, 2.2, (x, y) => ((y + 40) % 3 === 0 ? K.vineD : K.vine));
+  blob(leg, -5, 1.5, 1, 3, 1.6, 3.2, K.root, { p: 2.3, clip: (x, y) => y < 0 });
+  for (const dx of [-2, 0, 2]) capsule(leg, [-5 + dx, 1, 3], [-5 + dx * 1.3, 0.4, 5.6], 0.8, 0.5, K.rootD);
+
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
+    parts: [
+      jp('legL', leg, [-4.5, 8, 0]), jp('legR', flipX(leg), [3.5, 8, 0]),
+      jp('body', body, BODYJ),
+      jp('lid', lid, LJ, BODYJ, { parent: 'body' }),
+      jp('armL', arm, [-10, 16, 0], BODYJ, { parent: 'body' }),
+      jp('armR', flipX(arm), [9, 16, 0], BODYJ, { parent: 'body' }),
+    ],
+    muzzle: [-0.5, 10, 12],
+  };
+}
+
+// ===========================================================================
+// Shark Byte (TeamSeas Reef): a chunky hammerhead that walks the reef in yellow
+// scuba flippers and a red-and-white swim ring. Angry eyes on the tips of its
+// hammer, a huge grin of triangle teeth, a dorsal fin with a bite taken out of
+// it (the "byte") and the magenta bolt. Very fast and bites constantly.
+function sharkByte() {
+  const K = {
+    top: 0x3f6aa8, main: 0x6a9ad8, light: 0xa8ccf4, belly: 0xf4f8ff, bellyD: 0xd6e2f0, gum: 0xff4f7a,
+    fin: 0xffd23f, finD: 0xe09a12, ring: 0xff3a3a, ringW: 0xffffff, eye: 0xffffff,
+  };
+  const skin = (bellyY) => (x, y, z) => (y <= bellyY ? K.belly : y >= bellyY + 7 ? K.top : n3(x, y, z, 3) < 0.07 ? K.light : K.main);
+
+  // ------------------------------------------------------------ body: torpedo + swim ring + bitten dorsal fin
+  const body = G();
+  blob(body, -0.5, 12, -3, 5.8, 5.4, 9.2, skin(9.5), { p: 2.2 });
+  // gill slits
+  for (const s of [-1, 1]) for (const z of [2, 0, -2]) for (let y = 10; y <= 14; y++) {
+    const xs = s < 0 ? -9 : 8;
+    for (let x = xs; s < 0 ? x <= -1 : x >= 0; x -= s) if (body.has(x, y, z)) { body.set(x, y, z, K.top); break; }
+  }
+  // lifebuoy swim ring round the waist
+  for (let k = 0; k < 220; k++) {
+    const a = (k / 220) * Math.PI * 2;
+    const cx = -0.5 + Math.cos(a) * 6.9, cz = -4 + Math.sin(a) * 8.6;
+    const col = Math.floor(((a + 0.4) / (Math.PI * 2)) * 8) % 2 ? K.ringW : K.ring;
+    blob(body, cx, 9.5, cz, 1.6, 1.6, 1.6, col);
+  }
+  // the dorsal fin with a bite taken out of it
+  const FIN = [[1.5, 15.5], [-1.5, 20.5], [-5, 24.5], [-8.8, 26.2], [-7.6, 23], [-7.4, 19.5], [-9.6, 15.5]];
+  for (let y = 14; y <= 27; y++) for (let z = -12; z <= 3; z++) {
+    if (!inPoly(z + 0.5, y + 0.5, FIN)) continue;
+    if (Math.hypot(z + 0.5 + 7.6, y + 0.5 - 20.6) < 1.9) continue; // the "byte"
+    const xs = y <= 17 ? [-2, -1, 0, 1] : [-1, 0];
+    for (const x of xs) body.set(x, y, z, y >= 23 ? K.top : K.main);
+  }
+  stamp(body, BOLT_S, { M: MAG }, { axis: '-x', y: 22, z: -3 });
+  stamp(body, rev(BOLT_S), { M: MAG }, { axis: 'x', y: 22, z: -6 });
+  stamp(body, BOLT, { M: MAG }, { axis: '-x', y: 15, z: -4 });
+  stamp(body, BOLT_R, { M: MAG }, { axis: 'x', y: 15, z: -8 });
+  gradY(body, 6, 18, -0.08, 0.05, (x, y, z, c) => c === K.main || c === K.top);
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ head: the hammer
+  const HJ = [-0.5, 12, 4];
+  const head = G();
+  blob(head, -0.5, 14, 8, 5.4, 4.4, 5.4, skin(11.5), { p: 2.2 });
+  blob(head, -0.5, 16.2, 10.6, 12.4, 2.7, 3.4, skin(14.5), { p: 2.6 });
+  blob(head, -0.5, 15.4, 12.8, 4.2, 2.4, 2.2, skin(14), { p: 2.2 }); // snout
+  for (const x of [-4, 3]) head.set(x, 16, 14, INK); // nostrils
+  // angry eyes on the tips of the hammer
+  orbEye(head, -12, 16.8, 11.2, 2.4, -1, { lid: K.top, browCol: INK, slant: 0.5, lift: 0.35, pw: 2, ph: 2, inward: 0.6, browR: 0.8 });
+  orbEye(head, 11, 16.8, 11.2, 2.4, 1, { lid: K.top, browCol: INK, slant: 0.5, lift: 0.35, pw: 2, ph: 2, inward: 0.6, browR: 0.8 });
+  // the grin: carve under the hammer, gum line + zig-zag upper teeth
+  head.carve((x, y, z) => y <= 12.5 && z >= 7);
+  head.carve((x, y) => y < 10);
+  head.forEach((x, y, z) => {
+    if (y !== 13 || z < 7) return;
+    const rim = !head.has(x, 13, z + 1) || !head.has(x + 1, 13, z) || !head.has(x - 1, 13, z);
+    if (!rim) { head.set(x, y, z, MOUTH); return; }
+    head.set(x, 13, z, K.gum);
+    head.set(x, 12, z, TOOTH);
+    if ((x + z + 40) % 2 === 0) head.set(x, 11, z, TOOTH);
+  });
+  for (let x = -6; x <= 5; x++) for (let y = 10; y <= 12; y++) if (head.has(x, y, 6)) head.set(x, y, 6, MOUTH);
+  gradY(head, 9, 20, -0.06, 0.06, (x, y, z, c) => c === K.main || c === K.top);
+
+  // ------------------------------------------------------------ jaw (drops wide on every bite)
+  const JJ = [-0.5, 12, 5];
+  const jaw = G();
+  blob(jaw, -0.5, 10.6, 9.8, 5, 1.9, 4.6, (x, y) => (y <= 9 ? K.bellyD : K.belly), { p: 2.4 });
+  jaw.carve((x, y) => y > 11);
+  jaw.forEach((x, y, z) => {
+    if (y !== 11) return;
+    const rim = !jaw.has(x, 11, z + 1) || !jaw.has(x + 1, 11, z) || !jaw.has(x - 1, 11, z);
+    if (rim) { jaw.set(x, 11, z, K.gum); jaw.set(x, 12, z, TOOTH); if ((x + z + 41) % 2 === 0) jaw.set(x, 13, z, TOOTH); }
+    else jaw.set(x, y, z, Math.abs(x + 0.5) <= 2 && z <= 12 ? TONGUE : MOUTH);
+  });
+
+  // ------------------------------------------------------------ pectoral fins (arms)
+  const arm = G();
+  leaf(arm, [-5.5, 10.5, 1], [-12, 8, -2.5], 2.3, { leaf: K.main, vein: K.top, edge: K.top }, { plane: 'xz', veins: false });
+
+  // ------------------------------------------------------------ crescent tail fin
+  const TJ = [-0.5, 12.5, -11];
+  const tail = G();
+  chain(tail, [[-0.5, 12.5, -11], [-0.5, 13, -14.5], [-0.5, 13.5, -17]], [2.8, 2, 1.4], skin(11));
+  leaf(tail, [-0.5, 13.5, -16.5], [-0.5, 22, -22], 2.2, { leaf: K.top, edge: K.main }, { plane: 'zy', thick: 2 });
+  leaf(tail, [-0.5, 13, -16.5], [-0.5, 7, -20.5], 1.7, { leaf: K.top, edge: K.main }, { plane: 'zy', thick: 2 });
+  tail.forEach((x, y, z, c) => { if (x === -1 && c !== undefined) tail.set(0, y, z, c); });
+
+  // ------------------------------------------------------------ legs in yellow scuba flippers
+  const leg = G();
+  capsule(leg, [-3.6, 7.5, -2], [-3.8, 2.6, -1.5], 2, 1.8, skin(5));
+  leaf(leg, [-3.8, 1, -3.5], [-3.8, 0.5, 7], 2.8, { leaf: K.fin, vein: K.finD, edge: K.finD }, { plane: 'xz', thick: 2, thickDir: -1, round: 0.7, blunt: 0.25 });
+  rbox(leg, -6, 1, -3, -2, 3, 0, 1, K.finD); // strap
+
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
+    parts: [
+      jp('legL', leg, [-3.6, 7.5, -2]), jp('legR', flipX(leg), [2.6, 7.5, -2]),
+      jp('body', body, BODYJ),
+      jp('armL', arm, [-5.5, 10.5, 1], BODYJ, { parent: 'body' }),
+      jp('armR', flipX(arm), [4.5, 10.5, 1], BODYJ, { parent: 'body' }),
+      jp('tail', tail, TJ),
+      jp('head', head, HJ),
+      jp('jaw', jaw, JJ, HJ, { parent: 'head', rot: [0.25, 0, 0] }),
+    ],
+    muzzle: [-0.5, 12, 15],
+  };
+}
+
+// ===========================================================================
+// Jelly Zapper (TeamSeas Reef): a cyan jellyfish with a frilly magenta skirt,
+// an angry toothy face on its bell, a crackling yellow spark core and the
+// magenta bolt on top. Frilly oral arms whip up to zap, and lightning-bent
+// tentacles with glowing tips trail beneath it. Floats over the brawl and
+// chains its zaps.
+function jellyZapper() {
+  const K = {
+    bell: 0x5ad8ff, bellD: 0x2a9ad8, bellL: 0xc8f4ff, dot: 0xffffff, frill: 0xff5ac8, frillD: 0xd83aa8,
+    arm: 0xff8ad8, armD: 0xc84ab8, tent: 0x7ae8ff, tentD: 0x3ab8e0, spark: 0xfff27a, core: 0xfff27a,
+  };
+  const bellCol = (x, y, z) => {
+    if (n3(x, y, z, 5) < 0.06 && y > 19) return K.dot;
+    return y >= 24 ? K.bellL : y <= 18 ? K.bellD : K.bell;
+  };
+
+  // ------------------------------------------------------------ the bell (body) with the face
+  const body = G();
+  blob(body, -0.5, 18, 0, 9.6, 9, 9.6, bellCol, { p: 2.1, clip: (x, y) => y < 15 });
+  body.carve((x, y, z) => y <= 17 && Math.hypot(x + 0.5, z) < 6.6); // hollow underside of the bell
+  // scalloped frill skirt round the rim
+  for (let k = 0; k < 72; k++) {
+    const a = (k / 72) * Math.PI * 2;
+    const r = 9.4;
+    const x = Math.round(-0.5 + Math.cos(a) * r), z = Math.round(Math.sin(a) * r);
+    const len = 1 + (Math.cos(a * 12) > 0 ? 2 : 0);
+    for (let i = 0; i < len; i++) body.set(x, 15 - i, z, i === len - 1 ? K.frillD : K.frill);
+  }
+  // angry eyes + a toothy grin on the front of the bell
+  for (const [cx, side] of [[-3.9, -1], [2.9, 1]]) {
+    const cz = (frontZ(body, Math.round(cx), 21) ?? 8) - 1;
+    eyeBall(body, cx, 21.2, cz, [2.5, 2.7, 1.8], side, { pw: 2, ph: 3, inward: 0.7, down: 0.6, browCol: K.bellD, browT: 2, browHi: 0.85, browLo: 0.15, browOut: 0 });
+  }
+  openMouth(body, -5, 4, 16, 19, (x, y) => Math.abs(x + 0.5) <= 4.6 - (y === 16 ? 1.5 : 0) - (y === 19 ? 0.8 : 0), { depth: 3, top: 2, bot: 1, period: 3, zmin: -2, zmax: 14 });
+  // spark core on top + magenta bolt crest
+  blob(body, -0.5, 27.2, -0.5, 0.9, 0.6, 0.9, K.core, { glow: true });
+  stamp(body, BOLT, { M: { c: MAG, raise: 1 } }, { axis: 'y', x: -3, z: -5 });
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ frilly oral arms (whip up to zap)
+  const arm = G();
+  const ap = [[-2.8, 15, 3], [-3.6, 12, 4.2], [-2.8, 9, 4.6], [-3.8, 6, 4.4], [-3, 3.5, 4]];
+  chain(arm, ap, [1.7, 1.6, 1.4, 1.1, 0.6], (x, y, z) => ((y + 40) % 3 === 0 ? K.armD : K.arm));
+  for (let i = 1; i < ap.length - 1; i++) for (const dx of [-1.8, 1.8]) blob(arm, ap[i][0] + dx, ap[i][1], ap[i][2] + 0.4, 0.8, 1.1, 0.8, K.frill);
+
+  // ------------------------------------------------------------ lightning-bent tentacles with glowing tips
+  const tent = (x0, z0, phase) => {
+    const g = G();
+    const pts = [];
+    for (let i = 0; i <= 6; i++) pts.push([x0 + ((i + phase) % 2 ? 1.3 : -1.3) * Math.min(1, i / 2), 15 - i * 2.2, z0 + (i % 2 ? 0.6 : -0.4)]);
+    chain(g, pts, [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4], (x, y) => ((y + 40) % 4 === 0 ? K.tentD : K.tent));
+    const e = pts[6];
+    g.set(Math.round(e[0]), Math.round(e[1]) - 1, Math.round(e[2]), K.spark, true);
+    return g;
+  };
+  const legFL = tent(-5.5, 4, 0), legBL = tent(-5, -4.5, 1);
+  tent(-2, 0.5, 1).forEach((x, y, z, c, gl) => legFL.set(x, y, z, c, gl)); // + a shorter inner tentacle
+
+  return {
+    gait: 'float', voxel: 0.05, jitter: 0.02,
+    parts: [
+      jp('body', body, BODYJ),
+      jp('armL', arm, [-2.8, 15, 3], BODYJ, { parent: 'body' }),
+      jp('armR', flipX(arm), [1.8, 15, 3], BODYJ, { parent: 'body' }),
+      jp('legFL', legFL, [-5.5, 15, 4], BODYJ, { parent: 'body' }),
+      jp('legFR', flipX(legFL), [4.5, 15, 4], BODYJ, { parent: 'body' }),
+      jp('legBL', legBL, [-5, 15, -4.5], BODYJ, { parent: 'body' }),
+      jp('legBR', flipX(legBL), [4, 15, -4.5], BODYJ, { parent: 'body' }),
+    ],
+    muzzle: [-0.5, 12, 6],
+  };
+}
+
+// ===========================================================================
+// Magma Titan (Volcano Forge, legendary): a colossal obsidian titan cracked
+// with glowing lava. A caged magma core in its chest under the magenta bolt,
+// erupting volcano cones for shoulders, curved obsidian horns and a crown of
+// fire, blazing eyes over a lava-filled roar, and boulder fists. Every slam
+// splashes burning magma over a whole crowd.
+function magmaTitan() {
+  const K = {
+    rock: 0x2e2428, rockD: 0x1c161a, rockL: 0x4c3c44, crust: 0x7a2a16, lava: 0xff6a1a, lavaL: 0xffb03a, lavaY: 0xffe14a,
+    horn: 0x3a2e36, hornL: 0x8a6a5a, tooth: 0xfff0d0, eye: 0xfff2a0, ember: 0xffd23f,
+  };
+  // obsidian plates (3D Voronoi cells) with lava running along the seams between them;
+  // seam voxels are orange paint and only a few of them actually glow
+  const CELL = 7;
+  const feat = (i, j, k, seed) => [(i + n3(i, j, k, seed)) * CELL, (j + n3(i, j, k, seed + 1)) * CELL, (k + n3(i, j, k, seed + 2)) * CELL];
+  const magma = (seed) => (x, y, z) => {
+    const ci = Math.floor(x / CELL), cj = Math.floor(y / CELL), ck = Math.floor(z / CELL);
+    let d1 = 1e9, d2 = 1e9, best = null;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+      const f = feat(ci + a, cj + b, ck + c, seed);
+      const d = Math.hypot(x + 0.5 - f[0], y + 0.5 - f[1], z + 0.5 - f[2]);
+      if (d < d1) { d2 = d1; d1 = d; best = f; } else if (d < d2) d2 = d;
+    }
+    const gap = d2 - d1;
+    if (gap < 0.32) return K.lava;
+    if (gap < 0.75) return K.crust;
+    const k = n3(Math.floor(best[0]), Math.floor(best[1]), Math.floor(best[2]), seed + 5); // each plate its own tone
+    return k < 0.3 ? K.rockD : k > 0.8 ? K.rockL : K.rock;
+  };
+  const glowCracks = (g, p = 0.12, seed = 1) => g.forEach((x, y, z, c) => { if (c === K.lava && n3(x, y, z, seed) < p * 0.3) g.set(x, y, z, K.lavaL, true); });
+
+  // ------------------------------------------------------------ legs
+  const leg = G();
+  capsule(leg, [-6, 13, 0], [-7, 5, 0.5], 4.4, 3.9, magma(3));
+  blob(leg, -7, 8.5, 3, 2.8, 2.6, 2, K.rockL, { p: 2.6 }); // knee plate
+  rbox(leg, -12, 0, -4, -2, 4, 6, 1.6, magma(5));
+  for (const x of [-10.5, -7, -3.5]) capsule(leg, [x, 1.5, 6], [x, 0.6, 8.6], 1.1, 0.5, (xx, yy, zz, t) => (t > 0.7 ? K.lavaL : K.rockD));
+  glowCracks(leg, 0.1, 2);
+  hollowOut(leg, 2);
+
+  // ------------------------------------------------------------ torso
+  const body = G();
+  blob(body, -0.5, 21.5, -0.5, 12.6, 9.6, 8.4, magma(1), { p: 2.6 });
+  blob(body, -0.5, 13, -0.5, 9, 3.6, 7, magma(4), { p: 2.4 }); // pelvis
+  // the magma core shows through a lightning-bolt window in the chest, rimmed in magenta
+  const BIG = ['....MMMM', '...MMMM.', '..MMMM..', '.MMMM...', '.MMMMMMM', '...MMMM.', '..MMMM..', '..MMM...', '.MMM....', '.MM.....'];
+  const win = new Set();
+  BIG.forEach((row, v) => [...row].forEach((ch, u) => { if (ch === 'M') win.add(`${-4 + u},${26 - v}`); }));
+  for (const k of win) {
+    const [x, y] = k.split(',').map(Number);
+    const z = frontZ(body, x, y, -2, 14);
+    if (z === null) continue;
+    body.del(x, y, z); body.del(x, y, z - 1);
+    const inner = [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => win.has(`${x + dx},${y + dy}`));
+    body.set(x, y, z - 2, inner ? K.lavaL : K.lava, inner);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+      if (win.has(`${x + dx},${y + dy}`)) continue;
+      const zz = frontZ(body, x + dx, y + dy, -2, 14);
+      if (zz !== null) body.set(x + dx, y + dy, zz, MAG);
+    }
+  }
+  // volcano shoulders with lava in their craters
+  for (const s of [-1, 1]) {
+    const x = s < 0 ? -11.5 : 10.5;
+    cyl(body, 'y', x, -1, 26, 33, 5, 2.4, magma(7));
+    cyl(body, 'y', x, -1, 33, 33, 1.5, 1.5, K.lava);
+    cyl(body, 'y', x, -1, 32, 32, 1, 1, K.lavaY, { glow: true });
+    body.del(Math.round(x), 33, -1);
+    for (let i = 1; i <= 3; i++) body.set(Math.round(x) + (i % 2 ? s : 0), 33 - i * 1.6 | 0, (i % 2 ? 3 : 2), K.lava); // dribble
+  }
+  // obsidian spikes down the spine + bolt on the back
+  for (const [y, z] of [[29, -6], [25, -8], [20, -8.6]]) capsule(body, [-0.5, y, z], [-0.5, y + 2.4, z - 3.6], 1.6, 0.3, K.horn);
+  stamp(body, BOLT, { M: MAG }, { axis: '-z', x: -3, y: 19 });
+  glowCracks(body, 0.1, 6);
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ head: horned, fire crown, blazing eyes, lava roar
+  const HJ = [-0.5, 29, 2];
+  const head = G();
+  blob(head, -0.5, 34.5, 4, 6.8, 5.6, 6, magma(9), { p: 2.3 });
+  blob(head, -0.5, 31, 6.5, 6.2, 3, 4.4, magma(9), { p: 2.4 }); // heavy jaw line
+  // brow ridge (angry V)
+  for (let x = -7; x <= 6; x++) {
+    const yb = Math.round(36 + Math.abs(x + 0.5) * 0.32);
+    for (let y = yb; y <= yb + 1; y++) for (let z = 7; z <= 10; z++) if (z <= 10 - (y - yb)) head.set(x, y, z, y === yb + 1 ? K.rockL : K.rock);
+  }
+  for (const [cx, side] of [[-3.4, -1], [2.4, 1]]) {
+    const cz = (frontZ(head, Math.round(cx), 34) ?? 9) - 1;
+    eyeBall(head, cx, 34.2, cz, [1.7, 1.4, 1.2], side, { white: K.eye, glow: true, pupil: 0x3a0a06, pw: 2, ph: 2, inward: 0.5, down: 0.3, brow: false, glint: false });
+  }
+  openMouth(head, -6, 5, 29, 32, (x, y) => Math.abs(x + 0.5) <= 5.2 - (y === 29 ? 1.4 : 0), {
+    depth: 3, top: 2, bot: 0, period: 3, tooth: K.tooth, lipCol: K.rockD, zmin: 0, zmax: 16,
+    backFn: (x, y) => (y <= 30 && Math.abs(x + 0.5) <= 2.5 ? { c: K.lavaL, glow: n3(x, y, 1, 4) < 0.5 } : { c: K.crust }),
+  });
+  // curved obsidian horns
+  for (const s of [-1, 1]) {
+    const X = (v) => (s < 0 ? v : -1 - v);
+    const pts = [[-5.5, 37.5, 3], [-9, 39.5, 3.5], [-10.6, 42.8, 5], [-9.6, 45.5, 7]].map(([x, y, z]) => [X(x), y, z]);
+    chain(head, pts, [2.2, 1.8, 1.2, 0.5], (x, y, z) => (y >= 43 ? K.hornL : (y + 40) % 3 === 0 ? K.rockD : K.horn));
+  }
+  // crown of fire
+  for (const [x, z, h, gl] of [[-0.5, 4, 6, 1], [-2.6, 3, 4], [1.6, 3, 4], [-0.5, 1, 4]]) flame(head, x, 39.5, z, h, { w: 1.5, lean: -0.3, glow: !!gl });
+  glowCracks(head, 0.08, 3);
+  hollowOut(head, 2);
+
+  // ------------------------------------------------------------ jaw: underbite with lava-tipped tusks
+  const JJ = [-0.5, 29.5, 4];
+  const jaw = G();
+  blob(jaw, -0.5, 28.4, 7.6, 5.6, 1.8, 4, magma(11), { p: 2.4 });
+  jaw.carve((x, y) => y > 29);
+  for (let x = -5; x <= 4; x++) for (let z = 4; z <= 11; z++) if (jaw.has(x, 29, z)) jaw.set(x, 29, z, Math.abs(x + 0.5) <= 2 ? K.lavaL : K.crust);
+  for (const x of [-5, 4]) capsule(jaw, [x, 29.5, 10.2], [x + (x < 0 ? -0.4 : 0.4), 32.5, 10.6], 0.9, 0.4, K.tooth);
+  for (const x of [-2, 1]) jaw.set(x, 30, 11, K.tooth);
+
+  // ------------------------------------------------------------ arms with boulder fists
+  const arm = G();
+  blob(arm, -13, 27, -0.5, 4.2, 4, 4.4, magma(13), { p: 2.4 }); // shoulder mass
+  capsule(arm, [-13.5, 26, 0], [-17, 18, 1.5], 3.9, 3.4, magma(13));
+  capsule(arm, [-17, 18, 1.5], [-18, 11.5, 3], 3.4, 3.2, magma(14));
+  blob(arm, -18.5, 7.5, 4, 4.6, 4.2, 4.6, magma(15), { p: 2.5 });
+  stamp(arm, BOLT, { M: MAG }, { axis: '-x', y: 23, z: 3 });
+  for (const [x, y] of [[-21, 9], [-18.5, 10], [-16, 9]]) capsule(arm, [x, y, 7.4], [x, y + 0.4, 9.2], 1, 0.4, K.rockL); // knuckle spikes
+  glowCracks(arm, 0.12, 8);
+  hollowOut(arm, 2);
+
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
+    parts: [
+      jp('legL', leg, [-6, 13, 0]), jp('legR', flipX(leg), [5, 13, 0]),
+      jp('body', body, BODYJ),
+      jp('armL', arm, [-13.5, 26, 0], BODYJ, { parent: 'body' }),
+      jp('armR', flipX(arm), [12.5, 26, 0], BODYJ, { parent: 'body' }),
+      jp('head', head, HJ),
+      jp('jaw', jaw, JJ, HJ, { parent: 'head', rot: [0.1, 0, 0] }),
+    ],
+    muzzle: [-0.5, 30, 13],
+  };
+}
+
+// ===========================================================================
+// Ember Imps (Volcano Forge): a trio of little red fire imps. Huge horned
+// heads with a flame tuft, pointed ears, yellow slit eyes and a wicked grin,
+// fluttering bat wings, goat legs on black hooves, a spade-tipped tail and a
+// pitchfork with red-hot prongs. Every jab sets the target on fire.
+function emberImps() {
+  const K = {
+    red: 0xe8302a, redD: 0xa81a1a, redL: 0xff6a4a, belly: 0xffa05a, bellyD: 0xe87a3a, horn: 0x2a1a22, hornL: 0xfff0d0, hoof: 0x1a1018, soot: 0x3a1a1e,
+    wing: 0x8a1a3a, wingD: 0x5a0a22, eye: 0xfff27a, iron: 0x4a3a4a, ironL: 0x7a6a7a, hot: 0xff8a1f, gold: 0xffc93a,
+  };
+  const skin = (x, y, z) => (n3(x, y, z, 2) < 0.06 ? K.redD : K.red);
+
+  // ------------------------------------------------------------ body: pot belly + belt
+  const body = G();
+  blob(body, -0.5, 12.5, -0.5, 5.4, 5, 4.6, skin, { p: 2.2 });
+  body.paint((x, y, z) => (z >= 1 && y <= 13.5 && Math.abs(x + 0.5) <= 3.6 ? ((y + 40) % 3 === 0 && y >= 10 ? K.bellyD : K.belly) : undefined));
+  body.paint((x, y) => (y >= 8 && y <= 9 ? K.soot : undefined)); // sooty belt
+  rbox(body, -2, 8, 3, 1, 9, 4, 0, K.gold); // buckle
+  stamp(body, BOLT, { M: MAG }, { axis: 'z', x: -3, y: 16, zmin: 1 });
+  gradY(body, 7, 17, -0.1, 0.05, (x, y, z, c) => c === K.red || c === K.redD);
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ head
+  const HJ = [-0.5, 16, 0.5];
+  const head = G();
+  blob(head, -0.5, 23.5, 1.5, 8.6, 7.4, 7, skin, { p: 2.2 });
+  blob(head, -0.5, 19.6, 4.6, 6.6, 3.8, 4.6, skin, { p: 2.2 }); // cheeks + chin
+  blob(head, -0.5, 21.2, 9.6, 1.8, 1.3, 1.2, K.redL); // snout
+  for (const x of [-2, 1]) head.set(x, 21, 11, K.redD); // nostrils
+  // pointed ears with a pierced gold ring
+  for (const s of [-1, 1]) {
+    const ex = s < 0 ? -8 : 7;
+    capsule(head, [ex, 23, 1], [ex + s * 6.2, 26.2, -1.4], 2.4, 0.4, skin);
+    capsule(head, [ex + s * 0.6, 23.2, 2.2], [ex + s * 5, 25.6, 0.2], 1.1, 0.2, K.redL);
+  }
+  cyl(head, 'x', 24.4, -0.6, -12, -12, 1.4, 1.4, K.gold, { hollow: 0.8 });
+  // ridged horns with bone tips
+  for (const s of [-1, 1]) {
+    const X = (v) => (s < 0 ? v : -1 - v);
+    chain(head, [[-4.6, 29, 2], [-6.6, 33, 0.8], [-7, 36.6, -1.6]].map(([x, y, z]) => [X(x), y, z]), [2, 1.3, 0.35], (x, y) => (y >= 35 ? K.hornL : (y + 40) % 2 ? K.horn : 0x3e2a34));
+  }
+  // flame tuft
+  for (const [x, z, h, gl] of [[-0.5, 2.5, 7, 1], [-2.6, 0.5, 5], [1.6, 0.5, 5], [-0.5, -1.5, 4]]) flame(head, x, 30, z, h, { w: 1.6, lean: -0.4, glow: !!gl });
+  // angry yellow slit eyes
+  for (const [cx, side] of [[-4.2, -1], [3.2, 1]]) {
+    const cz = (frontZ(head, Math.round(cx), 24) ?? 8) - 1;
+    eyeBall(head, cx, 24.2, cz, [2.7, 2.9, 1.9], side, { white: K.eye, pw: 1, ph: 4, inward: 0.3, down: 0.5, browCol: K.horn, browT: 2, browHi: 1.2, browLo: 0.2, browOut: 1 });
+  }
+  // soot freckles + wicked grin full of sharp teeth
+  for (const [x, y] of [[-7, 21], [-6, 20], [-8, 20], [6, 21], [5, 20], [7, 20]]) { const z = frontZ(head, x, y, -4, 14); if (z !== null) head.set(x, y, z, K.redD); }
+  openMouth(head, -6, 5, 16, 19, (x, y) => Math.abs(x + 0.5) <= 5.6 - (y === 16 ? 2 : y === 17 ? 0.8 : 0) + (y === 19 ? 0.4 : 0), { depth: 3, top: 3, bot: 2, period: 3, lipCol: K.redD, zmin: -2, zmax: 14 });
+  gradY(head, 15, 31, -0.08, 0.06, (x, y, z, c) => c === K.red || c === K.redD);
+  hollowOut(head, 2);
+
+  // ------------------------------------------------------------ arms: a clawed hand + the red-hot pitchfork
+  const armL = G();
+  capsule(armL, [-5.6, 14.5, 0], [-8.8, 10.4, 2.2], 1.6, 1.3, skin);
+  blob(armL, -9.2, 9.4, 2.8, 1.9, 1.8, 1.9, skin);
+  for (const dx of [-1, 0, 1]) capsule(armL, [-9.4 + dx * 1.1, 8.4, 4], [-9.6 + dx * 1.3, 7, 5], 0.45, 0.3, K.horn);
+  const armR = G();
+  capsule(armR, [4.6, 14.5, 0], [7.6, 10.8, 3], 1.6, 1.3, skin);
+  blob(armR, 7.8, 10.2, 3.6, 1.9, 1.8, 1.9, skin);
+  capsule(armR, [7.8, 1.5, 4], [7.8, 26, 4], 0.75, 0.75, (x, y) => (y >= 9 && y <= 11 ? K.soot : (y + 40) % 6 === 0 ? K.ironL : K.iron));
+  capsule(armR, [4.4, 26, 4], [11.2, 26, 4], 0.75, 0.75, K.iron);
+  for (const x of [4.4, 7.8, 11.2]) {
+    capsule(armR, [x, 26, 4], [x, 31.5, 4], 0.7, 0.35, (xx, y) => (y >= 30 ? 0xffd23f : y >= 28 ? K.hot : K.iron));
+    armR.set(Math.round(x - 0.5), 32, 4, 0xfff2a0, x === 7.8);
+  }
+
+  // ------------------------------------------------------------ bat wings
+  const wing = G();
+  const WP = [[0, 0], [4.6, 7], [9.4, 6.6], [11.2, 1.4], [8.2, -2.4], [4.4, -1.8]];
+  for (let u = 0; u <= 12; u += 0.4) for (let v = -3; v <= 8; v += 0.4) {
+    if (!inPoly(u, v, WP)) continue;
+    if (Math.hypot(u - 8, v + 0.2) < 1.8 || Math.hypot(u - 11, v - 3.6) < 1.6) continue; // scallops
+    const vein = Math.abs(v - u * 0.6) < 0.5 || Math.abs(v - u * 0.15) < 0.45;
+    wing.set(Math.round(-4 - u * 0.85), Math.round(15 + v), Math.round(-3.5 - u * 0.5), vein ? K.wingD : K.wing);
+  }
+  capsule(wing, [-4, 15, -3.5], [-7.9, 22, -5.8], 0.7, 0.5, K.horn);
+  capsule(wing, [-7.9, 22, -5.8], [-12, 21.6, -8.2], 0.5, 0.35, K.horn);
+  capsule(wing, [-7.9, 22, -5.8], [-13.5, 16.4, -9.1], 0.4, 0.3, K.horn);
+  wing.set(-8, 23, -6, K.hornL);
+
+  // ------------------------------------------------------------ goat legs on cloven hooves
+  const leg = G();
+  capsule(leg, [-3.4, 9, 0], [-4, 5, -1.2], 2.2, 1.7, skin);
+  capsule(leg, [-4, 5, -1.2], [-3.8, 2, 0.4], 1.5, 1.3, (x, y) => (y <= 3 ? K.soot : K.redD));
+  rbox(leg, -5.6, 0, -1.2, -2, 1.6, 2.6, 0.6, (x) => (x === -4 ? INK : K.hoof));
+
+  // ------------------------------------------------------------ spade-tipped tail
+  const TJ = [-0.5, 9.5, -4];
+  const tail = G();
+  chain(tail, [[-0.5, 9.5, -4], [-0.5, 7.5, -8], [-0.5, 10, -12], [-0.5, 14, -13.4]], [1.1, 0.9, 0.8, 0.6], K.redD);
+  const SP = [[0, 0], [-2.8, 2.4], [-1.2, 3.4], [0, 6.4], [1.2, 3.4], [2.8, 2.4]];
+  for (let y = 13; y <= 21; y++) for (let z = -17; z <= -10; z++) {
+    const u = z + 13.4, v = y - 14;
+    if (!inPoly(u, v, SP)) continue;
+    const edge = !inPoly(u + 1, v, SP) || !inPoly(u - 1, v, SP) || !inPoly(u, v + 1, SP);
+    for (const x of [-1, 0]) tail.set(x, y, z, edge ? K.red : K.horn);
+  }
+
+  return {
+    gait: 'walk', voxel: 0.05, jitter: 0.02,
+    parts: [
+      jp('legL', leg, [-3.4, 9, 0]), jp('legR', flipX(leg), [2.4, 9, 0]),
+      jp('body', body, BODYJ),
+      jp('wingL', wing, [-4, 15, -3.5], BODYJ, { parent: 'body' }),
+      jp('wingR', flipX(wing), [3, 15, -3.5], BODYJ, { parent: 'body' }),
+      jp('armL', armL, [-5.6, 14.5, 0], BODYJ, { parent: 'body' }),
+      jp('armR', armR, [4.6, 14.5, 0], BODYJ, { parent: 'body' }),
+      jp('tail', tail, TJ),
+      jp('head', head, HJ),
+    ],
+    muzzle: [7.8, 30, 5],
+  };
+}
+
+// ===========================================================================
+// Astro Panther (Zero-G Space Station, legendary): the Panther sculpt in
+// cosmic indigo fur full of stars, wearing white-and-orange space armour with a
+// MrBeast mission patch, a gold visor pushed up on its forehead and a radio
+// antenna, and riding twin rocket tanks on its back. Hovers on jet flames and
+// fires mini-rocket volleys from the tank noses.
+function astroPanther() {
+  const K = {
+    fur: 0x4c3ce0, nebula: 0x8a3ae0, dark: 0x2a1e9a, light: 0xb0a4ff, muzzle: 0xd8d0ff, star: 0xfff6d0,
+    suit: 0xf4f6fa, suitD: 0xc8d0e0, orange: 0xff8a1f, gold: 0xffc93a, goldD: 0xd08a12, visor: 0xffb02a,
+  };
+  const furFn = (x, y, z) => {
+    const k = n3(x, y, z, 17);
+    if (k < 0.025) return K.star;
+    const neb = n3(x >> 2, y >> 2, z >> 2, 19);
+    return neb < 0.25 ? K.nebula : K.fur;
+  };
+  const S = { fur: K.fur, dark: K.dark, light: K.light, muzzle: K.muzzle, bolt: MAG, claw: INK, inner: 0xff8ad8, nose: INK, iris: INK };
+  const m = pantherMold(S, { furFn, noFlankBolt: true });
+  const g = m.grids, j = m.joints;
+  // a few stars actually twinkle
+  g.body.forEach((x, y, z, c) => { if (c === K.star && n3(x, y, z, 23) < 0.12) g.body.set(x, y, z, c, true); });
+
+  // ------------------------------------------------------------ space armour
+  const b = g.body;
+  b.paint((x, y, z, c) => {
+    if (z >= 5 && y >= 8 && y <= 17) return y === 13 ? K.orange : K.suit; // chest plate
+    if (y >= 15 && z <= 4 && z >= -9 && Math.abs(x + 0.5) <= 5.6) return (z + 40) % 5 === 0 ? K.suitD : K.suit; // back plate
+    return undefined;
+  });
+  cyl(b, 'z', -0.5, 12, 10, 10, 2.4, 2.4, (x, y) => (Math.hypot(x + 0.5, y - 12) > 1.8 ? K.gold : 0x2a3a8a)); // mission patch
+  stamp(b, ['.MM', 'MM.', 'MMM', '.MM', 'MM.'], { M: MAG }, { axis: 'z', x: -2, y: 14, zmin: 10 });
+  for (const s of [-1, 1]) blob(b, s < 0 ? -6.5 : 5.5, 15, 4, 3, 2.2, 3.2, (x, y) => (y >= 16 ? K.suit : K.orange), { p: 2.4 }); // shoulder pads
+  stamp(b, BOLT, { M: MAG }, { axis: '-x', y: 13, z: -5 });
+  stamp(b, BOLT_R, { M: MAG }, { axis: 'x', y: 13, z: -2 });
+  // space boots
+  for (const k of ['legFL', 'legFR', 'legBL', 'legBR']) g[k].paint((x, y, z, c) => (y <= 3 && c !== INK ? K.suit : y === 4 ? K.orange : undefined));
+  // gold visor pushed up on the forehead + radio antenna
+  const hd = g.head;
+  rbox(hd, -8, 27, 9, 7, 29, 14, 1.2, (x, y, z) => (z >= 13 || y === 27 ? K.suitD : K.suit));
+  rbox(hd, -6, 27, 14, 5, 28, 15, 0.5, K.visor);
+  hd.set(-5, 28, 15, WHITE, false);
+  // star on the tail tip
+  const tl = g.tail;
+  blob(tl, -0.5, 25, -13.5, 1.9, 1.9, 1.9, K.gold);
+  tl.set(-1, 27, -13, K.star, true);
+
+  // ------------------------------------------------------------ antenna (wobbles)
+  const ant = G();
+  capsule(ant, [6.5, 26, 8], [8.5, 33, 6], 0.5, 0.4, K.suitD);
+  blob(ant, 8.7, 33.8, 5.9, 1, 1, 1, MAG);
+  ant.set(8, 34, 6, MAG_L, true);
+
+  // ------------------------------------------------------------ twin rocket tanks (recoil when the rockets fire)
+  const CJ = [-0.5, 18, -4];
+  const pods = G();
+  for (const x of [-4.4, 3.4]) {
+    cyl(pods, 'z', x, 19.5, -11, 2, 2.5, 2.5, (xx, y, z) => ((z + 40) % 5 === 0 ? K.orange : y >= 21 ? K.suit : K.suitD));
+    cyl(pods, 'z', x, 19.5, 3, 6, 2.2, 0.5, (xx, y, z) => (z >= 5 ? MAG : K.orange)); // nose cone (rocket)
+    cyl(pods, 'z', x, 19.5, -13, -12, 1.6, 2.2, GUN); // nozzle
+  }
+  // flames pointing backwards from the nozzles
+  for (const x of [-4.4, 3.4]) for (let i = 0; i < 5; i++) {
+    const r = 1.6 - i * 0.3;
+    blob(pods, x, 19.5, -14 - i, r, r, 0.6, i >= 3 ? 0xe8fdff : i >= 1 ? 0x9ff2ff : 0xffd23f, { glow: i === 4 });
+  }
+  rbox(pods, -2, 17, -8, 1, 18, 0, 0.5, GUN); // saddle strap
+  stamp(pods, BOLT_S, { M: MAG }, { axis: '-x', y: 22, z: -6 });
+  stamp(pods, rev(BOLT_S), { M: MAG }, { axis: 'x', y: 22, z: -8 });
+
+  const parts = [
+    jp('legFL', g.legFL, j.legFL), jp('legFR', g.legFR, j.legFR), jp('legBL', g.legBL, j.legBL), jp('legBR', g.legBR, j.legBR),
+    jp('body', g.body, BODYJ),
+    jp('cannon', pods, CJ, BODYJ, { parent: 'body' }),
+    jp('head', g.head, j.head),
+    jp('jaw', g.jaw, j.jaw, j.head, { parent: 'head', rot: [0.12, 0, 0] }),
+    jp('antenna', ant, [6.5, 26, 8], j.head, { parent: 'head' }),
+    jp('tail', g.tail, j.tail),
+  ];
+  return { gait: 'float', voxel: 0.05, jitter: 0.02, parts, muzzle: [-4.4, 19.5, 7] };
+}
+
+// ===========================================================================
+// UFO Grabber (Zero-G Space Station): a living flying saucer. A green alien
+// critter with angry eyes, a toothy grin and glowing antennae rides in the
+// glass cockpit, a ring of lights spins round the rim, two pincer arms reach
+// out and an arcade-machine claw dangles under the stun-beam emitter.
+function ufoGrabber() {
+  const K = {
+    hull: 0x7a5ae8, hullD: 0x4a34b0, hullL: 0xb8a4ff, rim: CHROME, rimD: CHROME_D, glass: 0xbff4ff, glassD: 0x8ad8f0,
+    alien: 0x8af04a, alienD: 0x4aa82a, alienL: 0xc8ff8a, beam: 0x7cff3a, light1: 0xffd23f, light2: MAG, gold: 0xffc93a,
+  };
+
+  // ------------------------------------------------------------ saucer hull
+  const body = G();
+  blob(body, -0.5, 13, 0, 13, 2.8, 13, (x, y, z) => {
+    if (y === 13) return (Math.round(Math.atan2(z, x + 0.5) * 6) & 1) ? K.rim : K.rimD;
+    if (y > 13) return n3(x, y, z, 4) < 0.05 ? K.hullL : (x + z + 40) % 9 === 0 ? K.hullD : K.hull;
+    return K.hullD;
+  }, { p: 2 });
+  // cockpit ring
+  cyl(body, 'y', -0.5, 0, 15, 16, 6.6, 6.6, K.rim, { hollow: 1.2 });
+  // portholes round the underside
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    const x = Math.round(-0.5 + Math.cos(a) * 8.6), z = Math.round(Math.sin(a) * 8.6);
+    for (let y = 9; y <= 13; y++) if (body.has(x, y, z) && !body.has(x, y - 1, z)) { body.set(x, y, z, K.glassD); break; }
+  }
+  // stun-beam emitter under the belly
+  cyl(body, 'y', -0.5, 0, 8, 10, 2.8, 2.4, GUN);
+  cyl(body, 'y', -0.5, 0, 7, 7, 1.6, 1.6, K.beam);
+  body.set(-1, 7, 0, K.beam, true); body.set(0, 7, -1, K.beam, true);
+  stamp(body, BOLT, { M: { c: MAG, raise: 1 } }, { axis: 'y', x: -3, z: 6 });
+  hollowOut(body, 2);
+
+  // ------------------------------------------------------------ the spinning ring of rim lights
+  const SJ = [-0.5, 13, 0];
+  const ring = G();
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    const x = Math.round(-0.5 + Math.cos(a) * 13.6), z = Math.round(Math.sin(a) * 13.6);
+    ring.set(x, 13, z, k % 2 ? K.light1 : K.light2, k % 4 === 0);
+    ring.set(x, 12, z, K.rimD);
+  }
+
+  // ------------------------------------------------------------ the alien pilot (head)
+  const HJ = [-0.5, 15, 0];
+  const head = G();
+  capsule(head, [-0.5, 15, 0], [-0.5, 18, 0.5], 2.6, 2.4, K.alienD);
+  blob(head, -0.5, 22, 0.8, 6.2, 5.4, 5.2, (x, y, z) => (n3(x, y, z, 6) < 0.06 ? K.alienL : y <= 18 ? K.alienD : K.alien), { p: 2.2 });
+  for (const [cx, side] of [[-3.2, -1], [2.2, 1]]) {
+    const cz = (frontZ(head, Math.round(cx), 23) ?? 6) - 1;
+    eyeBall(head, cx, 23, cz, [2.4, 2.7, 1.8], side, { pupil: 0x2a0a4a, pw: 2, ph: 3, inward: 0.7, down: 0.6, browCol: K.alienD, browT: 2, browHi: 1.1, browLo: 0.2, browOut: 0 });
+  }
+  openMouth(head, -4, 3, 18, 20, (x, y) => Math.abs(x + 0.5) <= 3.8 - (y === 18 ? 1.4 : 0), { depth: 2, top: 2, bot: 1, period: 2, zmin: -2, zmax: 12 });
+  stamp(head, BOLT_S, { M: MAG }, { axis: 'y', x: -2, z: -2 });
+  // glass canopy behind the pilot (open at the front so the face reads)
+  blob(head, -0.5, 16, 0, 8.4, 9.4, 8.4, (x, y, z) => ((x + y + z + 60) % 7 === 0 ? WHITE : K.glass), { p: 2, hollow: 1, clip: (x, y, z) => y < 16 || z > -1 + (y - 16) * -0.4 || (z > -3 && y > 23) });
+
+  // ------------------------------------------------------------ jaw
+  const JJ = [-0.5, 18.5, 3];
+  const jaw = G();
+  blob(jaw, -0.5, 17.4, 4.4, 3.4, 1.2, 2, K.alienD, { p: 2.2 });
+  jaw.carve((x, y) => y > 18);
+  for (let x = -3; x <= 2; x++) jaw.set(x, 18, 5, (x & 1) ? TOOTH : MOUTH);
+
+  // ------------------------------------------------------------ antennae with glowing tips
+  const antL = G();
+  capsule(antL, [-3, 26.5, 0.5], [-5.5, 31.5, -0.5], 0.5, 0.4, K.alienD);
+  blob(antL, -5.7, 32.2, -0.6, 1.1, 1.1, 1.1, K.beam);
+  antL.set(-6, 33, -1, WHITE, true);
+
+  // ------------------------------------------------------------ pincer arms
+  const arm = G();
+  capsule(arm, [-12, 12.5, 2], [-14.5, 8, 4], 1, 0.9, K.rimD);
+  blob(arm, -14.6, 7.6, 4.2, 1.5, 1.5, 1.5, GUN);
+  for (const s of [-1, 1]) {
+    capsule(arm, [-14.6, 7, 4.6], [-14.6 + s * 1.4, 4.4, 6.2], 0.6, 0.4, K.rim);
+    capsule(arm, [-14.6 + s * 1.4, 4.4, 6.2], [-14.6 + s * 0.4, 3.2, 7.4], 0.4, 0.3, K.gold);
+  }
+
+  // ------------------------------------------------------------ the arcade claw (dangles and sways)
+  const TJ = [-0.5, 8, 0];
+  const claw = G();
+  capsule(claw, [-0.5, 8, 0], [-0.5, 4.8, 0], 0.5, 0.5, (x, y) => ((y + 40) % 2 ? K.rimD : GUN));
+  blob(claw, -0.5, 4, 0, 1.6, 1.1, 1.6, K.gold);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
+    const dx = Math.cos(a), dz = Math.sin(a);
+    chain(claw, [[-0.5 + dx * 1.2, 3.6, dz * 1.2], [-0.5 + dx * 3, 2, dz * 3], [-0.5 + dx * 2.2, 0.4, dz * 2.2]], [0.6, 0.5, 0.35], K.rim);
+  }
+
+  return {
+    gait: 'float', voxel: 0.05, jitter: 0.02,
+    parts: [
+      jp('body', body, BODYJ),
+      jp('spin', ring, SJ, BODYJ, { parent: 'body' }),
+      jp('tail', claw, TJ, BODYJ, { parent: 'body' }),
+      jp('armL', arm, [-12, 12.5, 2], BODYJ, { parent: 'body' }),
+      jp('armR', flipX(arm), [11, 12.5, 2], BODYJ, { parent: 'body' }),
+      jp('head', head, HJ),
+      jp('jaw', jaw, JJ, HJ, { parent: 'head', rot: [0.1, 0, 0] }),
+      jp('antennaL', antL, [-3, 26.5, 0.5], HJ, { parent: 'head' }),
+      jp('antennaR', flipX(antL), [2, 26.5, 0.5], HJ, { parent: 'head' }),
+    ],
+    muzzle: [-0.5, 7, 0],
+  };
+}
+
 export const WAVE3_MODELS = {
   vineViper,
   templeGolem,
   laserLynx,
   vaultBot,
+  ghostPanther,
+  pumpkinBrute,
+  sharkByte,
+  jellyZapper,
+  magmaTitan,
+  emberImps,
+  astroPanther,
+  ufoGrabber,
 };

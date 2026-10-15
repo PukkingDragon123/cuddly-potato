@@ -3,9 +3,9 @@
 // products, banners, Commander portraits, reward art/tiles + reward popup,
 // confirm dialog, timers and small juice helpers.
 import './home.css';
-import { h, icon, button, modal, toast, clear, sparkle, $overlay } from '../ui.js';
+import { h, icon, button, modal, toast, clear, sparkle, burst, flyIcons, $overlay } from '../ui.js';
 import { cardEl } from '../cards.js';
-import { lazyImg, charPortrait, swarmThumb } from '../thumbs.js';
+import { lazyImg, charPortrait, swarmThumb, labSkinImg } from '../thumbs.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { Chibi } from '../../core/chibi.js';
@@ -16,6 +16,7 @@ import { cardDef } from '../../data/cards.js';
 import { SWARMS } from '../../data/swarms.js';
 import { COMMANDERS, CMD_LEVEL_REWARDS } from '../../data/commanders.js';
 import { VIALS } from '../../data/vials.js';
+import { MEGAS } from '../../data/megas.js';
 import { BANNERS, SWARM_SKINS, LAB_SKINS, CMD_SKINS, PASS_TIERS } from '../../data/season.js';
 import { TROPHY_ROAD, SECRETS, BOSSES } from '../../data/arenas.js';
 
@@ -84,13 +85,16 @@ export function secsToMidnight() {
   const now = new Date();
   return (new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now) / 1000;
 }
-/** A self-updating countdown (any element with .js-cd and data-end ms epoch is refreshed by tickTimers). */
-export function countdown(endMs, cls = '') {
-  return h('span', { class: 'js-cd ' + cls, 'data-end': String(endMs) }, fmtTime((endMs - Date.now()) / 1000));
+/** "12d 4h" for long timers, fmtTime below a day. */
+export const fmtLong = (sec) => (sec >= 86400 ? `${Math.floor(sec / 86400)}d ${Math.floor((sec % 86400) / 3600)}h` : fmtTime(sec));
+/** A self-updating countdown (any element with .js-cd and data-end ms epoch is refreshed by tickTimers). long: show days. */
+export function countdown(endMs, cls = '', long = false) {
+  const f = long ? fmtLong : fmtTime;
+  return h('span', { class: 'js-cd ' + cls, 'data-end': String(endMs), 'data-long': long ? '1' : null }, f((endMs - Date.now()) / 1000));
 }
 export function tickTimers(root) {
   root.querySelectorAll('.js-cd').forEach((el) => {
-    el.textContent = fmtTime((+el.dataset.end - Date.now()) / 1000);
+    el.textContent = (el.dataset.long ? fmtLong : fmtTime)((+el.dataset.end - Date.now()) / 1000);
   });
 }
 export const midnightMs = () => Date.now() + secsToMidnight() * 1000;
@@ -464,6 +468,7 @@ export function rewardDef(x) {
   switch (x.kind) {
     case 'coins': case 'bucks': case 'calories': return { type: x.kind, amount: x.amount };
     case 'card': return { type: 'card', id: x.id, copies: x.copies ?? 1, isNew: x.isNew };
+    case 'mega': return { type: 'mega', id: x.id, variant: x.variant };
     default: return { type: x.kind, id: x.id };
   }
 }
@@ -482,6 +487,7 @@ export function rewardLabel(r) {
     case 'cmdSkin': return CMD_SKINS[r.id]?.name ?? 'Outfit';
     case 'banner': return BANNERS[r.id]?.name ?? 'Banner';
     case 'serum': return `Mega ${SWARMS[r.id]?.name ?? 'Serum'}`;
+    case 'mega': return `${r.variant === 'gold' ? 'Golden ' : ''}${MEGAS[r.id]?.name ?? 'MEGA'}`;
     default: return '???';
   }
 }
@@ -490,6 +496,7 @@ export function rewardKind(r) {
   return {
     coins: 'Beast Coins', bucks: 'Beast Bucks', calories: 'Season Calories', vial: 'Vial', card: 'Card', swarm: 'Card', spell: 'Spell Card',
     commander: 'Commander', skin: 'Swarm Skin', labSkin: 'Lab Skin', cmdSkin: 'Commander Outfit', banner: 'Banner', serum: 'Mega Serum',
+    mega: r.variant === 'gold' ? 'Metallic Gold MEGA' : 'MEGA Ultimate',
   }[r.type] ?? '';
 }
 /** Short amount label shown on reward tiles. */
@@ -505,8 +512,8 @@ export function rewardArt(r, opts = {}) {
   r = rewardDef(r);
   const wrap = (cls, ...kids) => h('div', { class: 'mn-ra ' + cls }, ...kids);
   switch (r.type) {
-    case 'coins': return wrap('cur coins', icon(r.amount >= 1000 ? 'bag' : 'coin', 'mn-ra-ic'), r.amount >= 1000 ? icon('coin', 'mn-ra-ic2') : null);
-    case 'bucks': return wrap('cur bucks', icon('bucks', 'mn-ra-ic'));
+    case 'coins': return wrap('cur coins', icon(r.amount >= 2500 ? 'coinChest' : r.amount >= 900 ? 'coinPile' : r.amount >= 300 ? 'coinStack' : 'coin', 'mn-ra-ic big'));
+    case 'bucks': return wrap('cur bucks', icon(r.amount >= 60 ? 'bucksPile' : 'bucks', 'mn-ra-ic big'));
     case 'calories': return wrap('cur cal', icon('calorie', 'mn-ra-ic'));
     case 'vial': return wrap('vial', vialArt(r.id));
     case 'card': case 'swarm': case 'spell': return wrap('card', cardEl(r.id, { size: 'mini', noLevel: true, locked: false, owned: state.p.cards[r.id] ?? { level: 1 }, artSize: 128 }));
@@ -515,7 +522,7 @@ export function rewardArt(r, opts = {}) {
       const sk = SWARM_SKINS[r.id];
       return wrap('skin', swarmImg(sk?.swarm ?? 'panther', 'base', r.id, 128), h('div', { class: 'mn-ra-corner' }, icon('paint')));
     }
-    case 'labSkin': return wrap('labskin', icon('lab', 'mn-ra-ic'), h('div', { class: 'mn-ra-corner' }, icon('paint')));
+    case 'labSkin': return wrap('labskin', labSkinImg(r.id === 'default' ? 'default' : r.id, 160, 'smooth'), h('div', { class: 'mn-ra-corner' }, icon('paint')));
     case 'cmdSkin': {
       const sk = CMD_SKINS[r.id];
       const cmd = sk?.commander && sk.commander !== '*' ? sk.commander : r.commander ?? state.p.commanders.equipped;
@@ -523,6 +530,7 @@ export function rewardArt(r, opts = {}) {
     }
     case 'banner': return wrap('banner', bannerEl(r.id, 'mini'), h('div', { class: 'mn-ra-corner' }, icon('flag')));
     case 'serum': return wrap('serum', swarmImg(r.id, 'base', null, 128), h('div', { class: 'mn-ra-corner' }, icon('mega')));
+    case 'mega': return wrap(`mega ${r.variant === 'gold' ? 'gold' : ''}`, swarmImg(r.id, r.variant ?? 'base', null, 160), h('div', { class: 'mn-ra-corner' }, icon('mega')));
     default: return wrap('', icon('star', 'mn-ra-ic'));
   }
 }
@@ -538,26 +546,61 @@ export function rewardTile(r, opts = {}) {
     d.isNew ? h('div', { class: 'new-tag', style: { right: '-6%', top: '-6%' } }, 'NEW!') : null);
 }
 
+const BIG_KINDS = new Set(['mega', 'cmdSkin', 'labSkin', 'skin', 'commander', 'serum', 'banner']);
+/** Is this reward worth the big celebration (burst + rays)? */
+export function isBigReward(d) {
+  d = rewardDef(d);
+  if (BIG_KINDS.has(d.type)) return true;
+  if (d.type === 'vial') return ['megaLab', 'cashCase', 'hyperchrome'].includes(d.id);
+  if (d.type === 'card' || d.type === 'swarm' || d.type === 'spell') return ['legendary', 'mythic'].includes(cardDef(d.id)?.rarity) || !!d.isNew;
+  return false;
+}
+/** The home top-bar currency pill for a reward type (for coins flying into it), if on screen. */
+export function currencyPill(type) {
+  const ic = type === 'coins' ? 'coin' : type === 'bucks' ? 'bucks' : null;
+  return ic ? document.querySelector(`.hm-top .pill img[alt="${ic}"]`)?.closest('.pill') ?? null : null;
+}
+
 /** Celebratory popup listing granted rewards. Resolves on close. */
 export function showRewards(list, opts = {}) {
   return new Promise((resolve) => {
     if (!list || !list.length) return resolve();
-    const row = h('div', { class: 'mn-rwrow' + (list.length > 4 ? ' many' : '') });
+    const one = list.length === 1;
+    const row = h('div', { class: 'mn-rwrow' + (list.length > 4 ? ' many' : '') + (one ? ' one' : '') });
+    const tiles = [];
+    let collecting = false;
+    const collect = () => {
+      if (collecting) return;
+      collecting = true;
+      // coins / bucks fly into the top-bar pills
+      tiles.forEach(({ tile, def }) => {
+        const pill = currencyPill(def.type);
+        if (pill && tile.isConnected) flyIcons(tile, def.type === 'coins' ? 'coin' : 'bucks', pill, { count: 5 });
+      });
+      m.close();
+    };
     const m = modal({
-      title: opts.title ?? 'REWARDS!', color: opts.color ?? 'gold', size: 'narrow', cls: 'mn-rwmodal',
-      body: h('div', { class: 'col center mn-rwbody' }, h('div', { class: 'mn-rays' }), opts.hero ?? null, row,
-        opts.note ? h('div', { class: 'center-t t-sm c-muted' }, opts.note) : null),
-      foot: button('COLLECT', () => m.close(), 'green lg'),
+      title: opts.title ?? 'REWARDS!', color: opts.color ?? 'gold', size: 'narrow', cls: 'mn-rwmodal' + (one ? ' one' : ''),
+      body: h('div', { class: 'col center mn-rwbody' }, h('div', { class: 'px-rays mn-rw-rays' }), h('div', { class: 'px-stars' }), opts.hero ?? null, row,
+        opts.note ? h('div', { class: 'center-t t-sm c-muted mn-rwnote' }, opts.note) : null),
+      foot: button('COLLECT', collect, 'green lg shine', { icon: 'check' }),
       onClose: resolve,
     });
     list.forEach((d, i) => {
       const def = rewardDef(d);
-      const tile = h('div', { class: 'mn-rwpop', style: { animationDelay: 0.12 + Math.min(i, 12) * 0.16 + 's' } }, rewardTile(def), h('div', { class: 'mn-rwpop-lbl' }, rewardLabel(def)), h('div', { class: 'mn-rwpop-kind' }, rewardKind(def)));
+      const big = isBigReward(def);
+      const tile = h('div', { class: `mn-rwpop k-${def.type} ${big ? 'big' : ''}`, style: { animationDelay: 0.12 + Math.min(i, 12) * 0.16 + 's' } },
+        h('div', { class: 'mn-rwpop-art' }, big ? h('div', { class: 'px-rays w mn-rwpop-rays' }) : null, rewardTile(def)),
+        h('div', { class: 'mn-rwpop-lbl' }, rewardLabel(def)), h('div', { class: 'mn-rwpop-kind' }, rewardKind(def)));
       row.appendChild(tile);
+      tiles.push({ tile, def });
       setTimeout(() => {
         if (m.closed) return;
-        audio.play(def.type === 'coins' ? 'coin' : 'pop', { pitch: 1 + i * 0.08 });
-        if (tile.getBoundingClientRect().bottom < innerHeight) sparkle(tile, { count: 12 });
+        audio.play(def.type === 'coins' ? 'coin' : big ? 'magic' : 'pop', { pitch: 1 + i * 0.08 });
+        if (tile.getBoundingClientRect().bottom < innerHeight) {
+          if (big || one) burst(tile.querySelector('.mn-rw') ?? tile, { count: 16, color: def.type === 'bucks' ? '#ff7ac0' : '#ffd84a', rays: big });
+          else sparkle(tile, { count: 12 });
+        }
       }, 220 + Math.min(i, 12) * 160);
     });
     audio.play('chaching');
