@@ -945,7 +945,9 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 /* foot: name banner + level ribbon stacked on the stage floor */
 .gcard > .foot { position: absolute; z-index: 3; left: 5%; right: 5%; bottom: calc(var(--pxs) * 2.5); display: flex; flex-direction: column; align-items: stretch; pointer-events: none; }
 .gcard > .foot > .lvl { position: relative; left: auto; right: auto; bottom: auto; }
-.gcard .nm {
+.gcard > .foot > .nm {
+  /* scoped tightly so screen-level `.x .nm` rules (arena titles, VS bands...) never hit card names */
+  animation: none; max-width: none; overflow: visible; text-overflow: clip;
   margin: 0 -3% calc(var(--pxs) * 0.5); padding: 0.14em 0.25em 0.1em; text-align: center;
   font-family: var(--font-d); font-size: clamp(9cqw, calc(230cqw / var(--nl, 10)), 15.5cqw); line-height: 0.92; letter-spacing: 0.01em; color: #fff; text-shadow: var(--outline-thin);
   white-space: normal; text-wrap: balance; overflow-wrap: anywhere;
@@ -953,8 +955,8 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
     linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 85%, #fff) 22% 78%, transparent) top / 100% max(1px, calc(var(--pxs) * 0.5)) no-repeat,
     linear-gradient(90deg, transparent, rgba(8, 6, 28, 0.78) 16% 84%, transparent);
 }
-.gcard.locked .nm { color: #a9b6e6; }
-.gcard.big .nm { font-size: clamp(8cqw, calc(170cqw / var(--nl, 10)), 11cqw); }
+.gcard.locked > .foot > .nm { color: #a9b6e6; }
+.gcard.big > .foot > .nm { font-size: clamp(8cqw, calc(170cqw / var(--nl, 10)), 11cqw); }
 /* idle shine: a soft diagonal sweep every few seconds, offset per card */
 .gcard > .sheen { position: absolute; inset: calc(var(--pxs) * 2.5); z-index: 2; overflow: hidden; pointer-events: none; opacity: 0.55; }
 .gcard.rare > .sheen { opacity: 0.7; }
