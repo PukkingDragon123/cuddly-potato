@@ -12,25 +12,25 @@ export const MEGAS = {
   panthar: {
     name: 'Panthar', color: '#2b8cf2', bolt: '#ff2e88', unlock: 'Trophy Road: 300 trophies',
     desc: 'The Lab Panther grown into a 9-inch armoured MEGA-TECH beast. Pounces onto the biggest crowd.',
-    special: { id: 'pounce', name: 'Mega Pounce', every: 4.5, radius: 3, dmg: 520, stun: 1.2 },
+    special: { id: 'pounce', name: 'Thunder Pounce', every: 4.5, radius: 3, dmg: 520, stun: 1.2 },
     hp: 5600, dmg: 280, atk: 1.1, range: 1.6, speed: 1.0, size: 3.4,
   },
   silverByte: {
     name: 'Silver-Byte', color: '#c8d2e8', bolt: '#3ff2c8', unlock: 'Trophy Road: 1,400 trophies',
     desc: 'A chrome cyber-beast made of living data. Its byte-beam slices the whole lane.',
-    special: { id: 'beam', name: 'Byte Beam', every: 5, length: 9, dmg: 380, stun: 0.6 },
+    special: { id: 'beam', name: 'Gigabyte Annihilator', every: 5, length: 9, dmg: 380, stun: 0.6 },
     hp: 5000, dmg: 240, atk: 1.0, range: 2.6, speed: 0.95, size: 3.3,
   },
   necroClaw: {
     name: 'NecroClaw', color: '#7cff3a', bolt: '#b05cff', unlock: 'Trophy Road: 2,300 trophies',
     desc: 'Bone armour, toxic glow and claws like shovels. Every slam drains life from its victims.',
-    special: { id: 'drain', name: 'Necro Slam', every: 4.5, radius: 3.2, dmg: 420, heal: 0.6 },
+    special: { id: 'drain', name: 'Soul Harvest Slam', every: 4.5, radius: 3.2, dmg: 420, heal: 0.6 },
     hp: 6400, dmg: 300, atk: 1.25, range: 1.8, speed: 0.85, size: 3.5,
   },
   cyberGlitch: {
     name: 'Cyber Glitch', color: '#ff2ea8', bolt: '#29e0ff', unlock: 'Trophy Road: 3,400 trophies',
     desc: 'A glitching digital monster. It teleports through enemy lines and scrambles everything it hits.',
-    special: { id: 'glitch', name: 'System Crash', every: 5, radius: 4, dmg: 360, stun: 2.2, blink: 4 },
+    special: { id: 'glitch', name: 'Fatal System Crash', every: 5, radius: 4, dmg: 360, stun: 2.2, blink: 4 },
     hp: 5200, dmg: 260, atk: 0.9, range: 1.6, speed: 1.1, size: 3.3,
   },
 };

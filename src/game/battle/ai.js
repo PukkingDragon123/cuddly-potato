@@ -82,7 +82,8 @@ export class BattleAI {
       }
     }
     // start a push when energy is high (or don't leak at max)
-    if (s.energy >= 10 * this.patience || s.energy >= 9.6) {
+    const cap = sim.maxPower(si);
+    if (s.energy >= cap * this.patience || s.energy >= cap - 0.4) {
       const troops = affordable.filter((h) => !h.spell);
       if (!troops.length) return;
       const tank = troops.filter((h) => h.def.role === 'tank' || h.def.role === 'siege').sort((a, b) => tankiness(b.def) - tankiness(a.def))[0];
@@ -180,7 +181,7 @@ export class BattleAI {
       else if (id === 'copyCat') use = !!s.last && s.energy >= 4;
       else if (id === 'goldenTicket') use = s.queue.some((k) => !s.deck[k].special && (SWARMS[s.deck[k].unit]?.elixir ?? 0) >= 4) && s.energy >= 3;
       // a card that never gets played clogs the hand: eventually cycle it anyway
-      if (!use && s.energy >= 9) use = true;
+      if (!use && s.energy >= sim.maxPower(si) - 1) use = true;
       if (use && this.r() < 0.45 + this.d * 0.5) return sim.play(si, h.slot, null);
     }
     return false;

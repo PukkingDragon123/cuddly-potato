@@ -60,11 +60,12 @@ export class BattleScene {
       me.deck = STARTER_CARDS.map((id) => deckEntry(id, 1));
       me.noShuffle = true;
       me.labLevel = 1;
-      // Jimmy lends you a MEGA-TECH Panthar for the finale
-      me.mega = { id: 'panthar', variant: 'base', level: 1 };
+      // no MEGA yet: those are earned on the Trophy Road
+      me.mega = null;
+      me.noMegaTeaser = true;
       enemy = {
-        name: 'Jimmy', deck: ['panther', 'toiletRollRipper', 'trashedCan'].map((id) => deckEntry(id, 1)),
-        commander: commanderCfg('jimmy', 1), perks: {}, labStyle: 'mansion', labLevel: 1, hpMult: 0.55, clan: 'MrBeast Lab',
+        name: 'Jimmy', deck: ['toiletRollRipper', 'trashedCan'].map((id) => deckEntry(id, 1)),
+        commander: commanderCfg('jimmy', 1), perks: { energySurge: -50 }, labStyle: 'mansion', labLevel: 1, hpMult: 0.4, clan: 'MrBeast Lab',
       };
       aiOpts = { difficulty: 0.05, maxLab: 0, noSpells: true, sigDelay: 9999 };
     } else if (mode === 'boss') {
@@ -602,10 +603,6 @@ export class BattleScene {
     };
     const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
     if (ch) ch.expr('happy', 'grin', 3);
-    const cmdPos = () => {
-      const c = this.view.cmds?.[0];
-      return c ? c.root.position.clone().setY(c.root.position.y + 0.8) : null;
-    };
     await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Tent*. Mine's on the RIGHT. *Smash my base to win!*");
     // 1) tap a unit button: it pops out of the base
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
@@ -617,7 +614,7 @@ export class BattleScene {
     this.lockInput = null;
     await wait(1.8);
     // 2) power + the card cycle
-    await talk('Every card costs electric *POWER* (the yellow cells), and POWER refills by itself. See that? A *new card* slid into the empty spot - the little *NEXT* card shows what comes after. Your deck *cycles* forever!');
+    await talk('Cards cost *POWER* (the yellow bar) - it fills up fast! A *new card* slides in after each play. Your deck *cycles* forever!');
     // 3) the ranged unit
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
     const tslot = slotOf('cloggedToilet');
@@ -632,18 +629,17 @@ export class BattleScene {
     // 3b) a SPECIAL card
     const dslot = slotOf('energyDrink');
     if (dslot >= 0 && !sim.over) {
-      await talk('The *shiny* cards are *SPECIAL* cards - card tricks! *Energy Drink* gives you +3 POWER, but it *EXHAUSTS*: only once per battle. Tap it!');
+      await talk('Shiny cards are *SPECIAL* tricks. *Energy Drink* = +3 POWER, once per battle. Tap it!');
       this.lockInput = 'deploy';
       remove = pointAt(() => this.hud.slotEl(slotOf('energyDrink')), 'Special!');
       await until('deploy');
       clearPtr();
       this.lockInput = null;
       await wait(0.8);
-      if (slotOf('quickDraw') >= 0) await talk('*Quick Draw* pulls 2 extra cards into your hand. Mix tricks with troops and build *combos*!');
     }
     // 4) defend
     await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);
-    await talk("Here come my Swarms! Your base *zaps* anything close, but keep sending Swarms to *defend* too.");
+    await talk('Here come my Swarms! Keep sending yours - your base *zaps* anything close.');
     // 5) Food Throw if the lineup has it
     await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.7) || sim.t > 50);
     const fslot = slotOf('foodThrow');
@@ -663,7 +659,7 @@ export class BattleScene {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
       this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 6), 8);
       await wait(0.6);
-      await talk('That tent is kinda sad. *TAP YOUR BASE* to upgrade it: Tent, Shack, Trailer... all the way to *MEGA HQ*! Each tier = more HP, a stronger zapper and *more max POWER*.');
+      await talk('Now *UPGRADE YOUR BASE*: more HP, a stronger zapper and *more POWER*!');
       this.lockInput = 'lab';
       remove = pointAt(() => this.view.baseBadge?.el, 'Tap your base!');
       await until('lab');
@@ -675,48 +671,19 @@ export class BattleScene {
     await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
     if (!sim.over) {
       sim.sides[0].sig = 1;
-      await talk("That's YOU sitting on your base - the *Commander*! Your ability is charged: tap your portrait for *Beaker Barrage*!");
+      await talk('Your *Commander* ability is charged! Tap your portrait for *Acid Rain Barrage*!');
       this.lockInput = 'sig';
       remove = pointAt(this.hud.sig, 'Unleash!');
       await until('sig');
       clearPtr();
       this.lockInput = null;
       await wait(2);
-      await talk("Okay, not bad! Now push into my base. I'm not going easy! (I'm going a little easy.)");
+      await talk("Nice! Now smash my base!");
     }
-    // Jimmy fights back with his giveaway when his base is hurt
+    // the finish: no MEGA yet (those are earned on the Trophy Road)
     const jLab = sim.sides[1].lab;
-    await waitFor(() => jLab.hp < jLab.maxHp * 0.8 || sim.t > 110 || sim.over);
-    if (!sim.over) {
-      sim.sides[1].sig = 1;
-      sim.useSignature(1);
-      await wait(1.4);
-      if (!sim.over) await talk("Ha! My *Mega Giveaway* distracts your Swarms with cash! Don't worry, Commanders recharge. Keep pushing!");
-    }
-    // 8) the MEGA ultimate (borrowed Panthar): tap your Commander
-    await waitFor(() => jLab.hp < jLab.maxHp * 0.6 || sim.t > 150 || sim.over);
-    const m = sim.sides[0].mega;
-    if (!sim.over && m && !m.used) {
-      await talk("Okay... you're ready. I'm lending you something *TOP SECRET*: a *MEGA-TECH MUTATOR* figure! It needs at least a *Trailer Lab*, so here's a free upgrade.");
-      while (sim.sides[0].overclock + 1 < 3 && !sim.over) {
-        sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 0);
-        sim.upgradeLab(0);
-        await wait(0.9);
-      }
-      this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 5), 8);
-      m.charge = 1;
-      sim.emit('megaReady', { side: 0 });
-      await wait(0.8);
-      await talk('See your Commander crackling with *electric energy*? The *MEGA* charges up as you deal damage - and you only get ONE per battle. It\'s FULL right now. *TAP YOUR COMMANDER!*');
-      this.lockInput = 'mega';
-      remove = pointAt(cmdPos, 'Tap your Commander!');
-      await until('mega');
-      clearPtr();
-      this.lockInput = null;
-      await until('megaLand');
-      await wait(1.5);
-      if (!sim.over) await talk("WHAT IS THAT THING?! Okay okay, it's yours for this fight! Earn your OWN Megas on the *Trophy Road*.");
-    }
+    await waitFor(() => jLab.hp < jLab.maxHp * 0.5 || sim.t > 120 || sim.over);
+    if (!sim.over) await talk('Almost there! Later you can earn *MEGA-TECH* figures on the *Trophy Road* - giant ultimate monsters. Now FINISH ME!');
   }
 
   // -------------------------------------------------------------------------

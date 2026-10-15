@@ -26,18 +26,19 @@ export const TOWERS = {
 
 // Electric POWER (the card currency): +1 every 2.8s; x2 in the last minute,
 // x3 in overtime. The max grows with your base tier.
-export const ENERGY = { max: 10, start: 4, perSec: 1 / 2.8 };
+// Battle Cats-style wallet: POWER pours in fast and the tank grows with the base tier
+export const ENERGY = { max: 12, start: 6, perSec: 1 / 1.4 };
 export const POWER = ENERGY;
 
 // In-battle BASE UPGRADES: every battle starts in a tent. `cost` is the POWER
 // needed to upgrade FROM that tier to the next one.
 export const BASE_UPGRADES = [
-  { tier: 1, name: 'Camp Tent', regen: 1.0, max: 10, hp: 1.0, dmg: 0.55, range: 5.4, cost: 4 },
-  { tier: 2, name: 'Lab Shack', regen: 1.12, max: 11, hp: 1.12, dmg: 0.75, range: 5.8, cost: 5 },
-  { tier: 3, name: 'Trailer Lab', regen: 1.25, max: 12, hp: 1.26, dmg: 0.95, range: 6.1, cost: 6 },
-  { tier: 4, name: 'Field Lab', regen: 1.38, max: 13, hp: 1.42, dmg: 1.15, range: 6.4, cost: 7 },
-  { tier: 5, name: 'Beast Lab', regen: 1.52, max: 14, hp: 1.6, dmg: 1.35, range: 6.8, cost: 8 },
-  { tier: 6, name: 'Mega HQ', regen: 1.7, max: 15, hp: 1.8, dmg: 1.6, range: 7.2, cost: null },
+  { tier: 1, name: 'Camp Tent', regen: 1.0, max: 12, hp: 1.0, dmg: 0.55, range: 5.4, cost: 5 },
+  { tier: 2, name: 'Lab Shack', regen: 1.15, max: 15, hp: 1.12, dmg: 0.75, range: 5.8, cost: 7 },
+  { tier: 3, name: 'Trailer Lab', regen: 1.3, max: 18, hp: 1.26, dmg: 0.95, range: 6.1, cost: 9 },
+  { tier: 4, name: 'Field Lab', regen: 1.45, max: 22, hp: 1.42, dmg: 1.15, range: 6.4, cost: 11 },
+  { tier: 5, name: 'Beast Lab', regen: 1.6, max: 26, hp: 1.6, dmg: 1.35, range: 6.8, cost: 13 },
+  { tier: 6, name: 'Mega HQ', regen: 1.8, max: 30, hp: 1.8, dmg: 1.6, range: 7.2, cost: null },
 ];
 // legacy shape used by older callers: { regen, cost } per tier
 export const OVERCLOCK = BASE_UPGRADES;

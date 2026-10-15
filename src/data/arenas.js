@@ -341,7 +341,7 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     // early rivals have flimsy bases so new players get satisfying wins
     hpMult: Math.min(1, 0.45 + trophies / 1800),
     // ...and slower POWER (negative surge) until ~700 trophies
-    perks: { energySurge: Math.min(0, -40 + trophies / 17) },
+    perks: { energySurge: Math.min(0, -60 + trophies / 12) },
     cmdLevel: Math.max(1, Math.min(8, Math.floor(trophies / 450) + 1)),
     // rivals past the Panthar unlock may bring a MEGA of their own
     mega: (() => {
