@@ -100,24 +100,29 @@ const mansionGrid = (lit) => () => {
   // weathervane
   g.box(0, 59, 0, 0, 66, 0, C.iron);
   g.box(-3, 64, 0, 3, 64, 0, C.iron).set(3, 65, 0, C.iron).set(-3, 63, 0, C.iron);
-  if (lit) {
-    // lit panes only (separate glow mesh so they can flicker)
-    const L = new VoxGrid();
-    wins.forEach(([x, row], i) => { if (i % 4 === 3) return; const c = i % 3 === 1 ? C.winP : C.win; L.set(x - 1, row + 2, D + 0, c, true).set(x + 1, row + 2, D, c, true).set(x - 1, row + 5, D, c, true).set(x + 1, row + 6, D, c, true); });
-    L.box(-1, 48, D - 6, 0, 50, D - 6, C.winP, true);
-    return L;
-  }
+  // lit panes: a separate glow mesh so they can flicker (cut out of the body so faces never overlap)
+  const L = new VoxGrid();
+  wins.forEach(([x, row], i) => {
+    if (i % 4 === 3) return;
+    const c = i % 3 === 1 ? C.winP : C.win;
+    for (const [dx, dy] of [[-1, 2], [1, 2], [-1, 5], [1, 6], [-1, 3], [1, 5]]) L.set(x + dx, row + dy, D, c, true);
+  });
+  L.box(-1, 48, D - 6, 0, 50, D - 6, C.winP, true);
+  if (lit) return L;
+  L.forEach((x, y, z) => g.del(x, y, z));
   return g;
 };
 /** Voxel hill under the mansion (front slope toward +z) with a winding path. */
-const hillGrid = () => {
+const hillGrid = (res = 1) => () => {
   const g = new VoxGrid();
-  for (let x = -70; x < 70; x++) for (let z = -40; z < 40; z++) {
-    const d = Math.hypot(x / 70, (z + 4) / 36);
+  const RX = Math.round(70 * res), RZ = 36 * res, OZ = 4 * res, HH = 28 * res;
+  for (let x = -RX; x < RX; x++) for (let z = -Math.round(40 * res); z < Math.round(40 * res); z++) {
+    const d = Math.hypot(x / RX, (z + OZ) / RZ);
     if (d > 1) continue;
-    const hh = Math.round(28 * Math.pow(1 - d, 0.7) + vnoise(x * 0.1, 2, z * 0.1) * 3);
-    const path = Math.abs(x - Math.sin(z * 0.12) * 6) < 3 && z > 10;
-    for (let y = 0; y < hh; y++) {
+    const hh = Math.round(HH * Math.pow(1 - d, 0.7) + vnoise(x * 0.1 / res, 2, z * 0.1 / res) * 3 * res);
+    const path = Math.abs(x - Math.sin(z * 0.12 / res) * 6 * res) < 3 * res && z > 10 * res;
+    const low = res < 1 ? Math.max(0, hh - 2) : 0;
+    for (let y = low; y < hh; y++) {
       const top = y === hh - 1;
       g.set(x, y, z, top ? (path ? (hash3(x, y, z) < 0.5 ? C.dirtL : C.dirt) : hash3(x >> 1, y, z >> 1) < 0.3 ? C.grassL : C.grass) : y > hh - 3 ? C.dirt : C.dirtD);
     }
@@ -327,7 +332,7 @@ function paintMoonSky(ctx, w, h) {
     for (let y = -cr; y <= cr; y++) for (let x = -cr; x <= cr; x++) if (x * x + y * y <= cr * cr) P.set(cx + x, cy + y, 0xd8d0b8);
     P.set(cx + cr * 0.5, cy + cr * 0.5, 0xfffbe8);
   }
-  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r && x - y * 0.3 > r * 0.45 && bayer(x, y) < 0.5) P.set(mx + x, my + y, 0xc8c0a8);
+  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r && x - y * 0.3 > r * 0.55) P.set(mx + x, my + y, 0xd8d0b4);
   // wispy clouds across the moon
   for (let k = 0; k < 4; k++) {
     const y = Math.round(my - 8 + k * 7 + R() * 3), x0 = Math.round(mx - 40 + R() * 30), l = 30 + (R() * 30 | 0);
@@ -504,13 +509,22 @@ export function buildBattle(K) {
 
   // ---- landmarks: the mansion on its hill, the swing tree, the bell tower
   const MS = 0.17, MX = 1.5, MZ = -38;
-  K.mesh('hill', hillGrid, { scale: 0.3 }, MX, 0, MZ + 1, 0, 1, { shadow: true });
+  K.mesh('hill', hillGrid(1), { scale: 0.3 }, MX, 0, MZ + 1, 0, 1, { shadow: true });
   const hillTop = 27 * 0.3;
   K.mesh('mansion', mansionGrid(false), { scale: MS, pivot: [0, 0, 0] }, MX, hillTop - 0.5, MZ, 0, 1, { shadow: true });
   const lit = K.mesh('mansionLit', mansionGrid(true), { scale: MS, pivot: [0, 0, 0] }, MX, hillTop - 0.5, MZ, 0, 1);
   K.onUpdate((dt, t) => { lit.visible = Math.sin(t * 7.3) + Math.sin(t * 2.1) > -1.6; });
-  const tree = K.mesh('swingTree', deadTreeGrid, { scale: 0.2 }, -20, 0, -21, 0.4, 1, { shadow: true });
-  void tree;
+  K.mesh('swingTree', deadTreeGrid, { scale: 0.2 }, -20, 0, -21, 0.4, 1, { shadow: true });
+  // the hill: lantern-lit winding path, little graves and crooked trees on the slopes
+  const hillY = (lx, lz) => { const d = Math.hypot(lx / 70, (lz + 4) / 36); return d >= 1 ? 0 : Math.round(28 * Math.pow(1 - d, 0.7)) * 0.3; };
+  const onHill = (vx, vz) => [MX + vx * 0.3, hillY(vx, vz) - 0.1, MZ + 1 + (vz + 3.5) * 0.3];
+  const hl = [], ht = [], hg = [];
+  for (let k = 0; k < 6; k++) { const vz = 12 + k * 3.6; const vx = Math.sin(vz * 0.12) * 6 + (k & 1 ? 4.5 : -4.5); hl.push([...onHill(vx, vz), k & 1 ? Math.PI : 0]); }
+  for (const [vx, vz] of [[-40, 6], [-28, 18], [34, 10], [46, 2], [-52, -6], [22, 22], [-16, 26]]) ht.push([...onHill(vx, vz), K.rand(0, 6), K.rand(0.8, 1.1)]);
+  for (const [vx, vz] of [[-20, 20], [-24, 12], [16, 24], [26, 16], [-34, 4], [38, 0], [12, 30], [-10, 30]]) hg.push([...onHill(vx, vz), K.rand(-0.3, 0.3), 0.9]);
+  K.inst('hillLantern', lanternPostGrid, { scale: 0.1 }, hl, { shadow: true });
+  K.inst('hillTree', deadTreeGrid, { scale: 0.07 }, ht, { shadow: true });
+  K.inst('hillTomb', tombGrid(2), { scale: 0.09 }, hg, { shadow: true });
   K.mesh('bellTower', bellTowerGrid, { scale: 0.16 }, 25, 0, -25, -0.3, 1, { shadow: true });
   const bell = K.mesh('bell', bellGrid, { scale: 0.16, pivot: [0, 0, 0] }, 25, 39 * 0.16, -25, -0.3);
   K.onUpdate((dt, t) => { bell.rotation.x = Math.sin(t * 1.8) * 0.4 * Math.max(0, Math.sin(t * 0.25)); });
@@ -583,8 +597,8 @@ export function buildZone(K) {
     colorSide: (x, y) => (y > -2 ? C.dirt : (x + y) & 1 ? C.dirtD : C.cobDD),
   });
   // a small hill + the mansion on top
-  K.mesh('hill', hillGrid, { scale: 0.09 }, 0, 0, -2.4, 0, 1, { shadow: true });
-  const MS = 0.075, top = 27 * 0.09;
+  K.mesh('hill', hillGrid(0.5), { scale: 0.18 }, 0, 0, -2.4, 0, 1, { shadow: true });
+  const MS = 0.075, top = 13.5 * 0.18;
   K.mesh('mansion', mansionGrid(false), { scale: MS, pivot: [0, 0, 0] }, 0, top - 0.2, -3.0, 0, 1, { shadow: true });
   const lit = K.mesh('mansionLit', mansionGrid(true), { scale: MS, pivot: [0, 0, 0] }, 0, top - 0.2, -3.0);
   K.onUpdate((dt, t) => { lit.visible = Math.sin(t * 7.3) + Math.sin(t * 2.1) > -1.6; });

@@ -420,6 +420,44 @@ function addTankV(K, x, z, liquid, i) {
   return grp;
 }
 
+/** Vial conveyor: legs, rollers, dark belt and hazard side rails (0.1 scale). */
+const conveyorGrid = () => {
+  const g = new VoxGrid();
+  for (const x of [-26, -10, 8, 24]) for (const z of [-3, 2]) g.box(x, 0, z, x + 1, 4, z, C.metalD);
+  g.box(-28, 5, -3, 27, 5, 2, (x) => (x % 3 === 0 ? 0x4a5262 : 0x2a3242));
+  g.box(-28, 4, -3, 27, 4, 2, C.metal);
+  for (const z of [-4, 3]) g.box(-28, 4, z, 27, 6, z, (x, y) => (y === 6 ? (((x >> 1) & 1) ? C.yellow : C.ink) : C.metalD));
+  g.box(-30, 0, -4, -29, 9, 3, 0xd8e0ec).box(-30, 7, -4, -29, 8, 3, C.blue);
+  g.set(-30, 9, 0, 0x7cff3a, true);
+  return g;
+};
+const vialGrid = (c) => () => {
+  const g = new VoxGrid();
+  g.box(-1, 0, -1, 0, 6, 0, (x, y) => (y > 4 ? 0xe8f6ff : c));
+  g.box(-1, 7, -1, 0, 8, 0, C.metalD);
+  g.set(-1, 3, 0, 0xffffff);
+  return g;
+};
+/** Hologram projector table (0.1 scale). */
+const holoTableGrid = () => {
+  const g = new VoxGrid();
+  g.box(-6, 0, -4, 5, 1, 3, C.metalD);
+  g.box(-1, 2, -1, 0, 9, 0, C.metal);
+  g.box(-7, 10, -5, 6, 11, 4, (x, y, z) => (Math.abs(x + 0.5) < 3 && Math.abs(z + 0.5) < 2 && y === 11 ? 0x29b6f6 : 0xdfe6ee));
+  g.box(-2, 12, -1, 1, 12, 0, 0x8fe3ff, true);
+  return g;
+};
+/** Spinning hologram: a little planet with an orbit ring (glow voxels, kept small). */
+const holoGrid = () => {
+  const g = new VoxGrid();
+  for (let x = -5; x <= 4; x++) for (let y = -5; y <= 4; y++) for (let z = -5; z <= 4; z++) {
+    const d = Math.hypot(x + 0.5, y + 0.5, z + 0.5);
+    if (d <= 4.6 && d > 3.6 && (x + y + z) % 2 === 0) g.set(x, y, z, (y + 5) % 3 === 0 ? 0x8fe3ff : 0x29b6f6, true);
+  }
+  for (let k = 0; k < 40; k++) { const a = (k / 40) * Math.PI * 2; g.set(Math.round(Math.cos(a) * 8), Math.round(Math.sin(a) * 2), Math.round(Math.sin(a) * 8), 0xff8ac0, true); }
+  return g;
+};
+
 /** Little lab drone (0.06 scale) with spinning voxel rotors. */
 function addDrone(K, path) {
   const drone = new THREE.Group();
@@ -491,20 +529,27 @@ export function buildBattle(K) {
     },
   });
   voxRange(K, 'mtnRange', { x0: -150, x1: 150, z: -112, depth: 7, scale: 1.7, base: 1, amp: 9, freq: 0.07, seed: 3, ridged: true, rock: 0x7f9cbc, rockD: 0x6a86a8, rockL: 0x9ab6d2, top: 0x8eb07a, snow: 0xf2f8ff, snowAt: 0.55 });
+  const HL = { z: -64, s: 1.1, D: 9 };
+  const hillH = (xv, zv) => {
+    const back = zv / (HL.D - 1);
+    const n = vnoise(xv * 0.06 + 8, 8, 0.5) * 0.7 + vnoise(xv * 0.17, 9, zv * 0.2) * 0.3;
+    return Math.max(1, Math.round(1 + n * 6 * (0.4 + 0.6 * back)));
+  };
+  const onHill = (x, zv) => hillH(Math.floor(x / HL.s), zv) * HL.s - 0.6;
   voxRange(K, 'hills', {
-    x0: -120, x1: 120, z: -64, depth: 9, scale: 1.1, base: 1, amp: 5, freq: 0.06, seed: 8, y: -0.6,
+    x0: -120, x1: 120, z: HL.z, depth: HL.D, scale: HL.s, y: -0.6, h: hillH,
     col: (xv, y, zv, h) => {
       const j = hash3(xv, y, zv);
       if (y === h - 1) return j < 0.25 ? C.grassD : j > 0.9 ? 0xffe16a : C.grass;
       return y === h - 2 ? (j < 0.5 ? C.grassD : 0x8a6a4a) : j < 0.3 ? 0x7a5a3a : 0x8a6a4a;
     },
   });
-  // forest on the hills (heights follow the hill profile roughly)
+  // forest on the hills (seated on the hill heights)
   {
     const pines = [], oaks = [];
     for (let i = 0; i < 70; i++) {
-      const x = K.rand(-110, 110), z = K.rand(-73, -60);
-      (i % 3 ? pines : oaks).push([x, K.rand(2.2, 4.6), z, K.rand(0, 6), K.rand(0.16, 0.26)]);
+      const x = K.rand(-110, 110), zv = Math.floor(K.rand(1, HL.D));
+      (i % 3 ? pines : oaks).push([x, onHill(x, zv), HL.z - zv * HL.s + 0.5, K.rand(0, 6), K.rand(0.16, 0.26)]);
     }
     K.inst('farPine', () => pineTreeGrid({ leaf: 0x2f8a4a, seed: 3, r: 4, layers: 4 }), { scale: 1 }, pines.map((p) => [p[0], p[1], p[2], p[3], p[4] * 1.4]));
     K.inst('farOak', () => leafyTreeGrid({ seed: 5, leaf: 0x4caa3a, h: 4, r: 4 }), { scale: 1 }, oaks.map((p) => [p[0], p[1], p[2], p[3], p[4] * 1.5]));
@@ -512,9 +557,10 @@ export function buildBattle(K) {
   // wind turbines on the ridge
   {
     const rotors = [];
-    for (const [x, z, s] of [[-46, -60, 1], [-24, -66, 0.85], [34, -61, 1], [58, -66, 0.9]]) {
-      K.mesh('turbine', turbineGrid, { scale: 0.15 * s, ao: true }, x, 2.6, z, 0.2, 1);
-      const r = K.mesh('rotor', rotorGrid, { scale: 0.15 * s, pivot: 'center' }, x + 0.075 * s, 2.6 + 64 * 0.15 * s, z + 0.75 * s, 0.2, 1);
+    for (const [x, zv, s] of [[-46, 3, 1], [-24, 6, 0.85], [34, 3, 1], [58, 6, 0.9]]) {
+      const y = onHill(x, zv) - 0.2, z = HL.z - zv * HL.s + 0.5;
+      K.mesh('turbine', turbineGrid, { scale: 0.15, ao: true }, x, y, z, 0.2, s);
+      const r = K.mesh('rotor', rotorGrid, { scale: 0.15, pivot: 'center' }, x + 0.075 * s, y + 64 * 0.15 * s, z + 0.75 * s, 0.2, s);
       r.rotation.order = 'YXZ';
       rotors.push(r);
     }
@@ -651,6 +697,22 @@ export function buildBattle(K) {
   ['tankA', 'tankB', 'tankC', 'tankD'].forEach((_, i) => addTankV(K, [-16, -9.5, 9.5, 16][i], -6.4, [0x7cff3a, 0x29e0ff, 0xff4fd8, 0x7cff3a][i], i));
   const arm = K.mesh('robotArm', robotArmGrid, { scale: 0.12, ao: true }, 4.5, 0, -6.2, 0, 1, { shadow: true });
   K.onUpdate((dt, t) => { arm.rotation.y = Math.sin(t * 0.7) * 0.9; });
+  // vial conveyor feeding the robot arm + a hologram table
+  {
+    K.mesh('conveyor', conveyorGrid, { scale: 0.1, ao: true }, 0.2, 0, -7.9, 0, 1, { shadow: true });
+    const cols = [0x7cff3a, 0x29e0ff, 0xff4fd8];
+    const sets = cols.map((c) => liveInstances(K, 'convVial' + c, vialGrid(c), { scale: 0.05, ao: true }, 2));
+    K.onUpdate((dt, t) => {
+      for (let i = 0; i < 6; i++) {
+        const k = (t * 0.07 + i / 6) % 1;
+        setInstance(sets[i % 3], i / 3 | 0, -2.4 + k * 5.0, 0.6, -7.9, 0, 0, 0, k < 0.95 ? 1 : 0.0001);
+      }
+      for (const im of sets) im.instanceMatrix.needsUpdate = true;
+    });
+    K.mesh('holoTable', holoTableGrid, { scale: 0.1, ao: true }, -1.8, 0, -12.2, 0, 1, { shadow: true });
+    const holo = K.mesh('holo', holoGrid, { scale: 0.06, pivot: 'center' }, -1.8, 2.0, -12.2);
+    K.onUpdate((dt, t) => { holo.rotation.y = t * 0.8; holo.rotation.x = Math.sin(t * 0.5) * 0.3; holo.position.y = 2.0 + Math.sin(t * 1.4) * 0.08; });
+  }
   addDrone(K, { x: -6, y: 3.8, z: -12, rx: 10, rz: 2, speed: 0.22, ph: 0 });
   addDrone(K, { x: 14, y: 4.6, z: -22, rx: 8, rz: 3, speed: 0.17, ph: 2 });
   // breakables right behind the lane

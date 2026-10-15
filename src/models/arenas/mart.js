@@ -8,7 +8,7 @@
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, px, disc, skyTexture, parallaxWidth, signGrid,
-  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addFlag, fitSkyAuto,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addFlag, fitSkyAuto, shade as shadeK,
 } from './kit.js';
 import { shelfGrid, checkoutGrid, makeCartCorral } from '../props/grocery.js';
 import { cartGrid } from '../props/labParts.js';
@@ -572,9 +572,9 @@ export function buildBattle(K) {
 
   // ---- postcard extras: the giant inflatable Beast mascot, hanging promo banners, a floor-scrubber bot, a delivery drone
   {
-    const mascot = K.mesh('mascot', mascotGrid, { scale: 0.1, pivot: 'center' }, -11, 7.6, -30);
-    K.inst('mascotTether', () => new VoxGrid().box(0, 0, 0, 0, 30, 0, 0x8a94a6), { scale: 0.1 }, [[-12.4, 8.4, -30], [-9.6, 8.4, -30]]);
-    K.onUpdate((dt, t) => { mascot.rotation.y = Math.sin(t * 0.25) * 0.5; mascot.position.y = 7.6 + Math.sin(t * 0.8) * 0.12; mascot.rotation.z = Math.sin(t * 0.6) * 0.04; });
+    const mascot = K.mesh('mascot', mascotGrid, { scale: 0.1, pivot: 'center' }, -17, 7.4, -26);
+    K.inst('mascotTether', () => new VoxGrid().box(0, 0, 0, 0, 30, 0, 0x8a94a6), { scale: 0.1 }, [[-18.4, 8.2, -26], [-15.6, 8.2, -26]]);
+    K.onUpdate((dt, t) => { mascot.rotation.y = Math.sin(t * 0.25) * 0.5; mascot.position.y = 7.4 + Math.sin(t * 0.8) * 0.12; mascot.rotation.z = Math.sin(t * 0.6) * 0.04; });
   }
   {
     const pats = [
@@ -614,6 +614,18 @@ export function buildBattle(K) {
       drone.position.set(-30 + k * 60, 5.6 + Math.sin(t * 2) * 0.12, -14 + Math.sin(k * Math.PI * 2) * 2);
       drone.rotation.y = Math.PI / 2 + Math.sin(t) * 0.1;
     });
+  }
+  {
+    // grand-opening bunting garlands strung across the store, fluttering in the AC draft
+    const cols = [C.pink, C.yellow, C.blue, C.green, C.orange, C.purple];
+    const pens = cols.map(() => []), line = [];
+    for (const [z, y0] of [[-13.5, 7.0], [-21.5, 7.4], [-29.5, 7.7]]) for (let i = 0; i <= 120; i++) {
+      const u = i / 120, x = -30 + 60 * u, y = y0 - Math.abs(Math.sin(u * Math.PI * 5)) * 0.7;
+      line.push([x, y, z, 0, [10, 1, 1]]);
+      if (i % 2 === 0) pens[(i / 2) % cols.length].push([x, y - 0.04, z, 0, 1]);
+    }
+    K.inst('martBuntLine', () => new VoxGrid().set(0, 0, 0, 0xf4f6fa), { scale: 0.05, pivot: 'center' }, line);
+    cols.forEach((c, k) => swayInst(K, 'martPennant' + k, () => { const g = new VoxGrid(); for (let y = 0; y < 5; y++) g.box(-2 + Math.floor(y / 2), -y, 0, 2 - Math.floor(y / 2), -y, 0, y === 0 ? 0xffffff : c); return g; }, { scale: 0.08, pivot: [0, 0, 0] }, pens[k], { amp: 0.2, speed: 2.4 }));
   }
   blinkInst(K, 'openSign', () => {
     const g = new VoxGrid();

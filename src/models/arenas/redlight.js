@@ -338,7 +338,7 @@ function paintEscher(ctx, w, h, seed, o = {}) {
 const stairTowerGrid = (seed, H) => () => {
   const g = new VoxGrid();
   const R = mulberry32(seed * 101 + 7);
-  const W = 9 + Math.floor(R() * 5), D = 7;
+  const W = 13 + Math.floor(R() * 6), D = 9;
   let y = 0, k = 0;
   while (y < H) {
     const h = 4 + Math.floor(R() * 3), w = W - Math.floor(R() * 3), col = PASTEL[(seed + k) % PASTEL.length], colD = shade(col, -0.14);
@@ -441,15 +441,15 @@ export function buildBattle(K) {
     },
   });
   // 3D pastel stair-maze towers rising behind the courtyard walls
-  const towers = [[-34, -58, 0, 16], [-17, -66, 1, 20], [-3, -52, 2, 13], [12, -62, 3, 18], [27, -55, 4, 15], [42, -64, 5, 19], [-48, -64, 6, 17], [56, -58, 7, 14]];
+  const towers = [[-34, -58, 0, 38], [-17, -66, 1, 48], [-3, -52, 2, 32], [12, -62, 3, 44], [27, -55, 4, 36], [42, -64, 5, 46], [-48, -64, 6, 40], [56, -58, 7, 34]];
   for (const [x, z, seed, h] of towers) K.mesh('stairTower' + seed, stairTowerGrid(seed, h), { scale: 0.3 }, x, 0, z, (seed % 3 - 1) * 0.12, 1);
   K.inst('stairBridge', () => {
     const g = new VoxGrid();
     for (let x = 0; x < 40; x++) { g.box(x, 0, -2, x, 0, 1, x % 2 ? PASTEL[1] : PASTEL[3]); if (x % 4 === 0) g.box(x, 1, -2, x, 2, -2, 0xffffff).box(x, 1, 1, x, 2, 1, 0xffffff); }
     g.box(0, 2, -2, 39, 2, -2, 0xffffff).box(0, 2, 1, 39, 2, 1, 0xffffff);
     return g;
-  }, { scale: 0.3, pivot: [0, 0, 0] }, [[-31, 9.6, -58.5, -0.12], [-1, 8.2, -52.5, -0.3], [29, 9.0, -55.5, -0.1]]);
-  addClouds(K, { id: 'rlCloud', n: 7, kinds: 3, x0: -130, x1: 130, y0: 13, y1: 19, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.5, seed: 12, len: 20, height: 8, color: 0xf6faff, shade: 0xcadcf2, dark: 0xb4cce8, light: 0xffffff });
+  }, { scale: 0.3, pivot: [0, 0, 0] }, [[-31, 10.2, -58.5, -0.12], [-1, 8.8, -52.5, -0.3], [29, 9.6, -55.5, -0.1]]);
+  addClouds(K, { id: 'rlCloud', n: 7, kinds: 3, x0: -130, x1: 130, y0: 11, y1: 15, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.5, seed: 12, len: 20, height: 8, color: 0xf6faff, shade: 0xcadcf2, dark: 0xb4cce8, light: 0xffffff });
 
   // ---- ground: warm courtyard sand with ripples + pebbles
   const sandCol = (x, z) => {
@@ -655,12 +655,23 @@ export function buildBattle(K) {
   {
     const guards = [[-14.5, -27.4, 0], [-11.6, -28.2, 1], [6.2, -28.4, 2], [22.6, -24.6, 0]];
     const meshes = guards.map(([x, z, k]) => K.mesh('guard' + k, guardGrid(k), { scale: 0.075, ao: true }, x, 0, z, 0, 1, { shadow: true }));
-    K.onUpdate((dt, t) => { meshes.forEach((m, i) => { m.rotation.y = Math.sin(t * 0.4 + i * 1.7) * 0.5; }); });
+    K.onUpdate((dt, t) => { for (let i = 0; i < meshes.length; i++) meshes[i].rotation.y = Math.sin(t * 0.4 + i * 1.7) * 0.5; });
   }
   {
     const dal = [];
     for (let i = 0; i < 12; i++) dal.push([K.rand(-24, 24), 0.004, K.rand(LH + 1.2, 8), K.rand(0, 6), 1]);
     for (let v = 0; v < 4; v++) K.inst('dalgona' + v, dalgonaGrid(v), { scale: 0.05 }, dal.filter((_, i) => i % 4 === v));
+  }
+  {
+    // pastel pennant bunting strung along the mural wall, fluttering
+    const pens = [[], [], []], line = [];
+    for (const [x0, x1] of [[-21, -2], [2, 21]]) for (let i = 0; i <= 38; i++) {
+      const u = i / 38, x = x0 + (x1 - x0) * u, y = 7.3 - Math.sin(u * Math.PI) * 0.9;
+      line.push([x, y, -30.6, 0, [5, 1, 1]]);
+      if (i % 2 === 0) pens[(i / 2) % 3].push([x, y - 0.05, -30.55, 0, 1]);
+    }
+    K.inst('buntLine', () => new VoxGrid().set(0, 0, 0, 0xfaf6ee), { scale: 0.05, pivot: 'center' }, line);
+    [C.pink, C.mint, C.yellow].forEach((c, k) => swayInst(K, 'pennant' + k, () => { const g = new VoxGrid(); for (let y = 0; y < 4; y++) g.box(-2 + Math.ceil(y / 2), -y, 0, 1 - Math.ceil(y / 2), -y, 0, y === 0 ? shade(c, 0.15) : c); return g; }, { scale: 0.08, pivot: [0, 0, 0] }, pens[k], { amp: 0.25, speed: 3 }));
   }
   addBirds(K, { id: 'rlBirds', n: 6, mode: 'flock', x0: -70, x1: 70, y: 12.4, z: -46, speed: 2.8, dir: 1, color: 0x2e3a52, wingTip: 0x1a2236, belly: 0x3a465e, beak: 0x2e3a52, head: 0x2e3a52, vox: 0.07, flap: 10, soar: 0.2, seed: 6 });
   const rtufts = [];

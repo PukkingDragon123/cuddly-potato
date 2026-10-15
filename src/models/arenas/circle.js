@@ -790,11 +790,11 @@ export function buildBattle(K) {
     ];
     const path = [[-30, 10.4, -58, 0.45, 0], [20, 12.6, -66, 0.3, 40], [52, 9.2, -62, 0.38, 80]];
     K.onUpdate((dt, t) => {
-      balloons.forEach((b, i) => {
-        const [x0, y0, z0, v, off] = path[i];
-        b.position.set(((x0 + t * v + off + 90) % 180) - 90, y0 + Math.sin(t * 0.35 + i * 2) * 0.6, z0);
+      for (let i = 0; i < balloons.length; i++) {
+        const b = balloons[i], p = path[i];
+        b.position.set(((p[0] + t * p[3] + p[4] + 90) % 180) - 90, p[1] + Math.sin(t * 0.35 + i * 2) * 0.6, p[2]);
         b.rotation.y = Math.sin(t * 0.1 + i) * 0.4;
-      });
+      }
     });
   }
 
@@ -1021,12 +1021,13 @@ export function buildBattle(K) {
   }, { scale: 0.115, pivot: [60, 0, 0] }, [[-16.2, 0, -27.5], [0, 0, -28.9], [16.2, 0, -27.5]]);
 
   // ---- the LAST TO LEAVE billboard, a fence and trees far behind
-  K.mesh('billboard', () => signGrid('LAST TO LEAVE', { textScale: 3, pad: 3, legH: 40, bg: C.red, frame: 0xffd23f, color: 0xffffff, leg: 0x6b7386 }), { scale: 0.13 }, -11, 0, -38, 0.12);
+  K.mesh('billboard', () => signGrid('LAST TO LEAVE', { textScale: 3, pad: 3, legH: 34, bg: C.red, frame: 0xffd23f, color: 0xffffff, leg: 0x6b7386 }), { scale: 0.11 }, 15, 0, -38, -0.12);
   {
-    const W = textW('LAST TO LEAVE', 3) + 6, bulbs = [];
-    for (let x = -W / 2 + 1; x < W / 2 - 1; x += 3) for (const y of [40.5, 40 + 21 - 0.5]) bulbs.push([-11 + x * 0.13 * Math.cos(0.12) + 0.32 * Math.sin(0.12), y * 0.13, -38 + 0.32 * Math.cos(0.12) - x * 0.13 * Math.sin(0.12)]);
-    for (let y = 43; y < 59; y += 3) for (const x of [-W / 2 + 0.5, W / 2 - 1.5]) bulbs.push([-11 + x * 0.13 * Math.cos(0.12) + 0.32 * Math.sin(0.12), y * 0.13, -38 + 0.32 * Math.cos(0.12) - x * 0.13 * Math.sin(0.12)]);
-    blinkInst(K, 'marquee', () => new VoxGrid().set(0, 0, 0, 0xfff0a0, true), { scale: 0.13, pivot: 'center' }, bulbs, { groups: 2, rate: 3, mode: 'chase' });
+    const W = textW('LAST TO LEAVE', 3) + 6, bulbs = [], S = 0.11, BX = 15, BZ = -38, A = -0.12;
+    const put = (x, y) => bulbs.push([BX + x * S * Math.cos(A) + 0.3 * Math.sin(A), y * S, BZ + 0.3 * Math.cos(A) - x * S * Math.sin(A)]);
+    for (let x = -W / 2 + 1; x < W / 2 - 1; x += 3) { put(x, 34.5); put(x, 34 + 21 - 0.5); }
+    for (let y = 37; y < 53; y += 3) { put(-W / 2 + 0.5, y); put(W / 2 - 1.5, y); }
+    blinkInst(K, 'marquee', () => new VoxGrid().set(0, 0, 0, 0xfff0a0, true), { scale: 0.11, pivot: 'center' }, bulbs, { groups: 2, rate: 3, mode: 'chase' });
   }
   K.inst('fence', () => {
     const g = new VoxGrid();
@@ -1106,7 +1107,7 @@ export function buildBattle(K) {
 
   return {
     sky,
-    fog: { color: 0xf6dcb8, near: 62, far: 175 },
+    fog: { color: 0xf6dcb8, near: 70, far: 260 },
     lights: { sky: 0xdceaff, ground: 0x8a7a50, hemi: 1.25, sun: 2.2, sunColor: 0xffe4bc, dir: [-9, 14, 9], rim: 1.0, rimColor: 0xffc890 },
     dust: 0xd8c8a0,
   };

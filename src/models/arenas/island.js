@@ -8,7 +8,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintStars, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
   pixbuf, skyGlow, paintCumulus, paintCloudBank, paintStreaks, paintStarfield, paintBirdsPx,
-  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, addFall, addFlag, voxTerrain, leafyTreeGrid,
+  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, addFall, addFlag, voxTerrain, leafyTreeGrid, addClouds,
 } from './kit.js';
 import { pantherStatueGrid, ENV_GRIDS } from '../props/environment.js';
 
@@ -390,13 +390,6 @@ const crabGrid = () => {
   for (const sx of [-3, 2]) { g.set(sx, 0, 0, C.redD); g.set(sx, 1, 1, C.red); g.set(sx, 2, 2, C.red); }
   return g;
 };
-const gullGrid = () => {
-  const g = new VoxGrid();
-  g.box(-1, 0, -2, 0, 1, 2, 0xffffff);
-  g.set(-1, 1, 3, 0xffc23a).set(0, 1, 3, 0xffc23a);
-  for (const sx of [-1, 1]) for (let k = 1; k <= 5; k++) g.box(sx * k - (sx < 0 ? 1 : 0), Math.floor(k / 2), -1, sx * k - (sx < 0 ? 1 : 0), Math.floor(k / 2), 0, k > 4 ? 0x3a3a44 : 0xf0f0f0);
-  return g;
-};
 const shellGrid = () => {
   const g = new VoxGrid();
   g.box(-1, 0, -1, 1, 0, 0, 0xffd0c0).set(0, 1, -1, 0xffe8e0).set(-1, 0, 1, 0xffa890);
@@ -720,6 +713,7 @@ export function buildBattle(K) {
       }
     });
   }
+  addClouds(K, { id: 'sunsetCloud', n: 6, kinds: 3, x0: -130, x1: 130, y0: 12, y1: 17, z0: -100, z1: -135, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.4, seed: 14, len: 22, height: 7, color: 0xffa890, shade: 0xc8608a, dark: 0x9a4a7a, light: 0xffe0a0 });
   addSparkles(K, { id: 'fireflies', n: 26, area: [-30, 30, 0.6, 3.4, -16, -5], color: 0xfff0a0, scale: 0.05, rate: 0.5, wander: 0.7, sharp: 2, seed: 17 });
   addSparkles(K, { id: 'sunGlitter', n: 30, area: [-40, 40, -0.42, -0.4, -80, -40], color: 0xffe8a8, scale: 0.14, rate: 1, sharp: 6, seed: 19 });
   addFlag(K, { id: 'villaFlag', x: VX + 9.2, y: 7.4, z: VZ - 0.5, w: 14, h: 9, vox: 0.1, pattern: (u, v) => (v < 3 ? 0x29b6f6 : v < 6 ? 0xffffff : 0xff2e88), poleH: 2.2 });

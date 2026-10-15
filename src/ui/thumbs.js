@@ -103,10 +103,22 @@ export function spellThumbAsync(id, size = 160) {
 const queue = [];
 const jobs = new Map();
 let pumping = false;
+/** Next job to render: the first one with an image on screen (up to 40 scanned), else the queue head. */
+function nextJob() {
+  const vh = innerHeight, vw = innerWidth;
+  const n = Math.min(queue.length, 40);
+  for (let i = 0; i < n; i++) {
+    const img = queue[i].imgs.find((im) => im.isConnected);
+    if (!img) continue;
+    const r = img.getBoundingClientRect();
+    if (r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw && r.width > 0) return queue.splice(i, 1)[0];
+  }
+  return queue.shift();
+}
 function pump() {
   const t0 = performance.now();
   while (queue.length && performance.now() - t0 < 12) {
-    const job = queue.shift();
+    const job = nextJob();
     jobs.delete(job.key);
     const live = job.imgs.filter((i) => i.isConnected || job.force);
     if (!live.length) continue;
@@ -194,6 +206,8 @@ export function cardArtImg(id, variant = 'base', skin = null, size = 160, cls = 
 // --------------------------------------------------------------------------- arena dioramas + lab skins
 
 const arenaUrls = new Map();
+// which arena diorama modules exist (an arena still being built falls back to pixel art, not the Lab)
+const ARENA_FILES = import.meta.glob('../models/arenas/*.js');
 /**
  * Snapshot of an arena's Beast Island diorama (the voxel plinth with its props), for
  * banners. Resolves null when the arena has no diorama module. o: { w, h, yaw, pitch, zoom }
@@ -203,7 +217,7 @@ export async function arenaThumb(id, o = {}) {
   const k = `${id}|${w}x${hh}|${o.yaw ?? ''}|${o.zoom ?? ''}`;
   if (arenaUrls.has(k)) return arenaUrls.get(k);
   const A = await import('../models/arenas/index.js');
-  if (!A.ARENA_THEMES?.includes(id)) return null;
+  if (!A.ARENA_THEMES?.includes(id) || !ARENA_FILES[`../models/arenas/${id}.js`]) return null;
   const z = await A.makeArenaZone(id);
   try { z.update?.(0.016, 2.5); } catch (e) { /* animated bits are optional */ }
   const url = engine.renderThumb(z.root, { w, h: hh, yaw: o.yaw ?? -0.38, pitch: o.pitch ?? 0.68, zoom: o.zoom ?? 0.88 });
@@ -212,7 +226,7 @@ export async function arenaThumb(id, o = {}) {
 }
 /** Lazy <img> of an arena diorama (renders when scrolled into view). Falls back to `fallback` (URL) if none. */
 export function arenaImg(id, cls = '', o = {}) {
-  return lazyImg(`ar|${id}|${o.w ?? 360}x${o.h ?? 200}`, () => arenaThumb(id, o).then((u) => u ?? o.fallback ?? BLANK), cls, { visible: o.visible ?? true, priority: o.priority });
+  return lazyImg(`ar|${id}|${o.w ?? 360}x${o.h ?? 200}`, () => arenaThumb(id, o).then((u) => u ?? o.fallback ?? BLANK), cls, { visible: o.visible ?? true, priority: o.priority ?? true });
 }
 
 const labUrls = new Map();

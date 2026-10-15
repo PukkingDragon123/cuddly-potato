@@ -136,8 +136,8 @@ export class LabScene {
     this.jimmy.root.rotation.y = 0.35;
     s.add(this.jimmy.root);
     this.tech = new Chibi(CHARACTERS.labTech, { scale: 0.95 });
-    this.tech.root.position.set(-3.55, 0, -1.75);
-    this.tech.root.rotation.y = 2.5;
+    this.tech.root.position.set(3.3, 0, -1.55);
+    this.tech.root.rotation.y = -0.75;
     this.tech.play('talk');
     s.add(this.tech.root);
     this.techT = 3;

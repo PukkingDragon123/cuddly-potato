@@ -470,8 +470,8 @@ export function buildBattle(K) {
   // ---- hot peach sky, big pale sun, heat streaks and circling birds
   const sky = skyTexture('pyramid2', [[0, 0xc8502e], [0.12, 0xe2703e], [0.26, 0xf89a58], [0.4, 0xffc488], [0.55, 0xffdcac], [0.7, 0xffe8c8], [1, 0xf8d4a0]], (ctx, w, h) => {
     const P = pixbuf(ctx, w, h);
-    skyGlow(P, w * 0.38, h * 0.3, w * 0.5, h * 0.5, 0xfff0c8, 0.65, { bands: 6, pow: 1.3 });
-    paintSunPx(P, Math.round(w * 0.38), Math.round(h * 0.26), 13, { color: 0xfff6d6, core: 0xffffff, halo: 0xffe8b0, halo2: 0xfff4d8, haloR: 4.5, haloA: 0.6 });
+    skyGlow(P, w * 0.37, h * 0.18, w * 0.45, h * 0.45, 0xfff0c8, 0.65, { bands: 6, pow: 1.3 });
+    paintSunPx(P, Math.round(w * 0.37), Math.round(h * 0.14), 11, { color: 0xfff6d6, core: 0xffffff, halo: 0xffe8b0, halo2: 0xfff4d8, haloR: 4.5, haloA: 0.6 });
     paintStreaks(P, w, { n: 14, y0: h * 0.05, y1: h * 0.4, len: [26, 80], color: 0xffe4bc, shade: 0xffc89a, seed: 61, alpha: 0.6 });
     paintCumulus(P, w * 0.84, h * 0.2, 9, 62, { light: 0xfff4e4, color: 0xffe0c0, shade: 0xf4b48a, dark: 0xe09a74, sunX: -1, alpha: 0.85 });
     paintCumulus(P, w * 0.1, h * 0.14, 8, 63, { light: 0xfff4e4, color: 0xffd8b8, shade: 0xf0a882, dark: 0xd88a6a, sunX: 1, alpha: 0.85 });

@@ -909,14 +909,16 @@ function ghostPanther() {
 // and stubby root legs. Smashes whole groups at once.
 function pumpkinBrute() {
   const K = {
-    or: 0xff8a1a, orD: 0xd2560e, orL: 0xffb04a, groove: 0xb84408, flesh: 0xffd08a, candle: 0xd8861a, candleD: 0xe8701a, inside: 0x3a1408,
+    or: 0xff8a1a, orD: 0xd2560e, orL: 0xffb04a, groove: 0xb84408, flesh: 0xffd08a, candle: 0xd8861a, candleD: 0xe8701a, lit: 0xffd84a, inside: 0x3a1408,
     vine: 0x3f8a2a, vineD: 0x24601c, vineL: 0x7cc84a, gourd: 0x4a9a2a, wart: 0x9ad85a, stem: 0x6a5a2a, stemD: 0x4a3a1a, root: 0x7a5232, rootD: 0x4e321c,
   };
   const PC = [-0.5, 15.5, 0], AX = 11, AY = 8.6, AZ = 9.6;
   const ang = (x, z) => Math.atan2(z - PC[2], x - PC[0]);
-  const lobe = (x, z) => (1 - Math.cos(ang(x, z) * 10)) / 2; // 0 lobe centre .. 1 groove
+  const lobe = (x, z) => (1 + Math.cos(ang(x, z) * 10)) / 2; // 0 lobe centre (one faces front) .. 1 groove
+  // the carved face sits on a smooth front: lobes fade out within ~55 degrees of +z
+  const faceSector = (x, z) => Math.max(0, 1 - Math.abs(ang(x, z) - Math.PI / 2) / 0.95);
   const pumpkin = (x, y, z) => {
-    const gr = lobe(x, z);
+    const gr = lobe(x, z) * (1 - faceSector(x, z) * 0.85);
     if (gr > 0.86) return K.groove;
     const t = (y - (PC[1] - AY)) / (AY * 2);
     const base = t > 0.72 ? K.orL : t < 0.25 ? K.orD : K.or;
@@ -928,7 +930,7 @@ function pumpkinBrute() {
   blob(body, PC[0], PC[1], PC[2], AX, AY, AZ, pumpkin, { p: 2.1 });
   body.carve((x, y, z) => {
     const d = ((x + 0.5 - PC[0] - 0.5) / (AX + 0.35)) ** 2 + ((y + 0.5 - PC[1] - 0.5) / (AY + 0.35)) ** 2 + ((z + 0.5 - PC[2] - 0.5) / (AZ + 0.35)) ** 2;
-    return d > 1 - 0.13 * lobe(x, z);
+    return d > 1 - 0.1 * lobe(x, z) * (1 - faceSector(x, z));
   });
   // the lid is cut out of the top (zig-zag cut line)
   const cutY = (x, z) => 22 + ((Math.round(ang(x, z) * 4) & 1) ? 1 : 0);
@@ -943,23 +945,24 @@ function pumpkinBrute() {
       if (!inPoly(x + 0.5, y + 0.5, poly)) continue;
       const z = frontZ(body, x, y, -5, 14);
       if (z === null) continue;
-      body.del(x, y, z); body.del(x, y, z - 1);
+      for (let k = 0; k < 3; k++) body.del(x, y, z - k);
       const inner = [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => inPoly(x + dx + 0.5, y + dy + 0.5, poly));
       const gl = glowFn ? glowFn(x, y, inner) : false;
-      body.set(x, y, z - 2, gl === 'pupil' ? INK : gl === 'rim' ? K.candleD : backCol, gl === true);
+      body.set(x, y, z - 3, gl === 'pupil' ? INK : gl === 'rim' ? K.candleD : gl === 'lit' ? K.lit : backCol, gl === true);
+      if (gl === 'pupil') body.set(x, y, z - 2, INK);
     }
   };
-  const eyeL = [[-10.4, 22.4], [-2.2, 19], [-5.4, 15.8], [-9.6, 16.8]];
+  const eyeL = [[-8.8, 23], [-1.4, 20], [-3.8, 16.4], [-8.2, 17.4]];
   const eyeR = eyeL.map(([x, y]) => [-1 - x, y]);
-  const eyeFn = (px) => (x, y, inner) => (x >= px && x <= px + 1 && y >= 16 && y <= 17 ? 'pupil' : inner ? true : 'rim');
-  carveFace(eyeL, K.candle, eyeFn(-5));
-  carveFace(eyeR, K.candle, eyeFn(3));
-  carveFace([[-2, 15.6], [1, 15.6], [-0.5, 13.4]], K.inside);
-  const grin = [[-10, 14.2], [-6, 12.8], [-0.5, 12.4], [5, 12.8], [9, 14.2], [6, 9.4], [-0.5, 7.6], [-7, 9.4]];
+  const eyeFn = (px) => (x, y, inner) => (x >= px && x <= px + 1 && y >= 17 && y <= 18 ? 'pupil' : inner && y <= 19 ? true : inner ? 'lit' : 'rim');
+  carveFace(eyeL, K.candle, eyeFn(-4));
+  carveFace(eyeR, K.candle, eyeFn(2));
+  carveFace([[-1.9, 16.2], [0.9, 16.2], [-0.5, 14.2]], K.inside);
+  const grin = [[-8.4, 14.4], [-5, 13.2], [-0.5, 12.8], [4, 13.2], [7.4, 14.4], [5.2, 10.2], [-0.5, 8.8], [-6.2, 10.2]];
   carveFace(grin, K.inside, (x, y) => (Math.abs(x + 0.5) <= 1 && y <= 9 ? true : Math.abs(x + 0.5) <= 2.5 && y <= 10 ? 'rim' : false));
   // square pumpkin-flesh teeth left standing in the grin (two hang from the top, three rise from the bottom)
   const colY = (x, top) => { let r = null; for (let y = 4; y <= 16; y++) if (inPoly(x + 0.5, y + 0.5, grin)) { if (top) r = y; else if (r === null) r = y; } return r; };
-  for (const [x0, top] of [[-6, true], [-2, true], [2, true], [-4, false], [0, false], [5, false]]) {
+  for (const [x0, top] of [[-5, true], [-1, true], [3, true], [-3, false], [1, false]]) {
     for (let x = x0; x <= x0 + 1; x++) {
       const ye = colY(x, top);
       if (ye === null) continue;

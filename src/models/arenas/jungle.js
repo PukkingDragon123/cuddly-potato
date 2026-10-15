@@ -30,10 +30,11 @@ const CREEK = (x) => 6.4 + Math.sin(x * 0.17) * 0.6 + Math.sin(x * 0.05 + 2) * 0
 // --------------------------------------------------------------------------- voxel props
 
 /** Vine-choked stepped temple (Mayan style) with a panther-face shrine. Front (+z) stair. Hollow shell. */
-const templeGrid = () => {
+const templeGrid = (lod = false) => () => {
   const g = new VoxGrid();
   const tiers = 7, base = 46, step = 5, th = 7;
   const stoneC = (x, y, z) => {
+    if (lod) return ((y >> 1) & 1) ? C.stone : C.stoneL;
     const blk = hash3(x >> 2, y >> 1, z >> 2);
     if (blk < 0.12) return C.stoneD;
     if (blk > 0.9) return C.stoneW;
@@ -47,7 +48,7 @@ const templeGrid = () => {
       // crumbled corners
       if (edge && Math.abs(x + 0.5) > hw - 4 && Math.abs(z + 0.5) > hw - 4 && hash3(x, y, z) < 0.35 && y > y0 + 1) continue;
       let c = stoneC(x, y, z);
-      if (y === y1 && hash3(x >> 1, t, z >> 1) < 0.45) c = hash3(x, y, z) < 0.5 ? C.moss : C.mossL; // moss on the ledges
+      if (y === y1 && (lod ? ((x >> 3) + (z >> 3)) & 1 : hash3(x >> 1, t, z >> 1) < 0.45)) c = lod ? C.moss : hash3(x, y, z) < 0.5 ? C.moss : C.mossL; // moss on the ledges
       if (edge && y === y0 + 3 && (z === hw - 1) && ((x + 64) % 6 < 3)) c = C.stoneDD; // carved frieze
       g.set(x, y, z, c);
     }
@@ -80,7 +81,7 @@ const templeGrid = () => {
   // gold sun disc above the door
   for (let x = -2; x <= 1; x++) for (let y = 0; y < 4; y++) if ((x + 0.5) ** 2 + (y - 1.5) ** 2 < 4.5) g.set(x, ty + 15 + y, 2, y === 3 ? C.goldL : C.gold);
   // hanging vines + trees growing out of the terraces
-  for (let k = 0; k < 70; k++) {
+  for (let k = 0; k < (lod ? 24 : 70); k++) {
     const t = Math.floor(hash3(k, 1, 2) * tiers);
     const hw = base - t * step;
     const side = Math.floor(hash3(k, 3, 4) * 3);
@@ -92,7 +93,7 @@ const templeGrid = () => {
     for (let y = y0; y > Math.max(0, y0 - len); y--) g.set(x, y, z, (y + k) % 4 === 0 ? C.leafL : C.leafD);
     if (k % 6 === 0) g.set(x, y0 - len + 1, z, [0xff4fa3, C.gold, 0xff6a3a][k % 3]);
   }
-  for (const [x, z, t] of [[-30, 20, 1], [26, 28, 0], [-16, 16, 3], [20, -14, 3]]) {
+  for (const [x, z, t] of lod ? [[-30, 20, 1], [26, 28, 0]] : [[-30, 20, 1], [26, 28, 0], [-16, 16, 3], [20, -14, 3]]) {
     const y = (t + 1) * th;
     g.box(x, y, z, x, y + 5, z, C.barkD);
     g.ellipsoid(x, y + 8, z, 5, 3, 5, (xx, yy) => (yy > y + 9 ? C.leafL : hash3(xx, yy, z) < 0.3 ? C.leafD : C.leaf));
@@ -572,7 +573,7 @@ export function buildBattle(K) {
   K.inst('boulder', () => rockGrid({ color: 0x7a846a, r: 4 }), { scale: 0.14 }, [[-25.5, 0, -4.6, 0.4], [27, 0, -4.4, 1.2], [-36, 0, -6.4, 2], [37, 0, -7.2, 0.1]]);
 
   // ---- landmarks: the temple, giant kapoks, the waterfall cliff + pool
-  K.mesh('temple', templeGrid, { scale: 0.2 }, 3, 0, -34, 0, 1, { shadow: true });
+  K.mesh('temple', templeGrid(false), { scale: 0.2 }, 3, 0, -34, 0, 1, { shadow: true });
   K.inst('kapok', kapokGrid(1), { scale: 0.22 }, [[-21.5, 0, -19.5, 0.4], [33, 0, -17.5, 2.2]], { shadow: true });
   K.inst('kapokFar', kapokGrid(3), { scale: 0.26 }, [[-44, 0, -36, 1], [52, 0, -40, 3.5], [-14, 0, -48, 0.4]], {});
   const CR = -0.3;
@@ -668,7 +669,7 @@ export function buildZone(K) {
   });
   const tPool = rippleTex('jg_poolZ', 0xd8f8f0, 0xffffff, 0xb0e8e0, 0xffffff);
   scrollPlane(K, { tex: tPool, w: 2.6, d: 1.7, x: 3.0, y: 0.04, z: -2.5, tile: 1, sx: 0.02, sy: -0.05, grad: () => 0x5ad8c8, segs: 1, name: 'pool' });
-  K.mesh('temple', templeGrid, { scale: 0.075 }, -1.6, 0, -2.8, 0, 1, { shadow: true });
+  K.mesh('temple', templeGrid(true), { scale: 0.075 }, -1.6, 0, -2.8, 0, 1, { shadow: true });
   K.mesh('cliff', cliffGrid, { scale: 0.09, pivot: [0, 0, 1] }, 4.0, 0, -4.2, -0.5, 1, { shadow: true });
   const tFalls = fallsTex('jg_fallsZ', [0x8fe6f6, 0xc8f6fc, 0x6fd8ee, 0xffffff]);
   fallSheet(K, { tex: tFalls, x: 4.0 - Math.sin(0.5) * 0.06, y: 0.02, z: -4.2 + Math.cos(0.5) * 0.06, w: 0.9, h: 4.2, ry: -0.5, speed: 1.6, tile: 0.7 });

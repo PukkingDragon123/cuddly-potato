@@ -415,6 +415,35 @@ def('spark4', (p) => {
   p.poly([[8, 0], [9.6, 6.4], [16, 8], [9.6, 9.6], [8, 16], [6.4, 9.6], [0, 8], [6.4, 6.4]], C.goldL);
   p.poly([[8, 3], [9, 7], [13, 8], [9, 9], [8, 13], [7, 9], [3, 8], [7, 7]], C.white);
 }, { shade: false });
+def('friends', (p) => {
+  p.ell(11, 14, 4.4, 3.4, C.pink).circ(10.6, 6, 3.3, C.skin).rect(7, 2, 7, 2, C.brownD).px(13, 4, C.brownD).px(7, 4, C.brownD);
+  p.px(9, 6, C.ink).px(12, 6, C.ink).px(10, 8, C.redD).px(11, 8, C.redD);
+  p.ell(5, 15, 4.6, 3.4, C.blue).circ(5.4, 7.2, 3.5, C.skin);
+  p.poly([[1.6, 6], [2.6, 2.4], [4, 4], [5.4, 1.6], [6.6, 4], [8.6, 2.6], [9, 6]], C.orange);
+  p.px(4, 7, C.ink).px(7, 7, C.ink).line(4, 9, 7, 9, C.redD).px(3, 8, C.pinkL).px(8, 8, C.pinkL);
+  p.px(3, 13, C.blueL).px(10, 12, C.pinkL);
+});
+def('emote', (p) => {
+  p.ell(8, 6.8, 7.4, 5.8, C.white).poly([[3.6, 10], [8, 11.6], [2, 15.4]], C.white);
+  p.rect(4, 4, 2, 2, C.ink).rect(10, 4, 2, 2, C.ink).px(4, 4, C.white).px(10, 4, C.white);
+  p.px(5, 8, C.ink).px(6, 9, C.ink).px(7, 9, C.ink).px(8, 9, C.ink).px(9, 9, C.ink).px(10, 8, C.ink).px(7, 10, C.red).px(8, 10, C.red);
+  p.px(3, 7, C.pinkL).px(12, 7, C.pinkL);
+}, { shade: true });
+def('sound', (p) => {
+  p.rect(1, 6, 3, 5, C.silverD).poly([[4, 6], [9, 1.6], [9, 14.4], [4, 11]], C.silver).px(7, 4, C.white).px(6, 5, C.white);
+  for (const [r, c] of [[3.2, C.cyan], [5.6, C.white]]) for (let a = -0.9; a <= 0.91; a += 0.15) p.px(9.6 + Math.cos(a) * r, 8 + Math.sin(a) * r * 1.25, c);
+});
+def('music', (p) => {
+  p.rect(5, 4, 2, 9, C.purple).rect(12, 2, 2, 9, C.purple).poly([[5, 4], [14, 1.4], [14, 4.4], [5, 7]], C.purpleD);
+  p.ell(4.4, 13, 2.9, 2.3, C.purple).ell(11.4, 11, 2.9, 2.3, C.purple);
+  p.px(3, 12, C.purpleL).px(10, 10, C.purpleL).px(6, 5, C.purpleL).px(13, 3, C.purpleL);
+});
+def('paint', (p) => {
+  p.line(2, 15, 7, 10, C.brown, 1).px(2, 15, C.brownD);
+  p.rect(7, 8, 3, 3, C.silver).px(7, 8, C.white);
+  p.poly([[9, 7], [13, 2], [15, 1], [14, 4], [10, 9]], C.pink).px(13, 2, C.pinkL).px(12, 3, C.pinkL);
+  p.px(14, 6, C.pink).px(14, 7, C.pink).px(3, 6, C.blue).px(4, 7, C.blue).px(5, 4, C.gold).px(11, 13, C.green).px(12, 14, C.green);
+});
 def('megaphone', (p) => {
   p.poly([[3, 6], [12, 1], [12, 15], [3, 10]], C.red).rect(1, 6, 3, 4, C.silver).rect(12, 2, 2, 12, C.white);
   p.rect(5, 10, 2, 4, C.silverD).px(5, 6, C.redL).px(6, 5, C.redL);

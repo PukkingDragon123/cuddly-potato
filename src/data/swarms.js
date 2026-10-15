@@ -315,7 +315,7 @@ export const SWARMS = {
   },
   templeGolem: {
     name: 'Temple Golem', series: 'wildlands', rarity: 'epic', role: 'tank', arena: 'jungle',
-    elixir: 6, hp: 3000, dmg: 165, atk: 1.8, range: 1.0, speed: 0.8, kb: 1, size: 1.45,
+    elixir: 6, hp: 2850, dmg: 160, atk: 1.8, range: 1.0, speed: 0.8, kb: 1, size: 1.4,
     traits: { armor: 0.15, knock: true },
     desc: 'The Lost Temple woke up ANGRY. A walking pyramid of mossy stone with jade eyes. Shrugs off 15% of damage and punches enemies flying.',
   },
@@ -356,7 +356,7 @@ export const SWARMS = {
   },
   magmaTitan: {
     name: 'Magma Titan', series: 'fireIce', rarity: 'legendary', role: 'tank', arena: 'volcano',
-    elixir: 8, hp: 4400, dmg: 230, atk: 1.8, range: 1.3, speed: 0.75, kb: 3, size: 1.55,
+    elixir: 8, hp: 4400, dmg: 230, atk: 1.8, range: 1.3, speed: 0.75, kb: 3, size: 1.45,
     traits: { area: true, burn: { dps: 40, dur: 3 } },
     desc: 'Forged in the heart of the volcano. A colossal obsidian titan with a magma core: every slam splashes burning lava over whole crowds.',
   },

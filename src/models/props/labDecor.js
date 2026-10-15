@@ -146,11 +146,13 @@ export function neonSign(str, o = {}) {
 // Bubbles: every rising bubble in the room is one instanced voxel cube.
 
 const bubbleGeo = new THREE.BoxGeometry(1, 1, 1);
+const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82, depthWrite: false });
+const glassGeos = new Map();
 export class BubbleField {
   constructor(max = 200) {
     this.max = max;
     this.n = 0;
-    this.mesh = new THREE.InstancedMesh(bubbleGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82, depthWrite: false }), max);
+    this.mesh = new THREE.InstancedMesh(bubbleGeo, bubbleMat, max);
     this.mesh.name = 'bubbles';
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 2;
@@ -359,7 +361,9 @@ export function specimenTube(o = {}) {
   const liq = new THREE.Mesh(aoGeometry(`ld_tubeLiq_${Rv}_${Hv}`, () => tubeLiquidGrid(Rv, Hv), { scale: V, pivot: [0.5, 0, 0.5], ao: false, jitter: 0.04 }), liquidMat(color));
   liq.renderOrder = 2;
   const H = Hv * V, R = (Rv + 0.5) * V;
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 20, 1, true), glassMat(0xd8f8ff, 0.16));
+  const gk = R + '|' + H;
+  if (!glassGeos.has(gk)) glassGeos.set(gk, new THREE.CylinderGeometry(R, R, H, 20, 1, true));
+  const glass = new THREE.Mesh(glassGeos.get(gk), glassMat(0xd8f8ff, 0.16));
   glass.position.y = 9 * V + H / 2;
   glass.renderOrder = 3;
   const root = group(base, liq, glass);
@@ -521,7 +525,7 @@ export function makeCeiling(w = 20, d = 15, zBack = -8, o = {}) {
   for (const z of [-4.9, -0.9, 3.1]) { const m = makeMesh(bx, Mats.pair); m.castShadow = false; m.position.set(-w / 2, 0, z); root.add(m); }
   for (const x of [-5.1, 4.9]) { const m = makeMesh(bz, Mats.pair); m.castShadow = false; m.position.set(x, 0, zBack); root.add(m); }
   const fx = instanced(aoGeometry('ld_fixture', fixtureGrid, { scale: 0.05, pivot: [0, 0, 0], maxSamples: 10 }), [
-    [-5.6, 0, -6.9], [5.6, 0, -6.9], [-5.6, 0, -2.9], [0, 0, -2.9], [5.6, 0, -2.9], [-5.6, 0, 1.1], [0, 0, 1.1], [5.6, 0, 1.1],
+    [-5.6, 0, -6.9], [5.6, 0, -6.9], [-5.6, 0, -2.9], [0, 0, -2.9], [5.6, 0, -2.9], [-5.6, 0, 1.1], [5.6, 0, 1.1],
   ]);
   fx.name = 'fixtures';
   root.add(fx);
@@ -957,15 +961,15 @@ export function buildLabRoom() {
   mark('signs');
   // furniture (shared interior props)
   const mon = add(makeMonitorWall(), 6.35, 0, -7.7);
-  add(makeConsole(), -2.55, 0, -2.8, 0.5);
+  add(makeConsole(), 3.55, 0, -2.85, -0.5);
   add(makeComputer(), 6.6, 0, -3.4, -0.5);
   add(makeLabShelf(), -9.6, 0, -1.6, Math.PI / 2);
   add(makeVialRack(), 9.45, 0, -1.2, -Math.PI / 2);
   add(makeLabDoor(), -9.75, 0, 2.4, Math.PI / 2);
   add(makeLabDesk(), 0, 0, 1.6);
   add(makeMug(), -1.0, 0.9, 1.98, 0.4, 1.2);
-  add(amesh('flaskRack', flaskRackGrid, { scale: 0.05, pivot: [0, 0, 0] }), 4.45, 0, -3.55, -0.35);
-  add(amesh('placard', placardGrid, { scale: 0.05, pivot: [0, 0, 0] }), 2.1, 0, -2.4, -0.35);
+  add(amesh('flaskRack', flaskRackGrid, { scale: 0.05, pivot: [0, 0, 0] }), -3.4, 0, -2.8, 0.35);
+  add(amesh('placard', placardGrid, { scale: 0.05, pivot: [0, 0, 0] }), -2.05, 0, -2.45, 0.35);
   add(gmesh('emblem', emblemGrid, { scale: 0.05, pivot: [0, 0, 0], skip: [3] }), 0, 0.001, 4.6);
 
   mark('furniture');
@@ -992,8 +996,8 @@ export function buildLabRoom() {
   root.add(instanced(aoGeometry('ld_crate', feastCrateGrid, { scale: 0.05, pivot: [0, 0, 0], maxSamples: 20 }),
     [[-7.7, 0, -2.7, 0.2], [-7.6, 0.7, -2.65, 0.05], [-8.75, 0, -3.75, 1.4]], { shadow: true, receive: true }));
   root.add(instanced(aoGeometry('ld_box', () => labBoxGrid(false), { scale: 0.05, pivot: [0, 0, 0], maxSamples: 20 }),
-    [[-6.7, 0, -2.2, -0.4], [4.75, 0, -2.0, 0.5, 0.9], [2.95, 0, -5.35, 0.2]], { shadow: true, receive: true }));
-  add(amesh('boxOpen', () => labBoxGrid(true), { scale: 0.05, pivot: [0, 0, 0] }), 3.75, 0, -1.25, -0.3, 0.9);
+    [[-6.7, 0, -2.2, -0.4], [5.35, 0, -1.75, 0.5, 0.9], [2.95, 0, -5.35, 0.2]], { shadow: true, receive: true }));
+  add(amesh('boxOpen', () => labBoxGrid(true), { scale: 0.05, pivot: [0, 0, 0] }), 4.55, 0, -0.95, -0.3, 0.9);
   add(amesh('cart', cartGrid, { scale: 0.05, pivot: [0, 0, 0] }), -5.4, 0, -0.85, 0.35);
   const drums = [
     [PAL.blue, PAL.yellow, [[-8.0, 0, -5.0, 0.3], [-7.8, 0, -5.7, 1.2]]],
@@ -1025,7 +1029,7 @@ export function buildLabRoom() {
   }
   // flask table bubbles
   for (const [lx, c] of FLASKS) {
-    const a = -0.35, wx = 4.45 + Math.cos(a) * lx * 0.05, wz = -3.55 - Math.sin(a) * lx * 0.05;
+    const a = 0.35, wx = -3.4 + Math.cos(a) * lx * 0.05, wz = -2.8 - Math.sin(a) * lx * 0.05;
     bubbles.column(wx, wz, 1.08, 1.3, 0.03, 2, c, 0.03);
   }
 

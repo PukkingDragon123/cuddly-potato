@@ -1106,7 +1106,7 @@ export function addFall(K, o) {
  */
 export function addFlag(K, o) {
   const W = o.w ?? 12, Hh = o.h ?? 8, v = o.vox ?? 0.08;
-  const geo = vgeo('ar_flag_' + o.id, () => {
+  const geo = vgeo('ar_flag_' + K.id + '_' + o.id, () => {
     const g = new VoxGrid();
     for (let u = 0; u < W; u++) for (let vv = 0; vv < Hh; vv++) g.set(u, vv, 0, o.pattern ? o.pattern(u, vv) : (o.color ?? 0xe8343c));
     return g;

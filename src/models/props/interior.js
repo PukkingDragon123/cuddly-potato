@@ -92,7 +92,7 @@ function stampText(g, str, cx, y, color, zmax, o = {}) {
 
 const ATLAS = 256;
 const PXU = 30; // atlas pixels per world unit
-const SCR = { tex: null, ctx: null, mat: null, regions: new Map(), list: [], sx: 0, sy: 0, sh: 0, last: -1 };
+const SCR = { tex: null, ctx: null, mat: null, regions: new Map(), geos: new Map(), list: [], sx: 0, sy: 0, sh: 0, last: -1 };
 const FONT = new Map();
 function glyphPts(str) {
   let p = FONT.get(str);
@@ -308,11 +308,16 @@ export function labScreen(kind, w, h, o = {}) {
     drawScreen(r, 0);
     SCR.tex.needsUpdate = true;
   }
-  const geo = new THREE.PlaneGeometry(w, h);
-  const uv = geo.attributes.uv;
-  for (let i = 0; i < uv.count; i++) {
-    const u = uv.getX(i), v = uv.getY(i);
-    uv.setXY(i, (r.x + u * r.w) / ATLAS, 1 - (r.y + (1 - v) * r.h) / ATLAS);
+  const gk = `${kind}|${pw}x${ph}|${seed}|${w}|${h}`;
+  let geo = SCR.geos.get(gk);
+  if (!geo) {
+    geo = new THREE.PlaneGeometry(w, h);
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) {
+      const u = uv.getX(i), v = uv.getY(i);
+      uv.setXY(i, (r.x + u * r.w) / ATLAS, 1 - (r.y + (1 - v) * r.h) / ATLAS);
+    }
+    SCR.geos.set(gk, geo);
   }
   const m = new THREE.Mesh(geo, SCR.mat);
   m.name = 'screen:' + kind;
@@ -338,6 +343,7 @@ function screenAt(kind, x0, y0, w, h, z, vox = 0.1, o = {}) {
 // Specimen tank
 
 const bubbleGeo = new THREE.BoxGeometry(1, 1, 1);
+let tankGlassGeo = null;
 const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xeaffff, transparent: true, opacity: 0.78, depthWrite: false });
 
 function tankFrameGrid(style) {
@@ -412,12 +418,13 @@ function tankFrameGrid(style) {
   tube(g, 'z', -31, -6, 8, 47, 1, PAL.metal, { every: 6, flange: PAL.blue });
   g.box(6, 45, -32, 10, 49, -31, PAL.metalD);
   gaugeZ(g, 3, 47, 11, 2, { angle: 2.0, depth: 2 });
-  // side control box with a pixel readout, LEDs and a lever
-  g.box(9, 7, 12, 14, 16, 15, PAL.metalD);
-  g.box(9, 16, 12, 14, 16, 15, PAL.metal);
-  g.box(10, 10, 16, 13, 14, 16, (x, y) => (y === 12 || (x + y) % 4 === 0 ? PAL.cyan : 0x0d2a3a));
-  g.set(10, 8, 16, PAL.slime, true).set(12, 8, 16, acc, true).set(13, 8, 16, PAL.yellow);
-  g.box(15, 12, 13, 15, 15, 13, PAL.metal).set(15, 16, 13, PAL.red).set(16, 16, 13, PAL.red);
+  // side control box (right side) with a pixel readout, LEDs and a lever
+  g.box(15, 2, -3, 18, 15, 3, PAL.metalD);
+  g.box(15, 16, -3, 18, 16, 3, PAL.metal);
+  g.box(19, 9, -2, 19, 13, 2, (x, y, z) => (y === 11 || (z + y) % 4 === 0 ? PAL.cyan : 0x0d2a3a));
+  g.set(19, 6, -2, PAL.slime, true).set(19, 6, 0, acc, true).set(19, 6, 2, PAL.yellow);
+  g.box(16, 17, 1, 16, 20, 1, PAL.metal).set(16, 21, 1, PAL.red).set(17, 21, 1, PAL.red);
+  g.box(16, 17, -2, 17, 18, -1, PAL.yellow);
   // hazard label on the plinth front
   g.box(-2, 1, R + 3, 2, 7, R + 3, PAL.yellow);
   g.set(-2, 1, R + 3, PAL.metalDD).set(2, 1, R + 3, PAL.metalDD).set(-2, 7, R + 3, PAL.metalDD).set(2, 7, R + 3, PAL.metalDD);
@@ -454,7 +461,8 @@ export function makeTank(o = {}) {
   const liquid = new THREE.Mesh(liqGeo, liquidMat);
   liquid.name = 'tankLiquid';
   liquid.renderOrder = 2;
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 28, 1, true), glassMat(0xd8f8ff, o.glassOpacity ?? 0.2));
+  if (!tankGlassGeo) tankGlassGeo = new THREE.CylinderGeometry(R, R, H, 28, 1, true);
+  const glass = new THREE.Mesh(tankGlassGeo, glassMat(0xd8f8ff, o.glassOpacity ?? 0.2));
   glass.position.y = 0.7 + H / 2;
   glass.renderOrder = 3;
   // rising voxel bubbles (one instanced mesh)

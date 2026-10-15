@@ -336,6 +336,25 @@ function paintSmoke(ctx, x, top, seed) {
   }
 }
 
+const GUMMY = [[0xff3a4a, 0xffa0a8], [0x5ad84a, 0xb8f4a0], [0xffc21a, 0xfff0a0], [0xff8a2a, 0xffd0a0]];
+/** Giant gummy bear (glossy candy: lit rim highlights, lighter belly), 0.11 scale. */
+const gummyGrid = (v) => () => {
+  const g = new VoxGrid();
+  const [c, l] = GUMMY[v % GUMMY.length], d = shade(c, -0.2);
+  const col = (x, y, z, cx, cy, r) => (x - cx < -r * 0.35 && y - cy > r * 0.2 ? l : z < -r * 0.4 ? d : c);
+  g.ellipsoid(0, 12, 0, 8, 10, 7, (x, y, z) => col(x, y, z, 0, 12, 8));
+  g.ellipsoid(0, 12, 5, 5, 6, 2.5, shade(c, 0.12));
+  g.ellipsoid(0, 27, 0, 7, 6.5, 6, (x, y, z) => col(x, y, z, 0, 27, 7));
+  for (const sx of [-1, 1]) {
+    g.ellipsoid(sx * 5, 33, 0, 2.6, 2.6, 2.2, c);
+    g.ellipsoid(sx * 8, 16, 2, 2.6, 4.2, 2.6, c);
+    g.ellipsoid(sx * 4, 3, 1, 3.2, 3.6, 3.4, c);
+  }
+  g.ellipsoid(0, 25, 6, 2.6, 2, 1.6, l);
+  g.set(0, 26, 8, 0x2a1520).set(-1, 26, 8, 0x2a1520);
+  for (const sx of [-3, 2]) g.box(sx, 28, 6, sx, 29, 6, 0x2a1520);
+  return g;
+};
 /** Gingerbread cottage with icing trim, gumdrop roof studs and a candy-cane door (0.12 scale). */
 const gingerHouseGrid = () => {
   const g = new VoxGrid();
@@ -359,12 +378,12 @@ export function buildBattle(K) {
     const P = pixbuf(ctx, w, h);
     paintStarfield(P, w, h, { n: 70, ymax: h * 0.32, seed: 8, tint: 0xffd0f0 });
     // rainbow arc
-    const cx = w * 0.5, cy = h * 0.95, R0 = h * 0.62;
+    const cx = w * 0.5, cy = h * 0.98, R0 = h * 0.74;
     const bands = [0xff5a6a, 0xff9a4a, 0xffe060, 0x7ae070, 0x5ac0f0, 0x9a7af0];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const d = Math.hypot((x - cx) / 1.25, y - cy) - R0;
-      if (d < 0 || d >= bands.length * 2) continue;
-      P.dither(x, y, bands[Math.floor(d / 2)], 0.55 * Math.min(1, (cy - y) / (h * 0.5)), 3);
+      if (d < 0 || d >= bands.length * 3) continue;
+      P.dither(x, y, bands[Math.floor(d / 3)], 0.8 * Math.min(1, (cy - y) / (h * 0.45)), 3);
     }
     skyGlow(P, w * 0.62, h * 0.24, w * 0.3, h * 0.3, 0xffe8f4, 0.6, { bands: 5, pow: 1.5 });
     paintSunPx(P, Math.round(w * 0.62), Math.round(h * 0.24), 9, { color: 0xfff0c0, core: 0xffffff, halo: 0xffd0e8, halo2: 0xfff0f8, haloR: 5 });
@@ -532,7 +551,7 @@ export function buildBattle(K) {
     const top = (CLIFF_H - 2) * 0.25 - 0.25;
     addFall(K, { id: 'chocFall', x: cx, z: cz - 0.2, top, bottom: RIVER.y, width: 2.5, vox: 0.14, colors: [0x6a3a1e, 0x8e522c, 0xb87a48, 0xf0d8b8], speed: 3.0, n: 36, seed: 7 });
     K.mesh('chocLip', () => new VoxGrid().box(-9, 0, 0, 8, 1, 2, (x, y, z) => (y && z === 2 ? 0xc48a5c : y ? 0xa8683c : 0x8e522c)), { scale: 0.14, pivot: [0, 0, 0] }, cx, top - 0.16, cz - 0.42);
-    addPuffs(K, { id: 'chocFoam', sources: [[cx - 1.1, RIVER.y + 0.05, cz + 0.8], [cx, RIVER.y + 0.05, cz + 1.0], [cx + 1.1, RIVER.y + 0.05, cz + 0.8]], n: 4, life: 2.2, rise: 0.35, drift: [0, 0.9], size: [0.9, 1.4], scale: 0.07, color: 0xf0d8b8, light: 0xfff0dc, shade: 0xc89a6a, seed: 5 });
+    addPuffs(K, { id: 'chocFoam', sources: [[cx - 1.1, RIVER.y + 0.05, cz + 0.8], [cx, RIVER.y + 0.05, cz + 1.0], [cx + 1.1, RIVER.y + 0.05, cz + 0.8]], n: 2, life: 2.2, rise: 0.3, drift: [0, 0.9], size: [0.6, 1.0], scale: 0.06, color: 0xf0d8b8, light: 0xfff0dc, shade: 0xc89a6a, seed: 5 });
     const drops = liveInstances(K, 'chocDrop', () => new VoxGrid().box(0, 0, 0, 1, 1, 1, 0x8a5230).set(0, 1, 0, 0xc48a5c), { scale: 0.06, pivot: 'center' }, 12);
     const dd = Array.from({ length: 12 }, (_, i) => ({ a: (i / 12) * Math.PI * 2, o: i / 12, v: K.rand(1.5, 2.4) }));
     K.onUpdate((dt, t) => {
@@ -691,13 +710,23 @@ export function buildBattle(K) {
     K.inst('gingerHouse', gingerHouseGrid, { scale: 0.12 }, houses.map(([x, z, ry]) => [x, 0, z, ry]));
     addPuffs(K, { id: 'gingerSmoke', sources: houses.map(([x, z]) => [x - 0.9, 4.6, z - 0.3]), n: 4, life: 4, rise: 2.4, drift: [0.8, 0], size: [0.3, 0.9], scale: 0.1, color: 0xf8f0f4, light: 0xffffff, shade: 0xe0c8d8, opacity: 0.85, seed: 3 });
   }
+  {
+    // giant gummy bears wobbling in the candy garden
+    const bears = [[-21.5, -14.2, 0.35, 0], [20.6, -13.4, -0.4, 1], [-1.6, -17.6, 0.1, 2], [31, -20, -0.3, 3]].map(([x, z, ry, v]) => K.mesh('gummy' + v, gummyGrid(v), { scale: 0.11 }, x, 0, z, ry, 1, { shadow: true }));
+    K.onUpdate((dt, t) => {
+      for (let i = 0; i < bears.length; i++) {
+        const k = Math.sin(t * 2.6 + i * 1.7) * 0.035;
+        bears[i].scale.set(1 - k * 0.6, 1 + k, 1 - k * 0.6);
+      }
+    });
+  }
   addBirds(K, { id: 'candyBirds', n: 6, mode: 'flock', x0: -70, x1: 70, y: 10.6, z: -40, speed: 3, dir: 1, color: 0xff7ac0, wingTip: 0x29b6f6, belly: 0xffd0e8, beak: 0xffd23f, vox: 0.07, flap: 11, soar: 0.2, seed: 9 });
   addSparkles(K, { id: 'riverGlint', n: 26, area: [-30, 30, RIVER.y + 0.02, RIVER.y + 0.05, RIVER.z0 + 0.4, RIVER.z1 - 0.4], color: 0xfff0dc, scale: 0.08, rate: 0.9, sharp: 4, seed: 4 });
   addSparkles(K, { id: 'sugarSparkle', n: 14, area: [-24, 24, 1.2, 4.5, -16, -8], color: 0xffffff, color2: 0xff9ad0, cross: true, scale: 0.05, rate: 0.7, wander: 0.4, seed: 6 });
 
   return {
     sky,
-    fog: { color: 0xf8c8e4, near: 58, far: 170 },
+    fog: { color: 0xf8c8e4, near: 75, far: 270 },
     lights: { sky: 0xffe0f4, ground: 0x7a5a6a, hemi: 1.25, sun: 2.1, sunColor: 0xfff0e0, dir: [7, 14, 9], rim: 1.1, rimColor: 0xffa8e0 },
     dust: 0xe8c8b0,
   };

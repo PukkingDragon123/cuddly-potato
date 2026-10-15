@@ -987,15 +987,16 @@ export function buildBattle(K) {
     splash.visible = false;
     K.onUpdate((dt, t) => {
       let any = false;
-      orca.forEach((m, i) => {
+      for (let i = 0; i < orca.length; i++) {
+        const m = orca[i];
         const k = ((t + i * 7) % 14) / 2.4; // jump lasts 2.4 s every 14 s
-        if (k > 1) { m.visible = false; return; }
+        if (k > 1) { m.visible = false; continue; }
         m.visible = true;
         const x0 = i ? 30 : -20, z0 = i ? -52 : -46;
         m.position.set(x0 - 3 + k * 6, -1.6 + Math.sin(k * Math.PI) * 3.4, z0);
         m.rotation.set(0, 0, (0.5 - k) * 2.2 * 0.8);
         if (k < 0.2 || k > 0.8) any = true;
-      });
+      }
       splash.visible = any;
     });
   }
@@ -1019,7 +1020,7 @@ export function buildBattle(K) {
     const seals = [[-24, -1.0, -38.5, 0.4], [6, -1.0, -40.5, -0.6], [36, -1.0, -36.6, 2.8]];
     K.inst('sealFloe', () => { const g = new VoxGrid(); g.box(-7, 0, -4, 6, 1, 3, (x, y) => (y ? C.snowW : C.ice)); g.set(-7, 1, -4, null).set(6, 1, 3, null); return g; }, { scale: 0.22 }, seals);
     const sealMeshes = seals.map(([x, y, z, ry]) => K.mesh('seal', sealGrid, { scale: 0.06, ao: true }, x, y + 0.44, z, ry, 1));
-    K.onUpdate((dt, t) => { sealMeshes.forEach((m, i) => { m.rotation.z = Math.max(0, Math.sin(t * 0.7 + i * 2)) * 0.18; }); });
+    K.onUpdate((dt, t) => { for (let i = 0; i < sealMeshes.length; i++) sealMeshes[i].rotation.z = Math.max(0, Math.sin(t * 0.7 + i * 2)) * 0.18; });
   }
   addSparkles(K, { id: 'iceGlint', n: 30, area: [-30, 30, 0.05, 1.2, -16, -4], color: 0xdff6ff, scale: 0.05, rate: 0.8, sharp: 6, seed: 12 });
   addSparkles(K, { id: 'seaGlint', n: 24, area: [-50, 50, -0.95, -0.9, -60, -36], color: 0xbfe8ff, scale: 0.12, rate: 0.6, sharp: 6, seed: 14 });

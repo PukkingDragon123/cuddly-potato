@@ -7,7 +7,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintSkyline, paintRidge, paintSun, px, disc, skyTexture, parallaxWidth, canvasTex,
   pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx,
-  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, voxSkyline,
+  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, voxSkyline, addClouds,
 } from './kit.js';
 
 const C = {
@@ -698,6 +698,7 @@ export function buildBattle(K) {
     K.inst('pylonWire', () => new VoxGrid().set(0, 0, 0, 0x22261c), { scale: 0.09, pivot: 'center' }, wire);
   }
   addPuffs(K, { id: 'ventSteam', sources: [[-36, 1.2, -8.4], [-12, 1.2, -8.4], [12, 1.2, -8.4], [36, 1.2, -8.4], [-20.5, 2.4, -15.5], [12.5, 2.4, -16]], n: 4, life: 3, rise: 2.6, drift: [0.8, -0.2], size: [0.35, 1.1], scale: 0.1, color: 0xe8ecdc, light: 0xffffff, shade: 0xb8bca8, opacity: 0.75, seed: 6 });
+  addClouds(K, { id: 'smogCloud', n: 6, kinds: 3, x0: -130, x1: 130, y0: 12, y1: 17, z0: -100, z1: -135, s0: 1, s1: 1.4, scale: 0.85, speed: 0.35, seed: 21, len: 24, height: 6, color: 0x8a8a5c, shade: 0x5a5840, dark: 0x46443a, light: 0xc8c080 });
   addSparkles(K, { id: 'toxicFly', n: 22, area: [-28, 28, 0.3, 2.2, -6.2, -3.6], color: 0xb8ff4a, scale: 0.06, rate: 0.6, wander: 0.6, sharp: 1.5, seed: 11 });
   addSparkles(K, { id: 'puddleFly', n: 12, area: [-30, 30, 0.2, 0.9, LH + 1.5, 8], color: 0x9dff3a, scale: 0.05, rate: 0.5, wander: 0.5, sharp: 1.5, seed: 13 });
   addBirds(K, { id: 'crows', n: 5, mode: 'circle', cx: 9.5, cy: 15.5, cz: -30, r: 6, rz: 0.5, speed: 0.28, color: 0x1e1e24, wingTip: 0x101014, belly: 0x2a2a30, beak: 0x3a3a3a, head: 0x1e1e24, vox: 0.06, flap: 8, soar: 0.6, seed: 4 });
