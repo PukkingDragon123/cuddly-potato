@@ -41,19 +41,22 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 **Battles**
 - Each side has one **base** with your Commander sitting on the roof. Smash the rival's base to win (no crowns,
   no guard towers).
-- **Upgrade your base mid-battle**: it starts as a humble **Camp Tent**, then becomes a **Lab Shack**, **Trailer
+- **Tap your base to upgrade it** (or the sign in front of it): it starts as a humble **Camp Tent**, then becomes a **Lab Shack**, **Trailer
   Lab**, **Field Lab**, **Beast Lab** and finally the **Mega HQ**. Every tier adds HP, a stronger zapper, faster POWER
   and a bigger POWER bar.
-- Cards cost electric **POWER** (2x in the last minute, 3x in overtime). Play cards from a hand of 4 (with the next
-  card shown) by dragging them onto your half of the battlefield, tapping a card then the field, or double-tapping to
-  drop at your base.
+- **Battle Cats-style lineup**: up to 10 unit buttons (2 rows of 5), all available at once. Tap one and that Swarm
+  pops out of your base and marches; each button then **recharges** for a few seconds. Units cost electric **POWER**
+  (2x in the last minute, 3x in overtime). Spells are aimed: tap the spell, then tap the field (or drag it).
+- You start with just **2 troops** (Panther + Clogged Toilet), like the Cat and the Tank Cat, and unlock the rest of
+  the squad over your first wins on the Trophy Road.
 - Swarms drop in from shattering lab vials, then march and fight on their own: tanks, ranged, splash, flyers,
   kamikazes, knockback, stun/freeze/slow/burn, chain lightning, splitting slimes and bosses.
 - **Spells** (Food Throw, $100K Drop, Slime Flood, Freeze Ray, Soda Rocket, Lab Shield) are cards too.
 - **Commanders** (Recruit, Jimmy, Nolan, Juan) have a charged signature ability, unlockable skills and perks.
 - **MEGA ultimate**: equip a **MEGA-TECH Mutator** figure (Panthar, Silver-Byte, NecroClaw, Cyber Glitch, plus rare
   Metallic Gold versions, won on the Trophy Road). Its charge only fills as you deal damage, it needs at least a
-  Trailer Lab base, and you get one per battle. Unleash it and the battle freezes for a cutscene: a giant containment
+  Trailer Lab base, and you get one per battle. Your Commander crackles with more and more electric energy as it
+  charges; **tap your Commander** to unleash it and the battle freezes for a cutscene: a giant containment
   vessel slams down, fills with water, the figure mutates to full size, cracks the glass and breaks out to rampage
   with its own special attack. Rivals can bring Megas too.
 - 3:00 regulation, sudden-death overtime, then a base-HP tiebreak. Emotes included.
@@ -69,11 +72,11 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 
 | Action | Touch | Keyboard / mouse |
 |---|---|---|
-| Play a card | drag it onto the field, or tap it then tap the field | `1`-`4` select, click the field |
-| Quick-drop at your base | double-tap a card | `Space` / `Enter` with a card selected |
+| Send a Swarm | tap its button in the lineup | `1`-`9`, `0` |
+| Cast a spell | tap it, then tap the field (or drag it) | number key, then click the field / `Space` |
 | Commander signature / skills | tap the portrait / skill buttons | `Q` / `W`, `E` |
-| Upgrade your base | UPGRADE BASE button | `O` |
-| Unleash the MEGA | MEGA button | `M` / `R` |
+| Upgrade your base | tap your base (or its sign / the base button) | `O` |
+| Unleash the MEGA | tap your Commander (or the MEGA button) | `M` / `R` |
 | Pan / zoom the battle camera | drag / pinch, tap the minimap | drag / mouse wheel, `A` `D` |
 | Browse Beast Island | swipe or the arrows | arrows on screen |
 
