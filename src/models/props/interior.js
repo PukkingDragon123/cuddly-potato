@@ -419,9 +419,9 @@ function tankFrameGrid(style) {
   g.set(10, 8, 16, PAL.slime, true).set(12, 8, 16, acc, true).set(13, 8, 16, PAL.yellow);
   g.box(15, 12, 13, 15, 15, 13, PAL.metal).set(15, 16, 13, PAL.red).set(16, 16, 13, PAL.red);
   // hazard label on the plinth front
-  g.box(-3, 1, R + 3, 3, 7, R + 3, PAL.yellow);
-  g.box(-3, 1, R + 3, 3, 1, R + 3, PAL.ink).box(-3, 7, R + 3, 3, 7, R + 3, PAL.ink);
-  text(g, '!', 0, 2, R + 4, '+z', PAL.ink, { center: true });
+  g.box(-2, 1, R + 3, 2, 7, R + 3, PAL.yellow);
+  g.set(-2, 1, R + 3, PAL.metalDD).set(2, 1, R + 3, PAL.metalDD).set(-2, 7, R + 3, PAL.metalDD).set(2, 7, R + 3, PAL.metalDD);
+  text(g, '!', 0, 2, R + 3, '+z', PAL.ink, { center: true });
   // glass glints (pixel highlights on the front-left of the glass)
   g.box(-6, 12, 12, -6, 33, 12, 0xeefcff);
   g.box(-3, 20, 13, -3, 27, 13, 0xeefcff);
@@ -442,7 +442,7 @@ function tankLiquidGrid() {
   return g;
 }
 
-/** Huge specimen tank. { root, glass, liquid, frame, bubbler, update(dt) }. o: { color, style: 'mega', liquidOpacity } */
+/** Huge specimen tank. { root, glass, liquid, frame, bubbler, update(dt) }. o: { color, style: 'mega', liquidOpacity, glassOpacity } */
 export function makeTank(o = {}) {
   const liquidColor = o.color ?? 0x3fe8d0;
   const style = o.style ?? 'std';
@@ -454,7 +454,7 @@ export function makeTank(o = {}) {
   const liquid = new THREE.Mesh(liqGeo, liquidMat);
   liquid.name = 'tankLiquid';
   liquid.renderOrder = 2;
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 28, 1, true), glassMat(0xd8f8ff, 0.2));
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 28, 1, true), glassMat(0xd8f8ff, o.glassOpacity ?? 0.2));
   glass.position.y = 0.7 + H / 2;
   glass.renderOrder = 3;
   // rising voxel bubbles (one instanced mesh)
@@ -470,7 +470,7 @@ export function makeTank(o = {}) {
     st[i * 6 + 2] = 0.4 + Math.random() * 0.7;
     st[i * 6 + 3] = Math.random() * 6;
     st[i * 6 + 4] = 0.75 + Math.random() * 3;
-    st[i * 6 + 5] = 0.06 + Math.random() * 0.06;
+    st[i * 6 + 5] = 0.035 + Math.random() * 0.045;
   }
   const arr = bubbler.instanceMatrix.array;
   const top = 0.7 + H * 0.9;

@@ -743,6 +743,25 @@ function hazardRingGrid(r) {
   return g;
 }
 
+/** Painted floor logo: pink ring, white disc, pink lightning bolt, hazard dashes. */
+function emblemGrid() {
+  const R = 28;
+  const g = dense(-R - 2, 0, -R - 2, R + 2, 0, R + 2);
+  for (let x = -R - 1; x <= R; x++) for (let z = -R - 1; z <= R; z++) {
+    const d = Math.hypot(x + 0.5, z + 0.5);
+    if (d > R + 0.5) continue;
+    const a = Math.atan2(z + 0.5, x + 0.5);
+    let c = d > R - 3 ? PAL.pink : d > R - 4.2 ? PAL.white : d > R - 6 ? ((Math.floor((a + Math.PI) / (Math.PI * 2) * 36) & 1) ? PAL.ink : PAL.yellow) : 0xf4f6fa;
+    g.set(x, 0, z, c);
+  }
+  // bolt (BOLT_SMALL scaled x4), pointing "up" toward the tank (-z)
+  BOLT_SMALL.forEach((row, r) => [...row].forEach((ch, cc) => {
+    if (ch !== 'M') return;
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) g.set((cc - 2.5) * 4 + i, 0, (r - 3.5) * 4 + j, PAL.pink);
+  }));
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // Clutter (0.05 voxels)
 
@@ -938,7 +957,7 @@ export function buildLabRoom() {
   mark('signs');
   // furniture (shared interior props)
   const mon = add(makeMonitorWall(), 6.35, 0, -7.7);
-  add(makeConsole(), -3.2, 0, -3.2, 0.55);
+  add(makeConsole(), -2.55, 0, -2.8, 0.5);
   add(makeComputer(), 6.6, 0, -3.4, -0.5);
   add(makeLabShelf(), -9.6, 0, -1.6, Math.PI / 2);
   add(makeVialRack(), 9.45, 0, -1.2, -Math.PI / 2);
@@ -946,7 +965,8 @@ export function buildLabRoom() {
   add(makeLabDesk(), 0, 0, 1.6);
   add(makeMug(), -1.0, 0.9, 1.98, 0.4, 1.2);
   add(amesh('flaskRack', flaskRackGrid, { scale: 0.05, pivot: [0, 0, 0] }), 4.45, 0, -3.55, -0.35);
-  add(amesh('placard', placardGrid, { scale: 0.05, pivot: [0, 0, 0] }), -1.95, 0, -2.55, 0.35);
+  add(amesh('placard', placardGrid, { scale: 0.05, pivot: [0, 0, 0] }), 2.1, 0, -2.4, -0.35);
+  add(gmesh('emblem', emblemGrid, { scale: 0.05, pivot: [0, 0, 0], skip: [3] }), 0, 0.001, 4.6);
 
   mark('furniture');
   // corner risers + wall dressing
@@ -972,8 +992,8 @@ export function buildLabRoom() {
   root.add(instanced(aoGeometry('ld_crate', feastCrateGrid, { scale: 0.05, pivot: [0, 0, 0], maxSamples: 20 }),
     [[-7.7, 0, -2.7, 0.2], [-7.6, 0.7, -2.65, 0.05], [-8.75, 0, -3.75, 1.4]], { shadow: true, receive: true }));
   root.add(instanced(aoGeometry('ld_box', () => labBoxGrid(false), { scale: 0.05, pivot: [0, 0, 0], maxSamples: 20 }),
-    [[-6.7, 0, -2.2, -0.4], [4.3, 0, -1.7, 0.5], [4.25, 0.7, -1.7, 0.35], [2.95, 0, -5.35, 0.2]], { shadow: true, receive: true }));
-  add(amesh('boxOpen', () => labBoxGrid(true), { scale: 0.05, pivot: [0, 0, 0] }), 5.1, 0, -0.95, -0.3);
+    [[-6.7, 0, -2.2, -0.4], [4.75, 0, -2.0, 0.5, 0.9], [2.95, 0, -5.35, 0.2]], { shadow: true, receive: true }));
+  add(amesh('boxOpen', () => labBoxGrid(true), { scale: 0.05, pivot: [0, 0, 0] }), 3.75, 0, -1.25, -0.3, 0.9);
   add(amesh('cart', cartGrid, { scale: 0.05, pivot: [0, 0, 0] }), -5.4, 0, -0.85, 0.35);
   const drums = [
     [PAL.blue, PAL.yellow, [[-8.0, 0, -5.0, 0.3], [-7.8, 0, -5.7, 1.2]]],

@@ -6,6 +6,8 @@
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, px, disc, skyTexture, parallaxWidth, canvasTex, treeGrid, rockGrid,
+  pixbuf, skyGlow, paintSunPx, paintCumulus, paintStreaks, paintBirdsPx, paintRange,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addBirds, addFlag, voxRange,
 } from './kit.js';
 
 const C = {
@@ -421,18 +423,61 @@ function waterTex() {
   }, { repeatX: true });
 }
 
+// --------------------------------------------------------------------------- postcard props
+
+/** Ruined temple colonnade: papyrus-capital columns with painted glyph bands, a broken lintel, fallen drums (0.15 scale). */
+const colonnadeGrid = () => {
+  const g = new VoxGrid();
+  g.box(-2, 0, -6, 92, 2, 5, (x, y) => (y === 2 ? C.stoneL : C.stoneD));
+  const hs = [44, 40, 46, 30, 44, 18, 42];
+  hs.forEach((h, i) => {
+    const cx = 4 + i * 14;
+    for (let y = 3; y < h; y++) {
+      const r = y > h - 6 ? 4.5 - (h - y) * 0.15 : 3.4;
+      for (let x = -5; x <= 5; x++) for (let z = -5; z <= 5; z++) {
+        if (Math.hypot(x, z) > r) continue;
+        let c = (x + z + y) % 7 === 0 ? C.stoneD : x < -1 ? C.stoneL : C.stone;
+        if (y % 11 === 6 || y % 11 === 7) c = (Math.floor(Math.atan2(z, x) * 3) & 1) ? C.lapis : C.turq;
+        if (y % 11 === 8 && hash3(x, y, i) < 0.5) c = C.red;
+        g.set(cx + x, y, z, c);
+      }
+    }
+    if (h > 40) g.box(cx - 5, h, -5, cx + 5, h + 2, 5, C.stoneL);
+  });
+  g.box(-1, 47, -4, 37, 51, 3, (x, y) => (y === 49 ? C.gold : y === 47 ? C.stoneD : C.stone));
+  for (let k = 0; k < 8; k++) glyphZ(g, k, 2 + k * 4, 51, 4, GLYPH_COLS[k % 5]);
+  g.box(48, 3, 6, 60, 7, 10, C.stoneD).box(66, 3, 7, 72, 6, 11, C.stone);
+  for (let x = -2; x <= 92; x++) for (let z = 6; z < 10; z++) if (hash3(x, 2, z) < 0.4) g.set(x, 3, z, C.sandL);
+  return g;
+};
+/** Camel with a striped saddle blanket and a rider in a head wrap (faces +z, 0.08 scale). */
+const camelGrid = (v) => () => {
+  const g = new VoxGrid();
+  const fur = v ? 0xc89458 : 0xb8844a, furD = shade(fur, -0.2);
+  for (const [x, z] of [[-3, -7], [2, -7], [-3, 6], [2, 6]]) g.box(x, 0, z, x + 1, 13, z + 1, furD);
+  g.box(-4, 14, -9, 3, 21, 9, fur);
+  g.box(-3, 22, -5, 2, 26, 1, fur).box(-2, 27, -3, 1, 28, -1, fur);
+  g.box(-2, 18, 10, 1, 30, 12, fur).box(-2, 28, 13, 1, 32, 17, fur).set(-1, 31, 17, 0x2a1a10).set(0, 31, 17, 0x2a1a10);
+  g.box(-5, 20, -1, 4, 23, 5, (x, y) => (y % 2 ? C.red : C.gold));
+  g.box(-2, 24, 0, 1, 31, 3, v ? 0x2a4aa8 : 0xf4ecdc).box(-2, 32, 0, 1, 35, 3, 0x8a5a3a).box(-3, 34, -1, 2, 36, 4, v ? 0xf4ecdc : C.red);
+  g.box(-1, 12, -11, 0, 19, -10, furD);
+  return g;
+};
+
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
   // ---- hot peach sky, big pale sun, heat streaks and circling birds
-  const sky = skyTexture('pyramid', [[0, 0xd65a36], [0.1, 0xec7a44], [0.2, 0xfaa060], [0.28, 0xffc488], [0.34, 0xffdcac], [0.45, 0xffe8c8], [1, 0xf8d4a0]], (ctx, w, h) => {
-    for (let k = 3; k >= 1; k--) { ctx.globalAlpha = 0.1 * k; disc(ctx, w * 0.24, h * 0.22, 9 + k * 4, 0xfff0b0); }
-    ctx.globalAlpha = 1;
-    disc(ctx, w * 0.24, h * 0.22, 9, 0xfff6d6);
-    disc(ctx, w * 0.24 - 3, h * 0.22 - 3, 3, 0xffffff);
-    const R = mulberry32(8);
-    for (let i = 0; i < 9; i++) { const y = Math.round(h * (0.06 + R() * 0.22)), x = R() * w | 0, l = 10 + (R() * 26 | 0); px(ctx, x, y, l, 1, 0xffd6a4, 0.7); px(ctx, x + 4, y + 1, l - 8, 1, 0xffe4bc, 0.5); }
-  });
+  const sky = skyTexture('pyramid2', [[0, 0xc8502e], [0.12, 0xe2703e], [0.26, 0xf89a58], [0.4, 0xffc488], [0.55, 0xffdcac], [0.7, 0xffe8c8], [1, 0xf8d4a0]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    skyGlow(P, w * 0.38, h * 0.3, w * 0.5, h * 0.5, 0xfff0c8, 0.65, { bands: 6, pow: 1.3 });
+    paintSunPx(P, Math.round(w * 0.38), Math.round(h * 0.26), 13, { color: 0xfff6d6, core: 0xffffff, halo: 0xffe8b0, halo2: 0xfff4d8, haloR: 4.5, haloA: 0.6 });
+    paintStreaks(P, w, { n: 14, y0: h * 0.05, y1: h * 0.4, len: [26, 80], color: 0xffe4bc, shade: 0xffc89a, seed: 61, alpha: 0.6 });
+    paintCumulus(P, w * 0.84, h * 0.2, 9, 62, { light: 0xfff4e4, color: 0xffe0c0, shade: 0xf4b48a, dark: 0xe09a74, sunX: -1, alpha: 0.85 });
+    paintCumulus(P, w * 0.1, h * 0.14, 8, 63, { light: 0xfff4e4, color: 0xffd8b8, shade: 0xf0a882, dark: 0xd88a6a, sunX: 1, alpha: 0.85 });
+    paintBirdsPx(P, [[w * 0.55, h * 0.24, 1], [w * 0.58, h * 0.21, 1], [w * 0.61, h * 0.25, 0], [w * 0.64, h * 0.22, 0]], 0x5a3a2a, 0.7);
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
   fitSky(K, sky);
 
   // ---- parallax: far dunes with distant pyramids, mid dunes + palms, near dunes + caravan
@@ -650,9 +695,40 @@ export function buildBattle(K) {
   K.inst('fallenStone', () => { const g = new VoxGrid(); g.box(-3, 0, -2, 2, 2, 1, (x, y) => (y === 2 ? C.stoneL : C.stone)); g.box(-3, 0, 2, 1, 0, 3, C.sand); return g; }, { scale: 0.1 }, stones);
   K.inst('skull', () => { const g = new VoxGrid(); g.box(-2, 0, -2, 1, 2, 1, 0xf0e6d0); g.set(-2, 1, 2, 0x3a2a1a).set(1, 1, 2, 0x3a2a1a); g.box(-1, 0, 2, 0, 1, 3, 0xf0e6d0); for (const sx of [-3, 2]) g.box(sx, 2, -1, sx, 3, -1, 0xe0d4b8); return g; }, { scale: 0.07 }, [[-11, 0, 6.5, 0.4], [23, 0, 9, -0.6]]);
 
+  // ---- postcard extras: sandstone mesas, a ruined colonnade, a camel caravan, temple banners, a dust devil, ibis
+  voxRange(K, 'mesas', {
+    x0: -170, x1: 170, z: -112, depth: 6, scale: 1.8, y: -0.6,
+    h: (xv, zv) => { const n = vnoise(xv * 0.05, 8, 0.5); const m = n > 0.55 ? 6 + Math.round(vnoise(xv * 0.3, 9, 1) * 1.5) : n > 0.45 ? 3 : 1; return Math.max(1, Math.round(m * (0.5 + 0.5 * zv / 5))); },
+    col: (xv, y, zv, h) => (y === h - 1 ? 0xe8b478 : [0xd89a5e, 0xc8884e, 0xe0a468][Math.floor(y / 2) % 3]),
+  });
+  K.mesh('colonnade', colonnadeGrid, { scale: 0.15, pivot: [0, 0, 0] }, -27, 0, -33, 0.15);
+  {
+    // camel caravan crossing the dunes (walk bob + leg swing via bob/roll)
+    const camels = [];
+    for (let i = 0; i < 5; i++) camels.push(K.mesh(i % 2 ? 'camelR' : 'camel', camelGrid(i % 2), { scale: 0.08, ao: true }, 0, 0, -41.5 - (i % 2) * 0.4, Math.PI / 2, 1));
+    K.onUpdate((dt, t) => {
+      const lead = ((t * 1.1) % 140) - 70;
+      for (let i = 0; i < camels.length; i++) {
+        const m = camels[i], x = lead - i * 2.5;
+        m.position.x = x < -70 ? x + 140 : x;
+        m.position.y = 0.3 + Math.abs(Math.sin(t * 3 + i)) * 0.07;
+        m.rotation.z = Math.sin(t * 3 + i) * 0.04;
+      }
+    });
+  }
+  for (const [x, z, a, b, ph] of [[-18.5, -9.5, C.red, C.lapis, 0], [-2.9, -9.8, C.lapis, C.gold, 1.6], [11.2, -9.8, C.turq, C.red, 3.1], [25.5, -9.4, C.gold, C.lapis, 4.4]])
+    addFlag(K, { id: 'pennant' + a, x, y: 5.6, z, w: 13, h: 5, vox: 0.11, pattern: (u, v) => (u > 10 - Math.abs(v - 2) ? null : v === 2 ? b : a), poleH: 5.6, pole: 0x9a6a3a, knob: C.gold, phase: ph });
+  {
+    // a dust devil wandering across the far desert
+    const dev = addPuffs(K, { id: 'dustDevil', sources: [[0, 0, 0]], n: 14, life: 2.6, rise: 6, drift: [0, 0], wobble: 0.9, ease: 1, size: [0.4, 1.6], scale: 0.18, color: 0xf0cc94, light: 0xffe4bc, shade: 0xd8a870, opacity: 0.6, seed: 9 });
+    K.onUpdate((dt, t) => { dev.position.set(((t * 1.6) % 120) - 60, 0, -58 + Math.sin(t * 0.2) * 4); dev.rotation.y = t * 3; });
+  }
+  addBirds(K, { id: 'ibis', n: 6, mode: 'flock', x0: -70, x1: 70, y: 13, z: -48, speed: 2.4, dir: -1, color: 0xf8f4ec, wingTip: 0x2a2420, belly: 0xe8e0d0, beak: 0x2a2420, head: 0x2a2420, vox: 0.07, flap: 7, soar: 0.4, seed: 8 });
+  addSparkles(K, { id: 'heatGlint', n: 18, area: [-30, 30, 0.05, 0.6, -14, -6], color: 0xfff4d0, scale: 0.05, rate: 0.7, sharp: 6, seed: 15 });
+
   return {
     sky,
-    fog: { color: 0xffd2a0, near: 65, far: 200 },
+    fog: { color: 0xffd2a0, near: 70, far: 260 },
     lights: { sky: 0xfff0d8, ground: 0xc8905a, hemi: 1.15, sun: 2.5, sunColor: 0xfff0d2, dir: [-7, 13, 9], rim: 1.0, rimColor: 0xffb878 },
     dust: 0xf2d4a0,
     bloom: { strength: 0.65, threshold: 1.7, radius: 0.25 },

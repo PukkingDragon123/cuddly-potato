@@ -185,7 +185,7 @@
 .mn-rwmodal .modal-body { overflow-x: hidden; overflow-y: auto; }
 .mn-rwbody { position: relative; isolation: isolate; padding: calc(var(--u) * 2) 0 calc(var(--u) * 1); overflow: hidden; min-height: calc(var(--u) * 34); }
 .mn-rwbody > .px-stars { z-index: -1; opacity: 0.55; }
-.mn-rw-rays { --rs: calc(var(--u) * 120); --ro: 0.42; z-index: -1; }
+.mn-rw-rays { --rs: calc(var(--u) * 110); --ro: 0.3; z-index: -1; }
 .mn-rays {
   position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 110); height: calc(var(--u) * 110); translate: -50% -50%; pointer-events: none; opacity: 0.4;
   background: repeating-conic-gradient(rgba(255, 230, 120, 0.7) 0 10deg, rgba(127, 230, 255, 0.12) 10deg 12deg, transparent 12deg 24deg); mask-image: radial-gradient(circle, #000 20%, transparent 68%);

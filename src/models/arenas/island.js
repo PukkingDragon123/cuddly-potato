@@ -7,6 +7,8 @@
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintStars, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
+  pixbuf, skyGlow, paintCumulus, paintCloudBank, paintStreaks, paintStarfield, paintBirdsPx,
+  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, addFall, addFlag, voxTerrain, leafyTreeGrid,
 } from './kit.js';
 import { pantherStatueGrid, ENV_GRIDS } from '../props/environment.js';
 
@@ -433,16 +435,50 @@ const subButtonCapGrid = () => {
   return g;
 };
 
+// --------------------------------------------------------------------------- postcard props
+
+/** Little sloop with a striped sail (bow toward +x when ry = PI/2 ... built along z). */
+const sailboatGrid = (sail) => () => {
+  const g = new VoxGrid();
+  for (let z = -12; z <= 12; z++) { const hw = Math.round(4 - Math.max(0, z - 6) * 0.6 - Math.max(0, -z - 9) * 0.6); for (let x = -hw; x <= hw; x++) for (let y = 0; y < 4; y++) { if (y > 0 && Math.abs(x) < hw && Math.abs(z) < 11 && y < 3) continue; g.set(x, y, z, y === 3 ? 0xc89a6a : y === 0 ? 0x2a4a8a : 0xffffff); } }
+  for (let y = 3; y < 34; y++) g.set(0, y, 0, 0x6a4a2a);
+  for (let y = 6; y < 32; y++) { const w = Math.round((32 - y) * 0.42); for (let z = 1; z <= w; z++) g.set(0, y, z, Math.floor(y / 4) % 2 ? sail : 0xffffff); }
+  for (let y = 8; y < 26; y++) { const w = Math.round((26 - y) * 0.3); for (let z = 1; z <= w; z++) g.set(0, y, -z - 1, 0xf4f0e8); }
+  g.set(0, 34, 0, 0xff3a3a);
+  return g;
+};
+/** Bottlenose dolphin (side profile toward +x). */
+const dolphinGrid = () => {
+  const g = new VoxGrid();
+  for (let x = -12; x <= 12; x++) {
+    const r = 3 * Math.sin(((x + 12) / 25) * Math.PI) + 0.5;
+    for (let y = -Math.round(r); y <= Math.round(r); y++) for (let z = -Math.round(r * 0.7); z <= Math.round(r * 0.7); z++) if (y * y + (z / 0.75) ** 2 <= r * r) g.set(x, y, z, y < -r * 0.3 ? 0xd8e4f0 : 0x6a8aa8);
+  }
+  g.box(13, -1, -1, 15, 0, 0, 0x6a8aa8);
+  for (let k = 0; k < 4; k++) g.box(-1 + Math.floor(k / 2), 3 + k, 0, 1, 3 + k, 0, 0x5a7a98);
+  for (const z of [-3, 2]) g.box(-15, 0, z, -12, 1, z + 1, 0x5a7a98);
+  g.set(9, 1, 2, 0x15121f).set(9, 1, -3, 0x15121f);
+  return g;
+};
+
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
   // ---- sunset sky
-  const sky = skyTexture('island', [[0, 0x24184e], [0.09, 0x4a2672], [0.18, 0x9a3a86], [0.25, 0xe8587e], [0.3, 0xff8a5e], [0.34, 0xffb45c], [0.42, 0xffd47a], [1, 0xffc890]], (ctx, w, h) => {
-    paintStars(ctx, w, h, { n: 26, ymax: h * 0.09, seed: 5, tint: 0xffd0f0 });
-    paintClouds(ctx, w, h, { n: 6, y0: 8, y1: h * 0.27, size: 5, seed: 31, color: 0xff9aa0, shade: 0xa8487a, light: 0xffd8a8 });
-    const R = mulberry32(12);
-    for (let i = 0; i < 8; i++) { const y = Math.round(h * (0.2 + R() * 0.12)), x = R() * w | 0, l = 12 + (R() * 30 | 0); px(ctx, x, y, l, 1, 0xffb890, 0.8); px(ctx, x + 3, y + 1, l - 6, 1, 0xd86a88, 0.6); }
-  });
+  const sky = skyTexture('island2', [[0, 0x1e1446], [0.1, 0x3e2268], [0.2, 0x7a3484], [0.3, 0xd04e80], [0.38, 0xff7a62], [0.46, 0xffa45a], [0.56, 0xffcc78], [1, 0xffc890]], (ctx, w, h) => {
+    const P = pixbuf(ctx, w, h);
+    paintStarfield(P, w, h, { n: 60, ymax: h * 0.16, seed: 5, tint: 0xffd0f0 });
+    skyGlow(P, w * 0.42, h * 0.62, w * 0.6, h * 0.42, 0xffe0a0, 0.75, { bands: 6, pow: 1.3 });
+    const rimLit = { light: 0xffe4a8, color: 0xff9a8a, shade: 0xc0507a, dark: 0x8a3a6a };
+    paintCumulus(P, w * 0.12, h * 0.3, 15, 71, { ...rimLit, sunX: 1 });
+    paintCumulus(P, w * 0.7, h * 0.22, 12, 72, { ...rimLit, sunX: -1 });
+    paintCumulus(P, w * 0.9, h * 0.36, 10, 73, { ...rimLit, sunX: -1 });
+    paintCumulus(P, w * 0.3, h * 0.16, 7, 74, { light: 0xffc8b0, color: 0xc8608a, shade: 0x8a3a72, dark: 0x6a2a5a, sunX: 1 });
+    paintStreaks(P, w, { n: 14, y0: h * 0.36, y1: h * 0.52, len: [26, 90], color: 0xffc890, shade: 0xe0708a, seed: 75, alpha: 0.75 });
+    paintCloudBank(P, w, Math.round(h * 0.58), { s: 7, seed: 76, light: 0xffe0a0, color: 0xffa890, shade: 0xe07a8a, dark: 0xc0607e, alpha: 0.8 });
+    paintBirdsPx(P, [[w * 0.5, h * 0.3, 1], [w * 0.53, h * 0.27, 1], [w * 0.56, h * 0.31, 0]], 0x4a2050, 0.75);
+    P.flush();
+  }, { w: 320, h: 180, bands: 14 });
   fitSky(K, sky);
 
   // ---- parallax: horizon with the setting sun + far islands, mid islands with sailboats
@@ -644,14 +680,7 @@ export function buildBattle(K) {
     });
     crabs.instanceMatrix.needsUpdate = true;
   });
-  const gulls = liveInst(K, 'gull', gullGrid, { scale: 0.1 }, 5);
-  K.onUpdate((dt, t) => {
-    for (let i = 0; i < 5; i++) {
-      const a = t * (0.2 + i * 0.03) + i * 1.3, r = 8 + i * 2.5;
-      setInst(gulls, i, -4 + Math.cos(a) * r * 1.4, 9 + i * 0.9 + Math.sin(t * 0.8 + i) * 0.6, -30 + Math.sin(a) * r * 0.5, -a, 0, -0.3 + Math.sin(t * 5 + i) * 0.12, [1, 1 + Math.sin(t * 6 + i) * 0.5, 1]);
-    }
-    gulls.instanceMatrix.needsUpdate = true;
-  });
+  addBirds(K, { id: 'gulls', n: 6, mode: 'circle', cx: -4, cy: 9.6, cz: -30, r: 12, rz: 0.45, speed: 0.22, color: 0xffffff, wingTip: 0x3a3a48, belly: 0xf0f0f4, beak: 0xffb030, vox: 0.07, flap: 7, soar: 0.6, seed: 9 });
 
   // ---- LOW foreground: shells + starfish on the beach strip
   const shells = [], stars = [];
@@ -660,9 +689,44 @@ export function buildBattle(K) {
   K.inst('shell', shellGrid, { scale: 0.07 }, shells);
   K.inst('starfish', starfishGrid, { scale: 0.06 }, stars);
 
+  // ---- postcard extras: a jungle volcano isle with a waterfall, voxel sailboats, leaping dolphins, fireflies, flags
+  {
+    const IX = 34, IZ = -82;
+    voxTerrain(K, 'jungleIsle', {
+      x0: IX - 26, x1: IX + 26, z0: IZ - 14, z1: IZ + 10, scale: 0.9, y: -1.2, min: 0,
+      h: (x, z) => { const d = Math.hypot((x - IX) / 24, (z - IZ) / 11); if (d > 1) return 0; const peak = Math.pow(1 - d, 1.35) * 17 + vnoise(x * 0.25, 3, z * 0.25) * 2.5; return Math.max(1, peak); },
+      col: (x, y, z, h) => { const j = hash3(Math.floor(x * 2), y, Math.floor(z * 2)); if (y < 2) return j < 0.5 ? 0xf0d8a8 : 0xe4c890; if (y === h - 1) return h > 15 ? 0x6a5a4a : j < 0.3 ? 0x2f8a3a : 0x3aa048; return h > 15 && y > 13 ? 0x5a4a3e : j < 0.3 ? 0x2a6a32 : 0x8a6a4a; },
+    });
+    addFall(K, { id: 'isleFall', x: IX - 3, z: IZ + 8.2, top: 7.6, bottom: -1.0, width: 1.4, vox: 0.22, colors: [0x4ab0e8, 0x7ad0f4, 0xc8f0ff, 0xffffff], speed: 3, n: 14 });
+    const trees = [];
+    for (let i = 0; i < 40; i++) { const a = K.rand(0, 6.28), r = K.rand(0.15, 0.8); const x = IX + Math.cos(a) * 24 * r, z = IZ + Math.sin(a) * 9 * r; const d = Math.hypot((x - IX) / 24, (z - IZ) / 11); trees.push([x, -1.2 + (Math.pow(1 - d, 1.35) * 17) * 0.9 - 0.4, z, K.rand(0, 6), K.rand(0.16, 0.24)]); }
+    K.inst('isleTree', () => leafyTreeGrid({ seed: 31, leaf: 0x3aa048, h: 5, r: 5 }), { scale: 1 }, trees);
+    addPuffs(K, { id: 'isleMist', sources: [[IX - 3, -0.8, IZ + 8.8]], n: 6, life: 2.4, rise: 1.6, drift: [0, 0.8], size: [0.8, 2], scale: 0.2, color: 0xf0f8ff, light: 0xffffff, shade: 0xc8e0f0, opacity: 0.75, seed: 4 });
+  }
+  {
+    const boats = [[-40, -70, 0.25, 0xffffff], [10, -100, 0.18, 0xff6fb0], [60, -64, 0.22, 0x29b6f6]].map(([x, z, v, c], i) => ({ m: K.mesh('sailboat' + i, sailboatGrid(c), { scale: 0.1 }, x, -1.0, z, Math.PI / 2, 1), x, v }));
+    K.onUpdate((dt, t) => { for (const b of boats) { b.m.position.x = ((b.x + t * b.v + 120) % 240) - 120; b.m.position.y = -1.0 + Math.sin(t * 0.9 + b.x) * 0.06; b.m.rotation.z = Math.sin(t * 0.7 + b.x) * 0.05; } });
+  }
+  {
+    const dol = [0, 1, 2].map((i) => K.mesh('dolphin', dolphinGrid, { scale: 0.07, pivot: 'center' }, 0, -5, 0));
+    K.onUpdate((dt, t) => {
+      for (let i = 0; i < 3; i++) {
+        const k = ((t * 0.9 + i * 0.35) % 5) / 1.4;
+        const m = dol[i];
+        if (k > 1) { m.visible = false; continue; }
+        m.visible = true;
+        m.position.set(-30 + i * 1.6 + k * 4 + Math.floor(t * 0.9 / 5) % 3 * 8, -0.9 + Math.sin(k * Math.PI) * 1.4, -54 - i * 0.8);
+        m.rotation.set(0, 0, (0.5 - k) * 1.8);
+      }
+    });
+  }
+  addSparkles(K, { id: 'fireflies', n: 26, area: [-30, 30, 0.6, 3.4, -16, -5], color: 0xfff0a0, scale: 0.05, rate: 0.5, wander: 0.7, sharp: 2, seed: 17 });
+  addSparkles(K, { id: 'sunGlitter', n: 30, area: [-40, 40, -0.42, -0.4, -80, -40], color: 0xffe8a8, scale: 0.14, rate: 1, sharp: 6, seed: 19 });
+  addFlag(K, { id: 'villaFlag', x: VX + 9.2, y: 7.4, z: VZ - 0.5, w: 14, h: 9, vox: 0.1, pattern: (u, v) => (v < 3 ? 0x29b6f6 : v < 6 ? 0xffffff : 0xff2e88), poleH: 2.2 });
+
   return {
     sky,
-    fog: { color: 0xf0a0a0, near: 70, far: 215 },
+    fog: { color: 0xf0a0a0, near: 80, far: 280 },
     lights: { sky: 0xffe0d0, ground: 0x7a6a9a, hemi: 1.1, sun: 2.3, sunColor: 0xffd0a0, dir: [-6, 13, 10], rim: 1.4, rimColor: 0xff9a7a },
     dust: 0xfbe6b4,
     bloom: { strength: 0.7, threshold: 1.7, radius: 0.25 },

@@ -47,6 +47,7 @@ export function questClaimCount() {
 export function mount(el, ctx, opts = {}) {
   if (opts.sub) sub = opts.sub;
   let scrolledTo = false;
+  let spineShown = false;
   const shell = screenShell(el, { cls: 'mn-pass', render, after });
 
   function after() {
@@ -79,11 +80,15 @@ export function mount(el, ctx, opts = {}) {
     else y = y0 + (cy(nodes[Math.min(1, nodes.length - 1)]) - y0) * frac * 0.5;
     fill.style.top = y0 + 'px';
     const hgt = Math.max(0, y - y0);
-    if (!fill.dataset.done) {
-      fill.dataset.done = '1';
+    if (!spineShown) {
+      // first open: the goo pours down the spine to your tier
+      spineShown = true;
       fill.style.height = '0px';
       requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.height = hgt + 'px'; }));
-    } else fill.style.height = hgt + 'px';
+    } else {
+      fill.style.transition = 'none';
+      fill.style.height = hgt + 'px';
+    }
     trk.style.setProperty('--fy', hgt + 'px');
   }
 

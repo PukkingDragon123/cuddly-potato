@@ -92,7 +92,7 @@ export class LabScene {
     this.updaters.push((dt) => room.update(dt));
 
     // the Beast Tiger's specimen tank (back centre)
-    const tank = P('makeTank', { liquidOpacity: 0.2 });
+    const tank = P('makeTank', { liquidOpacity: 0.26, glassOpacity: 0.12 });
     this.tankPos = new THREE.Vector3(0, 0, -4.6);
     if (tank) {
       tank.root.position.copy(this.tankPos);
@@ -136,7 +136,7 @@ export class LabScene {
     this.jimmy.root.rotation.y = 0.35;
     s.add(this.jimmy.root);
     this.tech = new Chibi(CHARACTERS.labTech, { scale: 0.95 });
-    this.tech.root.position.set(-3.9, 0, -2.3);
+    this.tech.root.position.set(-3.55, 0, -1.75);
     this.tech.root.rotation.y = 2.5;
     this.tech.play('talk');
     s.add(this.tech.root);
