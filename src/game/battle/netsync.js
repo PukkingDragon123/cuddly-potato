@@ -7,7 +7,7 @@ import { COMMANDERS } from '../../data/commanders.js';
 import { BASE_UPGRADES, ENERGY, MEGA } from '../../data/labs.js';
 import { MEGAS } from '../../data/megas.js';
 import { FIELD } from './field.js';
-import { LAB_X, LAB_HALF, LINEUP_MAX, rechargeTime } from './sim.js';
+import { LAB_X, LAB_HALF, DECK_MAX } from './sim.js';
 
 const STATES = ['walk', 'attack', 'kb', 'stun', 'frozen', 'spawn'];
 const SEND_HZ = 15;
@@ -70,7 +70,7 @@ export class HostSync {
     const tw = (b) => [Math.round(b.hp), b.maxHp, b.alive ? 1 : 0, b.active ? 1 : 0, Math.round(b.shield)];
     return {
       t: 's', time: +sim.t.toFixed(2), tl: sim.timeLimit, ot: sim.overtime ? 1 : 0, de: sim.doubleEnergy ? 1 : 0, p: sim.paused ? 1 : 0,
-      sides: sim.sides.map((s) => [+s.energy.toFixed(2), s.overclock, +s.sig.toFixed(3), s.hand, s.cds.map((c) => +c.toFixed(2)), s.skillCds.map((c) => +c.toFixed(2)),
+      sides: sim.sides.map((s) => [+s.energy.toFixed(2), s.overclock, +s.sig.toFixed(3), s.hand, [s.hand.map((_, k) => sim.cardCost(s.i, k)), s.queue[0] ?? -1, s.deck.slice(s.baseLen).map((c) => [c.id, c.unit, c.level, c.variant ?? 'base', c.skin ?? null])], s.skillCds.map((c) => +c.toFixed(2)),
         [+s.buffs.rally.toFixed(2), +s.buffs.dance.toFixed(2), +s.buffs.immortal.toFixed(2)], null, tw(s.lab),
         s.mega ? [+s.mega.charge.toFixed(3), s.mega.used ? 1 : 0] : null]),
       cin: +(sim.cinematic ?? 0).toFixed(2),
@@ -123,10 +123,10 @@ export class RemoteSim {
     this.sides = cfg.sides.map((s, i) => {
       const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
       const lvl = s.commander?.level ?? 1;
-      const deck = (s.deck || []).slice(0, LINEUP_MAX).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
+      const deck = (s.deck || []).slice(0, DECK_MAX).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id], special: !!SPELLS[c.unit ?? c.id]?.special }));
       const mk = (kind, x, half) => ({ building: true, kind, side: i, x, half, hp: 1, maxHp: 1, alive: true, active: true, shield: 0, radius: half, dead: false });
       return {
-        i, dir: i === 0 ? 1 : -1, labX: i === 0 ? -LAB_X : LAB_X, name: s.name, deck, hand: deck.map((_, k) => k), queue: [], cds: deck.map(() => 0),
+        i, dir: i === 0 ? 1 : -1, labX: i === 0 ? -LAB_X : LAB_X, name: s.name, deck, hand: deck.slice(0, 4).map((_, k) => k), queue: [], costs: [], baseLen: deck.length,
         energy: ENERGY.start, overclock: 0, sig: 0,
         lab: mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF), turret: null,
         mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: 0, used: false } : null,
@@ -155,7 +155,14 @@ export class RemoteSim {
     this.cinematic = msg.cin ?? 0;
     msg.sides.forEach((arr, hs) => {
       const s = this.sides[mSide(hs)];
-      [s.energy, s.overclock, s.sig, s.hand, s.cds, s.skillCds] = arr;
+      let cyc;
+      [s.energy, s.overclock, s.sig, s.hand, cyc, s.skillCds] = arr;
+      s.costs = cyc[0];
+      s.queue = cyc[1] >= 0 ? [cyc[1]] : [];
+      while (s.deck.length - s.baseLen < cyc[2].length) {
+        const [id, unit, level, variant, skin] = cyc[2][s.deck.length - s.baseLen];
+        s.deck.push({ id, unit, level, variant, skin, spell: !!SPELLS[unit], special: !!SPELLS[unit]?.special, temp: true });
+      }
       [s.buffs.rally, s.buffs.dance, s.buffs.immortal] = arr[6];
       const b = s.lab, a = arr[8];
       [b.hp, b.maxHp] = a;
@@ -291,17 +298,16 @@ export class RemoteSim {
   cardCost(si, slot) {
     const c = this.handCard(si, slot);
     if (!c) return Infinity;
-    return (c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3;
+    return this.sides[si].costs?.[slot] ?? (c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3;
   }
-  slotCd(si, slot) {
-    return Math.max(0, this.sides[si].cds?.[slot] ?? 0);
+  slotCd() {
+    return 0;
   }
-  slotRecharge(si, slot) {
-    const c = this.handCard(si, slot);
-    return c ? rechargeTime(c) : 1;
+  slotRecharge() {
+    return 1;
   }
   canPlay(si, slot) {
-    return !this.over && !!this.handCard(si, slot) && this.slotCd(si, slot) <= 0 && this.sides[si].energy >= this.cardCost(si, slot);
+    return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
   overclockInfo(si) {
     return BASE_UPGRADES[this.sides[si].overclock];
@@ -372,7 +378,6 @@ export class RemoteSim {
     const xx = x === null ? null : card.spell ? x : this.clampDeploy(0, x);
     this.send('play', { slot, x: xx === null ? null : mX(xx) });
     this.sides[0].energy -= this.cardCost(0, slot);
-    this.sides[0].cds[slot] = this.slotRecharge(0, slot);
     return true;
   }
   deploy(si, slot) {

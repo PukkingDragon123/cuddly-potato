@@ -27,7 +27,7 @@ import { buildLabRoom } from '../models/props/labDecor.js';
 import { h, button, say, speech, modal, pointAt, $ui, closeDialogue } from '../ui/ui.js';
 import { charPortrait } from '../ui/thumbs.js';
 import { state, rollVial, applyVial, setDeck } from '../game/state.js';
-import { STARTER_TROOPS } from '../data/cards.js';
+import { STARTER_CARDS } from '../data/cards.js';
 import { game } from '../game/game.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -243,15 +243,15 @@ export class LabScene {
   }
 
   openFirstPack() {
-    const res = rollVial('starter', { fixed: { cards: STARTER_TROOPS.map((id) => ({ id, copies: 3, variant: 'base' })) } });
+    const res = rollVial('starter', { fixed: { cards: STARTER_CARDS.map((id) => ({ id, copies: 3, variant: 'base' })) } });
     game.go('vialopen', { type: 'starter', result: res, source: 'reward', back: 'lab', backParams: { step: 'afterPack' } });
   }
 
   async afterPack() {
     const p = state.p;
     // make sure the starter deck is owned even if the vial screen was skipped
-    if (!STARTER_TROOPS.every((id) => p.cards[id])) applyVial(rollVial('starter', { fixed: { cards: STARTER_TROOPS.map((id) => ({ id, copies: 2, variant: 'base' })) } }));
-    setDeck(STARTER_TROOPS.slice());
+    if (!STARTER_CARDS.every((id) => p.cards[id])) applyVial(rollVial('starter', { fixed: { cards: STARTER_CARDS.map((id) => ({ id, copies: 2, variant: 'base' })) } }));
+    setDeck(STARTER_CARDS.slice());
     p.tutorial = 'pack';
     state.save();
     const j = this.jimmy;

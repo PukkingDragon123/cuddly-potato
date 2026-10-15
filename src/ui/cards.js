@@ -26,8 +26,8 @@ export function cardEl(id, opts = {}) {
   const artSize = opts.artSize ?? (opts.size === 'big' ? 256 : 160);
   const shiny = variant !== 'base' && VARIANTS[variant];
   const el = h('div', {
-    class: `gcard ${rarity} ${isSpell(id) ? 'spell' : ''} ${locked ? 'locked' : ''} ${shiny ? 'foil v-' + variant : ''} ${opts.size ?? ''} ${opts.cls ?? ''}`,
-    style: { '--rc': `var(--r-${rarity})` },
+    class: `gcard ${rarity} ${isSpell(id) ? 'spell' : ''} ${def.special ? 'special' : ''} ${locked ? 'locked' : ''} ${shiny ? 'foil v-' + variant : ''} ${opts.size ?? ''} ${opts.cls ?? ''}`,
+    style: { '--rc': `var(--r-${rarity})`, '--sc': def.color ?? '#3ff2e0' },
     'data-card': id,
   });
   el.appendChild(h('div', { class: 'art' }, h('i', { class: 'stage' }), cardArtImg(id, variant, skin, artSize, '', { priority: opts.priority }), shiny ? h('i', { class: 'foil-fx' }) : null));
@@ -36,6 +36,7 @@ export function cardEl(id, opts = {}) {
   if (opts.cost !== false) {
     el.appendChild(h('div', { class: 'cost', style: { backgroundImage: `url(${iconURL('energy')})` } }, String(def.elixir ?? '?')));
   }
+  if (def.special && opts.size !== 'mini') el.appendChild(h('div', { class: 'sp-tag' }, def.keywords?.[0] ?? 'SPECIAL'));
   if (shiny) el.appendChild(icon(variant === 'chrome' ? 'chrome' : variant === 'gold' ? 'star' : 'chrome', 'shiny'));
   if (!opts.noLevel) {
     const lvl = opts.level ?? own?.level;

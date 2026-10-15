@@ -51,7 +51,120 @@ export function objThumb(key, factory, opts = {}) {
 
 // --------------------------------------------------------------------------- spell art
 
+// SPECIAL cards: little 3D playing cards with a pixel-art face (icon on a
+// coloured foil field, gold trim), arranged per trick.
+async function cardFaceTex(iconName, color, gold = false) {
+  const { iconURL } = await import('./icons.js');
+  const img = new Image();
+  img.src = iconURL(iconName);
+  try { await img.decode(); } catch (e) { /* draw without the icon */ }
+  const W = 64, H = 88;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  const col = new THREE.Color(color);
+  const dark = col.clone().multiplyScalar(0.35).getStyle();
+  const mid = col.getStyle();
+  g.fillStyle = gold ? '#7a4a06' : '#140c2e';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = gold ? '#ffd84a' : '#fff4c0';
+  g.fillRect(2, 2, W - 4, H - 4);
+  g.fillStyle = gold ? '#b8740c' : dark;
+  g.fillRect(4, 4, W - 8, H - 8);
+  // foil field with pixel rays
+  for (let y = 6; y < H - 6; y += 2) {
+    for (let x = 6; x < W - 6; x += 2) {
+      const a = Math.atan2(y - H * 0.45, x - W / 2);
+      const ray = Math.floor((a + Math.PI) / (Math.PI / 6)) % 2;
+      g.fillStyle = ray ? mid : (gold ? '#ffe9a0' : col.clone().lerp(new THREE.Color('#ffffff'), 0.3).getStyle());
+      g.globalAlpha = 0.55 + 0.45 * (1 - Math.hypot(x - W / 2, y - H * 0.45) / 50);
+      g.fillRect(x, y, 2, 2);
+    }
+  }
+  g.globalAlpha = 1;
+  // corner pips
+  g.fillStyle = '#ffffff';
+  for (const [x, y] of [[7, 7], [W - 11, 7], [7, H - 11], [W - 11, H - 11]]) { g.fillRect(x, y, 4, 4); g.fillStyle = gold ? '#ffd84a' : mid; g.fillRect(x + 1, y + 1, 2, 2); g.fillStyle = '#ffffff'; }
+  if (img.complete && img.naturalWidth) g.drawImage(img, W / 2 - 22, H * 0.45 - 22, 44, 44);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  return t;
+}
+async function playingCard(iconName, color, o = {}) {
+  const face = await cardFaceTex(iconName, color, o.gold);
+  const edge = new THREE.MeshStandardMaterial({ color: o.gold ? 0xffc21a : 0xfff4c0, roughness: 0.35, metalness: o.gold ? 0.8 : 0.1 });
+  const back = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.5), roughness: 0.5 });
+  const front = new THREE.MeshStandardMaterial({ map: face, roughness: 0.3, metalness: o.gold ? 0.35 : 0.05, emissive: 0xffffff, emissiveMap: face, emissiveIntensity: 0.18, transparent: !!o.ghost, opacity: o.ghost ? 0.55 : 1 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.88, 0.035), [edge, edge, edge, edge, front, back]);
+  m.position.y = 0.5;
+  return m;
+}
+async function specialObject(id, sp) {
+  const g = new THREE.Group();
+  const put = (m, x, y, z, rz = 0, ry = 0) => { m.position.set(x, 0.5 + y, z); m.rotation.set(0, ry, rz); g.add(m); return m; };
+  const col = sp.color ?? '#3ff2e0';
+  switch (id) {
+    case 'quickDraw':
+      put(await playingCard('card', col), -0.32, -0.04, -0.12, 0.32);
+      put(await playingCard('card', col), 0.32, -0.04, -0.12, -0.32);
+      put(await playingCard('cards', col), 0, 0.05, 0.04);
+      break;
+    case 'energyDrink': {
+      put(await playingCard('soda', col), -0.12, 0.02, -0.15, 0.12);
+      const can = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.62, 18), new THREE.MeshStandardMaterial({ color: 0xffd23f, metalness: 0.7, roughness: 0.25 }));
+      can.position.set(0.3, 0.32, 0.18);
+      g.add(can);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.06, 18), new THREE.MeshStandardMaterial({ color: 0xdfe6f0, metalness: 0.9, roughness: 0.2 }));
+      top.position.set(0.3, 0.66, 0.18);
+      g.add(top);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.16, 18), new THREE.MeshStandardMaterial({ color: 0x1a1240, emissive: 0x3ff2e0, emissiveIntensity: 0.25 }));
+      band.position.set(0.3, 0.34, 0.18);
+      g.add(band);
+      break;
+    }
+    case 'couponBook':
+      for (let k = 0; k < 4; k++) put(await playingCard('ticket', col), (k - 1.5) * 0.08, -0.06 + k * 0.03, -0.1 + k * 0.05, (k - 1.5) * 0.12);
+      break;
+    case 'trashCompactor': {
+      put(await playingCard('trash', col), 0, 0.04, -0.05);
+      const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.2, 0.42, 10), new THREE.MeshStandardMaterial({ color: 0x5c6b80, metalness: 0.6, roughness: 0.4 }));
+      bin.position.set(0.32, 0.21, 0.22);
+      g.add(bin);
+      for (let k = 0; k < 3; k++) {
+        const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), new THREE.MeshStandardMaterial({ color: 0xfff4c0, roughness: 0.8, flatShading: true }));
+        ball.position.set(0.24 + k * 0.08, 0.46 + (k % 2) * 0.05, 0.2 + (k - 1) * 0.06);
+        g.add(ball);
+      }
+      break;
+    }
+    case 'doubleUp':
+      put(await playingCard('swords', col), -0.16, 0, -0.08, 0.2);
+      put(await playingCard('swords', col), 0.16, 0, 0.06, -0.2);
+      break;
+    case 'copyCat':
+      put(await playingCard('card', col, { ghost: true }), 0.2, 0.06, -0.12, -0.18);
+      put(await playingCard('card', col), -0.1, 0, 0.06, 0.12);
+      break;
+    case 'goldenTicket':
+      put(await playingCard('ticket', col, { gold: true }), 0, 0.04, 0, -0.08);
+      for (let k = 0; k < 5; k++) {
+        const sp4 = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), new THREE.MeshStandardMaterial({ color: 0xfff6b8, emissive: 0xffd84a, emissiveIntensity: 1.2 }));
+        sp4.position.set(Math.cos(k * 1.3) * 0.45, 0.4 + (k % 3) * 0.25, 0.15);
+        g.add(sp4);
+      }
+      break;
+    default:
+      put(await playingCard(sp.icon ?? 'card', col), 0, 0, 0);
+  }
+  return g;
+}
+
 async function spellObject(id) {
+  if (SPELLS[id]?.special) return specialObject(id, SPELLS[id]);
   const P = await import('../models/props.js');
   const g = new THREE.Group();
   const add = (o, x = 0, y = 0, z = 0, s = 1, ry = 0) => { if (!o) return; o.position.set(x, y, z); o.scale.multiplyScalar(s); o.rotation.y = ry; g.add(o); };

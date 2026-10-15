@@ -315,17 +315,18 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     if (opts.length) deck.push(opts[Math.floor(rng() * opts.length)].id);
   };
   // lineup size grows with trophies (new rivals bring only a few Swarms, like you)
-  const size = Math.min(DECK_SIZE, 3 + Math.floor(trophies / 90));
+  const size = Math.min(DECK_SIZE, 4 + Math.floor(trophies / 60));
   // a sensible archetype: a cheap card, a tank, ranged support, a spell, then fill
   want((c) => c.kind === 'troop' && c.elixir <= 2);
   want((c) => c.kind === 'troop' && (c.role === 'tank' || c.role === 'siege'));
   want((c) => c.kind === 'troop' && c.role === 'ranged');
   if (size >= 5) want((c) => c.kind === 'spell' && c.id !== 'labShield');
+  if (size >= 6) want((c) => c.kind === 'special');
   let guard = 0;
   while (deck.length < size && guard++ < 300) {
     const c = cands[Math.floor(rng() * cands.length)];
     if (!c || deck.includes(c.id)) continue;
-    if (c.kind === 'spell' && deck.filter((id) => cardDef(id)?.kind === 'spell').length >= 2) continue;
+    if ((c.kind === 'spell' || c.kind === 'special') && deck.filter((id) => cardDef(id)?.kind === c.kind).length >= 2) continue;
     deck.push(c.id);
   }
   const level = Math.max(1, Math.min(9, 1 + Math.floor(trophies / 400) + (trophies >= 150 && rng() < 0.4 ? 1 : 0)));

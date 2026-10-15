@@ -788,3 +788,28 @@ img.pia.pia-hover { animation-play-state: paused; }
 .modal.settled :is(.mn-ci-stats > .mn-st, .mn-pstats > *, .mn-boss-deck > *, .mn-setrow, .mn-prof-port, .mn-cribbon, .mn-cbonus, .mn-st-bar > i, .mn-rwpop, .mn-cmd-name),
 .modal-back:has(.modal.settled) :is(.modal-head .ribbon, .modal-close),
 .res-wrap.settled :is(.res-title > span, .res-team, .res-rw, .res-plate, .res-crown, .res-sub, .res-rays) { animation-fill-mode: none !important; }
+
+/* ---- SPECIAL cards: card tricks get a holo-foil teal/gold field, a glowing
+   coloured edge and a keyword ribbon */
+.gcard.special .art {
+  background:
+    repeating-conic-gradient(from 0deg at 50% 46%, color-mix(in srgb, var(--sc) 30%, transparent) 0 10deg, transparent 10deg 20deg),
+    radial-gradient(ellipse 80% 60% at 50% 46%, color-mix(in srgb, var(--sc) 55%, #fff) 0 8%, color-mix(in srgb, var(--sc) 40%, transparent) 9% 40%, transparent 62%),
+    linear-gradient(#123a4a 0 20%, #0e2c40 20% 45%, #0b2034 45% 70%, #08162a 70%);
+}
+.gcard.special .art::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; opacity: 0.5;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.35) 42%, color-mix(in srgb, var(--sc) 50%, transparent) 50%, transparent 62%) 0 0 / 260% 100% no-repeat;
+  animation: spFoil 3.6s ease-in-out infinite;
+}
+@keyframes spFoil { 0% { background-position: 150% 0; } 60%, 100% { background-position: -60% 0; } }
+.gcard.special { filter: drop-shadow(0 0 calc(var(--px) * 2) color-mix(in srgb, var(--sc) 70%, transparent)); }
+.gcard .sp-tag {
+  position: absolute; z-index: 4; left: 50%; top: 4%; translate: -50% 0; padding: 0 0.45em; white-space: nowrap;
+  font-family: var(--font-d); font-size: calc(var(--u) * 2.3); line-height: 1.35; color: #fff; text-shadow: var(--outline-thin);
+  background: linear-gradient(color-mix(in srgb, var(--sc) 60%, #fff) 0 calc(var(--px) * 0.67), var(--sc) calc(var(--px) * 0.67) 55%, color-mix(in srgb, var(--sc) 60%, #000) 55%);
+  box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), 0 0 calc(var(--px) * 3) var(--sc);
+}
+.gcard.big .sp-tag { font-size: calc(var(--u) * 3.6); }
+.mn-ci .chip.special, .chip.special { background: color-mix(in srgb, #3ff2e0 40%, #102030); }
+@media (prefers-reduced-motion: reduce) { .gcard.special .art::after { animation: none; } }

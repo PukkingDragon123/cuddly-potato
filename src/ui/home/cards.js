@@ -124,8 +124,8 @@ export function mount(el, ctx) {
         });
         return b;
       }));
-    // the Battle Cats-style lineup: 10 slots, 2 rows of 5
-    const grid = h('div', { class: `mn-deck lineup ${swapId ? 'swapping' : ''}`, style: { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', rowGap: 'calc(var(--u) * 5.4)', columnGap: 'calc(var(--u) * 1)' } });
+    // the Clash Royale deck: 8 slots, 2 rows of 4
+    const grid = h('div', { class: `mn-deck lineup ${swapId ? 'swapping' : ''}`, style: { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', rowGap: 'calc(var(--u) * 5.4)', columnGap: 'calc(var(--u) * 1)' } });
     const slots = deckSlotCount();
     for (let i = 0; i < DECK_SIZE; i++) {
       const id = deck[i];
@@ -137,7 +137,7 @@ export function mount(el, ctx) {
         cell.appendChild(ce);
         if (up && !up.max && up.ok) cell.classList.add('can-up');
       } else if (i >= slots) {
-        // locked lineup slot: opens at a trophy count
+        // locked deck slot: opens at a trophy count
         const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: { flexDirection: 'column', opacity: 0.8 } },
           icon('lock', 's'), h('span', { class: 't-d c-gold', style: { fontSize: '0.8em', display: 'flex', alignItems: 'center', gap: '0.15em' } }, icon('trophy', 's'), String(LINEUP_UNLOCKS[i]))));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
@@ -150,7 +150,7 @@ export function mount(el, ctx) {
       }
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (i >= slots) { audio.play('deny'); ctx.toast?.(`Lineup slot ${i + 1} unlocks at *${LINEUP_UNLOCKS[i]}* trophies!`, { icon: 'trophy' }); return; }
+        if (i >= slots) { audio.play('deny'); ctx.toast?.(`Deck slot ${i + 1} unlocks at *${LINEUP_UNLOCKS[i]}* trophies!`, { icon: 'trophy' }); return; }
         if (swapId) return placeInto(i);
         if (id) openPop(cell, id, 'deck', i);
         else audio.play('deny');
@@ -168,14 +168,14 @@ export function mount(el, ctx) {
       h('span', { class: 'spacer' }),
       chip([icon('cards', 's'), h('b', {}, `${deck.length}/${deckSlotCount()}`)], deck.length < deckSlotCount() ? 'warn' : ''));
     const box = h('div', { class: 'panel sk-panel mn-deckbox' }, tabs, grid, foot);
-    const parts = [secHead('BATTLE LINEUP', 'blue'), box];
+    const parts = [secHead('BATTLE DECK', 'blue'), box];
     if (swapId) {
       const d = cardDef(swapId);
       parts.push(h('div', { class: 'mn-swapbar panel sk-panel-gold' },
         h('div', { class: 'mn-swapcard' }, cardEl(swapId, { priority: true })),
         h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)' } },
           h('b', { class: 't-d outline t-lg c-gold' }, d.name),
-          h('span', { class: 'mn-swap-tip' }, deck.length < deckSlotCount() ? 'Tap an empty slot or a Swarm in your lineup to swap it in!' : 'Tap a Swarm in your lineup to swap it out!'),
+          h('span', { class: 'mn-swap-tip' }, deck.length < deckSlotCount() ? 'Tap an empty slot or a card in your deck to swap it in!' : 'Tap a card in your deck to swap it out!'),
           button('CANCEL', cancelSwap, 'red sm', { icon: 'x' }))));
     }
     return parts;

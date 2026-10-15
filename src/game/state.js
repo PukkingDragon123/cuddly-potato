@@ -3,7 +3,7 @@
 // Lab Level XP, vial slots + cycle + free/crown vials, trophy road, arenas).
 import { SWARMS, VARIANTS, MAX_LEVEL } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
-import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_TROOPS, UPGRADE, UPGRADE_XP, lineupSlots } from '../data/cards.js';
+import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_CARDS, UPGRADE, UPGRADE_XP, lineupSlots } from '../data/cards.js';
 import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS, rollPerk, PERK_ROLL_COST, perkSlotsForLevel } from '../data/commanders.js';
 import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId } from '../data/vials.js';
 import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
@@ -152,7 +152,7 @@ function sanitize(p) {
   p.vials.slots = p.vials.slots.map((s) => (s && VIALS[vialId(s.type)] ? { ...s, type: vialId(s.type) } : null));
   p.vials.storage = p.vials.storage.map(vialId);
   if (p.tutorial === 'done' || p.tutorial === 'home') {
-    for (const id of STARTER_TROOPS) if (!p.cards[id]) p.cards[id] = newCard();
+    for (const id of STARTER_CARDS) if (!p.cards[id]) p.cards[id] = newCard();
   }
   // fill empty preset slots from the collection
   const d = p.decks[p.deckIdx];

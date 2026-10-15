@@ -292,3 +292,82 @@ body.landscape .bh-pwr b { font-size: calc(var(--u) * 4.6); }
     radial-gradient(circle at 50% 50%, #ffffff 0 30%, color-mix(in srgb, var(--rc) 60%, #6a7898) 34% 60%, transparent 64%) 100% 0 / calc(var(--px) * 1.4) 100% no-repeat;
   opacity: 0.85;
 }
+
+/* ---- Clash Royale hand: NEXT card on the left, then 4 cards (up to 6 after a
+   DRAW). Played cards slide out, the next one slides in. */
+.bhud .bh-handrow { display: flex; align-items: flex-end; gap: calc(var(--u) * 1); position: relative; }
+.bhud .bh-handrow .bh-cards { flex: 1; min-width: 0; display: flex; gap: calc(var(--u) * 0.9); justify-content: center; }
+.bhud .bh-handrow .bh-slot { flex: 0 1 calc(var(--u) * 19); min-width: 0; aspect-ratio: 0.8 / 1; }
+.bhud .bh-handrow .bh-slot.gone { display: none; }
+.bhud .bh-handrow .bh-slot .art { inset: 3% 2% 22%; }
+.bhud .bh-handrow .bh-slot .nm {
+  display: block; position: absolute; left: 0; right: 0; bottom: 22%; z-index: 2; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-d); font-size: calc(var(--u) * 2.1); color: #fff; text-shadow: var(--outline-thin); padding: 0 2px;
+}
+.bh-slot .cost.cheap { color: #8dff7a; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.9); }
+.bh-slot.special {
+  --rc: var(--sc);
+  background:
+    repeating-conic-gradient(from 0deg at 50% 42%, color-mix(in srgb, var(--sc) 26%, transparent) 0 10deg, transparent 10deg 20deg),
+    radial-gradient(ellipse 70% 50% at 50% 42%, color-mix(in srgb, var(--sc) 45%, transparent) 0%, transparent 70%),
+    linear-gradient(#134456 0%, #0c2a3e 55%, #071a2a 100%);
+}
+.bh-slot.special .lv { background: linear-gradient(color-mix(in srgb, var(--sc) 60%, #fff) 0 calc(var(--px) * 0.67), color-mix(in srgb, var(--sc) 70%, #0a1a2a) calc(var(--px) * 0.67)); }
+.bh-slot .kw {
+  position: absolute; left: 50%; top: 18%; translate: -50% 0; z-index: 4; white-space: nowrap; padding: 0 0.35em;
+  font-family: var(--font-d); font-size: calc(var(--u) * 1.9); color: #fff; text-shadow: var(--outline-thin);
+  background: var(--sc); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), 0 0 calc(var(--px) * 3) var(--sc);
+}
+.bh-slot .tmp {
+  position: absolute; right: calc(var(--px) * 2); top: calc(var(--px) * 2); z-index: 4; padding: 0 0.3em; font-family: var(--font-d); font-size: calc(var(--u) * 2);
+  color: #fff; background: #b48aff; box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink);
+}
+.bh-slot.temp .art img { filter: drop-shadow(0 0 calc(var(--px) * 3) #b48aff) saturate(0.8) brightness(1.15); }
+.bh-slot.temp { outline: calc(var(--px) * 1) dashed #d6c2ff; outline-offset: calc(var(--px) * -3); }
+/* cards pulled in by a DRAW: rise from the deck with a glow */
+.bh-slot.extra { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1.5) #9ff4ff, 0 0 calc(var(--u) * 1.6) rgba(63, 242, 224, 0.8); }
+.bh-slot.drawn { animation: cardDrawn 0.5s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes cardDrawn { 0% { transform: translate(calc(var(--u) * -30), calc(var(--u) * 6)) rotate(-25deg) scale(0.4); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.bh-slot.enter { animation: cardSlideIn 0.34s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes cardSlideIn { 0% { transform: translateX(calc(var(--u) * -14)) scale(0.6) rotate(-10deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+/* NEXT card */
+.bh-nextw { flex: none; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.3); width: calc(var(--u) * 11); }
+.bh-nextw.hidden { visibility: hidden; }
+.bh-nextw .lbl { font-family: var(--font-d); font-size: calc(var(--u) * 2.4); letter-spacing: 0.08em; color: var(--lab-cyan, #3ff2e0); text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(63, 242, 224, 0.7); }
+.bh-nextc {
+  --rc: #b8c6e8;
+  position: relative; width: 100%; aspect-ratio: 0.8 / 1; border-radius: calc(var(--px) * 2); overflow: hidden;
+  background: linear-gradient(#2a3a80, #121a4e); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 var(--px) var(--rc);
+  filter: brightness(0.85);
+}
+.bh-nextc.r-rare { --rc: var(--r-rare); }
+.bh-nextc.r-epic { --rc: var(--r-epic); }
+.bh-nextc.r-legendary { --rc: var(--r-legendary); }
+.bh-nextc.special { background: linear-gradient(#134456, #071a2a); }
+.bh-nextc img { position: absolute; inset: 4% 4% 18%; width: 92%; height: 78%; object-fit: contain; }
+.bh-nextc b { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 2.8); color: #ffe27a; text-shadow: var(--outline-thin); background: rgba(8, 6, 24, 0.8); }
+.bh-nextc.enter { animation: cardSlideIn 0.3s ease-out; }
+/* ECHO pending */
+.bh-echo {
+  position: absolute; right: 0; top: calc(var(--u) * -6); display: flex; align-items: center; gap: 0.2em; padding: 0.1em 0.5em;
+  font-family: var(--font-d); font-size: calc(var(--u) * 2.8); color: #fff; text-shadow: var(--outline-thin);
+  background: #ff7a3d; box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), 0 0 calc(var(--u) * 2) #ff7a3d; animation: chargeReady 0.6s ease-in-out infinite;
+}
+.bh-echo.hidden { display: none; }
+.bh-echo .pi { width: 1.1em; height: 1.1em; }
+/* rival played a SPECIAL */
+.bh-rivalcard {
+  position: absolute; right: calc(var(--u) * 2); top: 22%; z-index: 20; display: flex; align-items: center; gap: calc(var(--u) * 1); padding: calc(var(--u) * 0.6) calc(var(--u) * 1.4) calc(var(--u) * 0.6) calc(var(--u) * 0.6);
+  background: linear-gradient(rgba(60, 10, 30, 0.94), rgba(30, 6, 18, 0.94)); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 var(--px) var(--sc), 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--sc) 60%, transparent);
+  animation: rivalIn 2.2s ease-in-out forwards; pointer-events: none; color: #fff;
+}
+.bh-rivalcard img { width: calc(var(--u) * 9); height: calc(var(--u) * 11); object-fit: contain; }
+.bh-rivalcard .tx { display: flex; flex-direction: column; line-height: 1; }
+.bh-rivalcard small { font-family: var(--font-b); font-size: calc(var(--u) * 2); color: #ff9ab8; letter-spacing: 0.08em; }
+.bh-rivalcard b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 3.4); text-shadow: var(--outline-thin); }
+.bh-rivalcard span { font-family: var(--font-b); font-size: calc(var(--u) * 2.2); color: #ffe27a; }
+@keyframes rivalIn { 0% { transform: translateX(120%); } 12%, 85% { transform: none; } 100% { transform: translateX(120%); } }
+body.landscape .bhud .bh-handrow .bh-slot { aspect-ratio: 0.82 / 1; flex-basis: calc(var(--u) * 15); }
+body.landscape .bhud .bh-handrow .bh-slot .art { inset: 3% 6% 24%; }
+body.landscape .bh-nextw { width: calc(var(--u) * 9); }
+.bhud .bh-handrow .bh-slot .art::before { display: none; }

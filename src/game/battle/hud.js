@@ -3,7 +3,7 @@
 //            HP bar + tier, the match timer with 2x / overtime tags, a lane
 //            minimap
 //   bottom - Commander portrait (signature charge) + skills, the hand of 4
-//            cards with the NEXT card, the segmented electric POWER bar (one
+//            cards (up to 6 with DRAW specials) with the NEXT card, the segmented electric POWER bar (one
 //            cell per point; grows with the base tier), the BASE upgrade
 //            button, the MEGA ultimate button and emotes.
 // Input on cards is forwarded to the battle scene (tap/drag to deploy).
@@ -12,7 +12,8 @@ import './lineup.css';
 import { h, icon, iconURL, button, bigBanner, speech, sparkle, bump } from '../../ui/ui.js';
 import { cardEl } from '../../ui/cards.js';
 import { charPortrait, cardArtImg } from '../../ui/thumbs.js';
-import { cardDef, LINEUP_UNLOCKS } from '../../data/cards.js';
+import { cardDef } from '../../data/cards.js';
+import { SPELLS } from '../../data/spells.js';
 import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
 import { MEGAS } from '../../data/megas.js';
 import { swarmThumb } from '../../ui/thumbs.js';
@@ -20,7 +21,7 @@ import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
 import { FIELD } from './field.js';
 import { plateBounds } from './view.js';
-import { LINEUP_MAX } from './sim.js';
+import { HAND_MAX } from './sim.js';
 
 const fmtT = (s) => {
   s = Math.max(0, Math.ceil(s));
@@ -174,21 +175,23 @@ export class BattleHUD {
     this.setSegs(sim.maxPower(0));
     this.energyRow = h('div', { class: 'bh-energy' }, this.drop, this.ebar, this.pwrTxt);
 
-    // the lineup: up to 10 unit buttons in 2 rows of 5, each with a cost and a recharge timer
-    this.slots = Array.from({ length: LINEUP_MAX }, (_, i) => {
+    // the hand: 4 cards (up to 6 after a DRAW) + the NEXT card, Clash Royale style
+    this.slots = Array.from({ length: HAND_MAX }, (_, i) => {
       const el = h('div', { class: 'bh-slot empty', 'data-slot': String(i) });
       el.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         e.preventDefault();
         audio.unlock();
         if (slot.card) handlers.press(i, e);
-        else if (i < (cfg.sides[0].lineupSlots ?? LINEUP_MAX)) this.hint('Empty slot: add a Swarm in your lineup (Cards tab)!');
-        else this.hint(`Lineup slot ${i + 1} unlocks at ${LINEUP_UNLOCKS[i]} trophies!`);
       });
-      const slot = { el, key: undefined, card: null, wasCool: false };
+      const slot = { el, key: undefined, card: null };
       return slot;
     });
-    this.lineup = h('div', { class: 'bh-lineup' }, this.slots.map((s) => s.el));
+    this.nextEl = h('div', { class: 'bh-nextc' });
+    this.nextWrap = h('div', { class: 'bh-nextw' }, h('div', { class: 'lbl' }, 'NEXT'), this.nextEl);
+    this.lineup = h('div', { class: 'bh-lineup bh-handrow' }, this.nextWrap, h('div', { class: 'bh-cards' }, this.slots.map((s) => s.el)));
+    this.echoTag = h('div', { class: 'bh-echo hidden' }, icon('swords'), h('b', {}, 'ECHO'));
+    this.lineup.appendChild(this.echoTag);
     this.deck = h('div', { class: 'bh-deck' }, this.ocBtn, this.energyRow, this.megaEl ?? h('div', { class: 'bh-mega-space' }), this.lineup);
     root.appendChild(h('div', { class: 'bh-bottom' }, h('div', { class: 'bh-above' }, this.cmdEl, this.rightEl), this.deck));
     this.refreshHand(true);
@@ -218,42 +221,63 @@ export class BattleHUD {
   // -------------------------------------------------------------------------
   // Hand
 
+  handSig() {
+    const sim = this.sim, s = sim.sides[0];
+    return s.hand.map((k, i) => `${k}:${s.deck[k]?.id}:${sim.cardCost(0, i)}`).join('|') + '#' + (s.queue[0] ?? -1) + '#' + (s.handSize ?? 4);
+  }
+
   refreshHand(initial = false) {
-    const s = this.sim.sides[0];
+    const sim = this.sim, s = sim.sides[0];
+    this.lastSig = this.handSig();
     const desktop = engine.width > engine.height || !('ontouchstart' in window);
     this.slots.forEach((slot, i) => {
       const k = s.hand[i];
       const c = k === undefined ? null : s.deck[k];
-      const key = c ? `${k}:${c.id}` : null;
+      const cost = c ? sim.cardCost(0, i) : 0;
+      const key = c ? `${k}:${c.id}:${cost}` : null;
       if (key === slot.key) return;
+      const wasEmpty = !slot.card;
       slot.key = key;
       slot.card = c;
       slot.el.innerHTML = '';
       if (!c) {
-        // locked slots show the trophies they open at (unlocked-but-empty ones a +)
-        const open = i < (this.cfg.sides[0].lineupSlots ?? LINEUP_MAX);
-        slot.el.className = `bh-slot empty${open ? ' open' : ''}`;
-        slot.el.appendChild(h('div', { class: 'qm' }, open ? h('b', { class: 'plus' }, '+') : icon('lock'),
-          open ? null : h('span', { class: 'tro' }, icon('trophy'), String(LINEUP_UNLOCKS[i] ?? ''))));
+        slot.el.className = 'bh-slot empty gone';
         return;
       }
       const def = cardDef(c.id);
-      slot.el.className = `bh-slot r-${def?.rarity ?? 'common'}${c.spell ? ' spell' : ''}`;
-      slot.cdFill = h('i', { class: 'f' });
-      slot.cdTxt = h('span', {}, '');
+      const base = def?.elixir ?? 3;
+      const sp = c.special ? SPELLS[c.unit] : null;
+      slot.el.className = `bh-slot r-${def?.rarity ?? 'common'}${c.spell ? ' spell' : ''}${sp ? ' special' : ''}${c.temp ? ' temp' : ''}${i >= (s.handSize ?? 4) ? ' extra' : ''}`;
+      slot.el.style.setProperty('--sc', sp?.color ?? '#3ff2e0');
       slot.el.append(
         h('div', { class: 'art' }, cardArtImg(c.id, c.variant ?? 'base', c.skin ?? null, 128, '')),
         h('div', { class: 'nm' }, def?.name ?? c.id),
-        h('div', { class: 'cost' }, icon('power'), h('b', {}, String(this.sim.cardCost(0, i)))),
-        h('div', { class: 'lv' }, `Lv${c.level ?? 1}`),
-        h('div', { class: 'cd' }, slot.cdFill, slot.cdTxt),
-        desktop ? h('div', { class: 'key' }, String((i + 1) % 10)) : null);
+        sp ? h('div', { class: 'kw' }, sp.keywords?.[0] ?? 'SPECIAL') : null,
+        c.temp ? h('div', { class: 'tmp' }, 'COPY') : null,
+        h('div', { class: `cost${cost < base ? ' cheap' : ''}` }, icon('power'), h('b', {}, String(cost))),
+        h('div', { class: 'lv' }, sp ? 'SPECIAL' : `Lv${c.level ?? 1}`),
+        desktop ? h('div', { class: 'key' }, String(i + 1)) : null);
       if (!initial) {
-        slot.el.classList.remove('enter');
+        slot.el.classList.remove('enter', 'drawn');
         void slot.el.offsetWidth;
-        slot.el.classList.add('enter');
+        slot.el.classList.add(wasEmpty && i >= (s.handSize ?? 4) ? 'drawn' : 'enter');
       }
     });
+    // NEXT card
+    const nk = s.queue[0];
+    const nc = nk === undefined ? null : s.deck[nk];
+    const nkey = nc ? `${nk}:${nc.id}` : null;
+    if (nkey !== this.nextKey) {
+      this.nextKey = nkey;
+      this.nextEl.innerHTML = '';
+      this.nextWrap.classList.toggle('hidden', !nc);
+      if (nc) {
+        const def = cardDef(nc.id);
+        this.nextEl.className = `bh-nextc r-${def?.rarity ?? 'common'}${nc.special ? ' special' : ''}`;
+        this.nextEl.append(cardArtImg(nc.id, nc.variant ?? 'base', nc.skin ?? null, 96, ''), h('b', {}, String(def?.elixir ?? '')));
+        if (!initial) { this.nextEl.classList.remove('enter'); void this.nextEl.offsetWidth; this.nextEl.classList.add('enter'); }
+      }
+    }
   }
 
   select(slot) {
@@ -346,8 +370,19 @@ export class BattleHUD {
   onEvent(ev) {
     switch (ev.type) {
       case 'cycle':
+      case 'draw':
         if (ev.side === 0) this.refreshHand();
         break;
+      case 'special': {
+        const sp = SPELLS[ev.id];
+        if (!sp) break;
+        if (ev.side === 0) {
+          bigBanner(sp.name.toUpperCase() + '!', ev.info ?? '', { dur: 0.9, color: sp.color ?? '#3ff2e0' });
+          sparkle(this.lineup, { count: 16, colors: [sp.color ?? '#3ff2e0', '#ffffff', '#ffd84a'] });
+          audio.play('cardPick', { pitch: 1.4 });
+        } else this.rivalPlay(sp, ev.info);
+        break;
+      }
       case 'doubleEnergy':
         bigBanner('2X POWER!', 'Last minute - spend it fast!', { dur: 1.6, color: '#ffd84a' });
         audio.play('bell');
@@ -375,6 +410,14 @@ export class BattleHUD {
       default:
         break;
     }
+  }
+
+  /** A little card toast at the top when the rival plays a SPECIAL. */
+  rivalPlay(sp, info) {
+    const el = h('div', { class: 'bh-rivalcard', style: { '--sc': sp.color ?? '#ff5a9a' } }, cardArtImg(sp.id, 'base', null, 96, ''),
+      h('div', { class: 'tx' }, h('small', {}, 'RIVAL PLAYED'), h('b', {}, sp.name), info ? h('span', {}, info) : null));
+    this.root.appendChild(el);
+    setTimeout(() => el.remove(), 2200);
   }
 
   megaDeny() {
@@ -431,27 +474,14 @@ export class BattleHUD {
     }
     this.ebar.classList.toggle('x2', sim.doubleEnergy && !sim.overtime);
     this.ebar.classList.toggle('x3', sim.overtime);
-    // lineup: recharge wipe + affordability
+    // hand: keep in sync (draws, discounts, friend-battle snapshots) + affordability
+    if (this.handSig() !== this.lastSig) this.refreshHand();
+    this.echoTag.classList.toggle('hidden', !(s.echo > 0));
     this.slots.forEach((slot, i) => {
       if (!slot.card) return;
       const cost = sim.cardCost(0, i);
-      const cd = sim.slotCd(0, i);
-      const cooling = cd > 0.02;
-      if (cooling) {
-        slot.cdFill.style.height = Math.min(100, (cd / Math.max(0.1, sim.slotRecharge(0, i))) * 100).toFixed(1) + '%';
-        slot.cdTxt.textContent = cd < 10 ? cd.toFixed(1) : String(Math.ceil(cd));
-      } else if (slot.wasCool) {
-        slot.cdFill.style.height = '0%';
-        slot.cdTxt.textContent = '';
-        // recharged: a little pop
-        slot.el.classList.remove('pop');
-        void slot.el.offsetWidth;
-        slot.el.classList.add('pop');
-      }
-      slot.wasCool = cooling;
-      slot.el.classList.toggle('cool', cooling);
-      slot.el.classList.toggle('poor', !cooling && e < cost);
-      slot.el.classList.toggle('ready', !cooling && e >= cost && !sim.over);
+      slot.el.classList.toggle('poor', e < cost);
+      slot.el.classList.toggle('ready', e >= cost && !sim.over);
     });
     // base upgrade
     const oc = BASE_UPGRADES[s.overclock];

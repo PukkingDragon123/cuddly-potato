@@ -1,4 +1,4 @@
-// Opponent AI for the lineup battle. Reads its lineup (slots + recharge) like a player:
+// Opponent AI for the card-cycle battle. Reads its hand like a player:
 // defends threats with counters dropped in front of its base, saves POWER
 // to build pushes (tank first, support behind), uses spells on clusters or to
 // finish the base, upgrades its base, fires its Commander ability and its MEGA.
@@ -34,7 +34,7 @@ export class BattleAI {
     return s.hand.map((k, slot) => {
       const card = s.deck[k];
       const def = card.spell ? SPELLS[card.unit] : SWARMS[card.unit];
-      return { slot, card, def, cost: sim.cardCost(this.si, slot), spell: card.spell, ready: sim.slotCd(this.si, slot) <= 0 };
+      return { slot, card, def, cost: sim.cardCost(this.si, slot), spell: card.spell, special: !!card.special, ready: true };
     });
   }
 
@@ -55,6 +55,7 @@ export class BattleAI {
 
     if (this.tryCommander(enemies, near)) return;
     if (!this.noSpells && this.trySpell(enemies)) return;
+    if (this.trySpecial(threat)) return;
 
     const hand = this.hand();
     const affordable = hand.filter((h) => h.ready && h.cost <= s.energy);
@@ -129,7 +130,7 @@ export class BattleAI {
     const sim = this.sim, si = this.si, s = sim.sides[si];
     const hand = this.hand();
     for (const h of hand) {
-      if (!h.spell || !h.ready || h.cost > s.energy) continue;
+      if (!h.spell || h.special || h.cost > s.energy) continue;
       const sp = h.def;
       if (sp.id === 'foodThrow') {
         const allies = sim.alliesOf(si);
@@ -157,6 +158,30 @@ export class BattleAI {
         if (v > bestV) { bestV = v; bestX = e.x; }
       }
       if (bestX !== null && bestV >= h.cost * (1.2 - this.d * 0.3) && this.r() < 0.3 + this.d * 0.6) return sim.play(si, h.slot, bestX);
+    }
+    return false;
+  }
+
+  /** SPECIAL cards: simple card-game sense (draw when rich, cash in when broke). */
+  trySpecial(threat) {
+    const sim = this.sim, si = this.si, s = sim.sides[si];
+    const hand = this.hand();
+    const others = hand.filter((h) => !h.special);
+    const troopsOk = others.some((h) => !h.spell && h.cost <= s.energy);
+    for (const h of hand) {
+      if (!h.special || h.cost > s.energy) continue;
+      const id = h.def.id;
+      let use = false;
+      if (id === 'energyDrink') use = s.energy <= 3 && (threat > 0.5 || this.r() < 0.25);
+      else if (id === 'quickDraw') use = s.hand.length <= 4 && s.energy >= 5;
+      else if (id === 'couponBook') use = others.length >= 3 && s.energy >= 3;
+      else if (id === 'trashCompactor') use = !troopsOk || (others.length && others.every((o) => o.cost >= 5));
+      else if (id === 'doubleUp') use = others.some((o) => !o.spell && o.cost + h.cost + 1 <= s.energy);
+      else if (id === 'copyCat') use = !!s.last && s.energy >= 4;
+      else if (id === 'goldenTicket') use = s.queue.some((k) => !s.deck[k].special && (SWARMS[s.deck[k].unit]?.elixir ?? 0) >= 4) && s.energy >= 3;
+      // a card that never gets played clogs the hand: eventually cycle it anyway
+      if (!use && s.energy >= 9) use = true;
+      if (use && this.r() < 0.45 + this.d * 0.5) return sim.play(si, h.slot, null);
     }
     return false;
   }

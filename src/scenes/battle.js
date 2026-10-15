@@ -1,12 +1,14 @@
 // Battle scene: wires the simulation, AI / network, 3D view and HUD together.
 // Modes: tutorial (vs Jimmy), ranked (vs a ghost player), practice, boss, friend.
 //
-// Controls (Battle Cats style):
-//   * tap a unit button in the lineup: it pops out of your base and marches
-//     (each button recharges after use); spells: tap then tap the field, or drag
+// Controls (Clash Royale card cycle in a Battle Cats lane):
+//   * tap a troop card: it pops out of your base and marches (or drag it onto
+//     your half); the played card goes to the back of your deck and the NEXT
+//     one slides in. Spells: tap then tap the field, or drag. SPECIAL cards:
+//     tap to play (hand / draw tricks)
 //   * tap YOUR BASE to upgrade it, tap YOUR COMMANDER to unleash the MEGA
 //   * drag the battlefield to pan, pinch / mouse-wheel to zoom, tap the minimap to jump
-//   * keys: 1-0 lineup slots, Space/Enter cast the selected spell, Q signature,
+//   * keys: 1-6 hand cards, Space/Enter cast the selected spell, Q signature,
 //     W/E skills, O upgrade base, M / R unleash the MEGA ultimate
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
@@ -22,7 +24,7 @@ import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
-import { STARTER_TROOPS } from '../data/cards.js';
+import { STARTER_CARDS } from '../data/cards.js';
 import { game } from '../game/game.js';
 import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
@@ -55,7 +57,8 @@ export class BattleScene {
     let enemy, arenaId = params.arena ?? currentArena(p.trophies).id, boss = null, aiOpts = {};
     if (mode === 'tutorial') {
       arenaId = 'lab';
-      me.deck = STARTER_TROOPS.map((id) => deckEntry(id, 1));
+      me.deck = STARTER_CARDS.map((id) => deckEntry(id, 1));
+      me.noShuffle = true;
       me.labLevel = 1;
       // Jimmy lends you a MEGA-TECH Panthar for the finale
       me.mega = { id: 'panthar', variant: 'base', level: 1 };
@@ -223,6 +226,12 @@ export class BattleScene {
     const c = this.card(slot);
     if (!c) return;
     const wasSel = this.sel === slot;
+    // SPECIAL cards: a tap plays them (no aiming)
+    if (c.special) {
+      this.select(-1);
+      this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel: false, over: false, x: null, troopTap: true, special: true };
+      return;
+    }
     // troops: a tap sends them out of the base (Battle Cats style), a drag drops them on the field
     if (!c.spell) {
       this.select(-1);
@@ -260,12 +269,6 @@ export class BattleScene {
     if (!this.canAct()) return false;
     const c = this.card(slot);
     if (!c) return false;
-    const cd = this.sim.slotCd(0, slot);
-    if (cd > 0) {
-      audio.play('deny');
-      this.hud.hint(`Recharging... ${cd.toFixed(1)}s`);
-      return false;
-    }
     const cost = this.sim.cardCost(0, slot);
     if (this.sim.sides[0].energy < cost) {
       this.hud.needEnergy(cost);
@@ -276,7 +279,7 @@ export class BattleScene {
     const ok = this.sim.play(0, slot, x);
     if (!ok) { audio.play('deny'); return false; }
     audio.play('pop', { pitch: 1.1 });
-    if (c.spell) bigBanner((SPELLS[c.unit]?.name ?? c.unit).toUpperCase() + '!', '', { dur: 0.7, color: '#c99aff' });
+    if (c.spell && !c.special) bigBanner((SPELLS[c.unit]?.name ?? c.unit).toUpperCase() + '!', '', { dur: 0.7, color: '#c99aff' });
     this.select(-1);
     this.view.setGhost(null);
     this.view.setAim(null);
@@ -429,6 +432,7 @@ export class BattleScene {
       // dragging a card from the hand
       const d = this.drag;
       if (d && e.pointerId === d.id) {
+        if (d.special) return;
         if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > TAP_MOVE) {
           d.moved = true;
           if (d.troopTap) this.select(d.slot);
@@ -491,11 +495,11 @@ export class BattleScene {
     this.onKey = (e) => {
       if (e.repeat || !this.ready || this.ended) return;
       const k = e.key.toLowerCase();
-      if (k >= '0' && k <= '9') {
-        const slot = k === '0' ? 9 : +k - 1;
+      if (k >= '1' && k <= '6') {
+        const slot = +k - 1;
         const c = this.card(slot);
         if (!c || !this.allowed('deploy' + slot)) return;
-        if (c.spell) this.select(this.sel === slot ? -1 : slot);
+        if (c.spell && !c.special) this.select(this.sel === slot ? -1 : slot);
         else this.deploy(slot, null);
       } else if ((k === ' ' || k === 'enter') && this.sel >= 0) {
         e.preventDefault();
@@ -605,15 +609,15 @@ export class BattleScene {
     await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Tent*. Mine's on the RIGHT. *Smash my base to win!*");
     // 1) tap a unit button: it pops out of the base
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
-    await talk('Your Swarms are down here. *Tap* a button and that Swarm pops out of your base and marches into battle *on its own*. Send a *Panther*!');
+    await talk('These are your *cards*. *Tap* a troop card and that Swarm pops out of your base and marches into battle *on its own*. Send a *Panther*!');
     this.lockInput = 'deploy';
     remove = pointAt(() => this.hud.slotEl(Math.max(0, slotOf('panther'))), 'Tap!');
     await until('deploy');
     clearPtr();
     this.lockInput = null;
     await wait(1.8);
-    // 2) power + recharge
-    await talk('Every Swarm costs electric *POWER* (the yellow cells). POWER refills by itself, and each button needs a few seconds to *recharge* after you use it.');
+    // 2) power + the card cycle
+    await talk('Every card costs electric *POWER* (the yellow cells), and POWER refills by itself. See that? A *new card* slid into the empty spot - the little *NEXT* card shows what comes after. Your deck *cycles* forever!');
     // 3) the ranged unit
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
     const tslot = slotOf('cloggedToilet');
@@ -624,6 +628,18 @@ export class BattleScene {
       await until('deploy');
       clearPtr();
       this.lockInput = null;
+    }
+    // 3b) a SPECIAL card
+    const dslot = slotOf('energyDrink');
+    if (dslot >= 0 && !sim.over) {
+      await talk('The *shiny* cards are *SPECIAL* cards - card tricks! *Energy Drink* gives you +3 POWER, but it *EXHAUSTS*: only once per battle. Tap it!');
+      this.lockInput = 'deploy';
+      remove = pointAt(() => this.hud.slotEl(slotOf('energyDrink')), 'Special!');
+      await until('deploy');
+      clearPtr();
+      this.lockInput = null;
+      await wait(0.8);
+      if (slotOf('quickDraw') >= 0) await talk('*Quick Draw* pulls 2 extra cards into your hand. Mix tricks with troops and build *combos*!');
     }
     // 4) defend
     await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);

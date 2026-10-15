@@ -27,6 +27,16 @@ import {
 export function cardStats(id, level = 1, variant = 'base') {
   const d = cardDef(id);
   const rows = [];
+  if (d.special) {
+    if (d.draw) rows.push({ key: 'draw', icon: 'cards', label: 'Draw', v: '+' + d.draw + ' cards' });
+    if (d.gain) rows.push({ key: 'gain', icon: 'power', label: 'POWER Gain', v: '+' + d.gain });
+    if (d.discount) rows.push({ key: 'disc', icon: 'ticket', label: 'Hand Discount', v: '-' + d.discount });
+    if (d.echo) rows.push({ key: 'echo', icon: 'swords', label: 'Echo', v: 'Next troop x2' });
+    rows.push({ key: 'kw', icon: 'magic', label: 'Keywords', v: (d.keywords ?? []).join(' / ') || 'SPECIAL' });
+    rows.push({ key: 'once', icon: 'clock', label: 'Uses', v: d.exhaust ? 'Once per battle' : 'Cycles' });
+    rows.push({ key: 'cost', icon: 'energy', label: 'Energy Cost', v: String(d.elixir) });
+    return rows;
+  }
   if (isSpell(id)) {
     const pw = spellPower(level);
     if (d.dmg) rows.push({ key: 'dmg', icon: 'sword', label: 'Damage', v: Math.round(d.dmg * pw) });
@@ -227,7 +237,7 @@ export function openCardInfo(id, ctx, opts = {}) {
     const info = h('div', { class: 'mn-ci-info' },
       h('div', { class: 'row wrap gap-s' },
         chip(rar?.name ?? def.rarity, 'rar r-' + def.rarity),
-        chip([icon(spell ? 'magic' : role?.icon ?? 'swarm', 's'), spell ? 'Spell' : 'Troop'], ''),
+        chip([icon(def.special ? 'cards' : spell ? 'magic' : role?.icon ?? 'swarm', 's'), def.special ? 'Special' : spell ? 'Spell' : 'Troop'], def.special ? 'special' : ''),
         series ? chip(series.name, 'ser') : null),
       h('div', { class: 'mn-ci-desc' }, def.desc ?? ''),
       h('div', { class: 'mn-ci-where' }, icon('island', 's'), h('span', {}, ar ? `Found in ${ar.name} vials (Arena ${ar.index + 1})` : 'Special event')),

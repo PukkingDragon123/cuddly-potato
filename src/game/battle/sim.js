@@ -1,9 +1,12 @@
 // Battle simulation: pure game logic (no rendering).
 //
-// Battle Cats-style lineup battles:
+// Clash Royale card cycle in a Battle Cats side-view lane:
 //   * electric POWER 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
-//   * a lineup of up to 10 unit slots, all available at once: each slot has a
-//     POWER cost and a recharge timer after use (no card cycling)
+//   * an 8-card deck cycling through a hand of 4 (+ the NEXT card): a played
+//     card goes to the back of the deck and the next one slides in
+//   * SPECIAL cards are card-game tricks (Slay the Spire style) that play with
+//     your hand: DRAW extra cards (hand up to 6), DISCARD, ECHO, COPY, cost
+//     cuts and EXHAUST (once per battle)
 //   * troops pop out of your base and march forward to fight automatically;
 //     spells are aimed anywhere on the field
 //   * each side has ONE base: it starts as a tent and can be upgraded mid-battle
@@ -30,15 +33,16 @@ const REGULATION = 180;
 const DOUBLE_AT = 120;
 const OT_LEN = 60;
 const DEPLOY_DELAY = 0.65;
-export const LINEUP_MAX = 10;
-
-/** Seconds a lineup slot needs to recharge after use. */
-export function rechargeTime(card) {
-  const def = card.spell ? SPELLS[card.unit] : SWARMS[card.unit];
-  if (def?.recharge) return def.recharge;
-  const cost = def?.elixir ?? 3;
-  const rare = { common: 0, rare: 0.4, epic: 0.9, legendary: 1.6, mythic: 2.2 }[def?.rarity] ?? 0;
-  return card.spell ? 5 + cost * 1.4 : 1.6 + cost * 1.05 + rare;
+export const DECK_MAX = 8;
+export const HAND_SIZE = 4;
+export const HAND_MAX = 6;
+// legacy name (old callers)
+export const LINEUP_MAX = HAND_MAX;
+/** Normal hand size for a deck of n cards: always keep a NEXT card when you can. */
+export const handSizeFor = (n) => (n <= 2 ? n : Math.min(HAND_SIZE, n - 1));
+/** Kept for old callers: cards no longer recharge (they cycle). */
+export function rechargeTime() {
+  return 0;
 }
 
 let UID = 1;
@@ -90,11 +94,23 @@ export class BattleSim {
     const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
     const lvl = s.commander?.level ?? 1;
     const skills = cmd ? cmd.skills.filter((k) => lvl >= k.level) : [];
-    const deck = (s.deck || []).slice(0, LINEUP_MAX).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
+    const deck = (s.deck || []).slice(0, DECK_MAX).map((c) => {
+      const unit = c.unit ?? c.id;
+      return { ...c, unit, spell: !!SPELLS[unit], special: !!SPELLS[unit]?.special };
+    });
+    const order = deck.map((_, k) => k);
+    if (!s.noShuffle) {
+      for (let k = order.length - 1; k > 0; k--) {
+        const j = Math.floor(this.rng() * (k + 1));
+        [order[k], order[j]] = [order[j], order[k]];
+      }
+    }
+    const handSize = handSizeFor(deck.length);
     return {
       i, dir, labX: lab.x, name: s.name, deck,
-      // the lineup: every slot is always available (Battle Cats style); `hand` maps slot -> deck index
-      hand: deck.map((_, k) => k), queue: [], cds: deck.map(() => 0),
+      // the card cycle: `hand` and `queue` hold deck indices; `mod` = per-card cost change while in hand
+      hand: order.slice(0, handSize), queue: order.slice(handSize), handSize, mod: deck.map(() => 0),
+      echo: 0, last: null, exhausted: 0, baseLen: deck.length, cds: [],
       energy: Math.min(ENERGY.max, ENERGY.start + (perks.headStart ?? 0)), overclock: 0,
       lab, turret: null,
       mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
@@ -160,18 +176,18 @@ export class BattleSim {
   cardCost(si, slot) {
     const c = this.handCard(si, slot);
     if (!c) return Infinity;
-    return (c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3;
+    const s = this.sides[si];
+    return Math.max(0, ((c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3) + (s.mod[s.hand[slot]] ?? 0));
   }
-  /** Seconds until lineup slot `slot` is recharged (0 = ready). */
-  slotCd(si, slot) {
-    return Math.max(0, this.sides[si].cds?.[slot] ?? 0);
+  /** Cards don't recharge any more (they cycle); kept for old callers. */
+  slotCd() {
+    return 0;
   }
-  slotRecharge(si, slot) {
-    const c = this.handCard(si, slot);
-    return c ? rechargeTime(c) * (1 - (this.sides[si].perks.quickRecharge ?? 0) / 100) : 1;
+  slotRecharge() {
+    return 1;
   }
   canPlay(si, slot) {
-    return !this.over && !!this.handCard(si, slot) && this.slotCd(si, slot) <= 0 && this.sides[si].energy >= this.cardCost(si, slot);
+    return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
   overclockInfo(si) {
     return BASE_UPGRADES[this.sides[si].overclock];
@@ -248,7 +264,6 @@ export class BattleSim {
     const s = this.sides[si];
     const card = this.handCard(si, slot);
     if (!card || this.over) return false;
-    if (!free && this.slotCd(si, slot) > 0) return false;
     const cost = this.cardCost(si, slot);
     if (!free) {
       if (s.energy < cost) return false;
@@ -258,24 +273,132 @@ export class BattleSim {
         this.emit('refund', { side: si });
       }
     }
-    if (card.spell) {
+    // cycle: the played card goes to the back of the deck, the next one slides in
+    this.cycleOut(si, slot, card.temp || (card.special && SPELLS[card.unit].exhaust));
+    if (card.special) {
+      this.castSpecial(si, card);
+    } else if (card.spell) {
       const tx = x ?? this.densestEnemyX(si)?.x ?? this.sides[1 - si].labX;
       this.castSpell(si, card, Math.max(-FIELD.VIEW_X, Math.min(FIELD.VIEW_X, tx)));
     } else {
       // troops pop out of the base (tap) or drop where you dragged them in your half
-      this.deployTroop(si, card, x === null ? s.labX + s.dir * (LAB_HALF + 0.35) : this.clampDeploy(si, x));
+      const dx = x === null ? s.labX + s.dir * (LAB_HALF + 0.35) : this.clampDeploy(si, x);
+      this.deployTroop(si, card, dx);
+      // ECHO: deploy it again
+      if (s.echo > 0) {
+        s.echo--;
+        this.later(0.45, () => { if (!this.over) this.deployTroop(si, card, dx - s.dir * 0.6, true); });
+        this.emit('echo', { side: si, card: card.id, x: dx });
+      }
     }
-    // the slot recharges
-    if (!free) s.cds[slot] = this.slotRecharge(si, slot);
-    this.emit('cycle', { side: si, slot, card: card.id, cost, recharge: s.cds[slot] });
+    if (!card.special) s.last = { ...card, temp: false };
+    this.emit('cycle', { side: si, slot, card: card.id, cost, special: card.special });
     return true;
+  }
+
+  /** Remove hand slot `slot`: back of the deck (or gone if exhausted), refill from the deck. */
+  cycleOut(si, slot, exhaust = false) {
+    const s = this.sides[si];
+    const k = s.hand[slot];
+    s.mod[k] = 0;
+    if (exhaust) {
+      s.exhausted++;
+      const pool = s.hand.length - 1 + s.queue.length;
+      s.handSize = Math.min(s.handSize, handSizeFor(pool));
+    } else s.queue.push(k);
+    if (s.hand.length > s.handSize || !s.queue.length) s.hand.splice(slot, 1);
+    else s.hand[slot] = s.queue.shift();
+  }
+  /** DRAW n cards from the deck into the hand (up to HAND_MAX). Returns how many were drawn. */
+  drawCards(si, n) {
+    const s = this.sides[si];
+    let d = 0;
+    while (d < n && s.hand.length < HAND_MAX && s.queue.length) {
+      s.hand.push(s.queue.shift());
+      d++;
+    }
+    if (d) this.emit('draw', { side: si, n: d });
+    return d;
+  }
+
+  /** SPECIAL cards: tricks that play with your hand and your draw. */
+  castSpecial(si, card) {
+    const s = this.sides[si];
+    const id = card.unit;
+    const def = SPELLS[id];
+    s.stats.spells++;
+    s.stats['cast_' + id] = (s.stats['cast_' + id] ?? 0) + 1;
+    let info = '';
+    switch (id) {
+      case 'quickDraw': {
+        const n = this.drawCards(si, def.draw);
+        info = n ? `Drew ${n}` : 'Hand full!';
+        break;
+      }
+      case 'energyDrink': {
+        s.energy = Math.min(this.maxPower(si), s.energy + def.gain);
+        info = `+${def.gain} POWER`;
+        break;
+      }
+      case 'couponBook': {
+        for (const k of s.hand) s.mod[k] -= def.discount;
+        info = 'Hand -1 cost';
+        break;
+      }
+      case 'trashCompactor': {
+        const n = s.hand.length;
+        for (const k of s.hand) {
+          s.mod[k] = 0;
+          if (!s.deck[k].temp) s.queue.push(k);
+        }
+        s.hand = [];
+        // the compactor itself goes to the very bottom of the deck
+        const me = s.queue.filter((k) => s.deck[k].unit === id);
+        s.queue = s.queue.filter((k) => s.deck[k].unit !== id).concat(me);
+        s.handSize = handSizeFor(s.queue.length);
+        while (s.hand.length < s.handSize && s.queue.length) s.hand.push(s.queue.shift());
+        s.energy = Math.min(this.maxPower(si), s.energy + n);
+        info = `Discarded ${n}: +${n} POWER`;
+        break;
+      }
+      case 'doubleUp': {
+        s.echo += def.echo;
+        info = 'Next troop x2';
+        break;
+      }
+      case 'copyCat': {
+        if (s.last && s.hand.length < HAND_MAX) {
+          s.deck.push({ ...s.last, temp: true });
+          const k = s.deck.length - 1;
+          s.mod.push(-1);
+          s.hand.push(k);
+          info = 'Copied ' + ((s.last.spell ? SPELLS[s.last.unit] : SWARMS[s.last.unit])?.name ?? '');
+        } else info = s.last ? 'Hand full!' : 'Nothing to copy';
+        break;
+      }
+      case 'goldenTicket': {
+        const costOf = (k) => (s.deck[k].spell ? SPELLS[s.deck[k].unit] : SWARMS[s.deck[k].unit])?.elixir ?? 0;
+        let best = -1;
+        for (let q = 0; q < s.queue.length; q++) if (!s.deck[s.queue[q]].special && (best < 0 || costOf(s.queue[q]) > costOf(s.queue[best]))) best = q;
+        if (best >= 0 && s.hand.length < HAND_MAX) {
+          const k = s.queue.splice(best, 1)[0];
+          s.mod[k] = -99;
+          s.hand.push(k);
+          info = 'Free ' + ((s.deck[k].spell ? SPELLS[s.deck[k].unit] : SWARMS[s.deck[k].unit])?.name ?? '');
+        } else info = 'Nothing to draw';
+        break;
+      }
+      default:
+        break;
+    }
+    this.emit('special', { side: si, id, info, x: s.labX });
   }
   // legacy alias used by old callers: deploy(si, slot)
   deploy(si, slot, free = false) {
     return this.play(si, slot, null, free);
   }
 
-  deployTroop(si, card, x) {
+  deployTroop(si, card, x, echo = false) {
     const s = this.sides[si];
     const def = SWARMS[card.unit];
     const n = def.count ?? 1;
@@ -284,7 +407,7 @@ export class BattleSim {
     const key = card.id;
     s.stats.deployById[key] = (s.stats.deployById[key] ?? 0) + n;
     if (def.series === 'food') s.stats.food += n;
-    this.emit('deploy', { side: si, id: card.unit, card: card.id, x, count: n });
+    this.emit('deploy', { side: si, id: card.unit, card: card.id, x, count: n, echo });
   }
 
   upgradeLab(si) {
@@ -1096,7 +1219,6 @@ export class BattleSim {
     }
     for (const s of this.sides) {
       s.energy = Math.min(this.maxPower(s.i), s.energy + this.energyRate(s.i) * dt);
-      for (let k = 0; k < s.cds.length; k++) if (s.cds[k] > 0) s.cds[k] = Math.max(0, s.cds[k] - dt);
       for (let k = 0; k < s.skillCds.length; k++) if (s.skillCds[k] > 0) s.skillCds[k] -= dt;
       if (s.cmd && s.sig < 1) s.sig = Math.min(1, s.sig + dt / (s.cmd.signature.charge * (1 - (s.perks.hypeMan ?? 0) / 100)));
       for (const k in s.buffs) if (s.buffs[k] > 0) s.buffs[k] -= dt;
