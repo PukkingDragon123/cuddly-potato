@@ -555,7 +555,7 @@ export function buildZone(K) {
   K.onUpdate((dt, t) => { door.rotation.y = -1.25 - Math.sin(t * 0.25) * 0.12; wheel.rotation.z = t * 0.6; });
   // the laser maze courtyard: pylons + beams criss-crossing
   const pyl = [[-4.6, 1.2], [-1.6, 1.2], [1.6, 1.2], [4.6, 1.2], [-4.6, 3.6], [4.6, 3.6]];
-  K.inst('pylon', pylonGrid, { scale: 0.06, ao: true }, pyl.map(([x, z]) => [x, 0, z]), { shadow: true });
+  K.inst('pylon', pylonGrid, { scale: 0.06 }, pyl.map(([x, z]) => [x, 0, z]), { shadow: true });
   const beams = liveInst(K, 'beam', beamGrid, { scale: 0.05, pivot: [0, 0.5, 0.5] }, 9);
   K.onUpdate((dt, t) => {
     let i = 0;
@@ -565,9 +565,9 @@ export function buildZone(K) {
     }
     beams.instanceMatrix.needsUpdate = true;
   });
-  K.inst('safeOpen', safeGrid(true), { scale: 0.06, ao: true }, [[-3.6, 0, 4.6, 0.4], [4.2, 0, 4.8, -0.5]], { shadow: true });
-  K.inst('goldPallet', goldPalletGrid, { scale: 0.06, ao: true }, [[-1.2, 0, 5.4, 0.2], [1.8, 0, 3.0, -0.3], [-5.2, 0, 1.0, 0.5]], { shadow: true });
-  K.mesh('displayGem', displayGrid(true), { scale: 0.06, ao: true }, 0.4, 0, 2.6, 0, 1, { shadow: true });
+  K.inst('safeOpen', safeGrid(true), { scale: 0.06 }, [[-3.6, 0, 4.6, 0.4], [4.2, 0, 4.8, -0.5]], { shadow: true });
+  K.inst('goldPallet', goldPalletGrid, { scale: 0.06 }, [[-1.2, 0, 5.4, 0.2], [1.8, 0, 3.0, -0.3], [-5.2, 0, 1.0, 0.5]], { shadow: true });
+  K.mesh('displayGem', displayGrid(true), { scale: 0.06 }, 0.4, 0, 2.6, 0, 1, { shadow: true });
   K.inst('camPole', camPoleGrid, { scale: 0.06 }, [[5.0, 0, -0.4], [-5.4, 0, 3.4]], { shadow: true });
   const camHeads = liveInst(K, 'camHead', camGrid, { scale: 0.06, pivot: [0, 0, -4] }, 2, { shadow: true });
   K.onUpdate((dt, t) => {

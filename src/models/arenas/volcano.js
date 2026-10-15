@@ -503,15 +503,15 @@ export function buildZone(K) {
     bb.forEach((b, i) => { const k = (t * 0.3 + b.ph) % 1, tt = k * 1.6; const y = cy + b.up * tt - 4.9 * tt * tt; setInst(bombs, i, 0.4 + Math.cos(b.a) * b.v * tt, y, -3.6 + Math.sin(b.a) * b.v * tt * 0.6, t * 3, t * 2, 0, y < cy - 1 ? 0.0001 : 1); });
     bombs.instanceMatrix.needsUpdate = true;
   });
-  K.mesh('anvil', anvilGrid, { scale: 0.05, ao: true }, 1.55, 0, 2.2, 0, 1, { shadow: true });
+  K.mesh('anvil', anvilGrid, { scale: 0.05 }, 1.55, 0, 2.2, 0, 1, { shadow: true });
   K.mesh('hammerFrame', hammerFrameGrid, { scale: 0.05 }, -0.4, 0, 2.2, 0, 1, { shadow: true });
   const hammer = K.mesh('hammer', hammerGrid, { scale: 0.05, pivot: [0, 0, 0] }, -0.4, 1.55, 2.2, 0, 1, { shadow: true });
   K.onUpdate((dt, t) => { const q = (t * 0.55) % 1; hammer.rotation.z = q < 0.75 ? -0.28 + (q / 0.75) * 0.58 : 0.3 - ((q - 0.75) / 0.25) ** 2 * 0.58; });
-  K.mesh('furnace', furnaceGrid, { scale: 0.06, ao: true }, -3.6, 0, 1.6, 0.6, 1, { shadow: true });
+  K.mesh('furnace', furnaceGrid, { scale: 0.06 }, -3.6, 0, 1.6, 0.6, 1, { shadow: true });
   addFlames(K, 'vzf', [[-3.6 + Math.sin(0.6) * 0.5, 0.05, 1.6 + Math.cos(0.6) * 0.5, 0.5]], 0.07);
   K.inst('basaltCols', basaltColsGrid(2), { scale: 0.07 }, [[-4.6, 0, -1.6, 0.3], [4.8, 0, 0.2, 1.4]], { shadow: true });
   K.inst('obsidian', obsidianGrid(1), { scale: 0.06 }, [[3.6, 0, 3.8, 0.5], [-1.4, 0, 4.6, 2], [-5.2, 0, 3.0, 1.2]], { shadow: true });
-  K.inst('goldRack', goldRackGrid, { scale: 0.05, ao: true }, [[3.4, 0, 1.8, -0.4]], { shadow: true });
+  K.inst('goldRack', goldRackGrid, { scale: 0.05 }, [[3.4, 0, 1.8, -0.4]], { shadow: true });
   K.inst('oreCart', oreCartGrid, { scale: 0.05 }, [[-1.8, 0, 3.2, 0.6]], { shadow: true });
   addParticles(K, 26, [-5, 5, 0.2, 6, -5, 5], { color: [C.lavaL, C.lava], glow: 1.95, size: [0.03, 0.06], vy: 0.7, drift: 0.4, fadeTop: true });
   const smoke = new Billboards(5, { name: 'smoke' });

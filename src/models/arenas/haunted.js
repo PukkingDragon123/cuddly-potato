@@ -29,10 +29,10 @@ const ZONE_SCALE = 1.18;
 // --------------------------------------------------------------------------- voxel props
 
 /** The haunted mansion (Victorian, two turrets, mansard roof, porch). Front +z. Windows: glow set separately. */
-const mansionGrid = (lit) => () => {
+const mansionGrid = (lit, lod = false) => () => {
   const g = new VoxGrid();
   const W = 34, D = 16;
-  const wallC = (x, y, z) => ((y % 4 === 0) ? C.wallD : hash3(x >> 1, y >> 2, z) < 0.12 ? C.wallL : C.wall);
+  const wallC = (x, y, z) => ((y % 4 === 0) ? C.wallD : !lod && hash3(x >> 1, y >> 2, z) < 0.12 ? C.wallL : C.wall);
   // main body: 3 storeys (shell)
   for (let x = -W; x < W; x++) for (let y = 0; y < 42; y++) for (let z = -D; z < D; z++) {
     const edge = x === -W || x === W - 1 || z === -D || z === D - 1;
@@ -92,12 +92,12 @@ const mansionGrid = (lit) => () => {
   g.set(-1, 6, D + 2, C.fire, true);
   // chimneys + cracked plaster + vines
   for (const cx of [-14, 18]) g.box(cx, 50, -4, cx + 3, 64, -1, (x, y) => (y > 62 ? C.stoneDD : y % 3 === 0 ? C.stoneD : C.stone));
-  for (let k = 0; k < 30; k++) {
+  for (let k = 0; k < (lod ? 0 : 30); k++) {
     const x = -W + Math.floor(hash3(k, 1, 4) * W * 2), y = Math.floor(hash3(k, 2, 4) * 40);
     g.set(x, y, D, C.wallD);
     g.set(x + 1, y + 1, D, C.wallD);
   }
-  for (let x = -W; x < -W + 10; x++) for (let y = 0; y < 30 - (x + W) * 2; y++) if (hash3(x, y, 9) < 0.45) g.set(x, y, D, (y & 1) ? 0x3a5a3a : 0x4a6a3a);
+  if (!lod) for (let x = -W; x < -W + 10; x++) for (let y = 0; y < 30 - (x + W) * 2; y++) if (hash3(x, y, 9) < 0.45) g.set(x, y, D, (y & 1) ? 0x3a5a3a : 0x4a6a3a);
   // weathervane
   g.box(0, 59, 0, 0, 66, 0, C.iron);
   g.box(-3, 64, 0, 3, 64, 0, C.iron).set(3, 65, 0, C.iron).set(-3, 63, 0, C.iron);
@@ -600,16 +600,16 @@ export function buildZone(K) {
   // a small hill + the mansion on top
   K.mesh('hill', hillGrid(0.5), { scale: 0.18 }, 0, 0, -2.4, 0, 1, { shadow: true });
   const MS = 0.075, top = 13.5 * 0.18;
-  K.mesh('mansion', mansionGrid(false), { scale: MS, pivot: [0, 0, 0] }, 0, top - 0.2, -3.0, 0, 1, { shadow: true });
-  const lit = K.mesh('mansionLit', mansionGrid(true), { scale: MS, pivot: [0, 0, 0] }, 0, top - 0.2, -3.0);
+  K.mesh('mansion', mansionGrid(false, true), { scale: MS, pivot: [0, 0, 0] }, 0, top - 0.2, -3.0, 0, 1, { shadow: true });
+  const lit = K.mesh('mansionLit', mansionGrid(true, true), { scale: MS, pivot: [0, 0, 0] }, 0, top - 0.2, -3.0);
   K.onUpdate((dt, t) => { lit.visible = Math.sin(t * 7.3) + Math.sin(t * 2.1) > -1.6; });
   const tombs = [];
   for (let i = 0; i < 12; i++) { const a = K.rand(0.2, Math.PI - 0.2), r = K.rand(3.6, 5.6); tombs.push([Math.cos(a) * r * (i & 1 ? 1 : -1) * 0.95, 0, Math.sin(a) * r * 0.7 + 1.2, K.rand(-0.3, 0.3), K.rand(0.9, 1.2)]); }
-  for (let k = 0; k < 3; k++) K.inst('tomb' + k, tombGrid(k * 3 + 1), { scale: 0.055, ao: true }, tombs.filter((_, i) => i % 3 === k), { shadow: true });
-  K.mesh('crypt', cryptGrid, { scale: 0.06, ao: true }, 4.6, 0, 1.4, -0.6, 1, { shadow: true });
+  for (let k = 0; k < 3; k++) K.inst('tomb' + k, tombGrid(k * 3 + 1), { scale: 0.055 }, tombs.filter((_, i) => i % 3 === k), { shadow: true });
+  K.mesh('crypt', cryptGrid, { scale: 0.06 }, 4.6, 0, 1.4, -0.6, 1, { shadow: true });
   K.mesh('swingTree', deadTreeGrid, { scale: 0.08 }, -4.6, 0, 0.6, 0.6, 1, { shadow: true });
   addPumpkins(K, 'pk', [[-1.6, 4.6, 0.2, true], [1.4, 5.0, -0.3], [-3.6, 3.4, 0.5], [3.4, 4.0, -0.4, true]], 0.06);
-  K.mesh('cauldron', cauldronGrid, { scale: 0.06, ao: true }, 2.2, 0, 2.6, 0, 1, { shadow: true });
+  K.mesh('cauldron', cauldronGrid, { scale: 0.06 }, 2.2, 0, 2.6, 0, 1, { shadow: true });
   addParticles(K, 8, [1.9, 2.5, 0.5, 1.5, 2.3, 2.9], { color: 0x9dff3a, glow: 1.9, size: [0.04, 0.07], vy: 0.5, drift: 0.1, fadeTop: true });
   K.inst('lanternPost', lanternPostGrid, { scale: 0.06 }, [[-1.4, 0, 2.4, 0], [1.6, 0, 1.8, Math.PI]], { shadow: true });
   addFlyers(K, 'bat', batBodyGrid, batWingGrid, { scale: 0.06 }, orbitList(K, 6, [0, 5.2, -2.6], { r0: 2, r1: 4.5, spread: 1.5, dy: 1.5, f0: 12, f1: 16, squash: 0.8 }), { flap: 0.9, bob: 0.4 });

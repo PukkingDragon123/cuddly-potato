@@ -148,11 +148,14 @@ export async function makeBeastIsland(opts = {}) {
     new THREE.MeshLambertMaterial({ map: T.colorTex }),
     new THREE.MeshLambertMaterial({ vertexColors: true }),
   ];
-  const terrain = new THREE.Mesh(T.mesh, terrainMats);
-  terrain.name = 'terrain';
-  terrain.castShadow = true;
-  terrain.receiveShadow = true;
-  root.add(terrain);
+  // terrain chunks (separate meshes so the camera and the sun's shadow box can cull them)
+  for (const g of T.meshes) {
+    const terrain = new THREE.Mesh(g, terrainMats);
+    terrain.name = 'terrain';
+    terrain.castShadow = true;
+    terrain.receiveShadow = true;
+    root.add(terrain);
+  }
 
   // ------------------------------------------------------------------ water
   const ocean = makeOcean(T);
@@ -441,7 +444,7 @@ export async function makeBeastIsland(opts = {}) {
     terrain: T,
     dispose() {
       root.removeFromParent();
-      T.mesh.dispose();
+      for (const g of T.meshes) g.dispose();
       T.colorTex.dispose();
       T.distTex.dispose();
       for (const m of terrainMats) m.dispose();
@@ -913,8 +916,9 @@ function addRoadside({ T, root, bridges, exclude }) {
 }
 
 // ---------------------------------------------------------------------------
-// Vegetation + scenery scatter (instanced per kind, split into a south + north chunk so each can be culled)
+// Vegetation + scenery scatter (instanced per kind and per spatial tile so each can be culled)
 const NORTH_Z = -76;
+const DECOR_TILE_X = (NX * CS) / 3, DECOR_TILE_Z = (NZ * CS) / 5; // 3 x 5 decor tiles (frustum + shadow culling)
 function addDecor({ T, root, exclude, R }) {
   const LP = P.LOWPOLY;
   const kinds = {
@@ -991,12 +995,12 @@ function addDecor({ T, root, exclude, R }) {
     // only on flat-ish ground (not on a 1-column ledge)
     if (T.minHeight(px, pz, 0.6) < y - 0.6) continue;
     // the Northern Wilds' open meadows stay a little sparser (keeps the triangle budget in check)
-    if (pz < NORTH_Z && (m === MAT.GRASS || m === MAT.LUSH) && R() < 0.35) continue;
+    if (pz < NORTH_Z && (m === MAT.GRASS || m === MAT.LUSH) && R() < 0.5) continue;
     let r = R();
     for (const [k, p] of tb) {
       if (r < p) {
         const big = k === 'palm' || k === 'palm2' || k === 'round' || k === 'round2' || k === 'pine' || k === 'snowpine' || k === 'jungle' || k === 'jungle2';
-        const key = k + (pz < NORTH_Z ? ':n' : ':s');
+        const key = k + ':' + Math.floor((px - X0) / DECOR_TILE_X) + '_' + Math.floor((pz - Z0) / DECOR_TILE_Z);
         (items[key] ??= []).push([px, y, pz, R() * Math.PI * 2, (big ? 0.8 + R() * 0.45 : 0.75 + R() * 0.5)]);
         break;
       }

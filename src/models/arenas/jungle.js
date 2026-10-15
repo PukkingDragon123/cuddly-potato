@@ -676,13 +676,13 @@ export function buildZone(K) {
   fallSheet(K, { tex: tFalls, x: 4.0 - Math.sin(0.5) * 0.06, y: 0.02, z: -4.2 + Math.cos(0.5) * 0.06, w: 0.9, h: 4.2, ry: -0.5, speed: 1.6, tile: 0.7 });
   addParticles(K, 18, [2.6, 3.8, -0.1, 0.7, -3.4, -2.2], { color: 0xffffff, size: [0.04, 0.08], vy: 0.9, drift: 0.4, fadeTop: true });
   K.inst('kapok', kapokGrid(1), { scale: 0.06 }, [[-5.2, 0, -1.2, 0.4], [5.6, 0, 1.4, 2.2]], { shadow: true });
-  K.mesh('tent', tentGrid, { scale: 0.06, ao: true }, -4.2, 0, 3.0, 0.7, 1, { shadow: true });
-  K.mesh('campfire', campfireGrid, { scale: 0.05, ao: true }, -2.4, 0, 4.2, 0, 1, { shadow: true });
+  K.mesh('tent', tentGrid, { scale: 0.06 }, -4.2, 0, 3.0, 0.7, 1, { shadow: true });
+  K.mesh('campfire', campfireGrid, { scale: 0.05 }, -2.4, 0, 4.2, 0, 1, { shadow: true });
   addFlames(K, 'jzf', [[-2.4, 0.06, 4.2, 0.6]], 0.06);
-  K.inst('column', columnGrid(1, 22), { scale: 0.055, ao: true }, [[1.6, 0, 2.6, 0.2], [-0.6, 0, 1.4, 1.1], [3.4, 0, 3.8, 2]], { shadow: true });
+  K.inst('column', columnGrid(1, 22), { scale: 0.055 }, [[1.6, 0, 2.6, 0.2], [-0.6, 0, 1.4, 1.1], [3.4, 0, 3.8, 2]], { shadow: true });
   K.inst('monstera', monsteraGrid(1), { scale: 0.07 }, [[-5.6, 0, 1.2, 0.3], [5.4, 0, 4.2, 2.1], [0.4, 0, 5.4, 1], [-3.2, 0, -5.4, 2.4]]);
-  K.mesh('pantherHead', pantherHeadGrid, { scale: 0.05, ao: true }, 4.2, 0, 1.0, -0.6, 1, { shadow: true });
-  K.inst('brazier', brazierGrid, { scale: 0.05, ao: true }, [[-1.0, 0, 2.2], [2.6, 0, 1.0]], { shadow: true });
+  K.mesh('pantherHead', pantherHeadGrid, { scale: 0.05 }, 4.2, 0, 1.0, -0.6, 1, { shadow: true });
+  K.inst('brazier', brazierGrid, { scale: 0.05 }, [[-1.0, 0, 2.2], [2.6, 0, 1.0]], { shadow: true });
   addFlames(K, 'jzb', [[-1.0, 0.65, 2.2, 0.5], [2.6, 0.65, 1.0, 0.5]], 0.05);
   [[0xe8343c, 'mz1'], [0x29b6f6, 'mz2']].forEach(([c, id], k) => addFlyers(K, id, macawBodyGrid(c), macawWingGrid(c), { scale: 0.06 }, orbitList(K, 2, [k * 2 - 1, 4.4 + k, -1], { r0: 3, r1: 5, spread: 1, squash: 0.8 }), { flap: 0.7 }));
   addFlyers(K, 'bfz', flyBodyGrid, flyWingGrid(0xff4fa3), { scale: 0.05 }, orbitList(K, 4, [0, 0.8, 2], { r0: 1, r1: 2.5, spread: 3, dy: 0.6, f0: 14, f1: 20, squash: 0.7 }), { flap: 1.1, bob: 0.3, bank: 0.1, shadow: false });

@@ -492,7 +492,7 @@ export function buildZone(K) {
   K.onUpdate((dt, t) => { for (const [m, ph] of wings) m.rotation.y = Math.sin(t * 0.1 + ph) * 0.6; });
   K.mesh('gantry', gantryGrid, { scale: 0.06 }, 4.6, 0, 2.6, 0, 1, { shadow: true });
   K.mesh('rocket', rocketGrid, { scale: 0.06 }, 3.8, 0.24, 2.6, 0, 1, { shadow: true });
-  K.mesh('domeBase', domeBaseGrid, { scale: 0.08, ao: true }, -3.4, 0, 2.2, 0, 1, { shadow: true });
+  K.mesh('domeBase', domeBaseGrid, { scale: 0.08 }, -3.4, 0, 2.2, 0, 1, { shadow: true });
   const dome = K.mesh('domeGlass', domeGlassGrid, { scale: 0.08, pivot: [0, 0, 0] }, -3.44, 0.08, 2.16, 0, 1, { mats: [glassMat(0xbfe9ff, 0.24), Mats.glow] });
   dome.renderOrder = 3;
   K.mesh('domeFrame', domeFrameGrid, { scale: 0.08, pivot: [0, 0, 0] }, -3.44, 0.08, 2.16);

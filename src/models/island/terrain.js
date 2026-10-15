@@ -153,7 +153,7 @@ export function buildTerrain(spec) {
       const inland = smooth(0.05, 0.3, L);
       const rd = rDist[id];
       const calm = smooth(3, 13, rd);
-      let h = (base + 0.4) * coast + (fbm(x * 0.045, z * 0.045, 3, 11) - 0.5) * 8 * inland * calm;
+      let h = (base + 0.4) * coast + (fbm(x * 0.045, z * 0.045, 3, 11) - 0.5) * (z < -80 ? 6.5 : 8) * inland * calm;
       // gentle river valley (never below the beach level inland)
       if (rd < 16 && L > 0) h = Math.max(Math.min(h, 1.5), h - 3 * Math.exp(-(rd * rd) / (2 * 6 * 6)) * inland);
       // rolling beach dunes
@@ -398,7 +398,7 @@ export function buildTerrain(spec) {
     },
   };
   tick('materials');
-  api.mesh = buildMesh(api);
+  api.meshes = buildMesh(api);
   tick('mesh');
   api.colorTex = paintColorMap(api, spec);
   tick('colormap');
@@ -419,36 +419,47 @@ export function densify(pts, step) {
 // ---------------------------------------------------------------------------
 // Greedy column mesher
 
+// Terrain chunk size (columns): each chunk is its own mesh so the camera + shadow frustums can cull it.
+export const CHUNK = 96;
+
 function buildMesh(T) {
   const { hv, mat } = T;
-  const pos = [], nor = [], col = [], uv = [];
-  const iTop = [], iSide = [];
-  let vc = 0;
+  const chunks = new Map();
+  let cur = null;
   const W = NX * CS, D = NZ * CS;
+  const use = (ci, cj) => {
+    const k = Math.floor(ci / CHUNK) * 1000 + Math.floor(cj / CHUNK);
+    let c = chunks.get(k);
+    if (!c) { c = { pos: [], nor: [], col: [], uv: [], iTop: [], iSide: [], vc: 0 }; chunks.set(k, c); }
+    cur = c;
+  };
   const quad = (a, b, c, d, n, cols, top) => {
-    pos.push(...a, ...b, ...c, ...d);
-    for (let k = 0; k < 4; k++) nor.push(n[0], n[1], n[2]);
-    if (cols) col.push(...cols); else for (let k = 0; k < 4; k++) col.push(1, 1, 1);
-    for (const p of [a, b, c, d]) uv.push((p[0] - X0) / W, (p[2] - Z0) / D);
-    (top ? iTop : iSide).push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3);
-    vc += 4;
+    const C0 = cur;
+    C0.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2]);
+    for (let k = 0; k < 4; k++) C0.nor.push(n[0], n[1], n[2]);
+    if (cols) for (let k = 0; k < 12; k++) C0.col.push(cols[k]); else for (let k = 0; k < 12; k++) C0.col.push(1);
+    C0.uv.push((a[0] - X0) / W, (a[2] - Z0) / D, (b[0] - X0) / W, (b[2] - Z0) / D, (c[0] - X0) / W, (c[2] - Z0) / D, (d[0] - X0) / W, (d[2] - Z0) / D);
+    const vc = C0.vc;
+    (top ? C0.iTop : C0.iSide).push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3);
+    C0.vc += 4;
   };
 
-  // ---- tops: 2D greedy by height
+  // ---- tops: 2D greedy by height (never across a chunk border)
   const used = new Uint8Array(NX * NZ);
   for (let j = 0; j < NZ; j++)
     for (let i = 0; i < NX; i++) {
       const id = j * NX + i, h = hv[id];
       if (h < 1 || used[id]) continue;
       let w = 1;
-      while (i + w < NX && !used[id + w] && hv[id + w] === h) w++;
+      while (i + w < NX && (i + w) % CHUNK !== 0 && !used[id + w] && hv[id + w] === h) w++;
       let d = 1;
-      outer: while (j + d < NZ) {
+      outer: while (j + d < NZ && (j + d) % CHUNK !== 0) {
         for (let k = 0; k < w; k++) { const q = (j + d) * NX + i + k; if (used[q] || hv[q] !== h) break outer; }
         d++;
       }
       for (let dd = 0; dd < d; dd++) used.fill(1, (j + dd) * NX + i, (j + dd) * NX + i + w);
       const x0 = X0 + i * CS, x1 = X0 + (i + w) * CS, z0 = Z0 + j * CS, z1 = Z0 + (j + d) * CS, y = h * VY;
+      use(i, j);
       quad([x0, y, z0], [x0, y, z1], [x1, y, z1], [x1, y, z0], [0, 1, 0], null, true);
     }
 
@@ -477,7 +488,8 @@ function buildMesh(T) {
       return [a, b, _c.r, _c.g, _c.b, ao(a), ao(b)];
     });
   };
-  const emitWall = (axis, dir, plane, s0, s1, ylo, yhi, m) => {
+  const emitWall = (axis, dir, plane, s0, s1, ylo, yhi, m, ci, cj) => {
+    use(ci, cj);
     const yb = ylo * VY, yt = yhi * VY;
     const sh = axis === 'x' ? (dir > 0 ? FACE_SHADE.px : FACE_SHADE.nx) : dir > 0 ? FACE_SHADE.pz : FACE_SHADE.nz;
     for (const [a, b, r, g, bl, la, lb] of bandCols(m, yb, yt, sh)) {
@@ -498,8 +510,10 @@ function buildMesh(T) {
     const xb = X0 + (i + 1) * CS;
     for (const dir of [1, -1]) {
       let run = null;
-      const flush = () => { if (run) emitWall('x', dir, xb, Z0 + run.j0 * CS, Z0 + run.j1 * CS, run.lo, run.hi, run.m); run = null; };
+      const owner = dir > 0 ? Math.max(0, i) : Math.min(NX - 1, i + 1);
+      const flush = () => { if (run) emitWall('x', dir, xb, Z0 + run.j0 * CS, Z0 + run.j1 * CS, run.lo, run.hi, run.m, owner, run.j0); run = null; };
       for (let j = 0; j < NZ; j++) {
+        if (j % CHUNK === 0) flush();
         const a = i >= 0 ? hv[j * NX + i] : -2, b = i + 1 < NX ? hv[j * NX + i + 1] : -2;
         let hi, lo, m;
         if (dir > 0) { hi = a; lo = eff(b); m = i >= 0 ? mat[j * NX + i] : 0; } else { hi = b; lo = eff(a); m = i + 1 < NX ? mat[j * NX + i + 1] : 0; }
@@ -515,8 +529,10 @@ function buildMesh(T) {
     const zb = Z0 + (j + 1) * CS;
     for (const dir of [1, -1]) {
       let run = null;
-      const flush = () => { if (run) emitWall('z', dir, zb, X0 + run.i0 * CS, X0 + run.i1 * CS, run.lo, run.hi, run.m); run = null; };
+      const owner = dir > 0 ? Math.max(0, j) : Math.min(NZ - 1, j + 1);
+      const flush = () => { if (run) emitWall('z', dir, zb, X0 + run.i0 * CS, X0 + run.i1 * CS, run.lo, run.hi, run.m, run.i0, owner); run = null; };
       for (let i = 0; i < NX; i++) {
+        if (i % CHUNK === 0) flush();
         const a = j >= 0 ? hv[j * NX + i] : -2, b = j + 1 < NZ ? hv[(j + 1) * NX + i] : -2;
         let hi, lo, m;
         if (dir > 0) { hi = a; lo = eff(b); m = j >= 0 ? mat[j * NX + i] : 0; } else { hi = b; lo = eff(a); m = j + 1 < NZ ? mat[(j + 1) * NX + i] : 0; }
@@ -528,17 +544,24 @@ function buildMesh(T) {
     }
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  geo.setIndex(new THREE.Uint32BufferAttribute(iTop.concat(iSide), 1));
-  geo.addGroup(0, iTop.length, 0);
-  geo.addGroup(iTop.length, iSide.length, 1);
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
-  return geo;
+  const out = [];
+  for (const [key, c] of chunks) {
+    if (!c.vc) continue;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(c.pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(c.nor, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(c.col, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(c.uv, 2));
+    const idx = c.iTop.concat(c.iSide);
+    geo.setIndex(c.vc > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
+    geo.addGroup(0, c.iTop.length, 0);
+    geo.addGroup(c.iTop.length, c.iSide.length, 1);
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    geo.userData.chunk = key;
+    out.push(geo);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

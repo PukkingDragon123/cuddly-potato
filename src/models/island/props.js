@@ -611,7 +611,7 @@ Object.assign(LOWPOLY, {
     blob(g, x - 4 + lean * 2, 21, -4, 8, 2, 8, band(Ll), 2);
     blob(g, x + 4 * lean - 3, 16, -2, 6, 2, 6, band(Ld), 2);
     // vines + bromeliads
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < 3; k++) {
       const vx = x - 5 + Math.floor(hash3(seed, k, 1) * 11), vz = -5 + Math.floor(hash3(seed, k, 2) * 10);
       const len = 3 + Math.floor(hash3(seed, k, 3) * 7);
       if (g.has(vx, 18, vz)) for (let y = 17; y > 17 - len; y--) g.set(vx, y, vz, k & 1 ? 0x1f7a36 : 0x2a8a3c);
@@ -763,7 +763,7 @@ export function kapokGrid(seed = 1) {
     }
   }
   // hanging lianas + flowers
-  for (let k = 0; k < 40; k++) {
+  for (let k = 0; k < 18; k++) {
     const x = Math.round((hash3(seed, k, 3) - 0.5) * 40), z = Math.round((hash3(seed, k, 4) - 0.5) * 40);
     let top = -1;
     for (let y = H + 6; y > 20; y--) if (g.has(x, y, z)) { top = y; break; }

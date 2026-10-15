@@ -531,11 +531,11 @@ export function buildZone(K) {
   const wreck = K.mesh('wreck', wreckGrid, { scale: 0.06 }, -3.6, 0.05, -3.2, 0.7, 1, { shadow: true });
   wreck.rotation.set(0.05, 0.7, 0.16, 'YXZ');
   K.mesh('barge', bargeGrid, { scale: 0.05, pivot: [0, 0, 0] }, 4.2, 0.2, -2.8, -0.6, 1, { shadow: true });
-  K.mesh('tent', tentGrid, { scale: 0.06, ao: true }, -0.6, IY, -0.6, 0.2, 1, { shadow: true });
+  K.mesh('tent', tentGrid, { scale: 0.06 }, -0.6, IY, -0.6, 0.2, 1, { shadow: true });
   K.inst('bagPile', bagPileGrid, { scale: 0.06 }, [[1.8, IY, 0.6, 0.4], [-2.4, IY, 1.2, 2]], { shadow: true });
-  K.inst('binB', binGrid(C.blue, true), { scale: 0.06, ao: true }, [[0.6, IY, 1.8, 0.2]], { shadow: true });
-  K.inst('binG', binGrid(C.green, true), { scale: 0.06, ao: true }, [[1.1, IY, 1.9, 0.2]], { shadow: true });
-  K.mesh('score', scoreGrid, { scale: 0.05, ao: true }, 2.2, IY, -1.2, -0.5, 1, { shadow: true });
+  K.inst('binB', binGrid(C.blue, true), { scale: 0.06 }, [[0.6, IY, 1.8, 0.2]], { shadow: true });
+  K.inst('binG', binGrid(C.green, true), { scale: 0.06 }, [[1.1, IY, 1.9, 0.2]], { shadow: true });
+  K.mesh('score', scoreGrid, { scale: 0.05 }, 2.2, IY, -1.2, -0.5, 1, { shadow: true });
   const palmSpots = [[-2.4, 2.2, 0.1], [2.6, 2.0, 0.09], [-1.0, -2.4, 0.1]];
   const palms = liveInst(K, 'palm', () => ENV_GRIDS.treePalm(), { scale: 1 }, palmSpots.length, { shadow: true });
   K.onUpdate((dt, t) => { palmSpots.forEach(([x, z, s], i) => setInst(palms, i, x, IY, z, i * 1.7, 0, Math.sin(t * 1.1 + i) * 0.04, s)); palms.instanceMatrix.needsUpdate = true; });
