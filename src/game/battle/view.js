@@ -19,12 +19,13 @@ import { createSwarm } from '../../models/swarmModels.js';
 import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
+import { ChargeAura, BaseBadge } from './commandFx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech } from '../../ui/ui.js';
 import { FIELD } from './field.js';
 import { LAB_X, LAB_HALF } from './sim.js';
-import { BASE_UPGRADES } from '../../data/labs.js';
+import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
 
 // base tier models (tent -> Mega HQ) come from props/base.js; until that module
 // exists the full Lab building stands in for every tier
@@ -504,6 +505,9 @@ export class BattleView {
       ch.reactT = 0;
       return ch;
     });
+    // tap-your-Commander MEGA charge-up + tap-your-base upgrade sign
+    this.auras = [0, 1].map((i) => (this.sim.sides[i].mega && this.cmds[i] ? new ChargeAura(this, i, this.plateLayer) : null));
+    this.baseBadge = new BaseBadge(this.plateLayer, () => this.onBaseTap?.());
     // deploy zone overlay + ghost preview
     const zmat = new THREE.MeshBasicMaterial({ map: stripeTex(), color: 0x4ab4ff, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, fog: false });
     this.zone = new THREE.Mesh(PLANE, zmat);
@@ -857,6 +861,7 @@ export class BattleView {
       }
     }
     this.updateCommanders(dt);
+    this.updateCommandFx(dt);
     for (const z of this.zones) z.update(gdt);
     this.zones = this.zones.filter((z) => !z.done);
     if (this.aimRing) this.aimRing.children[0].material.opacity = 0.16 + Math.sin(this.t * 6) * 0.06;
@@ -870,6 +875,61 @@ export class BattleView {
       if (this.cine?.done) this.cine = null;
       this.updateCamera(dt);
     }
+  }
+
+  engineToScreen(v) {
+    return engine.toScreen(v, this.camera);
+  }
+
+  updateCommandFx(dt) {
+    const sim = this.sim;
+    for (let i = 0; i < 2; i++) {
+      const a = this.auras?.[i];
+      if (!a) continue;
+      const s = sim.sides[i], m = s.mega;
+      const state = !m || m.used ? 'used' : sim.canMega(i) ? 'ready' : s.overclock + 1 < MEGA.minTier ? 'locked' : 'charging';
+      a.update(dt, this.cmds[i], m ? Math.min(1, m.charge) : null, sim.cinematic ? 'used' : state);
+      // a fully charged Commander can't sit still
+      const ch = this.cmds[i];
+      if (ch && state === 'ready' && !ch.busy && Math.random() < dt * 0.6) { ch.play('sitCheer'); ch.expr('star', 'grin', 1); ch.reactT = 1.2; }
+    }
+    this.baseBadge?.update(this, this.labs[0], sim.sides[0]);
+  }
+
+  /** What a tap at a screen point hit on YOUR side: 'commander' | 'base' | null. */
+  hitTest(cx, cy) {
+    const ch = this.cmds?.[0];
+    if (ch) {
+      const p = ch.root.position, sc = ch.root.scale.x || 1;
+      const s = engine.toScreen(_v.set(p.x, p.y + 0.7 * sc, p.z), this.camera);
+      const r = Math.max(34, Math.min(engine.width, engine.height) * 0.075);
+      if (s.visible && Math.hypot(cx - s.x, cy - s.y) < r) return 'commander';
+    }
+    const lab = this.labs?.[0];
+    if (lab && this.sim.sides[0].lab.alive) {
+      const b = lab.bounds ?? { x0: -1.7, x1: 1.7, z0: -1.2, z1: 1.2 };
+      const x = lab.root.position.x, top = Math.min(lab.height ?? 3, 6.4);
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const [px, py, pz] of [[b.x0, 0, b.z1], [b.x1, 0, b.z1], [b.x0, top, b.z0], [b.x1, top, b.z0], [b.x0, top, b.z1], [b.x1, 0, b.z0]]) {
+        const s = engine.toScreen(_v.set(x + px, py, pz), this.camera);
+        x0 = Math.min(x0, s.x); x1 = Math.max(x1, s.x); y0 = Math.min(y0, s.y); y1 = Math.max(y1, s.y);
+      }
+      if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) return 'base';
+    }
+    return null;
+  }
+
+  /** Little reaction when you tap your Commander before the MEGA is ready. */
+  pokeCommander(i) {
+    const ch = this.cmds?.[i];
+    if (!ch) return;
+    ch.boing(0.4);
+    ch.play('sitCheer');
+    ch.expr('determined', 'grin', 1);
+    ch.reactT = 1;
+    const p = ch.root.position;
+    fx.sparkle(new THREE.Vector3(p.x, p.y + 0.9, p.z), { count: 12, colors: [0xffffff, 0x9ff2ff, 0xffe27a], speed: 3, life: 0.4 });
+    audio.play('zap', { pitch: 1.6, vol: 0.4 });
   }
 
   updateCommanders(dt) {
@@ -1136,9 +1196,16 @@ export class BattleView {
         if (ev.side === 0) { audio.play('magic', { pitch: 0.7 }); audio.play('alarm', { vol: 0.4 }); }
         break;
       }
-      case 'megaStart':
+      case 'megaStart': {
+        const ch = this.cmds?.[ev.side];
+        if (ch) {
+          this.auras?.[ev.side]?.discharge(ch.root.position);
+          ch.play('sitCheer');
+          ch.expr('star', 'shout', 2);
+        }
         this.cine = playMegaCutscene(this, ev);
         break;
+      }
       case 'megaLand':
         this.cine?.finish?.(ev);
         break;

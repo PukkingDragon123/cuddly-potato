@@ -8,9 +8,10 @@
 //            button, the MEGA ultimate button and emotes.
 // Input on cards is forwarded to the battle scene (tap/drag to deploy).
 import './battle.css';
+import './lineup.css';
 import { h, icon, iconURL, button, bigBanner, speech, sparkle, bump } from '../../ui/ui.js';
 import { cardEl } from '../../ui/cards.js';
-import { charPortrait } from '../../ui/thumbs.js';
+import { charPortrait, cardArtImg } from '../../ui/thumbs.js';
 import { cardDef } from '../../data/cards.js';
 import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
 import { MEGAS } from '../../data/megas.js';
@@ -19,6 +20,7 @@ import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
 import { FIELD } from './field.js';
 import { plateBounds } from './view.js';
+import { LINEUP_MAX } from './sim.js';
 
 const fmtT = (s) => {
   s = Math.max(0, Math.ceil(s));
@@ -114,11 +116,23 @@ export class BattleHUD {
       });
       if (this.skillEls.length) this.cmdEl.appendChild(h('div', { class: 'bh-skills' }, this.skillEls.map((s) => s.el)));
     }
-    // right: emote + base upgrade + MEGA ultimate
-    this.ocV = h('span', { class: 'ocv' }, '');
-    this.ocC = h('small', { class: 'occ' }, '');
-    this.ocBtn = button(h('span', { class: 'oc' }, h('b', {}, 'UPGRADE BASE'), this.ocV, this.ocC), () => handlers.overclock(), 'purple sm bh-oc', { icon: 'lab' });
+    // emotes (above the deck, right)
     this.emoteBtn = button('', () => this.toggleEmotes(), 'blue sm icon-only bh-emote', { icon: 'emote' });
+    this.rightEl = h('div', { class: 'bh-right' }, this.emoteBtn);
+
+    // BASE level button (Battle Cats "worker" style) - tap it, or tap your base in the world
+    this.ocTier = h('div', { class: 'tier' }, 'LV 1');
+    this.ocV = h('span', { class: 'ocv' }, '');
+    this.ocC = h('b', { class: 'occ' }, '');
+    this.ocFill = h('i', { class: 'f' });
+    this.ocBtn = h('div', { class: 'bh-basebtn hit', title: 'Upgrade your base (or tap it!)' },
+      h('div', { class: 'fill' }, this.ocFill),
+      h('div', { class: 'ic' }, icon('lab'), this.ocTier),
+      h('div', { class: 'txt' }, h('small', {}, 'UPGRADE'), this.ocV),
+      h('div', { class: 'cost' }, icon('power'), this.ocC));
+    this.ocBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.overclock(); });
+
+    // MEGA (Cat Cannon style) - fire it here, or tap your Commander
     this.megaEl = null;
     if (s0.mega) {
       const def = MEGAS[s0.mega.id];
@@ -129,6 +143,7 @@ export class BattleHUD {
         this.megaLiq,
         h('img', { class: 'mg', src: swarmThumb(s0.mega.id, s0.mega.variant ?? 'base', null, 128), alt: '' }),
         h('div', { class: 'tg' }, icon('mega'), 'MEGA'),
+        h('i', { class: 'arc a1' }), h('i', { class: 'arc a2' }),
         this.megaPct, this.megaLock);
       this.megaEl.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
@@ -147,25 +162,33 @@ export class BattleHUD {
         audio.play('deny');
       });
     }
-    this.rightEl = h('div', { class: 'bh-right' }, this.emoteBtn, this.ocBtn, this.megaEl);
 
-    // hand + next
-    this.slots = [0, 1, 2, 3].map((i) => {
-      const el = h('div', { class: 'bh-slot', 'data-slot': String(i) });
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); audio.unlock(); handlers.press(i, e); });
-      return { el, key: null, dim: null };
-    });
-    this.nextBox = h('div', { class: 'bh-next' }, h('div', { class: 'lbl' }, 'NEXT'));
-    this.nextKey = null;
+    // POWER: big counter + one cell per point
     this.drop = h('div', { class: 'bh-drop', style: { backgroundImage: `url(${iconURL('power')})` } }, '5');
+    this.pwrNow = h('b', {}, '0');
+    this.pwrMax = h('span', {}, '/10');
+    this.pwrTxt = h('div', { class: 'bh-pwr' }, this.pwrNow, this.pwrMax);
     this.segs = [];
     this.rate = h('span', { class: 'rate hidden' }, '');
     this.ebar = h('div', { class: 'bh-ebar' }, this.rate);
     this.setSegs(sim.maxPower(0));
-    this.energyRow = h('div', { class: 'bh-energy' }, this.drop, this.ebar);
-    this.deck = h('div', { class: 'bh-deck' },
-      h('div', { class: 'bh-row' }, this.nextBox, h('div', { class: 'bh-hand' }, this.slots.map((s) => s.el))),
-      this.energyRow);
+    this.energyRow = h('div', { class: 'bh-energy' }, this.drop, this.ebar, this.pwrTxt);
+
+    // the lineup: up to 10 unit buttons in 2 rows of 5, each with a cost and a recharge timer
+    this.slots = Array.from({ length: LINEUP_MAX }, (_, i) => {
+      const el = h('div', { class: 'bh-slot empty', 'data-slot': String(i) });
+      el.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        audio.unlock();
+        if (slot.card) handlers.press(i, e);
+        else this.hint('Unlock more Swarms on the Trophy Road and in vials!');
+      });
+      const slot = { el, key: null, card: null, wasCool: false };
+      return slot;
+    });
+    this.lineup = h('div', { class: 'bh-lineup' }, this.slots.map((s) => s.el));
+    this.deck = h('div', { class: 'bh-deck' }, this.ocBtn, this.energyRow, this.megaEl ?? h('div', { class: 'bh-mega-space' }), this.lineup);
     root.appendChild(h('div', { class: 'bh-bottom' }, h('div', { class: 'bh-above' }, this.cmdEl, this.rightEl), this.deck));
     this.refreshHand(true);
     this.lastE = -1;
@@ -196,33 +219,37 @@ export class BattleHUD {
 
   refreshHand(initial = false) {
     const s = this.sim.sides[0];
+    const desktop = engine.width > engine.height || !('ontouchstart' in window);
     this.slots.forEach((slot, i) => {
       const k = s.hand[i];
       const c = k === undefined ? null : s.deck[k];
-      const key = c ? `${k}` : null;
+      const key = c ? `${k}:${c.id}` : null;
       if (key === slot.key) return;
       slot.key = key;
+      slot.card = c;
       slot.el.innerHTML = '';
-      if (!c) return;
-      const card = cardEl(c.id, { owned: { level: c.level, variant: c.variant, skin: c.skin }, level: c.level, priority: true });
-      slot.el.appendChild(card);
-      slot.dim = h('div', { class: 'dim' });
-      card.appendChild(slot.dim);
-      if (engine.width > engine.height || !('ontouchstart' in window)) slot.el.appendChild(h('div', { class: 'key' }, String(i + 1)));
+      if (!c) {
+        slot.el.className = 'bh-slot empty';
+        slot.el.appendChild(h('div', { class: 'qm' }, icon('lock')));
+        return;
+      }
+      const def = cardDef(c.id);
+      slot.el.className = `bh-slot r-${def?.rarity ?? 'common'}${c.spell ? ' spell' : ''}`;
+      slot.cdFill = h('i', { class: 'f' });
+      slot.cdTxt = h('span', {}, '');
+      slot.el.append(
+        h('div', { class: 'art' }, cardArtImg(c.id, c.variant ?? 'base', c.skin ?? null, 128, '')),
+        h('div', { class: 'nm' }, def?.name ?? c.id),
+        h('div', { class: 'cost' }, icon('power'), h('b', {}, String(this.sim.cardCost(0, i)))),
+        h('div', { class: 'lv' }, `Lv${c.level ?? 1}`),
+        h('div', { class: 'cd' }, slot.cdFill, slot.cdTxt),
+        desktop ? h('div', { class: 'key' }, String((i + 1) % 10)) : null);
       if (!initial) {
         slot.el.classList.remove('enter');
         void slot.el.offsetWidth;
         slot.el.classList.add('enter');
       }
-      slot.card = c;
     });
-    const nx = this.sim.nextCard(0);
-    const nk = nx ? nx.id + nx.level : null;
-    if (nk !== this.nextKey) {
-      this.nextKey = nk;
-      this.nextBox.querySelector('.gcard')?.remove();
-      if (nx) this.nextBox.appendChild(cardEl(nx.id, { owned: { level: nx.level, variant: nx.variant, skin: nx.skin }, size: 'mini', noLevel: true }));
-    }
   }
 
   select(slot) {
@@ -391,27 +418,47 @@ export class BattleHUD {
         seg.firstChild.style.width = f >= 1 ? '' : (f * 100).toFixed(1) + '%';
       });
       this.ebar.classList.toggle('maxed', e >= sim.maxPower(0) - 0.001);
+      this.pwrNow.textContent = String(whole);
+      this.pwrMax.textContent = '/' + sim.maxPower(0);
     }
     this.ebar.classList.toggle('x2', sim.doubleEnergy && !sim.overtime);
     this.ebar.classList.toggle('x3', sim.overtime);
-    // cards: affordability dim
+    // lineup: recharge wipe + affordability
     this.slots.forEach((slot, i) => {
+      if (!slot.card) return;
       const cost = sim.cardCost(0, i);
-      const poor = e < cost;
-      slot.el.classList.toggle('poor', poor);
-      if (slot.dim) slot.dim.style.height = poor ? ((1 - e / cost) * 100).toFixed(1) + '%' : '0%';
+      const cd = sim.slotCd(0, i);
+      const cooling = cd > 0.02;
+      if (cooling) {
+        slot.cdFill.style.height = Math.min(100, (cd / Math.max(0.1, sim.slotRecharge(0, i))) * 100).toFixed(1) + '%';
+        slot.cdTxt.textContent = cd < 10 ? cd.toFixed(1) : String(Math.ceil(cd));
+      } else if (slot.wasCool) {
+        slot.cdFill.style.height = '0%';
+        slot.cdTxt.textContent = '';
+        // recharged: a little pop
+        slot.el.classList.remove('pop');
+        void slot.el.offsetWidth;
+        slot.el.classList.add('pop');
+      }
+      slot.wasCool = cooling;
+      slot.el.classList.toggle('cool', cooling);
+      slot.el.classList.toggle('poor', !cooling && e < cost);
+      slot.el.classList.toggle('ready', !cooling && e >= cost && !sim.over);
     });
     // base upgrade
     const oc = BASE_UPGRADES[s.overclock];
     const nx = BASE_UPGRADES[s.overclock + 1];
+    this.ocTier.textContent = `LV ${s.overclock + 1}`;
     if (!nx) {
       this.ocV.textContent = oc.name;
-      this.ocC.textContent = 'MAX TIER';
-      this.ocBtn.classList.add('disabled', 'max');
+      this.ocC.textContent = 'MAX';
+      this.ocFill.style.width = '100%';
+      this.ocBtn.classList.add('max');
+      this.ocBtn.classList.remove('afford');
     } else {
-      this.ocV.textContent = `> ${nx.name}`;
-      this.ocC.textContent = `${oc.cost} power`;
-      this.ocBtn.classList.toggle('disabled', !sim.canUpgradeLab(0));
+      this.ocV.textContent = nx.name;
+      this.ocC.textContent = String(oc.cost);
+      this.ocFill.style.width = Math.min(100, (e / oc.cost) * 100).toFixed(1) + '%';
       this.ocBtn.classList.toggle('afford', sim.canUpgradeLab(0));
     }
     // mega ultimate

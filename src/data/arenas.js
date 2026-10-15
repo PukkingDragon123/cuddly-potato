@@ -41,6 +41,31 @@ export const ARENAS = [
     id: 'island', name: 'Beast Island Paradise', trophies: 3400, theme: 'island', color: '#3ff2c8', legendary: true,
     video: 'I Gave My 100,000,000th Subscriber An Island', desc: 'The legendary arena: a private island with a villa, a yacht and a golden Panther.',
   },
+  // ---- the Northern Wilds: Beast Island's new region past the Paradise summit
+  {
+    id: 'jungle', name: 'Lost Jungle Temple', trophies: 4000, theme: 'jungle', color: '#5fdc4a',
+    video: 'I Survived 50 Hours In The Amazon Jungle', desc: 'Vine-choked temple ruins, roaring waterfalls and trees taller than the Lab.',
+  },
+  {
+    id: 'laser', name: 'Laser Maze Vault', trophies: 4600, theme: 'laser', color: '#ff3d55',
+    video: "World's Deadliest Laser Maze!", desc: 'A cliff-top vault: sweeping laser grids, cameras everywhere and safes stuffed with cash.',
+  },
+  {
+    id: 'haunted', name: 'Haunted Mansion', trophies: 5200, theme: 'haunted', color: '#b05cff',
+    video: 'Last To Leave The Haunted Mansion Wins', desc: 'A creaky mansion on a hill, a foggy graveyard, glowing pumpkins and a giant full moon.',
+  },
+  {
+    id: 'reef', name: 'TeamSeas Reef', trophies: 5800, theme: 'reef', color: '#29e0ff',
+    video: "I Cleaned The World's Dirtiest Beach #TeamSeas", desc: 'A coral reef, a rusty shipwreck and the cleanup crew hauling trash out of the sea.',
+  },
+  {
+    id: 'volcano', name: 'Volcano Forge', trophies: 6500, theme: 'volcano', color: '#ff6a1f',
+    video: 'I Built A Secret Lair Inside A Volcano', desc: 'Lava rivers, obsidian spikes and giant forge hammers pounding molten Beast gold.',
+  },
+  {
+    id: 'space', name: 'Zero-G Space Station', trophies: 7200, theme: 'space', color: '#8f9bff', legendary: true,
+    video: 'I Spent 24 Hours In Zero Gravity', desc: 'The new legendary arena: an orbital station high above the island, with Earth spinning below.',
+  },
 ];
 ARENAS.forEach((a, i) => (a.index = i));
 
@@ -121,7 +146,37 @@ export const TROPHY_ROAD = [
   { t: 3400, arena: 'island', reward: { type: 'mega', id: 'cyberGlitch' } },
   { t: 3600, reward: { type: 'bucks', amount: 250 } },
   { t: 3800, reward: { type: 'card', id: 'hyperFusionPanther', copies: 1 } },
-  { t: 4000, reward: { type: 'banner', id: 'animGoldenTicket' } },
+  // the Northern Wilds
+  { t: 4000, arena: 'jungle', reward: { type: 'vial', id: 'megaLab' } },
+  { t: 4100, reward: { type: 'card', id: 'vineViper', copies: 3 } },
+  { t: 4250, reward: { type: 'coins', amount: 6000 } },
+  { t: 4400, reward: { type: 'card', id: 'templeGolem', copies: 1 } },
+  { t: 4500, reward: { type: 'bucks', amount: 120 } },
+  { t: 4600, arena: 'laser', reward: { type: 'vial', id: 'cashCase' } },
+  { t: 4700, reward: { type: 'card', id: 'laserLynx', copies: 3 } },
+  { t: 4850, reward: { type: 'banner', id: 'animGoldenTicket' } },
+  { t: 5000, reward: { type: 'card', id: 'vaultBot', copies: 2 } },
+  { t: 5100, reward: { type: 'coins', amount: 7500 } },
+  { t: 5200, arena: 'haunted', reward: { type: 'vial', id: 'hyperchrome' } },
+  { t: 5300, reward: { type: 'card', id: 'ghostPanther', copies: 2 } },
+  { t: 5450, reward: { type: 'banner', id: 'bossSkull' } },
+  { t: 5600, reward: { type: 'card', id: 'pumpkinBrute', copies: 2 } },
+  { t: 5700, reward: { type: 'bucks', amount: 150 } },
+  { t: 5800, arena: 'reef', reward: { type: 'vial', id: 'megaLab' } },
+  { t: 5900, reward: { type: 'card', id: 'sharkByte', copies: 3 } },
+  { t: 6050, reward: { type: 'coins', amount: 9000 } },
+  { t: 6200, reward: { type: 'card', id: 'jellyZapper', copies: 3 } },
+  { t: 6350, reward: { type: 'labSkin', id: 'martLab' } },
+  { t: 6500, arena: 'volcano', reward: { type: 'vial', id: 'cashCase' } },
+  { t: 6600, reward: { type: 'card', id: 'magmaTitan', copies: 1 } },
+  { t: 6750, reward: { type: 'card', id: 'emberImps', copies: 3 } },
+  { t: 6900, reward: { type: 'coins', amount: 12000 } },
+  { t: 7050, reward: { type: 'bucks', amount: 200 } },
+  { t: 7200, arena: 'space', reward: { type: 'vial', id: 'cashCase' } },
+  { t: 7300, reward: { type: 'card', id: 'ufoGrabber', copies: 3 } },
+  { t: 7400, reward: { type: 'banner', id: 'animStars' } },
+  { t: 7500, reward: { type: 'card', id: 'astroPanther', copies: 1 } },
+  { t: 7600, reward: { type: 'mega', id: 'cyberGlitch', variant: 'gold' } },
 ];
 TROPHY_ROAD.forEach((m, i) => (m.key = 'r' + m.t, m.index = i));
 
@@ -176,6 +231,37 @@ export const BOSSES = {
     lab: 'goldVault', desc: 'Only 1,000 exist... and one of them is guarding the island. Win the Limited Edition Panther!',
     reward: { coins: 6000, bucks: 250, card: 'hyperFusionPanther' },
   },
+  // ---- the Northern Wilds
+  templeGuardian: {
+    name: 'Temple Guardian', arena: 'jungle', minTrophies: 4000, boss: 'templeGolem', bossScale: 2.4, bossHp: 22000, bossDmg: 1.3,
+    deck: ['vineViper', 'templeGolem', 'vexViper', 'stoneHybrid', 'midnightPanther', 'emberWolf', 'slimeFlood', 'foodThrow'], level: 9, commander: 'nolan',
+    desc: 'The stone guardian of the lost temple woke up covered in vines. It does not like explorers.', reward: { coins: 7000, bucks: 200, vial: 'megaLab' },
+  },
+  vaultWarden: {
+    name: 'Vault Warden', arena: 'laser', minTrophies: 4600, boss: 'megaTechMech', bossScale: 2.8, bossHp: 24000, bossDmg: 1.4,
+    deck: ['laserLynx', 'vaultBot', 'glitchBot', 'droneFang', 'circuitShark', 'voltBat', 'moneyDrop', 'freezeRay'], level: 9, commander: 'juan', lab: 'goldVault',
+    desc: 'The vault\'s security mech guards a billion dollars of cash. Dodge the lasers and crack the safe!', reward: { coins: 8000, bucks: 220, vial: 'cashCase' },
+  },
+  headlessHollow: {
+    name: 'Phantom Panther', arena: 'haunted', minTrophies: 5200, boss: 'ghostPanther', bossScale: 3.0, bossHp: 26000, bossDmg: 1.4,
+    deck: ['ghostPanther', 'pumpkinBrute', 'midnightPanther', 'vexViper', 'badEggsperiment', 'mutantMop', 'slimeFlood', 'sodaRocket'], level: 10, commander: null,
+    desc: 'Something huge and see-through prowls the graveyard at midnight. Who you gonna call?', reward: { coins: 9000, bucks: 240, vial: 'hyperchrome', banner: 'bossSkull' },
+  },
+  krakenCleanup: {
+    name: 'Sludge Kraken', arena: 'reef', minTrophies: 5800, boss: 'sludgeKraken', bossScale: 2.6, bossHp: 28000, bossDmg: 1.4,
+    deck: ['sharkByte', 'jellyZapper', 'circuitShark', 'cyberCroc', 'atomicSlime', 'sodaSurge', 'slimeFlood', 'freezeRay'], level: 10, commander: 'jimmy',
+    desc: 'A kraken made of ocean trash is clogging the reef. Clean it up for #TeamSeas!', reward: { coins: 10000, bucks: 260, vial: 'megaLab' },
+  },
+  forgeTitan: {
+    name: 'Forge Titan', arena: 'volcano', minTrophies: 6500, boss: 'magmaTitan', bossScale: 2.4, bossHp: 30000, bossDmg: 1.5,
+    deck: ['magmaTitan', 'emberImps', 'fieryPanther', 'blazeHybrid', 'emberWolf', 'magmaMole', 'sodaRocket', 'foodThrow'], level: 10, commander: null,
+    desc: 'Forged in the heart of the volcano, this molten giant hits like a falling anvil.', reward: { coins: 12000, bucks: 300, vial: 'cashCase' },
+  },
+  zeroGOverlord: {
+    name: 'Zero-G Overlord', arena: 'space', minTrophies: 7200, boss: 'astroPanther', bossScale: 2.6, bossHp: 34000, bossDmg: 1.5,
+    deck: ['astroPanther', 'ufoGrabber', 'hyperchargePanther', 'megaTechMech', 'droneFang', 'voltBat', 'freezeRay', 'sodaRocket'], level: 10, commander: 'jimmy', lab: 'goldVault',
+    desc: 'The legendary Astro Panther rules the station. Beat it in zero gravity to become a Swarm legend!', reward: { coins: 15000, bucks: 400, card: 'astroPanther' },
+  },
 };
 for (const [id, b] of Object.entries(BOSSES)) b.id = id;
 export const bossOfArena = (arenaId) => Object.values(BOSSES).find((b) => b.arena === arenaId) ?? null;
@@ -228,13 +314,15 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     const opts = cands.filter((c) => f(c) && !deck.includes(c.id));
     if (opts.length) deck.push(opts[Math.floor(rng() * opts.length)].id);
   };
-  // a sensible archetype: a cheap cycle card, a tank, ranged support, a spell, then fill
+  // lineup size grows with trophies (new rivals bring only a few Swarms, like you)
+  const size = Math.min(DECK_SIZE, 3 + Math.floor(trophies / 90));
+  // a sensible archetype: a cheap card, a tank, ranged support, a spell, then fill
   want((c) => c.kind === 'troop' && c.elixir <= 2);
   want((c) => c.kind === 'troop' && (c.role === 'tank' || c.role === 'siege'));
   want((c) => c.kind === 'troop' && c.role === 'ranged');
-  want((c) => c.kind === 'spell' && c.id !== 'labShield');
+  if (size >= 5) want((c) => c.kind === 'spell' && c.id !== 'labShield');
   let guard = 0;
-  while (deck.length < DECK_SIZE && guard++ < 300) {
+  while (deck.length < size && guard++ < 300) {
     const c = cands[Math.floor(rng() * cands.length)];
     if (!c || deck.includes(c.id)) continue;
     if (c.kind === 'spell' && deck.filter((id) => cardDef(id)?.kind === 'spell').length >= 2) continue;

@@ -1,4 +1,4 @@
-// Opponent AI for the card-cycle battle. Reads its hand like a player:
+// Opponent AI for the lineup battle. Reads its lineup (slots + recharge) like a player:
 // defends threats with counters dropped in front of its base, saves POWER
 // to build pushes (tank first, support behind), uses spells on clusters or to
 // finish the base, upgrades its base, fires its Commander ability and its MEGA.
@@ -34,7 +34,7 @@ export class BattleAI {
     return s.hand.map((k, slot) => {
       const card = s.deck[k];
       const def = card.spell ? SPELLS[card.unit] : SWARMS[card.unit];
-      return { slot, card, def, cost: sim.cardCost(this.si, slot), spell: card.spell };
+      return { slot, card, def, cost: sim.cardCost(this.si, slot), spell: card.spell, ready: sim.slotCd(this.si, slot) <= 0 };
     });
   }
 
@@ -57,7 +57,7 @@ export class BattleAI {
     if (!this.noSpells && this.trySpell(enemies)) return;
 
     const hand = this.hand();
-    const affordable = hand.filter((h) => h.cost <= s.energy);
+    const affordable = hand.filter((h) => h.ready && h.cost <= s.energy);
     if (threat > 0.5) {
       this.defend(near, affordable, myFront);
       return;
@@ -126,7 +126,7 @@ export class BattleAI {
     const sim = this.sim, si = this.si, s = sim.sides[si];
     const hand = this.hand();
     for (const h of hand) {
-      if (!h.spell || h.cost > s.energy) continue;
+      if (!h.spell || !h.ready || h.cost > s.energy) continue;
       const sp = h.def;
       if (sp.id === 'foodThrow') {
         const allies = sim.alliesOf(si);

@@ -25,7 +25,7 @@ import { glassMat } from '../models/props/common.js';
 import { h, button, say, speech, modal, pointAt, $ui, closeDialogue } from '../ui/ui.js';
 import { charPortrait } from '../ui/thumbs.js';
 import { state, rollVial, applyVial, setDeck } from '../game/state.js';
-import { STARTER_DECK } from '../data/cards.js';
+import { STARTER_TROOPS } from '../data/cards.js';
 import { game } from '../game/game.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -401,15 +401,15 @@ export class LabScene {
   }
 
   openFirstPack() {
-    const res = rollVial('starter', { fixed: { cards: STARTER_DECK.map((id, i) => ({ id, copies: i < 4 ? 3 : 2, variant: 'base' })) } });
+    const res = rollVial('starter', { fixed: { cards: STARTER_TROOPS.map((id) => ({ id, copies: 3, variant: 'base' })) } });
     game.go('vialopen', { type: 'starter', result: res, source: 'reward', back: 'lab', backParams: { step: 'afterPack' } });
   }
 
   async afterPack() {
     const p = state.p;
     // make sure the starter deck is owned even if the vial screen was skipped
-    if (!STARTER_DECK.every((id) => p.cards[id])) applyVial(rollVial('starter', { fixed: { cards: STARTER_DECK.map((id) => ({ id, copies: 2, variant: 'base' })) } }));
-    setDeck(STARTER_DECK.slice());
+    if (!STARTER_TROOPS.every((id) => p.cards[id])) applyVial(rollVial('starter', { fixed: { cards: STARTER_TROOPS.map((id) => ({ id, copies: 2, variant: 'base' })) } }));
+    setDeck(STARTER_TROOPS.slice());
     p.tutorial = 'pack';
     state.save();
     const j = this.jimmy;
@@ -420,7 +420,7 @@ export class LabScene {
     j.expr('happy', 'grin', 3);
     fx.confetti(new THREE.Vector3(j.root.position.x, 2.6, j.root.position.z), { count: 40 });
     await wait(0.5);
-    await this.say("LOOK at them! Those 8 cards are your very first *deck*. Panthers, toilets, fries... a real Swarm!", 'star', 'grin');
+    await this.say("LOOK at them! A *Panther* and a *Clogged Toilet*: your very first *lineup*. Win battles and climb the *Trophy Road* to unlock way more Swarms!", 'star', 'grin');
     j.play('point');
     j.expr('determined', 'smirk');
     await this.say("Now... think you can beat ME? First one to *smash the other's base* wins. Don't worry, I'll go easy on you. Probably.", 'determined', 'smirk');

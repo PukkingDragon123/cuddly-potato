@@ -459,3 +459,676 @@ export function signGrid(label, o = {}) {
   if (o.legH) for (const lx of [x0 + 2, x0 + W - 3]) g.box(lx, 0, 0, lx, o.legH - 1, 1, o.leg ?? 0x5d6476);
   return g;
 }
+
+// ===========================================================================
+// Postcard toolkit (detailed battle backdrops). Pixel-buffer sky painting
+// (dithered glows, shaded cumulus, streaks, moons, aurora, lit mountain
+// ranges), 3D voxel far layers (ranges, terrain), drifting voxel clouds,
+// flapping voxel birds and cheap transform-only animated instancing (sway,
+// blink, puffs, sparkles, voxel waterfalls, waving flags). Animations go
+// through K.onUpdate and never allocate per frame.
+
+/** Direct pixel access to a canvas region at (0,0)..(w,h). Call flush() when done. */
+export function pixbuf(ctx, w, h) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  const P = {
+    w, h, d,
+    get(x, y) {
+      x |= 0; y |= 0;
+      if (x < 0 || y < 0 || x >= w || y >= h) return -1;
+      const i = (y * w + x) * 4;
+      return d[i + 3] ? (d[i] << 16) | (d[i + 1] << 8) | d[i + 2] : -1;
+    },
+    set(x, y, hex, a = 1) {
+      x |= 0; y |= 0;
+      if (x < 0 || y < 0 || x >= w || y >= h || a <= 0) return;
+      const i = (y * w + x) * 4;
+      const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255;
+      if (a >= 1 || d[i + 3] === 0) { d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = a >= 1 ? 255 : Math.round(255 * a); return; }
+      d[i] += (r - d[i]) * a; d[i + 1] += (g - d[i + 1]) * a; d[i + 2] += (b - d[i + 2]) * a;
+      d[i + 3] = Math.max(d[i + 3], Math.round(255 * a));
+    },
+    /** Blend toward hex by f (0..1) quantised to `bands` levels with ordered dithering. */
+    dither(x, y, hex, f, bands = 4) {
+      if (f <= 0) return;
+      const q = Math.min(1, f) * bands, b0 = Math.floor(q);
+      const lvl = (b0 + (q - b0 > bayer(x, y) ? 1 : 0)) / bands;
+      if (lvl > 0) P.set(x, y, hex, lvl);
+    },
+    rect(x, y, rw, rh, hex, a = 1) { for (let yy = y | 0; yy < (y | 0) + rh; yy++) for (let xx = x | 0; xx < (x | 0) + rw; xx++) P.set(xx, yy, hex, a); },
+    disc(cx, cy, r, hex, a = 1) {
+      for (let y = -r; y <= r; y++) {
+        const hw = Math.floor(Math.sqrt(r * r - y * y + r * 0.6));
+        for (let x = -hw; x <= hw; x++) P.set(Math.round(cx) + x, Math.round(cy) + y, hex, a);
+      }
+    },
+    flush() { ctx.putImageData(img, 0, 0); },
+  };
+  return P;
+}
+
+/** Soft elliptical glow blended into the pixels with dithered bands (sun halos, horizon glow, nebulae). */
+export function skyGlow(P, cx, cy, rx, ry, hex, strength = 1, o = {}) {
+  const bands = o.bands ?? 5, pow = o.pow ?? 2;
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+    const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
+    if (d < 1) P.dither(x, y, hex, strength * Math.pow(1 - d, pow), bands);
+  }
+}
+
+/** Pixel sun: dithered halo rings, optional rays, shaded disc. o: { color, core, halo, halo2, rays, rayColor, rayLen } */
+export function paintSunPx(P, cx, cy, r, o = {}) {
+  const col = o.color ?? 0xfff0b0, core = o.core ?? 0xffffff, halo = o.halo ?? 0xfff6d8;
+  skyGlow(P, cx, cy, r * (o.haloR ?? 5), r * (o.haloR ?? 5), halo, o.haloA ?? 0.55, { bands: 6, pow: 1.6 });
+  skyGlow(P, cx, cy, r * 2.2, r * 2.2, o.halo2 ?? halo, 0.85, { bands: 4, pow: 1.2 });
+  if (o.rays) {
+    const n = o.rays, len = r * (o.rayLen ?? 6);
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + (o.rayRot ?? 0.2);
+      const wide = k % 2 ? 1 : 2;
+      for (let t = r * 1.6; t < len; t += 0.5) {
+        const f = (1 - (t - r * 1.6) / (len - r * 1.6)) * 0.45;
+        for (let w0 = -wide + 1; w0 < wide; w0++) {
+          const x = cx + Math.cos(a) * t - Math.sin(a) * w0, y = cy + Math.sin(a) * t + Math.cos(a) * w0;
+          P.dither(Math.round(x), Math.round(y), o.rayColor ?? halo, f, 3);
+        }
+      }
+    }
+  }
+  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+    const d = Math.hypot(x, y);
+    if (d > r + 0.3) continue;
+    const lit = (x + y) / (r * 2);
+    let c = col;
+    if (d < r * 0.55 && lit < 0) c = core;
+    else if (lit > 0.42 && d > r * 0.6) c = shade(col, -0.06);
+    P.set(cx + x, cy + y, c);
+  }
+}
+
+/** Pixel moon with craters and a dithered terminator. o: { color, dark, phase (-1..1, + = lit from the left), halo } */
+export function paintMoonPx(P, cx, cy, r, o = {}) {
+  const col = o.color ?? 0xf4f2e4, dark = o.dark ?? 0x9aa4c4;
+  if (o.halo !== false) skyGlow(P, cx, cy, r * 3.4, r * 3.4, o.halo ?? 0xbfd4ff, o.haloA ?? 0.35, { bands: 4, pow: 1.5 });
+  const R = mulberry32(o.seed ?? 77);
+  const craters = Array.from({ length: Math.max(3, Math.round(r * 0.8)) }, () => [(R() - 0.5) * r * 1.3, (R() - 0.5) * r * 1.3, 1 + R() * r * 0.22]);
+  const ph = o.phase ?? 0.35;
+  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+    const d = Math.hypot(x, y);
+    if (d > r + 0.3) continue;
+    let c = col;
+    for (const [qx, qy, qr] of craters) if (Math.hypot(x - qx, y - qy) < qr) { c = shade(col, -0.14); if (Math.hypot(x - qx + 0.8, y - qy + 0.8) > qr) c = shade(col, -0.24); }
+    const term = x / r - ph;
+    if (term > 0.25 || (term > 0 && term * 4 > bayer(x + 99, y))) c = mixHex(c, dark, 0.75);
+    P.set(cx + x, cy + y, c);
+  }
+}
+
+/**
+ * Shaded pixel cloud from a set of discs [[x, y, r], ...] cut flat at `bottom`:
+ * lit top rim, puff seams, dithered shaded belly and a dark base line.
+ * o: { light, color, shade, dark, alpha, sunX (-1 sun left / 1 right), shadeAt (0..1) }
+ */
+export function paintCloudShape(P, discs, bottom, o = {}) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity;
+  for (const [x, y, r] of discs) { x0 = Math.min(x0, Math.floor(x - r - 1)); x1 = Math.max(x1, Math.ceil(x + r + 1)); y0 = Math.min(y0, Math.floor(y - r - 1)); }
+  bottom = Math.round(bottom);
+  const W = x1 - x0 + 1, H = bottom - y0 + 1;
+  if (W <= 0 || H <= 0) return;
+  const m = new Uint8Array(W * H);
+  const seam = new Uint8Array(W * H);
+  for (const [cx, cy, r] of discs) {
+    for (let y = Math.floor(cy - r); y <= Math.min(bottom, Math.ceil(cy + r)); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > r) continue;
+      const i = (y - y0) * W + (x - x0);
+      if (i < 0 || i >= m.length) continue;
+      m[i] = 1;
+      if (d > r - 1.2 && y > cy + r * 0.15) seam[i] = 1;
+    }
+  }
+  const at = (x, y) => (x < x0 || x > x1 || y < y0 || y > bottom ? 0 : m[(y - y0) * W + (x - x0)]);
+  const light = o.light ?? 0xffffff, base = o.color ?? 0xf2f6ff, sh = o.shade ?? 0xc8d6ec, dark = o.dark ?? shade(sh, -0.14);
+  const sx = o.sunX ?? -1, a = o.alpha ?? 1, shadeAt = o.shadeAt ?? 0.62;
+  // seams only count where the cloud continues below (puff overlaps)
+  for (let y = y0; y <= bottom; y++) for (let x = x0; x <= x1; x++) {
+    const i = (y - y0) * W + (x - x0);
+    if (!m[i]) continue;
+    const t = (y - y0) / Math.max(1, bottom - y0);
+    let c = base;
+    if (t + (bayer(x, y) - 0.5) * 0.3 > shadeAt) c = sh;
+    if (seam[i] && at(x, y + 2) && t > 0.25) c = sh;
+    if (!at(x, y - 1) || (!at(x, y - 2) && bayer(x, y) < 0.5)) c = t > 0.7 ? base : light;
+    if (!at(x + sx, y) && t < 0.75) c = light;
+    if (!at(x, y + 1)) c = dark;
+    P.set(x, y, c, a);
+  }
+}
+
+/** Puffy cumulus at (cx, cy) about `s` px tall. */
+export function paintCumulus(P, cx, cy, s, seed = 1, o = {}) {
+  const R = mulberry32(seed * 131 + 7);
+  const discs = [];
+  const n = (o.puffs ?? 4) + Math.floor(R() * 3);
+  const span = s * (o.wide ?? 2.4);
+  for (let i = 0; i < n; i++) {
+    const u = n === 1 ? 0 : i / (n - 1) - 0.5;
+    const r = s * (0.32 + R() * 0.22) * (1 - Math.abs(u) * 0.7);
+    discs.push([cx + u * span + (R() - 0.5) * s * 0.3, cy - r * 0.4 - (1 - Math.abs(u) * 2) * s * 0.25, r]);
+  }
+  for (let i = 0; i < 1 + Math.floor(R() * 2); i++) discs.push([cx + (R() - 0.5) * span * 0.45, cy - s * (0.45 + R() * 0.2), s * (0.3 + R() * 0.18)]);
+  paintCloudShape(P, discs, cy + s * 0.18, o);
+}
+
+/** Long cloud bank / fog shelf across the whole width with a bumpy top. o: { s, depth, seed, step } + cloud colours */
+export function paintCloudBank(P, w, y, o = {}) {
+  const R = mulberry32((o.seed ?? 3) * 71 + 1);
+  const s = o.s ?? 8, discs = [];
+  for (let x = -s; x < w + s; x += s * (o.step ?? 0.7) * (0.6 + R() * 0.8)) {
+    const r = s * (0.5 + R() * 0.7);
+    discs.push([x, y - r * 0.35 + (R() - 0.5) * s * 0.4, r]);
+  }
+  paintCloudShape(P, discs, y + (o.depth ?? s * 0.6), o);
+}
+
+/** Thin stratus streaks. o: { n, y0, y1, len: [a, b], color, shade, seed, alpha } */
+export function paintStreaks(P, w, o = {}) {
+  const R = mulberry32((o.seed ?? 9) * 37);
+  const [la, lb] = o.len ?? [10, 40];
+  for (let i = 0; i < (o.n ?? 8); i++) {
+    const y = Math.round(o.y0 + R() * (o.y1 - o.y0)), x = Math.round(R() * w), L = Math.round(la + R() * (lb - la));
+    for (let k = 0; k < L; k++) {
+      const e = Math.min(k, L - 1 - k) / Math.max(1, L * 0.18);
+      if (e < 1 && bayer(x + k, y) > e) continue;
+      P.set(x + k, y, o.color ?? 0xffffff, o.alpha ?? 0.8);
+      if (k > 2 && k < L - 3 && (k + i) % 5 < 3) P.set(x + k + 2, y + 1, o.shade ?? 0xd8e4f4, (o.alpha ?? 0.8) * 0.8);
+    }
+  }
+}
+
+/** Star field (dimmer toward the horizon) + optional milky-way band. o: { n, ymax, seed, tint, milky: [x0,y0,x1,y1,width], milkyColor } */
+export function paintStarfield(P, w, h, o = {}) {
+  const R = mulberry32(o.seed ?? 3);
+  const ymax = o.ymax ?? h * 0.6;
+  if (o.milky) {
+    const [ax, ay, bx, by, wd] = o.milky;
+    const L = Math.hypot(bx - ax, by - ay), nx = -(by - ay) / L, ny = (bx - ax) / L;
+    for (let y = 0; y < ymax; y++) for (let x = 0; x < w; x++) {
+      const dist = Math.abs((x - ax) * nx + (y - ay) * ny);
+      const n = vnoise(x * 0.08, y * 0.08, 5);
+      const f = Math.max(0, 1 - dist / (wd * (0.6 + n * 0.8))) * (1 - y / ymax);
+      if (f > 0) P.dither(x, y, o.milkyColor ?? 0x7a86c8, f * 0.55, 4);
+      if (f > 0.2 && hash3(x, y, 17) < f * 0.18) P.set(x, y, 0xe8ecff, 0.7);
+    }
+  }
+  for (let i = 0; i < (o.n ?? 120); i++) {
+    const x = Math.floor(R() * w), y = Math.floor(Math.pow(R(), 1.3) * ymax);
+    const b = (0.45 + R() * 0.55) * (1 - (y / ymax) * 0.6);
+    const c = R() < 0.25 ? (o.tint ?? 0xbfe0ff) : R() < 0.1 ? 0xffe0b0 : 0xffffff;
+    P.set(x, y, c, b);
+    if (R() < 0.07) { P.set(x - 1, y, c, b * 0.5); P.set(x + 1, y, c, b * 0.5); P.set(x, y - 1, c, b * 0.5); P.set(x, y + 1, c, b * 0.5); }
+  }
+}
+
+/** Aurora curtain painted into the sky. o: { y, amp, freq, height, colors: [low, mid, high], seed, alpha } */
+export function paintAuroraPx(P, w, o = {}) {
+  const [c0, c1, c2] = o.colors ?? [0x6effa8, 0x4ae0d0, 0xb070ff];
+  const seed = o.seed ?? 1, H = o.height ?? 30, A = o.alpha ?? 0.7;
+  for (let x = 0; x < w; x++) {
+    const yb = o.y + Math.sin(x * (o.freq ?? 0.05) + seed) * (o.amp ?? 8) + Math.sin(x * (o.freq ?? 0.05) * 2.7 + seed * 3) * (o.amp ?? 8) * 0.35;
+    const hh = H * (0.45 + vnoise(x * 0.06, seed, 1) * 0.8);
+    const streak = 0.55 + 0.45 * Math.sin(x * 1.3 + vnoise(x * 0.2, seed, 2) * 6);
+    for (let k = 0; k < hh; k++) {
+      const t = k / hh, y = Math.round(yb - k);
+      const c = t < 0.35 ? mixHex(c0, c1, t / 0.35) : mixHex(c1, c2, (t - 0.35) / 0.65);
+      P.dither(x, y, c, A * Math.pow(1 - t, 1.4) * streak * (k < 2 ? 1.4 : 1), 4);
+    }
+  }
+}
+
+/** Tiny pixel birds ("v" shapes). list: [[x, y, size], ...] */
+export function paintBirdsPx(P, list, hex = 0x3a3a4a, a = 0.85) {
+  for (const [x, y, s = 1] of list) {
+    for (let k = 1; k <= s + 1; k++) { P.set(x - k, y - Math.round(k * 0.7), hex, a); P.set(x + k, y - Math.round(k * 0.7), hex, a); }
+    P.set(x, y, hex, a);
+  }
+}
+
+/**
+ * Lit pixel mountain range drawn to the bottom of the canvas: lit / shaded faces
+ * by slope, ridged peaks, jagged snow caps, gullies, and a dithered haze fade.
+ * o: { base (0..1 of h), amp (px), freq, seed, ridged, lit, mid, dark, rim, snow, snowLit, snowLine (0..1, from the top of the amp range),
+ *      haze: [hex, from (0..1 of h), strength], sunX (-1 = light from the left), speck, gullies }
+ * Returns the top y per column.
+ */
+export function paintRange(P, w, h, o = {}) {
+  const base = (o.base ?? 0.6) * h, amp = o.amp ?? h * 0.3, freq = o.freq ?? 0.02, seed = o.seed ?? 1, sx = o.sunX ?? -1;
+  const lit = o.lit ?? 0x8aa8d0, mid = o.mid ?? shade(lit, -0.12), dark = o.dark ?? shade(lit, -0.28), rim = o.rim ?? shade(lit, 0.25);
+  const tops = new Float32Array(w);
+  for (let x = 0; x < w; x++) {
+    let v = vnoise(x * freq + seed * 13.1, seed, 0.5) * 0.62 + vnoise(x * freq * 2.6 + 5, 1.5, seed) * 0.26 + vnoise(x * freq * 7, 2.5, seed) * 0.12;
+    if (o.ridged) v = 1 - Math.abs(v * 2 - 1) * 0.9;
+    if (o.round) v = Math.sin(v * Math.PI * 0.5);
+    tops[x] = base - (v - 0.5) * 2 * amp;
+  }
+  const snowY = base - amp * (1 - 2 * (o.snowLine ?? 0.35));
+  for (let x = 0; x < w; x++) {
+    const t = Math.round(tops[x]);
+    const sl = (tops[Math.min(w - 1, x + 2)] - tops[Math.max(0, x - 2)]) * -sx; // > 0 : face toward the light
+    const faceLit = sl > 0.6, faceDark = sl < -0.6;
+    const depth = 6 + vnoise(x * 0.15, seed, 3) * 14;
+    for (let y = Math.max(0, t); y < h; y++) {
+      const dy = y - t;
+      let c = mid;
+      if (dy < depth) { if (faceLit) c = dy < depth * 0.6 || bayer(x, y) > (dy - depth * 0.6) / (depth * 0.4) ? lit : mid; else if (faceDark) c = dark; }
+      if (o.gullies !== false && hash3(x, 3, seed) < 0.08 && dy > 2 && dy < depth * 1.6) c = dark;
+      if (o.speck && hash3(x, y, seed) < (o.speckN ?? 0.04)) c = o.speck;
+      if (o.snow && t < snowY) {
+        const sd = (snowY - t) * 0.7 + (hash3(x, 9, seed) - 0.5) * 3;
+        if (dy < sd && !(dy > sd - 2 && bayer(x, y) > 0.5)) c = faceDark ? (o.snowShade ?? shade(o.snow, -0.18)) : faceLit ? (o.snowLit ?? o.snow) : shade(o.snow, -0.06);
+      }
+      if (dy === 0) c = faceDark ? mid : (o.snow && t < snowY ? (o.snowLit ?? o.snow) : rim);
+      P.set(x, y, c);
+    }
+  }
+  if (o.haze) {
+    const [hx, from, st] = o.haze;
+    for (let y = Math.floor(from * h); y < h; y++) {
+      const f = ((y - from * h) / Math.max(1, h - from * h)) * (st ?? 0.8);
+      for (let x = 0; x < w; x++) if (y >= tops[x]) P.dither(x, y, hx, f, 4);
+    }
+  }
+  return tops;
+}
+
+// ---------------------------------------------------------------------------
+// Instancing helpers
+
+const _o3 = new THREE.Object3D();
+_o3.rotation.order = 'YXZ';
+/** Write instance i of an InstancedMesh (no allocations). */
+export function setInstance(im, i, x, y, z, ry = 0, rx = 0, rz = 0, sx = 1, sy = sx, sz = sx) {
+  _o3.position.set(x, y, z);
+  _o3.rotation.set(rx, ry, rz);
+  _o3.scale.set(sx, sy, sz);
+  _o3.updateMatrix();
+  im.setMatrixAt(i, _o3.matrix);
+}
+/** Instanced voxel prop whose matrices are rewritten every frame. */
+export function liveInstances(K, id, gridFn, opts, n, o = {}) {
+  const im = K.inst(id, gridFn, opts, Array.from({ length: n }, () => [0, -80, 0, 0, 0.0001]), o);
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.frustumCulled = false;
+  return im;
+}
+
+/** Instanced plants / flags / antennas that sway in the wind. o: { amp (rad), speed, shadow } */
+export function swayInst(K, id, gridFn, opts, items, o = {}) {
+  const im = K.inst(id, gridFn, opts, items, o);
+  if (!im) return null;
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const amp = o.amp ?? 0.08, sp = o.speed ?? 1.3;
+  K.onUpdate((dt, t) => {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i], s = it[4] ?? 1, ph = it[0] * 0.37 + it[2] * 0.21;
+      const g = Math.sin(t * sp + ph) * amp + Math.sin(t * sp * 2.3 + ph * 1.7) * amp * 0.3;
+      if (Array.isArray(s)) setInstance(im, i, it[0], it[1], it[2], it[3] ?? 0, g * 0.4, g, s[0], s[1], s[2]);
+      else setInstance(im, i, it[0], it[1], it[2], it[3] ?? 0, g * 0.4, g, s);
+    }
+    im.instanceMatrix.needsUpdate = true;
+  });
+  return im;
+}
+
+/**
+ * Blinking lights / chasing bulbs: items are split into `groups` instanced
+ * meshes toggled on a schedule. o: { groups, rate (Hz), mode: 'chase' | 'twinkle', duty (-1..1) }
+ */
+export function blinkInst(K, id, gridFn, opts, items, o = {}) {
+  const groups = o.groups ?? 2, rate = o.rate ?? 1, mode = o.mode ?? 'chase';
+  const meshes = [];
+  for (let g = 0; g < groups; g++) {
+    const m = K.inst(id, gridFn, opts, items.filter((_, i) => i % groups === g), o);
+    if (m) meshes.push([m, g]);
+  }
+  K.onUpdate((dt, t) => {
+    for (const [m, g] of meshes) m.visible = mode === 'chase' ? Math.floor(t * rate) % groups === g : Math.sin(t * rate * 6.283 + g * 2.4) > (o.duty ?? 0);
+  });
+  return meshes.map((e) => e[0]);
+}
+
+/** Rounded voxel puff (smoke / steam / foam / cloud tufts). */
+export function puffGrid(o = {}) {
+  const g = new VoxGrid();
+  const r = o.r ?? 4, light = o.light ?? 0xffffff, base = o.color ?? 0xeef2f8, sh = o.shade ?? 0xc4ccd8;
+  for (let x = -r - 1; x <= r; x++) for (let y = -r - 1; y <= r; y++) for (let z = -r - 1; z <= r; z++) {
+    const d = Math.hypot(x + 0.5, (y + 0.5) * 1.1, z + 0.5);
+    if (d > r + 0.2 + (hash3(x, y, z + (o.seed ?? 0)) - 0.5) * 1.1) continue;
+    g.set(x, y, z, y > r * 0.35 ? light : y < -r * 0.3 ? sh : base);
+  }
+  return g;
+}
+
+/**
+ * Rising, growing and vanishing voxel puffs (steam, smoke, sea spray, dust).
+ * o: { id, sources: [[x, y, z], ...], n (per source), life (s), rise, drift: [dx, dz], wobble, size: [s0, s1],
+ *      scale (voxel), r, color, light, shade, opacity, seed }
+ */
+export function addPuffs(K, o) {
+  const per = o.n ?? 6, N = o.sources.length * per;
+  const op = o.opacity ?? 1;
+  const mats = op < 1 ? [new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: op, depthWrite: false, emissive: o.emissive ?? 0x000000 }), Mats.glow] : o.emissive ? [new THREE.MeshLambertMaterial({ vertexColors: true, emissive: o.emissive }), Mats.glow] : Mats.pair;
+  const im = liveInstances(K, o.id ?? 'puff', () => puffGrid(o), { scale: o.scale ?? 0.1, pivot: 'center', jitter: 0.03 }, N, { mats });
+  if (op < 1) im.renderOrder = 2;
+  const R = mulberry32(o.seed ?? 21);
+  const P = [];
+  for (const [x, y, z] of o.sources) for (let k = 0; k < per; k++) P.push({ x, y, z, ph: k / per + R() * 0.08, r: R() * 6.28, w: 0.5 + R() });
+  const life = o.life ?? 4, rise = o.rise ?? 3, [dx, dz] = o.drift ?? [0.8, 0], wob = o.wobble ?? 0.25, [s0, s1] = o.size ?? [0.5, 1.6];
+  K.onUpdate((dt, t) => {
+    for (let i = 0; i < N; i++) {
+      const p = P[i], k = (t / life + p.ph) % 1;
+      const s = (s0 + (s1 - s0) * k) * Math.min(1, k * 7) * Math.min(1, (1 - k) * 4);
+      setInstance(im, i, p.x + dx * k + Math.sin(t * p.w + p.r) * wob * k, p.y + rise * Math.pow(k, o.ease ?? 0.85), p.z + dz * k, p.r + t * 0.25 * p.w, 0, 0, Math.max(0.0001, s));
+    }
+    im.instanceMatrix.needsUpdate = true;
+  });
+  return im;
+}
+
+/**
+ * Twinkling glow voxels (water glints, fireflies, magic dust, sparks).
+ * o: { id, n, area: [x0, x1, y0, y1, z0, z1], color, scale, rate, wander, cross, seed }
+ */
+export function addSparkles(K, o) {
+  const n = o.n ?? 20, [x0, x1, y0, y1, z0, z1] = o.area;
+  const im = liveInstances(K, o.id ?? 'sparkle', () => {
+    const g = new VoxGrid();
+    g.set(0, 0, 0, o.color ?? 0xffffff, true);
+    if (o.cross) for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(a, b, 0, o.color2 ?? o.color ?? 0xffffff, true);
+    return g;
+  }, { scale: o.scale ?? 0.06, pivot: 'center' }, n);
+  const R = mulberry32(o.seed ?? 5);
+  const P = Array.from({ length: n }, () => ({ x: x0 + R() * (x1 - x0), y: y0 + R() * (y1 - y0), z: z0 + R() * (z1 - z0), ph: R() * 6.28, sp: 0.6 + R() * 0.8 }));
+  const rate = o.rate ?? 1.5, wander = o.wander ?? 0, sharp = o.sharp ?? 3;
+  K.onUpdate((dt, t) => {
+    for (let i = 0; i < n; i++) {
+      const p = P[i];
+      const s = Math.pow(Math.max(0, Math.sin(t * rate * p.sp + p.ph)), sharp);
+      const wx = wander ? Math.sin(t * 0.7 * p.sp + p.ph) * wander : 0, wy = wander ? Math.sin(t * 1.1 * p.sp + p.ph * 2) * wander * 0.5 : 0;
+      setInstance(im, i, p.x + wx, p.y + wy, p.z, 0, 0, t * 2, Math.max(0.0001, s));
+    }
+    im.instanceMatrix.needsUpdate = true;
+  });
+  return im;
+}
+
+/** Voxel cloud (flat shaded belly, bright top). o: { len, height, depth, color, light, shade, dark } */
+export function cloudGrid(seed = 1, o = {}) {
+  const g = new VoxGrid();
+  const R = mulberry32(seed * 977 + 13);
+  const L = o.len ?? 22, Hh = o.height ?? 7, D = o.depth ?? 5;
+  const n = 3 + Math.floor(R() * 3);
+  for (let i = 0; i < n; i++) {
+    const u = n === 1 ? 0 : i / (n - 1) - 0.5;
+    const r = Hh * (0.5 + R() * 0.35) * (1 - Math.abs(u) * 0.6);
+    g.ellipsoid(u * L * 0.8 + (R() - 0.5) * 2, r * 0.45, 0, r * 1.25, r, Math.min(D, r * 0.75), 1);
+  }
+  g.carve((x, y) => y < 0);
+  const top = g.bounds().maxY;
+  const light = o.light ?? 0xffffff, base = o.color ?? 0xf2f6fc, sh = o.shade ?? 0xc6d4ea, dark = o.dark ?? shade(sh, -0.1);
+  g.paint((x, y, z) => {
+    const t = y / Math.max(1, top), j = (hash3(x, y, z + seed) - 0.5) * 0.18;
+    if (y === 0) return dark;
+    if (t + j < 0.3) return sh;
+    if (!g.has(x, y + 1, z) && t + j > 0.5) return light;
+    return base;
+  });
+  return g;
+}
+
+/**
+ * Drifting voxel clouds (instanced, a few shapes). Wraps around in x.
+ * o: { id, n, kinds, x0, x1, y0, y1, z0, z1, s0, s1 (instance scale), scale (voxel), speed, seed, ...cloudGrid colours }
+ */
+export function addClouds(K, o = {}) {
+  const kinds = o.kinds ?? 3, n = o.n ?? 8;
+  const R = mulberry32(o.seed ?? 5);
+  const x0 = o.x0 ?? -110, x1 = o.x1 ?? 110, span = x1 - x0;
+  const all = [];
+  for (let i = 0; i < n; i++) all.push({ k: i % kinds, x: x0 + R() * span, y: o.y0 + R() * (o.y1 - o.y0), z: o.z0 + R() * (o.z1 - o.z0), s: (o.s0 ?? 1) + R() * ((o.s1 ?? 1.6) - (o.s0 ?? 1)), v: (o.speed ?? 0.4) * (0.7 + R() * 0.6) });
+  const sets = [];
+  for (let k = 0; k < kinds; k++) {
+    const list = all.filter((c) => c.k === k);
+    if (!list.length) continue;
+    const im = K.inst((o.id ?? 'cloud') + k, () => cloudGrid(k + 1 + (o.seed ?? 5) * 10, o), { scale: o.scale ?? 1, jitter: 0.03 }, list.map((c) => [c.x, c.y, c.z, 0, c.s]), { receive: false, mats: o.mats });
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    im.frustumCulled = false;
+    sets.push([im, list]);
+  }
+  if (o.speed !== 0) K.onUpdate((dt) => {
+    for (const [im, list] of sets) {
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        c.x += c.v * dt;
+        if (c.x > x1) c.x -= span;
+        setInstance(im, i, c.x, c.y, c.z, 0, 0, 0, c.s);
+      }
+      im.instanceMatrix.needsUpdate = true;
+    }
+  });
+  return sets.map((s) => s[0]);
+}
+
+const _bq = new THREE.Quaternion(), _be = new THREE.Euler(0, 0, 0, 'YXZ'), _bp = new THREE.Vector3(), _bs = new THREE.Vector3();
+const _mBody = new THREE.Matrix4(), _mW = new THREE.Matrix4(), _mRz = new THREE.Matrix4(), _mFlip = new THREE.Matrix4().makeRotationY(Math.PI);
+/**
+ * Flapping voxel birds (body + two wings, instanced).
+ * o: { id, n, mode: 'circle' | 'flock', cx, cy, cz, r, rz, speed, x0, x1, y, z, dir, color, belly, wingTip, beak,
+ *      vox (voxel size), flap (rad/s), soar (0..1 glide amount), seed }
+ */
+export function addBirds(K, o = {}) {
+  const n = o.n ?? 6, v = o.vox ?? 0.06, id = o.id ?? 'bird';
+  const col = o.color ?? 0xf4f4f4, tip = o.wingTip ?? shade(col, -0.35), belly = o.belly ?? shade(col, -0.1);
+  const body = liveInstances(K, id + 'Body', () => {
+    const g = new VoxGrid();
+    g.box(-1, 0, -3, 0, 1, 2, col).box(-1, 0, -3, 0, 0, 2, belly);
+    g.box(-1, 1, 3, 0, 2, 4, o.head ?? col);
+    g.set(-1, 1, 5, o.beak ?? 0xffb030).set(0, 1, 5, o.beak ?? 0xffb030);
+    g.set(-1, 2, 4, 0x15121f).set(0, 2, 4, 0x15121f);
+    g.box(-1, 1, -5, 0, 1, -4, tip);
+    return g;
+  }, { scale: v, pivot: [0, 0, 0], ao: false }, n);
+  const wingGrid = () => {
+    const g = new VoxGrid();
+    for (let k = 0; k < 7; k++) {
+      const c0 = -2 + Math.floor(k / 3), c1 = 1 - Math.floor(k / 4);
+      g.box(k, 0, c0, k, 0, c1, k > 4 ? tip : col);
+    }
+    return g;
+  };
+  const wingR = liveInstances(K, id + 'Wing', wingGrid, { scale: v, pivot: [0, 0, 0], ao: false }, n);
+  const wingL = liveInstances(K, id + 'Wing', wingGrid, { scale: v, pivot: [0, 0, 0], ao: false }, n);
+  const R = mulberry32(o.seed ?? 3);
+  const B = Array.from({ length: n }, (_, i) => ({ ph: R() * 6.28, r: (o.r ?? 8) * (0.7 + R() * 0.5), y: (R() - 0.5) * 2, sp: (o.speed ?? 0.25) * (0.8 + R() * 0.4), fx: (i % 2 ? 1 : -1) * Math.ceil(i / 2), fl: (o.flap ?? 9) * (0.85 + R() * 0.3) }));
+  const mode = o.mode ?? 'circle', dir = o.dir ?? 1, span = (o.x1 ?? 60) - (o.x0 ?? -60);
+  const wy = 1 * v, wxr = 0.5 * v, wxl = -0.5 * v;
+  K.onUpdate((dt, t) => {
+    for (let i = 0; i < n; i++) {
+      const b = B[i];
+      let x, y, z, yaw, bank = 0;
+      if (mode === 'circle') {
+        const a = t * b.sp * dir + b.ph, rz = (o.rz ?? 0.5) * b.r;
+        x = (o.cx ?? 0) + Math.cos(a) * b.r; z = (o.cz ?? -30) + Math.sin(a) * rz; y = (o.cy ?? 12) + b.y + Math.sin(t * 0.6 + b.ph) * 0.4;
+        yaw = Math.atan2(-Math.sin(a) * b.r * dir, Math.cos(a) * rz * dir);
+        bank = -0.35 * dir;
+      } else {
+        const lead = ((t * (o.speed ?? 3) + b.ph * 0) % span + span) % span;
+        x = dir > 0 ? (o.x0 ?? -60) + lead - Math.abs(b.fx) * 1.1 : (o.x1 ?? 60) - lead + Math.abs(b.fx) * 1.1;
+        if (x < (o.x0 ?? -60)) x += span;
+        if (x > (o.x1 ?? 60)) x -= span;
+        y = (o.y ?? 10) - Math.abs(b.fx) * 0.3 + Math.sin(t * 1.3 + b.ph) * 0.25;
+        z = (o.z ?? -30) + b.fx * 0.9;
+        yaw = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      }
+      const glide = (o.soar ?? 0.4) > 0 ? Math.max(0, Math.sin(t * 0.5 + b.ph)) * (o.soar ?? 0.4) : 0;
+      const fa = Math.sin(t * b.fl + b.ph) * 0.75 * (1 - glide) + 0.12;
+      _be.set(0, yaw, bank);
+      _bq.setFromEuler(_be);
+      _bp.set(x, y, z);
+      _bs.setScalar(o.size ?? 1);
+      _mBody.compose(_bp, _bq, _bs);
+      body.setMatrixAt(i, _mBody);
+      _mRz.makeRotationZ(fa);
+      _mW.makeTranslation(wxr, wy, 0).premultiply(_mBody).multiply(_mRz);
+      wingR.setMatrixAt(i, _mW);
+      _mW.makeTranslation(wxl, wy, 0).premultiply(_mBody).multiply(_mFlip).multiply(_mRz);
+      wingL.setMatrixAt(i, _mW);
+    }
+    body.instanceMatrix.needsUpdate = wingR.instanceMatrix.needsUpdate = wingL.instanceMatrix.needsUpdate = true;
+  });
+  return { body, wingR, wingL };
+}
+
+/**
+ * 3D voxel mountain / hill / dune range for the far background (greedy-meshed,
+ * lit and fogged like everything else). Columns along x, `depth` voxels deep
+ * (z grows backwards from o.z), taller toward the back so slopes and lit tops show.
+ * o: { x0, x1, z, y, depth, scale, base, amp, freq, seed, ridged, peaks, h(xv, zv) -> voxels,
+ *      col(xv, y, zv, h, hmax) -> hex  (or palette: rock, rockD, rockL, top, snow, snowAt (0..1 of amp)) }
+ */
+export function voxRange(K, id, o = {}) {
+  const s = o.scale ?? 1.5, D = o.depth ?? 8, seed = o.seed ?? 1;
+  const xs = Math.floor((o.x0 ?? -130) / s), xe = Math.ceil((o.x1 ?? 130) / s);
+  const amp = o.amp ?? 10, base = o.base ?? 2, freq = o.freq ?? 0.06;
+  const ridge = (xv) => {
+    let n = vnoise(xv * freq + seed * 7.3, seed, 0.5) * 0.62 + vnoise(xv * freq * 2.3 + 11, seed + 3, 1.5) * 0.26 + vnoise(xv * freq * 5.5, seed + 9, 2.5) * 0.12;
+    if (o.ridged) n = 1 - Math.abs(n * 2 - 1);
+    if (o.peaks) n = Math.pow(n, 1.6) * 1.5;
+    return n;
+  };
+  const H = o.h ?? ((xv, zv) => {
+    const back = zv / Math.max(1, D - 1);
+    return Math.max(1, Math.round(base + amp * ridge(xv) * (0.4 + 0.6 * Math.sqrt(back)) + (vnoise(xv * 0.35, zv * 0.35, seed) - 0.5) * 2.2));
+  });
+  const rock = o.rock ?? 0x7a86a0, rockD = o.rockD ?? shade(rock, -0.14), rockL = o.rockL ?? shade(rock, 0.12), top = o.top ?? rockL, snow = o.snow;
+  const snowAt = base + amp * (o.snowAt ?? 0.62);
+  const col = o.col ?? ((xv, y, zv, h) => {
+    const j = hash3(xv, y, zv + seed);
+    if (snow && y >= snowAt - (hash3(xv, 5, zv) * 1.5)) return y === h - 1 || j < 0.7 ? snow : shade(snow, -0.08);
+    if (y === h - 1) return j < 0.2 ? shade(top, -0.06) : top;
+    const strata = Math.floor(y / 2 + vnoise(xv * 0.2, zv * 0.2, seed) * 2) % 3;
+    return strata === 0 ? rockD : j < 0.15 ? rockL : rock;
+  });
+  return K.mesh(id, () => {
+    const g = new VoxGrid();
+    for (let x = xs; x < xe; x++) for (let z = 0; z < D; z++) {
+      const h = H(x, z);
+      for (let y = 0; y < h; y++) g.set(x, y, -z, col(x, y, z, h));
+    }
+    return g;
+  }, { scale: s, pivot: [0, 0, 0], jitter: o.jitter ?? 0.05 }, 0, o.y ?? -0.5, o.z ?? -100, 0, 1, { receive: false, mats: o.mats });
+}
+
+/**
+ * Voxel heightfield terrain chunk (hills, dunes, snow fields, berms). World coordinates in.
+ * o: { x0, x1, z0, z1, scale, y, h(wx, wz) -> height in voxels, col(wx, y, wz, h) -> hex, skip(wx, wz) }
+ */
+export function voxTerrain(K, id, o) {
+  const s = o.scale ?? 0.5;
+  const xs = Math.floor(o.x0 / s), xe = Math.ceil(o.x1 / s), zs = Math.floor(o.z0 / s), ze = Math.ceil(o.z1 / s);
+  return K.mesh(id, () => {
+    const g = new VoxGrid();
+    for (let x = xs; x < xe; x++) for (let z = zs; z < ze; z++) {
+      const wx = (x + 0.5) * s, wz = (z + 0.5) * s;
+      if (o.skip && o.skip(wx, wz)) continue;
+      const h = Math.round(o.h(wx, wz));
+      for (let y = o.min ?? 0; y < h; y++) g.set(x, y, z, o.col(wx, y, wz, h));
+    }
+    return g;
+  }, { scale: s, pivot: [0, 0, 0], jitter: o.jitter ?? 0.05 }, 0, o.y ?? 0, 0, 0, 1, { receive: o.receive ?? true, shadow: !!o.shadow });
+}
+
+/**
+ * Voxel waterfall: a static streaked sheet plus falling instanced voxel streaks
+ * and spray puffs at the foot. o: { id, x, z, top, bottom, width, vox, colors: [deep, mid, light, foam], speed, n, spray }
+ */
+export function addFall(K, o) {
+  const v = o.vox ?? 0.16, W = Math.max(2, Math.round(o.width / v)), Hh = Math.max(2, Math.round((o.top - o.bottom) / v));
+  const [deep, mid, light, foam] = o.colors ?? [0x1f7ad0, 0x3aa6ee, 0x9ae4ff, 0xffffff];
+  K.mesh(o.id + 'Sheet', () => {
+    const g = new VoxGrid();
+    for (let x = 0; x < W; x++) {
+      const edge = x === 0 || x === W - 1;
+      for (let y = 0; y < Hh; y++) {
+        const k = hash3(x, Math.floor(y / 4), 7);
+        g.set(x, y, 0, edge ? light : k < 0.3 ? deep : k < 0.8 ? mid : light);
+        if (y < 3 || hash3(x, y, 3) < 0.05) g.set(x, y, 1, foam);
+      }
+    }
+    return g;
+  }, { scale: v, pivot: [W / 2, 0, 0], jitter: 0.04 }, o.x, o.bottom, o.z, o.ry ?? 0);
+  const L = o.streak ?? 5;
+  const n = o.n ?? W * 2;
+  const im = liveInstances(K, o.id + 'Streak', () => {
+    const g = new VoxGrid();
+    for (let y = 0; y < L; y++) g.set(0, y, 0, y >= L - 2 ? foam : light);
+    return g;
+  }, { scale: v, pivot: [0.5, 0, 0], ao: false }, n);
+  const R = mulberry32(o.seed ?? 4);
+  const S = Array.from({ length: n }, (_, i) => ({ c: i % W, ph: R(), sp: 0.8 + R() * 0.5 }));
+  const span = o.top - o.bottom, sp = o.speed ?? 3.5;
+  const cr = Math.cos(o.ry ?? 0), sr = Math.sin(o.ry ?? 0);
+  K.onUpdate((dt, t) => {
+    for (let i = 0; i < n; i++) {
+      const s = S[i], k = (t * sp * s.sp / span + s.ph) % 1;
+      const lx = (s.c - W / 2 + 0.5) * v;
+      setInstance(im, i, o.x + lx * cr, o.top - k * span - L * v * (1 - k), o.z + v * 1.2 - lx * sr, o.ry ?? 0, 0, 0, 1);
+    }
+    im.instanceMatrix.needsUpdate = true;
+  });
+  if (o.spray !== false) addPuffs(K, { id: o.id + 'Spray', sources: Array.from({ length: Math.max(2, Math.round(o.width / 0.7)) }, (_, i, a) => [o.x + (i / Math.max(1, a.length - 1) - 0.5) * o.width * cr, o.bottom, o.z + 0.4 - (i / Math.max(1, a.length - 1) - 0.5) * o.width * sr]), n: 3, life: 1.6, rise: 0.8, drift: [0, 0.5], size: [0.5, 1.3], scale: v * 0.8, color: foam, light: 0xffffff, shade: light, seed: 9 });
+  return im;
+}
+
+/**
+ * Waving voxel flag (vertex-animated clone, so each flag waves on its own).
+ * o: { id, x, y, z, ry, w, h, vox, pattern(u, v) -> hex, speed, amp, pole: hex | false, poleH (world) }
+ */
+export function addFlag(K, o) {
+  const W = o.w ?? 12, Hh = o.h ?? 8, v = o.vox ?? 0.08;
+  const geo = vgeo('ar_flag_' + o.id, () => {
+    const g = new VoxGrid();
+    for (let u = 0; u < W; u++) for (let vv = 0; vv < Hh; vv++) g.set(u, vv, 0, o.pattern ? o.pattern(u, vv) : (o.color ?? 0xe8343c));
+    return g;
+  }, { scale: v, pivot: [0, Hh, 0.5], ao: false, jitter: 0.03 }).clone();
+  const base = Float32Array.from(geo.attributes.position.array);
+  const m = makeMesh(geo, Mats.pair);
+  m.castShadow = false;
+  const grp = new THREE.Group();
+  grp.position.set(o.x, o.y, o.z);
+  grp.rotation.y = o.ry ?? 0;
+  grp.add(m);
+  if (o.pole !== false) {
+    const ph = o.poleH ?? Hh * v * 2.4;
+    const pm = makeMesh(vgeo('ar_flagpole_' + Math.round(ph / v) + '_' + (o.pole ?? 0xd8dde6), () => {
+      const g = new VoxGrid();
+      g.box(0, 0, 0, 0, Math.round(ph / v), 0, o.pole ?? 0xd8dde6);
+      g.set(0, Math.round(ph / v) + 1, 0, o.knob ?? 0xffd23f);
+      return g;
+    }, { scale: v * 1.3, pivot: [0.5, 0, 0.5], ao: false }), Mats.pair);
+    pm.position.set(-v * 0.6, -ph, 0);
+    grp.add(pm);
+  }
+  K.add(grp);
+  const sp = o.speed ?? 4, amp = o.amp ?? v * 2.5, L = W * v, ph = o.phase ?? (o.x * 0.7);
+  const pos = geo.attributes.position, arr = pos.array;
+  K.onUpdate((dt, t) => {
+    for (let i = 0; i < arr.length; i += 3) {
+      const u = Math.max(0, base[i]) / L;
+      arr[i + 2] = base[i + 2] + Math.sin(t * sp - base[i] * 6 / L + ph) * amp * (0.25 + u);
+      arr[i + 1] = base[i + 1] + Math.sin(t * sp * 0.7 - base[i] * 3 / L + ph) * amp * 0.25 * u;
+    }
+    pos.needsUpdate = true;
+  });
+  return grp;
+}

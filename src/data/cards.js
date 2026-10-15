@@ -12,7 +12,8 @@ export const cardDef = (id) => CARDS[id] ?? SWARMS[id] ?? SPELLS[id] ?? null;
 export const isSpell = (id) => !!SPELLS[id];
 export const cardElixir = (id) => cardDef(id)?.elixir ?? 3;
 export const rarityOf = (id) => RARITIES[cardDef(id)?.rarity ?? 'common'];
-export const DECK_SIZE = 8;
+// a Battle Cats-style lineup: up to 10 slots (2 rows of 5) in battle
+export const DECK_SIZE = 10;
 export const DECK_PRESETS = 3;
 export { MAX_LEVEL, UPGRADE, UPGRADE_XP, RARITIES };
 
@@ -28,3 +29,5 @@ export const cardsOfArena = (arenaId) => ALL_CARDS.filter((c) => c.arena === are
 
 /** Starter deck given after the tutorial (all Beast Lab cards). */
 export const STARTER_DECK = ['panther', 'cloggedToilet', 'toiletRollRipper', 'trashedCan', 'pizzaSlicer', 'fryFiend', 'foodThrow', 'moneyDrop'];
+// every Commander starts with just two troops (like the Cat and the Tank Cat); the rest unlock as you play
+export const STARTER_TROOPS = ['panther', 'cloggedToilet'];

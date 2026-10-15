@@ -124,16 +124,21 @@ export function mount(el, ctx) {
         });
         return b;
       }));
-    const grid = h('div', { class: `mn-deck ${swapId ? 'swapping' : ''}` });
+    // the Battle Cats-style lineup: 10 slots, 2 rows of 5
+    const grid = h('div', { class: `mn-deck lineup ${swapId ? 'swapping' : ''}`, style: { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', rowGap: 'calc(var(--u) * 5.4)', columnGap: 'calc(var(--u) * 1)' } });
     for (let i = 0; i < DECK_SIZE; i++) {
       const id = deck[i];
-      const cell = h('div', { class: `mn-cc ${i === justPlaced ? 'placed' : ''}`, style: { '--i': i } });
+      const cell = h('div', { class: `mn-cc ${i === justPlaced ? 'placed' : ''}`, style: { '--i': i, '--cwl': 'calc(var(--u) * 17)' } });
       if (id) {
         const up = upgradeInfo(id);
-        cell.appendChild(cardEl(id, { progress: true, priority: true }));
+        const ce = cardEl(id, { progress: true, priority: true });
+        ce.style.width = 'min(100%, calc(var(--u) * 17))';
+        cell.appendChild(ce);
         if (up && !up.max && up.ok) cell.classList.add('can-up');
       } else {
-        cell.appendChild(h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot' }, h('span', { class: 't-d' }, '+'))));
+        const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot' }, h('span', { class: 't-d' }, '+')));
+        em.style.width = 'min(100%, calc(var(--u) * 17))';
+        cell.appendChild(em);
       }
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -150,18 +155,18 @@ export function mount(el, ctx) {
     }
     const avg = avgElixir(deck);
     const foot = h('div', { class: 'mn-deck-foot' },
-      h('div', { class: 'mn-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average Energy'), h('b', { class: 't-d outline t-lg' }, avg ? avg.toFixed(1) : '-'))),
+      h('div', { class: 'mn-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average POWER'), h('b', { class: 't-d outline t-lg' }, avg ? avg.toFixed(1) : '-'))),
       h('span', { class: 'spacer' }),
       chip([icon('cards', 's'), h('b', {}, `${deck.length}/${DECK_SIZE}`)], deck.length < DECK_SIZE ? 'warn' : ''));
     const box = h('div', { class: 'panel sk-panel mn-deckbox' }, tabs, grid, foot);
-    const parts = [secHead('BATTLE DECK', 'blue'), box];
+    const parts = [secHead('BATTLE LINEUP', 'blue'), box];
     if (swapId) {
       const d = cardDef(swapId);
       parts.push(h('div', { class: 'mn-swapbar panel sk-panel-gold' },
         h('div', { class: 'mn-swapcard' }, cardEl(swapId, { priority: true })),
         h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)' } },
           h('b', { class: 't-d outline t-lg c-gold' }, d.name),
-          h('span', { class: 'mn-swap-tip' }, deck.length < DECK_SIZE ? 'Tap an empty slot or a card in your deck to swap it in!' : 'Tap a card in your deck to swap it out!'),
+          h('span', { class: 'mn-swap-tip' }, deck.length < DECK_SIZE ? 'Tap an empty slot or a Swarm in your lineup to swap it in!' : 'Tap a Swarm in your lineup to swap it out!'),
           button('CANCEL', cancelSwap, 'red sm', { icon: 'x' }))));
     }
     return parts;

@@ -2,7 +2,7 @@
 // or ?seed=all (everything unlocked) gives a populated profile for testing.
 import { state, grantCard, grantCommander, addVial, unlockMega, setDeck, grantMega, equipMega } from '../game/state.js';
 import { MEGA_IDS } from '../data/megas.js';
-import { ALL_CARDS, STARTER_DECK } from '../data/cards.js';
+import { ALL_CARDS, STARTER_DECK, STARTER_TROOPS } from '../data/cards.js';
 
 export function seedProfile(level = '1') {
   const p = state.p;
@@ -10,8 +10,10 @@ export function seedProfile(level = '1') {
   p.name = p.name === 'Recruit' ? 'LabHero' : p.name;
   p.coins = Math.max(p.coins, 5000);
   p.bucks = Math.max(p.bucks, 500);
-  for (const id of STARTER_DECK) grantCard(id, 4);
-  setDeck(STARTER_DECK.slice());
+  // seed=1 is a fresh Commander: just the two starter troops
+  const start = level === '1' ? STARTER_TROOPS : STARTER_DECK;
+  for (const id of start) grantCard(id, 4);
+  setDeck(start.slice());
   if (level === 'mid' || level === 'all') {
     const tro = level === 'all' ? 3600 : 900;
     p.trophies = p.bestTrophies = Math.max(p.trophies, tro);

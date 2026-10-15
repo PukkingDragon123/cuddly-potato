@@ -1,10 +1,11 @@
 // Battle simulation: pure game logic (no rendering).
 //
-// Clash Royale card play inside a Battle Cats side-view lane:
+// Battle Cats-style lineup battles:
 //   * electric POWER 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
-//   * an 8-card deck cycling through a hand of 4 (+ a "next" card)
-//   * troops are dropped anywhere in your half (or tapped out at your base)
-//     and then march forward and fight automatically
+//   * a lineup of up to 10 unit slots, all available at once: each slot has a
+//     POWER cost and a recharge timer after use (no card cycling)
+//   * troops pop out of your base and march forward to fight automatically;
+//     spells are aimed anywhere on the field
 //   * each side has ONE base: it starts as a tent and can be upgraded mid-battle
 //     (6 tiers: more POWER regen, bigger POWER tank, more HP, stronger cannon);
 //     destroy the enemy base to win
@@ -29,6 +30,16 @@ const REGULATION = 180;
 const DOUBLE_AT = 120;
 const OT_LEN = 60;
 const DEPLOY_DELAY = 0.65;
+export const LINEUP_MAX = 10;
+
+/** Seconds a lineup slot needs to recharge after use. */
+export function rechargeTime(card) {
+  const def = card.spell ? SPELLS[card.unit] : SWARMS[card.unit];
+  if (def?.recharge) return def.recharge;
+  const cost = def?.elixir ?? 3;
+  const rare = { common: 0, rare: 0.4, epic: 0.9, legendary: 1.6, mythic: 2.2 }[def?.rarity] ?? 0;
+  return card.spell ? 5 + cost * 1.4 : 1.6 + cost * 1.05 + rare;
+}
 
 let UID = 1;
 
@@ -79,16 +90,11 @@ export class BattleSim {
     const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
     const lvl = s.commander?.level ?? 1;
     const skills = cmd ? cmd.skills.filter((k) => lvl >= k.level) : [];
-    const deck = (s.deck || []).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
-    const order = deck.map((_, k) => k);
-    for (let k = order.length - 1; k > 0; k--) {
-      const j = Math.floor(this.rng() * (k + 1));
-      [order[k], order[j]] = [order[j], order[k]];
-    }
-    const handSize = Math.min(4, deck.length);
+    const deck = (s.deck || []).slice(0, LINEUP_MAX).map((c) => ({ ...c, unit: c.unit ?? c.id, spell: !!SPELLS[c.unit ?? c.id] }));
     return {
       i, dir, labX: lab.x, name: s.name, deck,
-      hand: order.slice(0, handSize), queue: order.slice(handSize),
+      // the lineup: every slot is always available (Battle Cats style); `hand` maps slot -> deck index
+      hand: deck.map((_, k) => k), queue: [], cds: deck.map(() => 0),
       energy: Math.min(ENERGY.max, ENERGY.start + (perks.headStart ?? 0)), overclock: 0,
       lab, turret: null,
       mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
@@ -156,8 +162,16 @@ export class BattleSim {
     if (!c) return Infinity;
     return (c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3;
   }
+  /** Seconds until lineup slot `slot` is recharged (0 = ready). */
+  slotCd(si, slot) {
+    return Math.max(0, this.sides[si].cds?.[slot] ?? 0);
+  }
+  slotRecharge(si, slot) {
+    const c = this.handCard(si, slot);
+    return c ? rechargeTime(c) * (1 - (this.sides[si].perks.quickRecharge ?? 0) / 100) : 1;
+  }
   canPlay(si, slot) {
-    return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
+    return !this.over && !!this.handCard(si, slot) && this.slotCd(si, slot) <= 0 && this.sides[si].energy >= this.cardCost(si, slot);
   }
   overclockInfo(si) {
     return BASE_UPGRADES[this.sides[si].overclock];
@@ -234,6 +248,7 @@ export class BattleSim {
     const s = this.sides[si];
     const card = this.handCard(si, slot);
     if (!card || this.over) return false;
+    if (!free && this.slotCd(si, slot) > 0) return false;
     const cost = this.cardCost(si, slot);
     if (!free) {
       if (s.energy < cost) return false;
@@ -247,16 +262,12 @@ export class BattleSim {
       const tx = x ?? this.densestEnemyX(si)?.x ?? this.sides[1 - si].labX;
       this.castSpell(si, card, Math.max(-FIELD.VIEW_X, Math.min(FIELD.VIEW_X, tx)));
     } else {
-      const dx = x === null ? s.labX + s.dir * (LAB_HALF + 0.35) : this.clampDeploy(si, x);
-      this.deployTroop(si, card, dx);
+      // troops always pop out of the base (Battle Cats style)
+      this.deployTroop(si, card, s.labX + s.dir * (LAB_HALF + 0.35));
     }
-    // cycle: played card goes to the back of the queue, next card fills the slot
-    const k = s.hand[slot];
-    if (s.queue.length) {
-      s.hand[slot] = s.queue.shift();
-      s.queue.push(k);
-    }
-    this.emit('cycle', { side: si, slot, card: card.id, cost });
+    // the slot recharges
+    if (!free) s.cds[slot] = this.slotRecharge(si, slot);
+    this.emit('cycle', { side: si, slot, card: card.id, cost, recharge: s.cds[slot] });
     return true;
   }
   // legacy alias used by old callers: deploy(si, slot)
@@ -1083,6 +1094,7 @@ export class BattleSim {
     }
     for (const s of this.sides) {
       s.energy = Math.min(this.maxPower(s.i), s.energy + this.energyRate(s.i) * dt);
+      for (let k = 0; k < s.cds.length; k++) if (s.cds[k] > 0) s.cds[k] = Math.max(0, s.cds[k] - dt);
       for (let k = 0; k < s.skillCds.length; k++) if (s.skillCds[k] > 0) s.skillCds[k] -= dt;
       if (s.cmd && s.sig < 1) s.sig = Math.min(1, s.sig + dt / (s.cmd.signature.charge * (1 - (s.perks.hypeMan ?? 0) / 100)));
       for (const k in s.buffs) if (s.buffs[k] > 0) s.buffs[k] -= dt;

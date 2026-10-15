@@ -1,13 +1,13 @@
 // Battle scene: wires the simulation, AI / network, 3D view and HUD together.
 // Modes: tutorial (vs Jimmy), ranked (vs a ghost player), practice, boss, friend.
 //
-// Controls (Clash Royale style):
-//   * tap a card to select it, then tap the battlefield to drop it there
-//   * or drag a card straight onto the battlefield
-//   * double-tap a card to drop it right in front of your Lab
+// Controls (Battle Cats style):
+//   * tap a unit button in the lineup: it pops out of your base and marches
+//     (each button recharges after use); spells: tap then tap the field, or drag
+//   * tap YOUR BASE to upgrade it, tap YOUR COMMANDER to unleash the MEGA
 //   * drag the battlefield to pan, pinch / mouse-wheel to zoom, tap the minimap to jump
-//   * keys: 1-4 select, Space/Enter drop at the base, Q signature, W/E skills,
-//     O upgrade base, M / R unleash the MEGA ultimate
+//   * keys: 1-0 lineup slots, Space/Enter cast the selected spell, Q signature,
+//     W/E skills, O upgrade base, M / R unleash the MEGA ultimate
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
@@ -22,7 +22,7 @@ import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
-import { STARTER_DECK } from '../data/cards.js';
+import { STARTER_TROOPS } from '../data/cards.js';
 import { game } from '../game/game.js';
 import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
@@ -55,12 +55,12 @@ export class BattleScene {
     let enemy, arenaId = params.arena ?? currentArena(p.trophies).id, boss = null, aiOpts = {};
     if (mode === 'tutorial') {
       arenaId = 'lab';
-      me.deck = STARTER_DECK.filter((id) => id !== 'moneyDrop').map((id) => deckEntry(id, 1));
+      me.deck = STARTER_TROOPS.map((id) => deckEntry(id, 1));
       me.labLevel = 1;
       // Jimmy lends you a MEGA-TECH Panthar for the finale
       me.mega = { id: 'panthar', variant: 'base', level: 1 };
       enemy = {
-        name: 'Jimmy', deck: ['panther', 'toiletRollRipper', 'cloggedToilet', 'trashedCan'].map((id) => deckEntry(id, 1)),
+        name: 'Jimmy', deck: ['panther', 'toiletRollRipper', 'trashedCan'].map((id) => deckEntry(id, 1)),
         commander: commanderCfg('jimmy', 1), perks: {}, labStyle: 'mansion', labLevel: 1, hpMult: 0.55, clan: 'MrBeast Lab',
       };
       aiOpts = { difficulty: 0.05, maxLab: 0, noSpells: true, sigDelay: 9999 };
@@ -142,6 +142,7 @@ export class BattleScene {
     this.hud.mount($ui());
     this.hud.setVisible(false);
     this.view.on((ev) => this.onSimEvent(ev));
+    this.view.onBaseTap = () => this.tryOverclock();
     if (params.dev) window.__battle = this;
     this.bindInput();
     audio.music(mode === 'boss' ? 'boss' : 'battle');
@@ -219,14 +220,12 @@ export class BattleScene {
     if (!this.canAct() || !this.allowed('deploy' + slot)) return;
     const c = this.card(slot);
     if (!c) return;
-    const now = performance.now();
-    // double tap: drop right in front of the Lab (spells: auto-target)
-    if (this.lastTap.slot === slot && now - this.lastTap.t < 320) {
-      this.lastTap = { slot: -1, t: 0 };
+    // troops: straight out of the base (Battle Cats style)
+    if (!c.spell) {
+      this.select(-1);
       this.deploy(slot, null);
       return;
     }
-    this.lastTap = { slot, t: now };
     const wasSel = this.sel === slot;
     this.select(slot);
     this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel, over: false, x: null };
@@ -259,6 +258,12 @@ export class BattleScene {
     if (!this.canAct()) return false;
     const c = this.card(slot);
     if (!c) return false;
+    const cd = this.sim.slotCd(0, slot);
+    if (cd > 0) {
+      audio.play('deny');
+      this.hud.hint(`Recharging... ${cd.toFixed(1)}s`);
+      return false;
+    }
     const cost = this.sim.cardCost(0, slot);
     if (this.sim.sides[0].energy < cost) {
       this.hud.needEnergy(cost);
@@ -312,6 +317,14 @@ export class BattleScene {
       if (info.cost === null) this.hud.hint('Your base is MAXED: Mega HQ!');
       else this.hud.needEnergy(info.cost);
     }
+  }
+  /** Tapping your Commander: unleash the MEGA when it's ready, otherwise show its charge. */
+  tapCommander() {
+    const s = this.sim.sides[0];
+    if (s.mega && this.sim.canMega(0)) return this.tryMega();
+    this.view.pokeCommander(0);
+    if (!s.mega) this.hud.hint('Win a MEGA-TECH figure on the Trophy Road to power up your Commander!');
+    else this.hud.megaDeny();
   }
   tryMega() {
     if (!this.canAct() || !this.allowed('mega')) return;
@@ -454,6 +467,12 @@ export class BattleScene {
       if (f && e.pointerId === f.id) {
         this.fieldPtr = null;
         this.view.setEdgePan(0);
+        // a plain tap on your own Commander / base
+        if (this.sel < 0 && !f.moved && this.canAct()) {
+          const hit = this.view.hitTest(e.clientX, e.clientY);
+          if (hit === 'commander') { this.tapCommander(); return; }
+          if (hit === 'base') { this.tryOverclock(); return; }
+        }
         if (this.sel >= 0 && (f.aiming || !f.moved)) {
           const x = f.x ?? this.preview(e.clientX, e.clientY);
           if (x !== null && x !== undefined && this.hud.isOverField(e.clientX, e.clientY)) this.deploy(this.sel, x);
@@ -467,9 +486,12 @@ export class BattleScene {
     this.onKey = (e) => {
       if (e.repeat || !this.ready || this.ended) return;
       const k = e.key.toLowerCase();
-      if (k >= '1' && k <= '4') {
-        const slot = +k - 1;
-        if (this.allowed('deploy' + slot)) this.select(this.sel === slot ? -1 : slot);
+      if (k >= '0' && k <= '9') {
+        const slot = k === '0' ? 9 : +k - 1;
+        const c = this.card(slot);
+        if (!c || !this.allowed('deploy' + slot)) return;
+        if (c.spell) this.select(this.sel === slot ? -1 : slot);
+        else this.deploy(slot, null);
       } else if ((k === ' ' || k === 'enter') && this.sel >= 0) {
         e.preventDefault();
         this.deploy(this.sel, null);
@@ -562,52 +584,58 @@ export class BattleScene {
     const until = (kind) => new Promise((res) => (this.onTut = (k, slot, id) => { if (k === kind) { this.onTut = null; res({ slot, id }); } }));
     const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
     if (ch) ch.expr('happy', 'grin', 3);
+    const cmdPos = () => {
+      const c = this.view.cmds?.[0];
+      return c ? c.root.position.clone().setY(c.root.position.y + 0.8) : null;
+    };
     await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Tent*. Mine's on the RIGHT. *Smash my base to win!*");
-    // 1) drag a Panther onto the field
-    let pslot = slotOf('panther');
-    if (pslot < 0) pslot = 0;
+    // 1) tap a unit button: it pops out of the base
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
-    await talk('Your Swarms march and fight *on their own*. *Drag* a card onto the battlefield to drop it. Try it!');
+    await talk('Your Swarms are down here. *Tap* a button and that Swarm pops out of your base and marches into battle *on its own*. Send a *Panther*!');
     this.lockInput = 'deploy';
-    remove = pointAt(() => this.hud.slotEl(slotOf('panther') >= 0 ? slotOf('panther') : 0), 'Drag me up!');
+    remove = pointAt(() => this.hud.slotEl(Math.max(0, slotOf('panther'))), 'Tap!');
     await until('deploy');
     clearPtr();
     this.lockInput = null;
-    await wait(2.2);
-    // 2) power
-    await talk('Every card costs electric *POWER* (the yellow bar). It recharges by itself, so plan your pushes! The small card is your *NEXT* card.');
-    // 3) tap-to-place
+    await wait(1.8);
+    // 2) power + recharge
+    await talk('Every Swarm costs electric *POWER* (the yellow cells). POWER refills by itself, and each button needs a few seconds to *recharge* after you use it.');
+    // 3) the ranged unit
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
-    await talk("You can also *tap* a card, then *tap* where you want it. Drop a ranged Swarm *behind* your Panther!");
-    this.lockInput = 'deploy';
-    remove = pointAt(() => this.hud.slotEl(0), 'Tap!');
-    await until('deploy');
-    clearPtr();
-    this.lockInput = null;
+    const tslot = slotOf('cloggedToilet');
+    if (tslot >= 0) {
+      await talk('Now send your *Clogged Toilet*: it shoots from behind your Panther. Tanks in front, shooters behind!');
+      this.lockInput = 'deploy';
+      remove = pointAt(() => this.hud.slotEl(tslot), 'Tap!');
+      await until('deploy');
+      clearPtr();
+      this.lockInput = null;
+    }
     // 4) defend
     await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);
-    await talk("Here come my Swarms! Your base *zaps* anything close, but drop troops to *defend* too.");
-    // 5) Food Throw when troops are hurt
+    await talk("Here come my Swarms! Your base *zaps* anything close, but keep sending Swarms to *defend* too.");
+    // 5) Food Throw if the lineup has it
     await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.7) || sim.t > 50);
     const fslot = slotOf('foodThrow');
     if (fslot >= 0 && !sim.over) {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, 4);
       this.view.focus(sim.frontAllyX(0), 5);
-      await talk('Your Swarms are getting HANGRY! *Food Throw* heals them and makes them *BIGGER*. Drag it onto your troops!');
+      await talk('Your Swarms are getting HANGRY! *Food Throw* heals them and makes them *BIGGER*. Tap it, then tap your troops!');
       this.lockInput = 'deploy' + fslot;
       remove = pointAt(() => this.hud.slotEl(slotOf('foodThrow')), 'Spell!');
       await until('deploy');
       clearPtr();
       this.lockInput = null;
     }
-    // 6) base upgrade
-    await waitFor(() => sim.t > 40 || sim.over);
+    // 6) tap the base to upgrade it
+    await waitFor(() => sim.t > 35 || sim.over);
     if (!sim.over) {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
       this.view.focus(sim.sides[0].labX + 6, 5);
-      await talk('That tent is kinda sad. Spend POWER to *UPGRADE YOUR BASE*: Tent, Shack, Trailer... all the way to *MEGA HQ*! Each tier = more HP, a stronger zapper and *more max POWER*.');
+      await wait(0.6);
+      await talk('That tent is kinda sad. *TAP YOUR BASE* to upgrade it: Tent, Shack, Trailer... all the way to *MEGA HQ*! Each tier = more HP, a stronger zapper and *more max POWER*.');
       this.lockInput = 'lab';
-      remove = pointAt(this.hud.ocBtn, 'Upgrade!');
+      remove = pointAt(() => this.view.baseBadge?.el, 'Tap your base!');
       await until('lab');
       clearPtr();
       this.lockInput = null;
@@ -617,7 +645,7 @@ export class BattleScene {
     await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
     if (!sim.over) {
       sim.sides[0].sig = 1;
-      await talk("That's YOU on top of your base - the *Commander*! Your ability is charged: tap your portrait for *Beaker Barrage*!");
+      await talk("That's YOU sitting on your base - the *Commander*! Your ability is charged: tap your portrait for *Beaker Barrage*!");
       this.lockInput = 'sig';
       remove = pointAt(this.hud.sig, 'Unleash!');
       await until('sig');
@@ -635,7 +663,7 @@ export class BattleScene {
       await wait(1.4);
       if (!sim.over) await talk("Ha! My *Mega Giveaway* distracts your Swarms with cash! Don't worry, Commanders recharge. Keep pushing!");
     }
-    // 8) the MEGA ultimate (borrowed Panthar)
+    // 8) the MEGA ultimate (borrowed Panthar): tap your Commander
     await waitFor(() => jLab.hp < jLab.maxHp * 0.6 || sim.t > 150 || sim.over);
     const m = sim.sides[0].mega;
     if (!sim.over && m && !m.used) {
@@ -645,11 +673,13 @@ export class BattleScene {
         sim.upgradeLab(0);
         await wait(0.9);
       }
+      this.view.focus(sim.sides[0].labX + 5, 6);
       m.charge = 1;
       sim.emit('megaReady', { side: 0 });
-      await talk('Your *MEGA* charges up when you deal damage - and you only get ONE per battle. It\'s FULL right now. *Unleash it!*');
+      await wait(0.8);
+      await talk('See your Commander crackling with *electric energy*? The *MEGA* charges up as you deal damage - and you only get ONE per battle. It\'s FULL right now. *TAP YOUR COMMANDER!*');
       this.lockInput = 'mega';
-      remove = pointAt(this.hud.megaEl, 'MEGA!');
+      remove = pointAt(cmdPos, 'Tap your Commander!');
       await until('mega');
       clearPtr();
       this.lockInput = null;

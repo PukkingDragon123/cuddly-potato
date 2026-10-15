@@ -1,4 +1,5 @@
-// Hi-res pixel-art icon set (16x16). Icons are drawn with tiny raster
+// Hi-res pixel-art icon set (16x16, plus 24x24 / 32x32 "reward art" sprites
+// for coin piles, gem heaps, tier flasks...). Icons are drawn with tiny raster
 // primitives (circles, polygons, rects, ascii art), then automatically
 // shaded (lit top edges, shaded bottom edges) and ink-outlined, giving every
 // icon a consistent detailed pixel-art look.
@@ -15,22 +16,26 @@ const C = {
 };
 
 class Pix {
-  constructor() {
-    this.g = Array.from({ length: N }, () => Array(N).fill(null));
+  constructor(n = N) {
+    this.n = n;
+    this.g = Array.from({ length: n }, () => Array(n).fill(null));
     this.noShade = new Set();
   }
-  px(x, y, c) { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < N && y < N) this.g[y][x] = c; return this; }
+  px(x, y, c) { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < this.n && y < this.n) this.g[y][x] = c; return this; }
   rect(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, c); return this; }
   circ(cx, cy, r, c) {
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r) this.px(x, y, c);
+    const n = this.n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r) this.px(x, y, c);
     return this;
   }
   ell(cx, cy, rx, ry, c) {
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1) this.px(x, y, c);
+    const n = this.n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1) this.px(x, y, c);
     return this;
   }
   poly(pts, c) {
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const n = this.n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
       const X = x + 0.5, Y = y + 0.5;
       let ins = false;
       for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -53,7 +58,7 @@ class Pix {
     rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) this.px(x0 + x, y0 + y, pal[ch]); }));
     return this;
   }
-  flat(x, y) { this.noShade.add(y * N + x); return this; }
+  flat(x, y) { this.noShade.add(y * this.n + x); return this; }
 }
 
 const lighten = (hex, f) => {
@@ -64,6 +69,7 @@ const lighten = (hex, f) => {
 };
 
 function render(p, o = {}) {
+  const N = p.n;
   const S = N + 2; // room for the outline
   const c = document.createElement('canvas');
   c.width = S;
@@ -331,7 +337,7 @@ const cache = new Map();
 export function iconURL(name) {
   if (cache.has(name)) return cache.get(name);
   const d = D[name] ?? D.star;
-  const p = new Pix();
+  const p = new Pix(d.opts?.size ?? N);
   d.fn(p);
   const url = render(p, d.opts ?? {});
   cache.set(name, url);
