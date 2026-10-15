@@ -19,7 +19,7 @@ import { createSwarm } from '../../models/swarmModels.js';
 import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
-import { ChargeAura, BaseBadge } from './commandFx.js';
+import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome } from './voxfx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
@@ -265,6 +265,7 @@ class UnitActor {
     this.spawnT = 0;
     const p = this.rig.root.position;
     fx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 4, scale: 0.9 * this.u.size });
+    this.rig.boing?.(0.45);
   }
   update(dt) {
     const u = this.u, rig = this.rig;
@@ -506,9 +507,8 @@ export class BattleView {
       ch.reactT = 0;
       return ch;
     });
-    // tap-your-Commander MEGA charge-up + tap-your-base upgrade sign
+    // tap-your-Commander MEGA charge-up (the base upgrade lives on the HUD's big BASE button; tapping the base still works)
     this.auras = [0, 1].map((i) => (this.sim.sides[i].mega && this.cmds[i] ? new ChargeAura(this, i, this.plateLayer) : null));
-    this.baseBadge = new BaseBadge(this.plateLayer, () => this.onBaseTap?.());
     // deploy zone overlay + ghost preview
     const zmat = new THREE.MeshBasicMaterial({ map: stripeTex(), color: 0x4ab4ff, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, fog: false });
     this.zone = new THREE.Mesh(PLANE, zmat);
@@ -894,7 +894,6 @@ export class BattleView {
       const ch = this.cmds[i];
       if (ch && state === 'ready' && !ch.busy && Math.random() < dt * 0.6) { ch.play('sitCheer'); ch.expr('star', 'grin', 1); ch.reactT = 1.2; }
     }
-    this.baseBadge?.update(this, this.labs[0], sim.sides[0], plateBounds);
   }
 
   /** What a tap at a screen point hit on YOUR side: 'commander' | 'base' | null. */
@@ -1022,7 +1021,9 @@ export class BattleView {
         fx.burst(p, { count: 14, colors: [0xffffff, 0xcff2ff, 0x9fe6ff], size: 0.06, speed: 4.5, life: 0.5 });
         fx.slime(p, { count: 10 + v.count * 2, color: v.col, speed: 3.4 });
         fx.bubbles(p, { count: 5, color: v.col });
-        fx.shockwave(new THREE.Vector3(v.tele.position.x, 0.02, 0), { radius: 1.3, color: TEAM_COLORS[v.side] });
+        fx.shockwave(new THREE.Vector3(v.tele.position.x, 0.02, 0), { radius: 1.3 + v.count * 0.25, color: TEAM_COLORS[v.side] });
+        fx.dust(new THREE.Vector3(v.x, 0, 0.2), { count: 5, scale: 1.1 });
+        if (v.side === 0) engine.shake(0.07);
         audio.play('shatter', { pitch: 1.5 + Math.random() * 0.3, vol: 0.55, gap: 0.03 });
         audio.play('spawn', { pitch: 0.9 + Math.random() * 0.3, gap: 0.05 });
         this.scene.remove(v.mesh, v.tele);
@@ -1134,6 +1135,7 @@ export class BattleView {
           if (big) {
             engine.shake(0.5);
             engine.hitstop(0.08);
+            floatText(p.clone().setY(p.y + 1.6), 'KO!', 'crit', { life: 1.1 });
           }
           if (ev.killerSide === 0 && Math.random() < 0.3) this.reactRich(0, pick(['laugh', 'clap', 'fistPump', 'thumbsUp', 'cheer']), 1);
           if (ev.killerSide === 1 && Math.random() < 0.3) this.reactRich(1, pick(['taunt', 'laugh', 'fistPump', 'smug']), 1);
@@ -1782,6 +1784,17 @@ export class BattleView {
   signatureFx(ev) {
     const side = ev.side;
     const ch = this.cmds[side];
+    // ultimate wind-up: an energy blast off the Commander's roof
+    if (ch) {
+      const p = ch.root.position;
+      const col = TEAM_LIGHT[side];
+      fx.shockwave(new THREE.Vector3(p.x, Math.max(0.05, p.y - 0.1), p.z), { radius: 3.4, color: col });
+      fx.shockwave(new THREE.Vector3(this.sim.sides[side].labX, 0.05, 0.4), { radius: 5, color: 0xffd84a });
+      fx.burst(new THREE.Vector3(p.x, p.y + 0.8, p.z + 0.2), { count: 40, colors: [0xffffff, col, 0xffd84a], size: 0.1, speed: 8 });
+      fx.rise(new THREE.Vector3(p.x, p.y, p.z), { count: 22, colors: [col, 0xffffff], radius: 0.9 });
+      engine.shake(0.3);
+      engine.hitstop(0.05);
+    }
     switch (ev.id) {
       case 'beakerBarrage': {
         this.perform(side, 'throw', 0.9, 'determined', 'grin');

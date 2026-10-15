@@ -4,8 +4,6 @@
 //                charges: crackling voxel lightning bolts (instanced cubes, HDR
 //                so they bloom), orbiting sparks and a world label with the
 //                charge; at 100% it goes wild and the label says TAP!
-//   BaseBadge    a floating upgrade sign in front of your base ("LAB SHACK
-//                5 power") - tap it (or the base) to upgrade
 import * as THREE from 'three';
 import { fx } from '../../core/particles.js';
 import { audio } from '../../core/audio.js';
@@ -192,59 +190,5 @@ export class ChargeAura {
         audio.play('zap', { pitch: 1.4 + Math.random() * 0.4, vol: ready ? 0.35 : 0.18, gap: 0.2 });
       }
     }
-  }
-}
-
-export class BaseBadge {
-  constructor(layer, onTap) {
-    this.name = h('b', {}, '');
-    this.cost = h('span', { class: 'c' }, '');
-    this.fill = h('i', { class: 'f' });
-    this.el = h('div', { class: 'base-badge' },
-      h('div', { class: 'up' }, icon('up')),
-      h('div', { class: 'tx' }, h('small', {}, 'TAP TO UPGRADE'), this.name),
-      h('div', { class: 'cost' }, icon('power'), this.cost),
-      h('div', { class: 'meter' }, this.fill));
-    this.el.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      audio.unlock();
-      onTap?.();
-    });
-    layer.appendChild(this.el);
-    this.lastKey = '';
-  }
-  dispose() {
-    this.el.remove();
-  }
-  update(view, lab, side, bounds = null) {
-    const sim = view.sim;
-    const nx = BASE_UPGRADES[side.overclock + 1];
-    if (!nx || !lab || !side.lab.alive || sim.over || sim.cinematic) {
-      this.el.style.display = 'none';
-      return;
-    }
-    const cost = BASE_UPGRADES[side.overclock].cost;
-    const key = nx.name + cost;
-    if (key !== this.lastKey) {
-      this.lastKey = key;
-      this.name.textContent = nx.name.toUpperCase();
-      this.cost.textContent = String(cost);
-    }
-    const afford = side.energy >= cost;
-    this.el.classList.toggle('afford', afford);
-    this.fill.style.width = Math.min(100, (side.energy / cost) * 100).toFixed(1) + '%';
-    // a sign standing on the ground just in front of the base
-    const x = lab.root.position.x + (lab.centerX ?? 0) + 0.4;
-    const s = view.engineToScreen(_b.set(x, 0.15, 2.6));
-    const hw = (this.el.offsetWidth || 120) / 2, hh = (this.el.offsetHeight || 40) / 2;
-    // hide when the base is off screen (the HUD base button still works); otherwise keep it fully visible
-    if (!s.visible || s.x < -hw * 0.5) { this.el.style.display = 'none'; return; }
-    this.el.style.display = '';
-    let px = Math.max(hw + 6, Math.min(window.innerWidth - hw - 6, s.x));
-    let py = Math.min(s.y, (bounds?.maxY ?? Infinity) - hh - 8);
-    // stay clear of the Commander portrait column above the deck
-    if (bounds?.clearL && py + hh > bounds.clearL.top) px = Math.max(px, bounds.clearL.right + hw + 6);
-    this.el.style.transform = `translate3d(${Math.round(px)}px, ${Math.round(py)}px, 0)`;
   }
 }

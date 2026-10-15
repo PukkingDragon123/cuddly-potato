@@ -294,104 +294,186 @@ export function bigBanner(text, sub = '', opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Dialogue (typewriter)
+// HUD bands: the strips of scene UI hugging the top / bottom screen edges
+// (battle HUD, home top bar + nav). Dialogue and speech bubbles keep clear of them.
+
+let _bands = null, _bandsAt = -1;
+export function hudBands() {
+  const now = performance.now();
+  if (_bands && now - _bandsAt < 400) return _bands;
+  const W = window.innerWidth, H = window.innerHeight;
+  let top = 0, bottom = 0;
+  const root = $ui();
+  if (root) {
+    const rects = [];
+    for (const el of root.querySelectorAll(':scope > *, :scope > * > *, :scope > * > * > *')) {
+      const r = el.getBoundingClientRect();
+      if (r.width < W * 0.45 || r.height <= 0 || r.height > H * 0.45) continue;
+      rects.push(r);
+    }
+    rects.sort((p, q) => p.top - q.top);
+    for (const r of rects) if (r.top <= top + 8 && r.bottom < H * 0.4) top = Math.max(top, r.bottom);
+    rects.sort((p, q) => q.bottom - p.bottom);
+    for (const r of rects) if (r.bottom >= H - bottom - 8 && r.top > H * 0.5) bottom = Math.max(bottom, H - r.top);
+  }
+  _bands = { top, bottom, W, H };
+  _bandsAt = now;
+  return _bands;
+}
+
+// ---------------------------------------------------------------------------
+// Dialogue (visual-novel panel with typewriter)
 
 let activeDialogue = null;
+let lastDlgClose = 0, lastDlgName = '';
+const PAUSE = { '.': 7, '!': 7, '?': 7, ',': 3, ';': 4, ':': 4, '-': 2 };
+
+/** Split rich() HTML into per-character spans (words kept unbreakable) so the layout never reflows while typing. */
+function typeSpans(container, html) {
+  container.innerHTML = html;
+  const chars = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const frag = document.createDocumentFragment();
+    for (const part of node.nodeValue.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
+      const w = document.createElement('span');
+      w.className = 'w';
+      for (const chr of part) {
+        const c = document.createElement('span');
+        c.className = 'c';
+        c.textContent = chr;
+        w.appendChild(c);
+        chars.push(c);
+      }
+      frag.appendChild(w);
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+  return chars;
+}
+
 /**
  * Show a dialogue line. Resolves when the player taps (after typing).
- * who: { name, portrait?, color?, chibi? }
- * opts: { choices:[label|{label,cls}], wait:false (non-blocking, returns {close}), speed }
+ * who: { name, portrait?, color?, chibi?, voice? (blip pitch) }
+ * opts: { choices:[label|{label,cls}], wait:false (non-blocking, returns {close, promise, el}), speed (chars/s),
+ *         place: 'auto'|'top'|'bottom' (auto keeps clear of a tall bottom HUD such as the battle hand) }
  */
 export function say(who, text, opts = {}) {
-  if (activeDialogue) activeDialogue.remove();
-  const textEl = h('div', { class: 'txt' });
-  const box = h('div', { class: 'box sk-panel-cream' }, who?.name ? h('div', { class: 'speaker', style: who.color ? { background: who.color } : null }, who.name) : null, textEl);
-  const next = h('div', { class: 'next' }, '▼');
-  const portrait = who?.portrait ? h('div', { class: 'portrait panel sk-panel-light' }, h('img', { src: who.portrait })) : null;
-  const dlg = h('div', { class: 'dialogue' }, portrait, box);
+  const now = performance.now();
+  if (activeDialogue) { activeDialogue.remove(); activeDialogue = null; }
+  for (const old of $overlay().querySelectorAll('.dialogue')) old.remove();
+  const name = who?.name ?? '';
+  const color = who?.color ?? '#2b8cf2';
+  const blocking = opts.wait !== false;
+  // same speaker straight after the previous line: keep the panel steady (no re-entrance)
+  const cont = name && name === lastDlgName && now - lastDlgClose < 450;
+
+  const textEl = h('div', { class: 'dlg-txt' });
+  const next = h('div', { class: 'dlg-next' }, h('span', {}, 'TAP'), h('i'));
+  const box = h('div', { class: 'dlg-box' }, name ? h('div', { class: 'dlg-name' }, h('span', {}, name)) : null, textEl, next);
+  const portImg = who?.portrait ? h('img', { src: who.portrait, alt: '', draggable: 'false' }) : null;
+  const port = portImg ? h('div', { class: 'dlg-port' }, h('i', { class: 'dlg-port-bg' }), portImg) : null;
+  const panel = h('div', { class: 'dlg-panel' }, port, box);
+  const dlg = h('div', { class: `dialogue ${port ? 'has-port' : ''} ${cont ? 'cont' : ''} ${blocking ? '' : 'passive'}`, style: { '--spk': color } },
+    blocking ? h('div', { class: 'dlg-catch' }) : null, panel);
+
+  // placement: above the bottom HUD, or below the top HUD when the bottom one is tall (battle hand)
+  const bands = hudBands();
+  let place = opts.place ?? 'auto';
+  if (place === 'auto') place = bands.bottom > bands.H * 0.15 ? 'top' : 'bottom';
+  dlg.classList.add('at-' + place);
+  if (place === 'top') panel.style.top = `calc(var(--safe-t) + ${Math.round(bands.top + 10)}px + var(--u) * 3)`;
+  else panel.style.bottom = `calc(var(--safe-b) + ${Math.round(bands.bottom + 6)}px + var(--u) * 2)`;
+
   $overlay().appendChild(dlg);
   activeDialogue = dlg;
-  const html = rich(text);
-  const plain = html.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, '_');
+  lastDlgName = name;
+
+  const chars = typeSpans(textEl, rich(text));
   let shown = 0;
   let typing = true;
-  const speed = opts.speed ?? 60;
+  let finished = false;
+  const speed = opts.speed ?? 52;
   const chibi = who?.chibi;
+  const voice = who?.voice ?? 1;
   if (chibi) chibi.talk(true);
-  let acc = 0;
+  if (port) port.classList.add('talking');
+  let budget = -2; // short beat before the first letter
   let lastTick = performance.now();
-  const renderPartial = (n) => {
-    let out = '', count = 0;
-    for (let i = 0; i < html.length && count < n; i++) {
-      if (html[i] === '<') {
-        const j = html.indexOf('>', i);
-        out += html.slice(i, j + 1);
-        i = j;
-      } else if (html[i] === '&') {
-        const j = html.indexOf(';', i);
-        out += html.slice(i, j + 1);
-        i = j;
-        count++;
-      } else {
-        out += html[i];
-        count++;
-      }
-    }
-    const opens = (out.match(/<(b|em)>/g) || []).length - (out.match(/<\/(b|em)>/g) || []).length;
-    if (opens > 0) out += out.lastIndexOf('<em>') > out.lastIndexOf('<b>') ? '</em>' : '</b>';
-    textEl.innerHTML = out;
-  };
   let raf = 0;
-  const tick = (now) => {
-    acc += ((now - lastTick) / 1000) * speed;
-    lastTick = now;
-    const n = Math.floor(acc);
-    if (n !== shown) {
-      shown = n;
-      renderPartial(shown);
-      if (shown % 3 === 0) audio.play('tick', { pitch: 0.8 + Math.random() * 0.5, gap: 0.04 });
+  const tick = (t) => {
+    budget += Math.max(0, Math.min(0.25, (t - lastTick) / 1000)) * speed;
+    lastTick = t;
+    let blip = false;
+    while (budget >= 1 && shown < chars.length) {
+      const c = chars[shown++];
+      c.classList.add('on');
+      budget -= 1 + (PAUSE[c.textContent] && shown < chars.length ? PAUSE[c.textContent] : 0);
+      if (/[A-Za-z0-9]/.test(c.textContent) && shown % 2 === 1) blip = true;
     }
-    if (shown >= plain.length) finishTyping();
+    if (blip) audio.play('blip', { pitch: voice * (0.94 + Math.random() * 0.14), gap: 0.055 });
+    if (shown >= chars.length) finishTyping();
     else raf = requestAnimationFrame(tick);
   };
   const finishTyping = () => {
+    if (!typing) return;
     typing = false;
     cancelAnimationFrame(raf);
-    textEl.innerHTML = html;
+    for (const c of chars) c.classList.add('on', 'now');
     if (chibi) chibi.talk(false);
+    if (port) port.classList.remove('talking');
     if (opts.choices) {
-      const ch = h('div', { class: 'choices' });
+      const ch = h('div', { class: 'dlg-choices' });
       opts.choices.forEach((c, i) => {
         const lbl = typeof c === 'string' ? c : c.label;
         ch.appendChild(button(lbl, () => done(i), (typeof c === 'object' && c.cls) || (i === 0 ? 'pink sm' : 'blue sm')));
       });
       box.appendChild(ch);
-    } else if (opts.wait !== false) box.appendChild(next);
+    } else if (blocking) dlg.classList.add('ready');
   };
   raf = requestAnimationFrame(tick);
 
   let resolveFn;
   const promise = new Promise((r) => (resolveFn = r));
+  const onKey = (e) => {
+    if (!dlg.isConnected) { window.removeEventListener('keydown', onKey, true); return; }
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    advance();
+  };
   const done = (val) => {
+    if (finished) return;
+    finished = true;
     if (chibi) chibi.talk(false);
     cancelAnimationFrame(raf);
-    dlg.remove();
+    window.removeEventListener('keydown', onKey, true);
+    dlg.classList.add('closing');
+    lastDlgClose = performance.now();
     if (activeDialogue === dlg) activeDialogue = null;
+    // keep the tap catcher alive for a moment so the release doesn't click whatever is underneath
+    setTimeout(() => dlg.remove(), 170);
     resolveFn(val);
+  };
+  const advance = () => {
+    if (finished) return;
+    audio.unlock();
+    if (typing) { finishTyping(); return; }
+    if (opts.choices || !blocking) return;
+    audio.play('tap');
+    done();
   };
   dlg.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
-    audio.unlock();
-    if (typing) {
-      shown = plain.length;
-      finishTyping();
-      return;
-    }
-    if (opts.choices || opts.wait === false) return;
-    audio.play('tap');
-    done();
+    if (e.target instanceof Element && e.target.closest('.dlg-choices')) return;
+    advance();
   });
-  if (opts.wait === false) return { close: () => done(), promise, el: dlg };
+  if (blocking) window.addEventListener('keydown', onKey, true);
+  if (!blocking) return { close: () => done(), promise, el: dlg };
   return promise;
 }
 export function closeDialogue() {
@@ -399,6 +481,7 @@ export function closeDialogue() {
     activeDialogue.remove();
     activeDialogue = null;
   }
+  for (const old of $overlay()?.querySelectorAll('.dialogue') ?? []) old.remove();
 }
 
 // ---------------------------------------------------------------------------
@@ -422,13 +505,17 @@ export function floatText(pos, text, cls = 'dmg', opts = {}) {
   }
 }
 
-/** Speech bubble following an Object3D-like target with getWorldPosition, or a chibi (uses headTop). */
+/** Speech bubble following an Object3D-like target with getWorldPosition, or a chibi (uses headTop).
+ * Stays on screen and clear of the HUD bands: slides sideways (the tail keeps pointing at the speaker)
+ * and flips below the speaker when there is no room above. */
 export function speech(target, text, dur = 2.2, opts = {}) {
-  const el = h('div', { class: 'speech' }, h('span', { class: 'speech-b pop-in', html: rich(text) }));
+  const inner = h('div', { class: 'speech-b' }, h('span', { html: rich(text) }), h('i', { class: 'speech-tail' }));
+  const el = h('div', { class: 'speech' }, inner);
   $world().appendChild(el);
-  const b = { el, target, t: 0, dur, offsetY: opts.offsetY ?? 0 };
+  const b = { el, inner, target, t: 0, dur, offsetY: opts.offsetY ?? 0, w: 0, hh: 0, out: false };
   speechBubbles.push(b);
-  return { close: () => { b.t = b.dur; } };
+  audio.play('bubblePop', { gap: 0.08 });
+  return { close: () => { if (b.t < b.dur - 0.18) b.t = b.dur - 0.18; } };
 }
 
 /** Tutorial pointer: at a DOM element, screen point, or world position. Returns remover. */
@@ -525,14 +612,28 @@ export function updateWorldUI(dt) {
       speechBubbles.splice(i, 1);
       continue;
     }
+    if (!b.out && b.t >= b.dur - 0.18) { b.out = true; b.el.classList.add('out'); }
     let wp;
     if (b.target.headTop) wp = b.target.headTop(_v);
     else if (b.target.isVector3) wp = _v.copy(b.target);
     else wp = b.target.getWorldPosition(_v);
     const s = engine.toScreen(wp);
-    b.el.style.left = s.x + 'px';
-    b.el.style.top = s.y - b.offsetY + 'px';
-    b.el.style.display = s.visible ? '' : 'none';
+    if (!s.visible) { b.el.style.display = 'none'; continue; }
+    b.el.style.display = '';
+    if (!b.w) { b.w = b.el.offsetWidth; b.hh = b.el.offsetHeight; }
+    const bands = hudBands();
+    const m = 6, W = bands.W, H = bands.H;
+    const ax = s.x, ay = s.y - b.offsetY;
+    const tail = 14;
+    // horizontal: keep the whole bubble on screen, the tail slides to stay over the speaker
+    const left = Math.max(m, Math.min(W - m - b.w, ax - b.w / 2));
+    // vertical: above the head, or flipped below it when the top HUD / screen edge is in the way
+    let top = ay - tail - b.hh;
+    const below = top < bands.top + m;
+    if (below) top = Math.min(H - bands.bottom - m - b.hh, ay + tail + 4);
+    b.el.classList.toggle('below', below);
+    b.el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    b.el.style.setProperty('--tx', Math.round(Math.max(10, Math.min(b.w - 10, ax - left))) + 'px');
   }
   for (const p of pointers) updatePointer(p);
 }

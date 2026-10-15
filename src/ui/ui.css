@@ -391,32 +391,8 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
 .banner-big small { display: block; font-family: var(--font-b); font-size: 0.26em; letter-spacing: 0; margin-top: 0.3em; color: #fff; text-shadow: var(--outline-thin); }
 @keyframes slam { 0% { scale: 3.2; opacity: 0; } 60% { scale: 0.92; opacity: 1; } 100% { scale: 1; } }
 
-/* ---------------------------------------------------------------- dialogue (lab notebook) */
-.dialogue {
-  position: absolute; left: 50%; translate: -50% 0; bottom: calc(var(--safe-b) + var(--u) * 4); width: min(96vw, calc(var(--u) * 150));
-  display: flex; align-items: flex-end; gap: calc(var(--u) * 1.2); z-index: 45; animation: slideUp 0.28s cubic-bezier(.2, 1.3, .4, 1);
-}
-.dialogue .portrait { flex: none; width: calc(var(--u) * 22); height: calc(var(--u) * 22); padding: 0; }
-.dialogue .portrait img { width: 100%; height: 100%; display: block; image-rendering: auto; }
-.dialogue .box { position: relative; flex: 1; min-height: calc(var(--u) * 20); padding: calc(var(--u) * 2.4) calc(var(--u) * 2.8) calc(var(--u) * 2); color: var(--ink); }
-.dialogue .speaker {
-  position: absolute; left: calc(var(--u) * 2); top: calc(var(--u) * -4.2); padding: 0.05em 0.7em 0.15em; color: #fff;
-  font-family: var(--font-d); font-size: 1.15em; text-shadow: var(--outline-thin); background: var(--blue);
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.25), inset 0 var(--px) 0 rgba(255, 255, 255, 0.45), 0 0 calc(var(--px) * 4) rgba(79, 200, 255, 0.6);
-}
-.dialogue .txt { font-size: 1.05em; line-height: 1.35; font-weight: 600; }
-.dialogue .txt b { color: #d8146a; }
-.dialogue .next { position: absolute; right: calc(var(--u) * 2); bottom: calc(var(--u) * 0.8); color: var(--pink); font-family: var(--font-d); animation: nextBob 0.6s infinite; }
+/* dialogue + speech bubbles: see "Dialogue v2" at the end of this file */
 @keyframes nextBob { 50% { translate: 0 4px; } }
-.dialogue .choices { display: flex; gap: var(--u); margin-top: calc(var(--u) * 1.4); flex-wrap: wrap; }
-
-/* world-anchored speech bubbles */
-.speech { position: absolute; translate: -50% -100%; pointer-events: none; z-index: 5; }
-.speech-b {
-  display: block; max-width: calc(var(--u) * 46); padding: 0.25em 0.55em; color: var(--ink); background: #fff; font-weight: 700; font-size: 0.85em; text-align: center;
-  box-shadow: 0 0 0 var(--px) var(--ink), 0 calc(var(--px) * 2) 0 var(--px) rgba(0, 0, 0, 0.35), inset 0 calc(var(--px) * -1) 0 #c8d8f0; border-radius: calc(var(--px) * 2); white-space: normal; line-height: 1.15;
-}
-.speech-b::after { content: ''; position: absolute; left: 50%; bottom: calc(var(--px) * -4); translate: -50% 0; border: calc(var(--px) * 2.5) solid transparent; border-top-color: #fff; border-bottom: 0; }
 
 /* floating combat text */
 .ftext { position: absolute; left: 0; top: 0; pointer-events: none; font-family: var(--font-d); font-size: calc(var(--u) * 4.4); color: #fff; text-shadow: var(--outline-thin); white-space: nowrap; will-change: transform, opacity; }
@@ -813,3 +789,195 @@ img.pia.pia-hover { animation-play-state: paused; }
 .gcard.big .sp-tag { font-size: calc(var(--u) * 3.6); }
 .mn-ci .chip.special, .chip.special { background: color-mix(in srgb, #3ff2e0 40%, #102030); }
 @media (prefers-reduced-motion: reduce) { .gcard.special .art::after { animation: none; } }
+
+/* =========================================================================
+   Dialogue v2: visual-novel panel (speaker portrait popping out of a tinted
+   badge, skewed name plate, white speech panel with a tail, typewriter text
+   with highlighted *keywords*, TAP badge) + world speech bubbles (crisp
+   stepped tail that tracks the speaker, pop in / out).
+   ========================================================================= */
+.dialogue { position: absolute; inset: 0; z-index: 45; pointer-events: none !important; --spk: #2b8cf2; }
+.dialogue .dlg-catch { position: absolute; inset: 0; pointer-events: auto; background: radial-gradient(ellipse 130% 55% at 50% 100%, rgba(8, 6, 28, 0.5), rgba(8, 6, 28, 0.18) 55%, transparent 80%); animation: fadeIn 0.25s both; }
+.dialogue.at-top .dlg-catch { background: radial-gradient(ellipse 130% 55% at 50% 0%, rgba(8, 6, 28, 0.5), rgba(8, 6, 28, 0.18) 55%, transparent 80%); }
+.dialogue.cont .dlg-catch { animation: none; }
+.dialogue.closing .dlg-catch { opacity: 0; transition: opacity 0.16s; }
+.dlg-panel {
+  position: absolute; left: 50%; translate: -50% 0; pointer-events: auto; cursor: pointer;
+  width: min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)), 600px);
+  display: flex; align-items: flex-end; gap: calc(var(--px) * 3);
+  animation: dlgIn 0.34s cubic-bezier(.2, 1.35, .4, 1) both;
+}
+.at-top .dlg-panel { align-items: flex-start; animation-name: dlgInTop; }
+.dialogue.cont .dlg-panel { animation: none; }
+.dialogue.closing .dlg-panel { animation: dlgOut 0.16s ease-in forwards; }
+.at-top.closing .dlg-panel { animation-name: dlgOutTop; }
+@keyframes dlgIn { 0% { transform: translateY(36px) scale(0.94); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes dlgInTop { 0% { transform: translateY(-36px) scale(0.94); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes dlgOut { to { transform: translateY(18px) scale(0.97); opacity: 0; } }
+@keyframes dlgOutTop { to { transform: translateY(-18px) scale(0.97); opacity: 0; } }
+
+/* speaker portrait: tinted badge, the head pops out over the top edge */
+.dlg-port {
+  position: relative; flex: none; width: clamp(70px, calc(var(--u) * 22), 112px); aspect-ratio: 1; z-index: 1;
+  clip-path: inset(-45% -20% 0 -20%);
+  animation: dlgPort 0.42s cubic-bezier(.2, 1.6, .4, 1) 0.04s both;
+}
+.dialogue.cont .dlg-port { animation: none; }
+.dlg-port-bg {
+  position: absolute; inset: 0; border-radius: calc(var(--px) * 3);
+  background:
+    radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--spk) 30%, #fff) 0 22%, transparent 60%),
+    repeating-conic-gradient(from 0deg at 50% 45%, rgba(255, 255, 255, 0.12) 0 12deg, transparent 12deg 24deg),
+    linear-gradient(color-mix(in srgb, var(--spk) 85%, #fff), var(--spk) 55%, color-mix(in srgb, var(--spk) 60%, #0a0820));
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.8) rgba(255, 255, 255, 0.75), inset 0 calc(var(--px) * -3) 0 rgba(0, 0, 0, 0.22), 0 calc(var(--px) * 2) 0 var(--px) rgba(8, 6, 28, 0.45);
+}
+.dlg-port img {
+  position: absolute; left: -14%; bottom: 0; width: 128%; height: 128%; object-fit: contain; object-position: 50% 100%;
+  image-rendering: auto; filter: drop-shadow(0 calc(var(--px) * -0.7) 0 var(--ink)) drop-shadow(calc(var(--px) * 0.7) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -0.7) 0 0 var(--ink));
+  transform-origin: 50% 100%;
+}
+.dlg-port.talking img { animation: dlgTalk 0.3s steps(2) infinite; }
+@keyframes dlgPort { 0% { transform: scale(0.3) rotate(-10deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes dlgTalk { 50% { transform: translateY(calc(var(--px) * -1)) scaleY(1.02); } }
+
+/* the speech panel */
+.dlg-box {
+  position: relative; flex: 1; min-width: 0; min-height: clamp(64px, calc(var(--u) * 19), 100px);
+  padding: calc(var(--px) * 5 + 0.35em) calc(var(--px) * 4 + 0.2em) calc(var(--px) * 4 + 0.25em) calc(var(--px) * 4 + 0.3em);
+  color: #1c1438; border-radius: calc(var(--px) * 3);
+  background:
+    linear-gradient(transparent calc(100% - var(--px) * 3), rgba(150, 170, 220, 0.28) calc(100% - var(--px) * 3)),
+    linear-gradient(#ffffff, #f4f7ff 60%, #e8eefc);
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.8) #fff, 0 calc(var(--px) * 2) 0 var(--px) rgba(8, 6, 28, 0.45), 0 calc(var(--px) * 3) calc(var(--px) * 8) rgba(8, 6, 28, 0.35);
+}
+/* tail pointing at the portrait */
+.has-port .dlg-box::before, .has-port .dlg-box::after { content: ''; position: absolute; top: auto; bottom: calc(var(--px) * 6); pointer-events: none; }
+.has-port .dlg-box::before { left: calc(var(--px) * -5); width: calc(var(--px) * 5); height: calc(var(--px) * 7); background: var(--ink); clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+.has-port .dlg-box::after { left: calc(var(--px) * -3.2); width: calc(var(--px) * 4); height: calc(var(--px) * 5); bottom: calc(var(--px) * 7); background: #f2f6ff; clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+.at-top.has-port .dlg-box::before { bottom: auto; top: calc(var(--px) * 8); }
+.at-top.has-port .dlg-box::after { bottom: auto; top: calc(var(--px) * 9); }
+
+/* name plate: a chunky skewed tab in the speaker colour */
+.dlg-name {
+  position: absolute; left: calc(var(--px) * 4); top: 0; translate: 0 -58%; z-index: 2;
+  padding: 0.02em 0.7em 0.1em; transform: skewX(-8deg); white-space: nowrap;
+  font-family: var(--font-d); font-size: clamp(21px, 1.75em, 32px); line-height: 1; letter-spacing: 0.05em; color: #fff; text-shadow: var(--outline-thin);
+  background: linear-gradient(color-mix(in srgb, var(--spk) 45%, #fff) 0 calc(var(--px) * 1), var(--spk) calc(var(--px) * 1) 58%, color-mix(in srgb, var(--spk) 72%, #0a0820) 58%);
+  box-shadow: 0 0 0 var(--px) var(--ink), 0 calc(var(--px) * 1.5) 0 var(--px) rgba(8, 6, 28, 0.4);
+  border-radius: calc(var(--px) * 1.5);
+}
+.dlg-name > span { display: inline-block; transform: skewX(8deg); }
+.dialogue:not(.cont) .dlg-name { animation: dlgName 0.36s cubic-bezier(.2, 1.6, .4, 1) 0.1s both; }
+@keyframes dlgName { 0% { opacity: 0; translate: -12px -58%; } 100% { opacity: 1; translate: 0 -58%; } }
+
+/* the text */
+.dlg-txt { font-family: var(--font-b); font-size: clamp(14px, 1.12em, 19px); line-height: 1.36; font-weight: 400; letter-spacing: 0.01em; overflow-wrap: break-word; }
+.dlg-txt .w { white-space: nowrap; }
+.dlg-txt .c { opacity: 0; }
+.dlg-txt .c.on { opacity: 1; animation: dlgChar 0.12s ease-out; }
+.dlg-txt .c.now { animation: none; }
+@keyframes dlgChar { from { opacity: 0; } }
+.dlg-txt b { font-weight: 700; color: #d4106a; }
+.dlg-txt b .c.on { background: linear-gradient(transparent 58%, rgba(255, 214, 74, 0.62) 58% 94%, transparent 94%); }
+.dlg-txt em { font-style: normal; font-weight: 700; color: #1a6fd8; }
+
+/* tap-to-continue badge hanging off the bottom-right corner */
+.dlg-next {
+  position: absolute; right: calc(var(--px) * 4); bottom: 0; translate: 0 55%; display: flex; align-items: center; gap: 0.3em;
+  padding: 0.05em 0.5em 0.1em 0.6em; font-family: var(--font-d); font-size: clamp(13px, 1em, 18px); line-height: 1.1; letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin);
+  background: linear-gradient(color-mix(in srgb, var(--spk) 50%, #fff) 0 calc(var(--px) * 0.8), var(--spk) calc(var(--px) * 0.8) 60%, color-mix(in srgb, var(--spk) 72%, #0a0820) 60%);
+  box-shadow: 0 0 0 calc(var(--px) * 0.8) var(--ink); border-radius: calc(var(--px) * 1.5);
+  opacity: 0; scale: 0.4; transition: opacity 0.12s, scale 0.26s cubic-bezier(.2, 1.8, .4, 1); pointer-events: none;
+}
+.dlg-next > i { width: calc(var(--px) * 3.4); height: calc(var(--px) * 2.4); background: #fff; clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 1px 0 var(--ink)); }
+.dialogue.ready .dlg-next { opacity: 1; scale: 1; }
+.dialogue.ready .dlg-next > i { animation: nextBob 0.6s ease-in-out infinite; }
+.dlg-choices { display: flex; gap: var(--u); margin-top: calc(var(--u) * 1.6); flex-wrap: wrap; justify-content: flex-end; animation: popIn 0.3s cubic-bezier(.2, 1.4, .4, 1) both; }
+body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
+
+/* world speech bubbles */
+.speech { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; --tx: 50%; --tu: max(2px, calc(var(--px) * 0.9)); will-change: transform; }
+.speech-b {
+  position: relative; display: block; width: max-content; max-width: max(150px, calc(var(--u) * 42));
+  padding: 0.28em 0.6em 0.34em; color: var(--ink); text-align: center; white-space: normal; overflow-wrap: break-word;
+  font-family: var(--font-b); font-weight: 700; font-size: clamp(12px, 0.95em, 17px); line-height: 1.16;
+  background: linear-gradient(#ffffff 55%, #e6eeff); border-radius: calc(var(--pxs) * 2.5);
+  box-shadow: 0 0 0 var(--tu) var(--ink), 0 calc(var(--tu) * 2.2) 0 calc(var(--tu) * 0.4) rgba(8, 6, 28, 0.32);
+  transform-origin: var(--tx) 100%; animation: spIn 0.34s cubic-bezier(.2, 1.7, .4, 1) both;
+}
+.speech-b b { color: #d4106a; }
+.speech-b em { font-style: normal; color: #1a6fd8; }
+/* stepped pixel tail (ink outline + white fill), slides to stay over the speaker; --tu = tail/outline pixel */
+.speech-tail { position: absolute; left: var(--tx); top: 100%; width: calc(var(--tu) * 7); height: calc(var(--tu) * 4); translate: -50% 0; background: var(--ink); clip-path: polygon(0 0, 100% 0, 100% 25%, 85.7% 25%, 85.7% 50%, 71.4% 50%, 71.4% 75%, 57.1% 75%, 57.1% 100%, 42.9% 100%, 42.9% 75%, 28.6% 75%, 28.6% 50%, 14.3% 50%, 14.3% 25%, 0 25%); }
+.speech-tail::after { content: ''; position: absolute; left: var(--tu); top: calc(var(--tu) * -1); width: calc(var(--tu) * 5); height: calc(var(--tu) * 4); background: #e9f0ff; clip-path: polygon(0 0, 100% 0, 100% 50%, 80% 50%, 80% 75%, 60% 75%, 60% 100%, 40% 100%, 40% 75%, 20% 75%, 20% 50%, 0 50%); }
+.speech.below .speech-b { transform-origin: var(--tx) 0; }
+.speech.below .speech-tail { top: auto; bottom: 100%; scale: 1 -1; }
+.speech.below .speech-tail::after { background: #fff; }
+.speech.out .speech-b { animation: spOut 0.18s ease-in forwards; }
+@keyframes spIn { 0% { transform: scale(0.2); opacity: 0; } 55% { transform: scale(1.08); opacity: 1; } 100% { transform: none; } }
+@keyframes spOut { to { transform: scale(0.5); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dlg-panel, .dlg-port, .dlg-port img, .dlg-name, .dlg-txt .c.on, .dlg-next > i, .speech-b { animation: none !important; }
+}
+
+/* =========================================================================
+   Cards v2: faceted POWER gem, name banner + level ribbon foot, rarity glow
+   around the stage, idle shine sweep, SPECIAL holo, keyword tag clear of the
+   cost gem. (Battle hand cards are styled by the battle HUD, not here.)
+   ========================================================================= */
+.gcard:not(.locked) .art { box-shadow: inset 0 0 0 var(--pxs) color-mix(in srgb, var(--rc) 50%, transparent), inset 0 calc(var(--pxs) * 4) calc(var(--pxs) * 8) color-mix(in srgb, var(--rc) 30%, transparent); }
+/* POWER cost: a faceted electric gem with a volt-gold rim */
+.gcard .cost {
+  background: none !important; padding-top: 0; isolation: isolate;
+  filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(-1 * var(--o)) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(-1 * var(--o)) 0 var(--ink)) drop-shadow(0 calc(var(--pxs) * 1.5) 0 rgba(8, 6, 28, 0.55));
+}
+.gcard .cost::before, .gcard .cost::after { content: ''; position: absolute; z-index: -1; clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%); }
+.gcard .cost::before { inset: 0; background: linear-gradient(#fff3a8, #ffd23a 40%, #f0a000 75%, #b86a00); }
+.gcard .cost::after {
+  inset: 12%;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.42) 0 26%, transparent 26%),
+    linear-gradient(210deg, rgba(255, 255, 255, 0.16) 0 50%, transparent 50%),
+    radial-gradient(circle at 50% 60%, #5fa8ff, #2a5ce6 55%, #142a9a 100%);
+}
+.gcard .cost > span { position: relative; line-height: 1; translate: 0 calc(var(--pxs) * -0.3); text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 2) rgba(150, 210, 255, 0.9); }
+/* foot: name banner + level ribbon stacked on the stage floor */
+.gcard > .foot { position: absolute; z-index: 3; left: 5%; right: 5%; bottom: calc(var(--pxs) * 2.5); display: flex; flex-direction: column; align-items: stretch; pointer-events: none; }
+.gcard > .foot > .lvl { position: relative; left: auto; right: auto; bottom: auto; }
+.gcard .nm {
+  margin: 0 -3% calc(var(--pxs) * 0.5); padding: 0.14em 0.25em 0.1em; text-align: center;
+  font-family: var(--font-d); font-size: clamp(9cqw, calc(230cqw / var(--nl, 10)), 15.5cqw); line-height: 0.92; letter-spacing: 0.01em; color: #fff; text-shadow: var(--outline-thin);
+  white-space: normal; text-wrap: balance; overflow-wrap: anywhere;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 85%, #fff) 22% 78%, transparent) top / 100% max(1px, calc(var(--pxs) * 0.5)) no-repeat,
+    linear-gradient(90deg, transparent, rgba(8, 6, 28, 0.78) 16% 84%, transparent);
+}
+.gcard.locked .nm { color: #a9b6e6; }
+.gcard.big .nm { font-size: clamp(8cqw, calc(170cqw / var(--nl, 10)), 11cqw); }
+/* idle shine: a soft diagonal sweep every few seconds, offset per card */
+.gcard > .sheen { position: absolute; inset: calc(var(--pxs) * 2.5); z-index: 2; overflow: hidden; pointer-events: none; opacity: 0.55; }
+.gcard.rare > .sheen { opacity: 0.7; }
+.gcard:is(.epic, .legendary, .mythic, .foil) > .sheen { opacity: 0.95; }
+.gcard > .sheen::before {
+  content: ''; position: absolute; top: -10%; bottom: -10%; left: 0; width: 46%;
+  background: linear-gradient(105deg, transparent 0 22%, rgba(255, 255, 255, 0.22) 40%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.22) 60%, transparent 78%);
+  transform: translateX(-130%); animation: gcSheen 7s cubic-bezier(.45, 0, .25, 1) infinite; animation-delay: var(--sd, 0s);
+}
+@keyframes gcSheen { 0% { transform: translateX(-130%); } 13%, 100% { transform: translateX(330%); } }
+/* SPECIAL cards: drifting rainbow holo + twinkles over the trick art */
+.gcard.special > .sheen { opacity: 1; }
+.gcard.special > .sheen::after {
+  content: ''; position: absolute; inset: 0; mix-blend-mode: screen; opacity: 0.6;
+  background:
+    var(--tx-stars) 0 0 / calc(12 * var(--pxs)) calc(12 * var(--pxs)),
+    linear-gradient(125deg, transparent 18%, rgba(255, 90, 200, 0.28) 30%, rgba(255, 228, 106, 0.28) 38%, rgba(106, 255, 200, 0.28) 46%, rgba(90, 168, 255, 0.28) 54%, rgba(200, 122, 255, 0.28) 62%, transparent 74%) 0 0 / 240% 100% no-repeat;
+  animation: gcHolo 5s ease-in-out infinite alternate;
+}
+@keyframes gcHolo { 0% { background-position: 0 0, 100% 0; } 100% { background-position: calc(12 * var(--pxs)) calc(-12 * var(--pxs)), 0 0; } }
+/* keyword tag sits to the right of the cost gem and shrinks to fit */
+.gcard .sp-tag { left: 33%; right: 5%; top: 5%; translate: none; text-align: center; overflow: hidden; padding: 0 0.25em; font-size: min(calc(var(--u) * 2.3), calc(120cqw / var(--kl, 8))); }
+.gcard.big .sp-tag { font-size: min(calc(var(--u) * 3.6), calc(120cqw / var(--kl, 8))); }
+/* the battle HUD's own card faces stay untouched */
+:is(.bh-drag, .bh-slot, .bh-next) .gcard :is(.nm, .sheen) { display: none; }
+@media (prefers-reduced-motion: reduce) { .gcard > .sheen::before, .gcard.special > .sheen::after { animation: none !important; } }

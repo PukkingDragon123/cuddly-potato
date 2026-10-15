@@ -279,6 +279,7 @@ export class BattleScene {
     this.view.lastDropX = x ?? this.sim.sides[0].labX + 2;
     const ok = this.sim.play(0, slot, x);
     if (!ok) { audio.play('deny'); return false; }
+    this.hud.cardUsed(slot, c, x);
     audio.play('pop', { pitch: 1.1 });
     if (c.spell && !c.special) bigBanner((SPELLS[c.unit]?.name ?? c.unit).toUpperCase() + '!', '', { dur: 0.7, color: '#c99aff' });
     this.select(-1);
@@ -297,7 +298,6 @@ export class BattleScene {
     const s = this.sim.sides[0];
     if (this.sim.useSignature(0)) {
       audio.play('levelUp');
-      bigBanner(s.cmd.signature.name.toUpperCase() + '!', '', { dur: 1.1, color: '#ff7ac0' });
       this.onTut && this.onTut('sig');
     } else {
       audio.play('deny');
@@ -659,9 +659,9 @@ export class BattleScene {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
       this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 6), 8);
       await wait(0.6);
-      await talk('Now *UPGRADE YOUR BASE*: more HP, a stronger zapper and *more POWER*!');
+      await talk('Now *UPGRADE YOUR BASE* with the big BASE button: more HP, a stronger zapper and *more POWER*!');
       this.lockInput = 'lab';
-      remove = pointAt(() => this.view.baseBadge?.el, 'Tap your base!');
+      remove = pointAt(() => this.hud.ocBtn, 'Upgrade!');
       await until('lab');
       clearPtr();
       this.lockInput = null;
@@ -671,7 +671,7 @@ export class BattleScene {
     await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
     if (!sim.over) {
       sim.sides[0].sig = 1;
-      await talk('Your *Commander* ability is charged! Tap your portrait for *Acid Rain Barrage*!');
+      await talk('Your *Commander* ability is charged! Tap the glowing *ULT* button for *Acid Rain Barrage*!');
       this.lockInput = 'sig';
       remove = pointAt(this.hud.sig, 'Unleash!');
       await until('sig');

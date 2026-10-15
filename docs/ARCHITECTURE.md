@@ -30,10 +30,11 @@ src/
       loadout.js       the player's battle side config from the profile
       view.js          3D battle presentation (arena, bases + tier swaps, units, plates, projectiles, spells, camera)
       megaCutscene.js  MEGA breakout cutscene (containment vessel, camera shots, overlay) + Mega special fx
-      commandFx.js     Commander electric MEGA charge-up (voxel lightning, halo, label) + base upgrade sign
+      commandFx.js     Commander electric MEGA charge-up (voxel lightning, halo, label)
       voxfx.js         voxel effect meshes (laser beam, goo puddle, shield dome)
-      hud.js           battle HUD (base HP banners, timer, minimap, card hand + NEXT card, POWER
-                       counter + cells, Commander, base level + MEGA buttons, emotes, VS intro); lineup.css
+      hud.js           battle HUD (base HP banners, timer, minimap; Battle Cats dock: BASE upgrade button
+                       with a 3D next-tier model, POWER wallet, hand + NEXT card with card-use animations,
+                       Commander + MEGA ultimate buttons with 3D renders and cut-ins, emotes, VS intro); lineup.css
       result.js        victory / defeat / draw screen with base HP and rewards
   net/p2p.js           WebRTC data channel with copy/paste "battle code" signalling (no server)
   models/
@@ -62,7 +63,7 @@ src/
                        pixel textures as CSS vars, 16/24 px pixel icons
     cards.js           cardEl(): the card component (rarity frame, cost, level, copies progress)
     thumbs.js          cached 3D thumbnails: swarmThumb, charPortrait, spell art, arenaThumb (diorama snapshots),
-                       labSkinThumb; lazy queue renders on-screen images first
+                       labSkinThumb, baseSpin/baseThumb (battle base tiers); lazy queue renders on-screen images first
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss)
   dev/                 modelLab, arenaView, islandView, uiBench, screenBench, seed

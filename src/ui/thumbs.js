@@ -359,3 +359,36 @@ export async function labSkinThumb(style, size = 160) {
 export function labSkinImg(style, size = 160, cls = '') {
   return lazyImg(`lab|${style}|${size}`, () => labSkinThumb(style, size), cls, { visible: true });
 }
+
+// --------------------------------------------------------------------------- battle base tiers
+// The battle HUD's base-upgrade button shows the NEXT base tier as a 3D model
+// and spins it (a turntable strip of frames) when you can afford it / upgrade.
+const baseUrls = new Map();
+let baseModP = null;
+const loadBaseMod = () => (baseModP ??= import('../models/props/base.js'));
+/**
+ * Turntable frames (data URLs) of a battle base tier (1 = Camp Tent ... 6 = Mega HQ).
+ * o: { side, style, size, frames }. Cached; resolves with an array (frame 0 = the 3/4 hero angle).
+ */
+export async function baseSpin(tier, o = {}) {
+  const n = o.frames ?? 1, size = o.size ?? 128;
+  const k = `${tier}|${o.side ?? 0}|${tier === 5 ? o.style ?? '' : ''}|${size}|${n}`;
+  if (baseUrls.has(k)) return baseUrls.get(k);
+  const job = loadBaseMod().then((M) => {
+    const b = M.makeBase(tier, { side: o.side ?? 0, style: o.style });
+    try { b.update?.(0.016, 1); } catch (e) { /* animated bits are optional */ }
+    const urls = [];
+    for (let i = 0; i < n; i++) {
+      const yaw = -0.62 + (i / n) * Math.PI * 2;
+      urls.push(engine.renderThumb(b.root, { size, yaw, pitch: 0.3, zoom: o.zoom ?? 0.8 }));
+    }
+    try { b.dispose?.(); } catch (e) { /* ignore */ }
+    return urls;
+  });
+  baseUrls.set(k, job);
+  return job;
+}
+/** One 3/4 view of a battle base tier. */
+export async function baseThumb(tier, o = {}) {
+  return (await baseSpin(tier, { ...o, frames: 1 }))[0];
+}

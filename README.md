@@ -43,7 +43,7 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 **Battles**
 - Each side has one **base** with your Commander sitting on the roof. Smash the rival's base to win (no crowns,
   no guard towers).
-- **Tap your base to upgrade it** (or the sign in front of it): it starts as a humble **Camp Tent**, then becomes a **Lab Shack**, **Trailer
+- **Upgrade your base** with the big BASE button (it shows the next tier in 3D), or tap the base itself: it starts as a humble **Camp Tent**, then becomes a **Lab Shack**, **Trailer
   Lab**, **Field Lab**, **Beast Lab** and finally the **Mega HQ**. Every tier adds HP, a stronger zapper, faster POWER
   and a bigger POWER bar.
 - **Clash Royale card cycle**: an 8-card deck cycles through a hand of 4 with a **NEXT** card. Tap a troop card and
@@ -82,8 +82,8 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 | Send a Swarm | tap its card (or drag it onto your half) | `1`-`6` |
 | Play a SPECIAL card | tap it | number key |
 | Cast a spell | tap it, then tap the field (or drag it) | number key, then click the field / `Space` |
-| Commander signature / skills | tap the portrait / skill buttons | `Q` / `W`, `E` |
-| Upgrade your base | tap your base (or its sign / the base button) | `O` |
+| Commander ultimate / skills | tap the ULT button / skill buttons | `Q` / `W`, `E` |
+| Upgrade your base | tap the BASE button (or your base) | `O` |
 | Unleash the MEGA | tap your Commander (or the MEGA button) | `M` / `R` |
 | Pan / zoom the battle camera | drag / pinch, tap the minimap | drag / mouse wheel, `A` `D` |
 | Browse Beast Island | swipe or the arrows | arrows on screen |
