@@ -24,6 +24,7 @@ const C = {
   orange: 0xff8a1a, palm: 0x4cba3a, rock: 0x9a9080, rockD: 0x7a7060,
 };
 const LH = FIELD.LANE_HALF;
+const ZONE_SCALE = 1.18;
 const BACK = (x) => -14.5 - vnoise(x * 0.06, 3, 1) * 5 + (Math.abs(x) > 40 ? 6 : 0); // sandbar's far shore
 
 // --------------------------------------------------------------------------- voxel props
@@ -553,5 +554,6 @@ export function buildZone(K) {
   anchor(K, 'boss', -1.8, IY, 2.6);
   anchor(K, 'npc', 1.6, IY, 2.9);
   anchor(K, 'cleanup', 1.8, IY + 0.4, 0.6);
+  K.root.scale.setScalar(ZONE_SCALE); // fill the plinth
   return { focus: [0, 1.4, 0], radius: 7 };
 }

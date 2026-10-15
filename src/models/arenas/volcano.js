@@ -24,6 +24,7 @@ const C = {
   ink: 0x15121f, chain: 0x5a5e6a, hot: 0xff8a2a, red: 0xe8343c,
 };
 const LH = FIELD.LANE_HALF;
+const ZONE_SCALE = 1.18;
 const RIVER = (x) => 6.6 + Math.sin(x * 0.12) * 0.7 + Math.sin(x * 0.05 + 1) * 0.6;
 
 // --------------------------------------------------------------------------- textures
@@ -520,5 +521,6 @@ export function buildZone(K) {
   anchor(K, 'boss', -2.4, 0, 4.6);
   anchor(K, 'npc', 2.6, 0, 4.8);
   anchor(K, 'enterLair', 0.4, 0.6, -1.4);
+  K.root.scale.setScalar(ZONE_SCALE); // fill the plinth
   return { focus: [0, 1.4, 0], radius: 7 };
 }

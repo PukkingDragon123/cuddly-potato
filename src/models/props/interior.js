@@ -31,7 +31,7 @@ export function tube(g, axis, a0, a1, cu, cv, r, col, o = {}) {
     const fl = o.flange ?? PAL.metalD;
     for (let a = lo + (o.off ?? 3); a <= hi - 1; a += o.every) {
       g.cylinder(cu, cv, a, a + 1, r + 1, fl, axis);
-      if (r >= 2) {
+      if (r >= 2 && o.bolts !== false) {
         const put = (du, dv) => {
           if (axis === 'x') g.set(a, cu + du, cv + dv, SCREW);
           else if (axis === 'z') g.set(cu + du, cv + dv, a, SCREW);
@@ -941,131 +941,115 @@ export function makeMonitorWall() {
 // ---------------------------------------------------------------------------
 // Floor + walls (greedy-meshed voxels: big, cheap, no AO)
 
-/** One 1.6 x 1.6 floor tile (16 x 16 voxels, top at y = 0, corner at the origin). kind: 0 light, 1 dark, 2 drain. */
-function floorTileGeo(kind) {
-  return aoGeometry('floorTile4_' + kind, () => {
-    const g = dense(0, -1, 0, 15, -1, 15);
-    const alt = kind === 1;
-    for (let u = 0; u < 16; u++)
-      for (let v = 0; v < 16; v++) {
-        let c;
-        if (u === 0 || v === 0) c = 0xa8b2c2;
-        else {
-          c = alt ? 0xe4eaf2 : 0xd6dde8;
-          if (u === 1 || v === 1) c = alt ? 0xf0f4fa : 0xe2e8f0;
-          if (u === 15 || v === 15) c = alt ? 0xd2d9e4 : 0xc8d0dc;
-          if (hash3(u, kind + 3, v) < 0.012) c = 0xbcc5d2;
-          if (kind === 2 && u > 4 && u < 12 && v > 4 && v < 12) c = (u === 5 || u === 11 || v === 5 || v === 11) ? 0x9aa4b4 : ((u + v) & 1) ? 0x6b7386 : 0x3d4352;
-        }
-        g.set(u, -1, v, c);
-      }
-    return g;
-  }, { scale: 0.1, pivot: [0, 0, 0], ao: false, jitter: 0.02, skip: [3] });
+/** Floor tile pixel (u, v in 0..15) for tile kind 0 light, 1 dark, 2 drain. */
+function floorTileColor(u, v, kind, seed) {
+  if (u === 0 || v === 0) return 0xa8b2c2;
+  const alt = kind === 1;
+  let c = alt ? 0xe4eaf2 : 0xd6dde8;
+  if (u === 1 || v === 1) c = alt ? 0xf0f4fa : 0xe2e8f0;
+  if (u === 15 || v === 15) c = alt ? 0xd2d9e4 : 0xc8d0dc;
+  if (hash3(u, seed, v) < 0.012) c = 0xbcc5d2;
+  if (kind === 2 && u > 4 && u < 12 && v > 4 && v < 12) c = (u === 5 || u === 11 || v === 5 || v === 11) ? 0x9aa4b4 : ((u + v) & 1) ? 0x6b7386 : 0x3d4352;
+  return c;
 }
 
-/** Lab floor (about w x d units, centred, top at y = 0): instanced voxel tiles + hazard edges. */
+/** Lab floor (about w x d units, centred, top at y = 0): voxel tiles (grout, bevels, scuffs, drains) with hazard edges, one merged mesh. */
 export function makeFloorTiles(w = 10, d = 8) {
-  const T = 1.6;
-  const ni = Math.ceil(w / T), nj = Math.ceil(d / T);
-  const x0 = (-ni * T) / 2, z0 = (-nj * T) / 2;
-  const items = [[], [], []];
-  for (let i = 0; i < ni; i++)
-    for (let j = 0; j < nj; j++) {
-      const kind = hash3(i, 9, j) < 0.07 ? 2 : (i + j) & 1;
-      items[kind].push([x0 + i * T, 0, z0 + j * T]);
-    }
-  const r = new THREE.Group();
-  r.name = 'floorTiles';
-  items.forEach((it, k) => { if (it.length) r.add(instanced(floorTileGeo(k), it, { receive: true })); });
-  // hazard stripes along the edges
-  const nx = Math.round(ni * 16), nz = Math.round(nj * 16);
-  const edge = (n, id) => aoGeometry(id, () => {
-    const g = dense(0, 0, 0, n - 1, 0, 1);
-    for (let x = 0; x < n; x++) for (let z = 0; z < 2; z++) g.set(x, 0, z, ((x + z) >> 1) & 1 ? PAL.yellow : PAL.ink);
+  const ni = Math.ceil(w / 1.6), nj = Math.ceil(d / 1.6);
+  const nx = ni * 16, nz = nj * 16;
+  const geo = aoGeometry(`floorTiles5_${nx}_${nz}`, () => {
+    const g = dense(0, -1, 0, nx - 1, -1, nz - 1);
+    for (let x = 0; x < nx; x++)
+      for (let z = 0; z < nz; z++) {
+        let c;
+        if (x < 2 || z < 2 || x >= nx - 2 || z >= nz - 2) c = ((x + z) >> 1) & 1 ? PAL.yellow : PAL.ink;
+        else {
+          const ti = x >> 4, tj = z >> 4;
+          const kind = hash3(ti, 9, tj) < 0.07 ? 2 : (ti + tj) & 1;
+          c = floorTileColor(x & 15, z & 15, kind, ti * 7 + tj);
+        }
+        g.set(x, -1, z, c);
+      }
     return g;
-  }, { scale: 0.1, pivot: [0, 0, 0], ao: false, skip: [3] });
-  const ex = edge(nx, 'floorEdge4_' + nx), ez = edge(nz, 'floorEdge4_' + nz);
-  for (const [geo, x, z, ry] of [[ex, x0, z0, 0], [ex, x0, -z0 - 0.2, 0], [ez, x0, -z0, Math.PI / 2], [ez, -x0 - 0.2, -z0, Math.PI / 2]]) {
-    const m = makeMesh(geo, Mats.pair);
-    m.position.set(x, -0.098, z);
-    m.rotation.y = ry;
-    m.castShadow = false;
-    m.receiveShadow = true;
-    r.add(m);
-  }
+  }, { scale: 0.1, pivot: [nx / 2, 0, nz / 2], ao: false, jitter: 0.02, skip: [3] });
+  const m = makeMesh(geo, Mats.pair);
+  m.castShadow = false;
+  m.receiveShadow = true;
+  const r = group(m);
+  r.name = 'floorTiles';
   return r;
 }
 
 /**
- * One 2-unit wide wall column (20 voxels, ny tall, front plane at z = 0, left
- * edge at x = 0): dark baseboard, a riveted lower panel (kind 0 plain, 1 vent,
- * 2 hatch, 3 LED plate), a chair rail, white tiles, a conduit with a bracket,
- * and blue/pink top bands.
+ * Paint one 2-unit wall column (20 voxels from x = ox, ny tall, front plane at
+ * z = 0): dark baseboard, a riveted lower panel (kind 0 plain, 1 vent, 2 hatch,
+ * 3 LED plate), a chair rail, white tiles, a conduit with a bracket, and
+ * blue/pink top bands.
  */
-function wallColumnGeo(ny, kind) {
-  return aoGeometry(`wallCol4_${ny}_${kind}`, () => {
-    const g = dense(0, 0, -3, 19, ny - 1, 2);
-    const rail = Math.round(ny * 0.52), top = ny - 8, conduit = top - 4, PW = 20;
-    g.box(0, 0, -3, PW - 1, ny - 1, -2, PAL.metalDD);
-    for (let u = 0; u < PW; u++)
-      for (let y = 0; y < ny; y++) {
-        let c, z = -1;
-        if (y < 4) { c = y === 3 ? PAL.metal : PAL.metalDD; z = 0; }
-        else if (y < rail) {
-          const v = y - 4, ph = rail - 4;
-          if (u === 0 || v === 0 || v === ph - 1) c = 0x8d99ad;
-          else {
-            c = kind & 1 ? 0xc9d3e3 : 0xbfcadb;
-            if (u === 1 || v === ph - 2) c = 0xdfe6f0;
-            if (u === PW - 1 || v === 1) c = 0xa9b5c8;
-            const iu = u - 4, iv = v - 5;
-            if (kind === 1 && iu >= 0 && iu < PW - 8 && iv >= 0 && iv < ph - 12) { c = (iv % 2) ? 0x3d4352 : 0x5a6478; if (iv % 2) z = -2; }
-            else if (kind === 2 && iu >= 2 && iu < PW - 10 && iv >= 6 && iv < 13) {
-              const ed = iu === 2 || iu === PW - 11 || iv === 6 || iv === 12;
-              c = ed ? (((iu + iv) >> 1) & 1 ? PAL.yellow : PAL.ink) : 0xd0d8e6;
-            }
+function paintWallColumn(g, ox, ny, kind) {
+  const rail = Math.round(ny * 0.52), top = ny - 8, conduit = top - 4, PW = 20;
+  g.box(ox, 0, -3, ox + PW - 1, ny - 1, -2, PAL.metalDD);
+  for (let u = 0; u < PW; u++)
+    for (let y = 0; y < ny; y++) {
+      let c, z = -1;
+      if (y < 4) { c = y === 3 ? PAL.metal : PAL.metalDD; z = 0; }
+      else if (y < rail) {
+        const v = y - 4, ph = rail - 4;
+        if (u === 0 || v === 0 || v === ph - 1) c = 0x8d99ad;
+        else {
+          c = kind & 1 ? 0xc9d3e3 : 0xbfcadb;
+          if (u === 1 || v === ph - 2) c = 0xdfe6f0;
+          if (u === PW - 1 || v === 1) c = 0xa9b5c8;
+          const iu = u - 4, iv = v - 5;
+          if (kind === 1 && iu >= 0 && iu < PW - 8 && iv >= 0 && iv < ph - 12) { c = (iv % 2) ? 0x3d4352 : 0x5a6478; if (iv % 2) z = -2; }
+          else if (kind === 2 && iu >= 2 && iu < PW - 10 && iv >= 6 && iv < 13) {
+            const ed = iu === 2 || iu === PW - 11 || iv === 6 || iv === 12;
+            c = ed ? (((iu + iv) >> 1) & 1 ? PAL.yellow : PAL.ink) : 0xd0d8e6;
           }
-          if ((u === 2 || u === PW - 2) && (v === 2 || v === ph - 3)) { c = SCREW; z = 0; }
-        } else if (y < rail + 3) { c = y === rail + 2 ? PAL.metalL : PAL.metal; z = 0; }
-        else if (y < top) {
-          const tu = u % 10, tv = (y - rail - 3) % 10;
-          const ti = Math.floor(u / 10), tj = Math.floor((y - rail - 3) / 10);
-          c = tu === 0 || tv === 0 ? 0xc5cfdd : ((ti + tj) & 1) ? 0xeef2f8 : 0xe4eaf2;
-          if (c !== 0xc5cfdd && hash3(ti + kind * 2, tj, 7) < 0.1) c = 0xd8e8f6;
-          if (y === conduit || y === conduit + 1) { c = y === conduit + 1 ? PAL.metalL : PAL.metal; z = 0; }
-        } else {
-          const v = y - top;
-          c = v === 0 ? PAL.blueDD : v < 3 ? PAL.blueD : v < 4 ? PAL.white : v < 7 ? PAL.pink : PAL.metalDD;
         }
-        g.set(u, y, z, c);
-        if (z === 0) g.set(u, y, -1, c);
+        if ((u === 2 || u === PW - 2) && (v === 2 || v === ph - 3)) { c = SCREW; z = 0; }
+      } else if (y < rail + 3) { c = y === rail + 2 ? PAL.metalL : PAL.metal; z = 0; }
+      else if (y < top) {
+        const tu = u % 10, tv = (y - rail - 3) % 10;
+        const ti = Math.floor(u / 10), tj = Math.floor((y - rail - 3) / 10);
+        c = tu === 0 || tv === 0 ? 0xc5cfdd : ((ti + tj) & 1) ? 0xeef2f8 : 0xe4eaf2;
+        if (c !== 0xc5cfdd && hash3(ti + ox, tj, 7) < 0.08) c = 0xd8e8f6;
+        if (y === conduit || y === conduit + 1) { c = y === conduit + 1 ? PAL.metalL : PAL.metal; z = 0; }
+      } else {
+        const v = y - top;
+        c = v === 0 ? PAL.blueDD : v < 3 ? PAL.blueD : v < 4 ? PAL.white : v < 7 ? PAL.pink : PAL.metalDD;
       }
-    g.box(6, conduit - 1, 0, 7, conduit + 2, 1, PAL.metalD);
-    if (kind === 3) {
-      g.box(11, conduit - 3, 0, 15, conduit + 1, 1, PAL.metalD);
-      g.set(13, conduit - 2, 2, PAL.slime, true);
-      g.box(8, rail - 9, 0, 12, rail - 6, 0, 0x2a2f3a);
-      g.set(9, rail - 7, 1, PAL.slime, true).set(11, rail - 7, 1, PAL.red, true).set(10, rail - 8, 1, PAL.yellow);
+      g.set(ox + u, y, z, c);
+      if (z === 0) g.set(ox + u, y, -1, c);
     }
-    return g;
-  }, { scale: 0.1, pivot: [0, 0, 0], jitter: 0.025, skip: [5] });
+  g.box(ox + 6, conduit - 1, 0, ox + 7, conduit + 2, 1, PAL.metalD);
+  if (kind === 3) {
+    g.box(ox + 11, conduit - 3, 0, ox + 15, conduit + 1, 1, PAL.metalD);
+    g.set(ox + 13, conduit - 2, 2, PAL.slime, true);
+    g.box(ox + 8, rail - 9, 0, ox + 12, rail - 6, 0, 0x2a2f3a);
+    g.set(ox + 9, rail - 7, 1, PAL.slime, true).set(ox + 11, rail - 7, 1, PAL.red, true).set(ox + 10, rail - 8, 1, PAL.yellow);
+  }
 }
 
 /**
  * Sci-fi wall (about w x h units) facing +z, bottom centre at origin, front
- * plane at z = 0: instanced 2-unit voxel columns in four variants.
+ * plane at z = 0: 2-unit voxel columns in four variants, one merged mesh.
  */
 export function makeWallPanel(w = 4, h = 3) {
   const ny = Math.max(16, Math.round(h * 10));
   const cols = Math.max(1, Math.round(w / 2));
-  const items = [[], [], [], []];
-  for (let c = 0; c < cols; c++) {
-    const r = hash3(c, ny, cols);
-    const kind = r < 0.3 ? 1 : r < 0.5 ? 2 : r < 0.68 ? 3 : 0;
-    items[kind].push([-cols + c * 2, 0, 0]);
-  }
-  const r = new THREE.Group();
+  const geo = aoGeometry(`wallPanel5_${cols}_${ny}`, () => {
+    const g = dense(0, 0, -3, cols * 20 - 1, ny - 1, 2);
+    for (let c = 0; c < cols; c++) {
+      const r = hash3(c, ny, cols);
+      paintWallColumn(g, c * 20, ny, r < 0.3 ? 1 : r < 0.5 ? 2 : r < 0.68 ? 3 : 0);
+    }
+    return g;
+  }, { scale: 0.1, pivot: [cols * 10, 0, 0], jitter: 0.025, skip: [5] });
+  const m = makeMesh(geo, Mats.pair);
+  m.castShadow = false;
+  m.receiveShadow = true;
+  const r = group(m);
   r.name = 'wallPanel';
-  items.forEach((it, k) => { if (it.length) r.add(instanced(wallColumnGeo(ny, k), it, { receive: true })); });
   return r;
 }

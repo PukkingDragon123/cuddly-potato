@@ -8,7 +8,7 @@
 import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, px, disc, skyTexture, parallaxWidth, signGrid,
-  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addFlag, fitSkyAuto, shade as shadeK,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addFlag, fitSkyAuto,
 } from './kit.js';
 import { shelfGrid, checkoutGrid, makeCartCorral } from '../props/grocery.js';
 import { cartGrid } from '../props/labParts.js';

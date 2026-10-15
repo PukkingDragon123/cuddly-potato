@@ -24,6 +24,7 @@ const C = {
   leafO: 0xd8642a, leafR: 0xb83a2a, leafY: 0xd8a82a, purple: 0xb05cff, moon: 0xf6f2d8,
 };
 const LH = FIELD.LANE_HALF;
+const ZONE_SCALE = 1.18;
 
 // --------------------------------------------------------------------------- voxel props
 
@@ -626,5 +627,6 @@ export function buildZone(K) {
   anchor(K, 'boss', -2.6, 0, 5.2);
   anchor(K, 'npc', 2.6, 0, 5.4);
   anchor(K, 'enterMansion', 0, top + 0.8, -1.6);
+  K.root.scale.setScalar(ZONE_SCALE); // fill the plinth
   return { focus: [0, 1.4, 0], radius: 7 };
 }

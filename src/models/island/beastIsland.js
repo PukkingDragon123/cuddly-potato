@@ -800,7 +800,7 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
   fxUpd.push((t) => {
     for (const m of mist) {
       const a = m.a + t * 0.025;
-      fx.set(m.slot, Hh.x + Math.cos(a) * m.r, m.y + Math.sin(t * 0.4 + m.ph) * 0.3, Hh.z + Math.sin(a) * m.r, m.w, m.w * 0.4, m.f, 0.75 + Math.sin(t * 0.3 + m.ph) * 0.2, m.flip);
+      fx.set(m.slot, Hh.x + Math.cos(a) * m.r, m.y + Math.sin(t * 0.4 + m.ph) * 0.3, Hh.z + Math.sin(a) * m.r, m.w, m.w * 0.4, m.f, 1, m.flip);
     }
   });
   addFlyers(root, updaters, P.geo('batBody', P.batBodyGrid, 0.07, 'center'), P.geo('batWing', P.batWingGrid, 0.07, [0, 0, 0]),

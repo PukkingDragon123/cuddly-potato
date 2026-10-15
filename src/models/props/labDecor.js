@@ -206,7 +206,7 @@ function frontSet(g, x, y, c, glow = false, zmax = 30) {
 const SPECIMENS = {
   eye() {
     const g = dense(-14, -18, -14, 14, 14, 14);
-    blob(g, 0, 0, 0, 5, 5, 5, (x, y, z) => (hash3(x, y, z) < 0.07 ? 0xff9aa8 : 0xf6f1ea));
+    blob(g, 0, 0, 0, 5, 5, 5, (x, y) => (y < -3 ? 0xffd2d8 : 0xf6f1ea));
     for (let dx = -3; dx <= 3; dx++) for (let dy = -3; dy <= 3; dy++) {
       const d = Math.hypot(dx, dy);
       if (d <= 1.2) frontSet(g, dx, dy, PAL.ink);
@@ -237,7 +237,7 @@ const SPECIMENS = {
   },
   blob() {
     const g = dense(-14, -18, -14, 14, 14, 14);
-    blob(g, 0, 0, 0, 6, 5, 5, (x, y, z) => (hash3(x, y, z) < 0.12 ? 0x9dff6a : y < -2 ? 0x3fae2a : 0x6ad84a), { p: 2.2 });
+    blob(g, 0, 0, 0, 6, 5, 5, (x, y) => (y > 3 ? 0x9dff6a : y < -2 ? 0x3fae2a : 0x6ad84a), { p: 2.2 });
     for (const [x, y, r] of [[-3, 2, 1.6], [2, 3, 1.3], [0, -1, 1.1]]) {
       for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) if (Math.hypot(dx, dy) <= r) frontSet(g, x + dx, y + dy, 0xffffff);
       frontSet(g, x, y, PAL.ink);
@@ -400,29 +400,22 @@ export function specimenTube(o = {}) {
 // ---------------------------------------------------------------------------
 // Ceiling
 
-function ceilTileGeo(k) {
-  return aoGeometry('ld_ceilTile_' + k, () => {
-    const g = dense(0, 0, 0, 19, 0, 19);
-    for (let u = 0; u < 20; u++) for (let v = 0; v < 20; v++) {
-      let c = u === 0 || v === 0 ? 0x4a5164 : k ? 0x8a94aa : 0x7f899f;
-      if (c !== 0x4a5164 && (u === 1 || v === 1)) c = 0x9aa4b8;
-      if (k === 2 && u > 3 && u < 17 && v > 3 && v < 17) c = ((u + v) % 3) ? 0x5a6278 : 0x3d4352;
-      g.set(u, 0, v, c);
-    }
-    return g;
-  }, { scale: 0.1, pivot: [0, 0, 0], ao: false, jitter: 0.03, skip: [2] });
+/** Ceiling panels (one merged mesh): 2-unit tiles with grout and bevels, a few vent tiles, beams along x and z. */
+function ceilingGrid(nx, nz, beamZ, beamX) {
+  const g = dense(0, -3, 0, nx - 1, 0, nz - 1);
+  for (let x = 0; x < nx; x++) for (let z = 0; z < nz; z++) {
+    const u = x % 20, v = z % 20, k = hash3(Math.floor(x / 20), 4, Math.floor(z / 20)) < 0.12 ? 2 : ((Math.floor(x / 20) + Math.floor(z / 20)) & 1);
+    let c = u === 0 || v === 0 ? 0x4a5164 : k ? 0x8a94aa : 0x7f899f;
+    if (c !== 0x4a5164 && (u === 1 || v === 1)) c = 0x9aa4b8;
+    if (k === 2 && u > 3 && u < 17 && v > 3 && v < 17) c = ((u + v) % 3) ? 0x5a6278 : 0x3d4352;
+    g.set(x, 0, z, c);
+  }
+  for (const zb of beamZ) for (let x = 0; x < nx; x++) for (let y = -3; y <= -1; y++) for (let dz = 0; dz < 3; dz++)
+    g.set(x, y, zb + dz, y === -3 ? (dz === 1 && x % 6 === 0 ? SCREW : PAL.metalD) : PAL.metalDD);
+  for (const xb of beamX) for (let z = 0; z < nz; z++) for (let y = -2; y <= -1; y++) for (let dx = 0; dx < 2; dx++)
+    if (!g.has(xb + dx, y, z)) g.set(xb + dx, y, z, y === -2 ? PAL.metalD : PAL.metalDD);
+  return g;
 }
-function beamGeo(n, along) {
-  return aoGeometry(`ld_beam_${n}_${along}`, () => {
-    const g = along === 'x' ? dense(0, -3, 0, n - 1, -1, 2) : dense(0, -2, 0, 1, -1, n - 1);
-    for (let a = 0; a < n; a++) {
-      if (along === 'x') for (let y = -3; y <= -1; y++) for (let dz = 0; dz < 3; dz++) g.set(a, y, dz, y === -3 ? (dz === 1 && a % 6 === 0 ? SCREW : PAL.metalD) : PAL.metalDD);
-      else for (let y = -2; y <= -1; y++) for (let dx = 0; dx < 2; dx++) g.set(dx, y, a, y === -2 ? PAL.metalD : PAL.metalDD);
-    }
-    return g;
-  }, { scale: 0.1, pivot: [0, 0, 0], skip: [2] });
-}
-
 function fixtureGrid() {
   const g = dense(-23, -4, -5, 22, 3, 4);
   g.box(-22, -1, -4, 21, 0, 3, PAL.metalDD);
@@ -466,7 +459,7 @@ function trayGrid(n) {
     if (z % 40 === 0) g.box(-4, -1, z, 3, 2, z, PAL.metalD);
   }
   // drooping loops between hangers
-  for (let z = 10; z < n - 30; z += 40) {
+  for (let z = 10; z < n - 30; z += 80) {
     for (const [i, c] of [[1, cols[0]], [4, cols[2]]]) {
       const pts = [];
       for (let k = 0; k <= 6; k++) { const t = k / 6; pts.push([-3 + i + (i === 1 ? -2 : 2) * Math.sin(t * Math.PI), -2 - Math.sin(t * Math.PI) * 6, z + t * 16]); }
@@ -479,9 +472,9 @@ function trayGrid(n) {
 function ceilingPipesGrid(nx) {
   const g = dense(-Math.floor(nx / 2) - 1, -10, -2, -Math.floor(nx / 2) + nx + 1, 1, 14);
   const x0 = -Math.floor(nx / 2), x1 = x0 + nx - 1;
-  tube(g, 'x', x0, x1, -3, 2, 2, PAL.metalL, { every: 16, flange: PAL.pink, off: 4 });
-  tube(g, 'x', x0, x1, -3, 8, 1, PAL.blue, { every: 14, flange: PAL.metalD, off: 9 });
-  tube(g, 'x', x0, x1, -6, 5, 1, 0xd08a40, { every: 20, flange: PAL.goldD, off: 2 });
+  tube(g, 'x', x0, x1, -3, 2, 2, PAL.metalL, { every: 26, flange: PAL.pink, off: 4, bolts: false });
+  tube(g, 'x', x0, x1, -3, 8, 1, PAL.blue, { every: 24, flange: PAL.metalD, off: 9 });
+  tube(g, 'x', x0, x1, -6, 5, 1, 0xd08a40, { every: 30, flange: PAL.goldD, off: 2 });
   for (let x = x0 + 6; x < x1; x += 30) {
     g.box(x, -1, 0, x, -1, 10, PAL.metalD);
     g.box(x, -7, 5, x, -2, 5, PAL.metalD);
@@ -517,13 +510,11 @@ function pendantGrid() {
 export function makeCeiling(w = 20, d = 15, zBack = -8, o = {}) {
   const root = new THREE.Group();
   root.name = 'ceiling';
-  const nx = Math.round(w * 10);
-  const ti = Math.ceil(w / 2), tj = Math.ceil(d / 2), tiles = [[], [], []];
-  for (let i = 0; i < ti; i++) for (let j = 0; j < tj; j++) tiles[hash3(i, 4, j) < 0.12 ? 2 : (i + j) & 1].push([-w / 2 + i * 2, 0, zBack + j * 2]);
-  tiles.forEach((it, k) => { if (it.length) root.add(instanced(ceilTileGeo(k), it, { receive: true })); });
-  const bx = beamGeo(nx, 'x'), bz = beamGeo(Math.round(d * 10), 'z');
-  for (const z of [-4.9, -0.9, 3.1]) { const m = makeMesh(bx, Mats.pair); m.castShadow = false; m.position.set(-w / 2, 0, z); root.add(m); }
-  for (const x of [-5.1, 4.9]) { const m = makeMesh(bz, Mats.pair); m.castShadow = false; m.position.set(x, 0, zBack); root.add(m); }
+  const nx = Math.round(w * 10), nz = Math.round(d * 10);
+  const beamZ = [-4.9, -0.9, 3.1].map((z) => Math.round((z - zBack) * 10)), beamX = [-5.1, 4.9].map((x) => Math.round((x + w / 2) * 10));
+  const panels = gmesh(`ceil5_${nx}_${nz}`, () => ceilingGrid(nx, nz, beamZ, beamX), { scale: 0.1, pivot: [0, 0, 0], jitter: 0.03, skip: [2] });
+  panels.position.set(-w / 2, 0, zBack);
+  root.add(panels);
   const fx = instanced(aoGeometry('ld_fixture', fixtureGrid, { scale: 0.05, pivot: [0, 0, 0], maxSamples: 10 }), [
     [-5.6, 0, -6.9], [5.6, 0, -6.9], [-5.6, 0, -2.9], [0, 0, -2.9], [5.6, 0, -2.9], [-5.6, 0, 1.1], [5.6, 0, 1.1],
   ]);
@@ -541,11 +532,11 @@ export function makeCeiling(w = 20, d = 15, zBack = -8, o = {}) {
   });
   const t0 = -5.3, trayN = Math.round((zBack + d - t0) * 20) - 4;
   for (const x of [-4.1, 4.1]) {
-    const tr = gmesh(`tray_${trayN}`, () => trayGrid(trayN), { scale: 0.05, pivot: [0, 0, 0], jitter: 0.03 });
+    const tr = gmesh(`tray_${trayN}`, () => trayGrid(trayN), { scale: 0.05, pivot: [0, 0, 0], jitter: 0.03, skip: [2] });
     tr.position.set(x, 0, t0);
     root.add(tr);
   }
-  const pipes = amesh(`ceilPipes_${nx}`, () => ceilingPipesGrid(nx), { scale: 0.1, pivot: [0, 0, 0] }, { shadow: false });
+  const pipes = amesh(`ceilPipes_${nx}`, () => ceilingPipesGrid(nx), { scale: 0.1, pivot: [0, 0, 0], skip: [2] }, { shadow: false });
   pipes.position.set(0, 0, -6.45);
   root.add(pipes);
   const pend = amesh('pendant', pendantGrid, { scale: 0.05, pivot: [0, 28, 0] }, { shadow: false });

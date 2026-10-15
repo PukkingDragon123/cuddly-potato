@@ -25,6 +25,7 @@ const C = {
   cream: 0xf4ecd0, clay: 0xc8783a, clayD: 0x9a5a2a, clayL: 0xe0985a, rope: 0xd8c08a, blue: 0x29b6f6,
 };
 const LH = FIELD.LANE_HALF;
+const ZONE_SCALE = 1.18;
 const CREEK = (x) => 6.4 + Math.sin(x * 0.17) * 0.6 + Math.sin(x * 0.05 + 2) * 0.8; // creek centre line (front)
 
 // --------------------------------------------------------------------------- voxel props
@@ -689,5 +690,6 @@ export function buildZone(K) {
   anchor(K, 'boss', -2.6, 0, 5.0);
   anchor(K, 'npc', 2.0, 0, 5.4);
   anchor(K, 'enterTemple', -1.6, 1.2, -1.0);
+  K.root.scale.setScalar(ZONE_SCALE); // fill the plinth
   return { focus: [0, 1.2, 0], radius: 7 };
 }

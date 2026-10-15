@@ -20,6 +20,7 @@ const C = {
   suit: 0xf4f6fa, suitD: 0xc8ccd8, visor: 0xffb84a, pink: 0xff4fa3,
 };
 const LH = FIELD.LANE_HALF;
+const ZONE_SCALE = 1.18;
 
 // --------------------------------------------------------------------------- voxel props
 
@@ -517,5 +518,6 @@ export function buildZone(K) {
   anchor(K, 'boss', -2.0, 0, 4.6);
   anchor(K, 'npc', 2.0, 0, 4.8);
   anchor(K, 'airlock', 0, 1.0, -1.4);
+  K.root.scale.setScalar(ZONE_SCALE); // fill the plinth
   return { focus: [0, 1.2, 0], radius: 7 };
 }

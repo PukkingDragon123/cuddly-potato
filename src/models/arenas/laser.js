@@ -23,6 +23,7 @@ const C = {
   velvet: 0x8a1a3a, brass: 0xd8a83a,
 };
 const LH = FIELD.LANE_HALF;
+const ZONE_SCALE = 1.18;
 
 // --------------------------------------------------------------------------- voxel props
 
@@ -541,7 +542,7 @@ export function buildZone(K) {
       if (r > R - 1.2) return C.yellow;
       const lane = Math.abs(z - 9) < 3;
       if (lane) return ((x + 40) % 6 === 0) ? C.seam : C.tile;
-      return ((x >> 2) + (z >> 2)) & 1 ? C.floor : C.floorL;
+      return ((x & 3) === 0 || (z & 3) === 0) ? C.line : hash3(x >> 2, 3, z >> 2) < 0.2 ? C.floorL : C.floor;
     },
     colorSide: (x, y) => (y === -1 ? C.steelD : (x + y) & 1 ? C.concrete : C.concreteD),
   });
@@ -582,5 +583,6 @@ export function buildZone(K) {
   anchor(K, 'boss', -2.4, 0, 5.2);
   anchor(K, 'npc', 2.4, 0, 5.6);
   anchor(K, 'enterVault', 0, 1.2, -2.0);
+  K.root.scale.setScalar(ZONE_SCALE); // fill the plinth
   return { focus: [0, 1.2, 0], radius: 7 };
 }
