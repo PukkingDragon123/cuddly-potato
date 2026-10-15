@@ -3,6 +3,7 @@
 //   &id=jimmy        one character up close (click the buttons to try poses / moods)
 //   &skins=1         every Commander with every outfit skin
 //   &faces=jimmy     a grid of one character's head in every mood
+//   &heads=a,b|all   close-up heads, one row per &moods=x,y (default neutral), &skin=gold adds an outfit skin
 //   &anim=dance      force a pose for everyone      &mood=happy  force a mood
 //   &react=laugh     force a reaction (loops)       &cycle=0     no auto cycling
 //   &yaw=0.4         turn everyone                  &seated=1    sit everyone down first
@@ -38,7 +39,14 @@ export class CharViewScene {
     this.force = { anim: params.anim, mood: params.mood, react: params.react, list: params.anims ? params.anims.split(',') : null };
     const yaw = Number(P('yaw', '0.25'));
     const list = [];
-    if (params.faces) {
+    if (params.heads) {
+      // close-up head grid: &heads=jimmy,nolan (or all) [&moods=neutral,angry] -> one row per mood
+      const ids = params.heads === 'all' ? Object.keys(CHARACTERS) : params.heads.split(',');
+      const moods = params.moods ? params.moods.split(',') : ['neutral'];
+      const skin = params.skin ? CMD_SKINS[params.skin] : null; // &skin=gold: layer a Commander outfit skin
+      const { name: _n, commander: _c, ...over } = skin ?? {}; // eslint-disable-line no-unused-vars
+      for (const m of moods) for (const id of ids) if (CHARACTERS[id]) list.push({ id, def: { ...CHARACTERS[id], ...over }, label: `${id} ${m}`, mood: m, fixed: true, row: moods.indexOf(m), col: ids.indexOf(id), cols: ids.length, rows: moods.length });
+    } else if (params.faces) {
       const id = params.faces;
       const moods = params.moods ? params.moods.split(',') : Object.keys(MOODS);
       for (const m of moods) list.push({ id, def: CHARACTERS[id], label: m, mood: m, fixed: true });
@@ -57,13 +65,14 @@ export class CharViewScene {
     }
     const n = list.length;
     const single = n === 1;
-    const faces = !!params.faces || !!params.stack || !!params.anims;
+    const faces = !!params.faces || !!params.heads || !!params.stack || !!params.anims;
     const cols = params.faces ? Math.ceil(Math.sqrt(n * 2.6)) : faces ? Math.min(n, 6) : single ? 1 : Math.min(n, params.skins ? 6 : 6);
     const sx = params.faces ? 1.2 : faces ? 1.9 : 1.75, sz = faces ? 1.6 : 2.6;
     list.forEach((it, i) => {
       const c = new Chibi(it.def, { scale: single ? 1.4 : 1 });
       const x = (i % cols) - (cols - 1) / 2, z = Math.floor(i / cols);
-      if (faces) c.root.position.set(x * sx, -z * 2.6, 0);
+      if (it.row !== undefined) c.root.position.set((it.col - (it.cols - 1) / 2) * 1.25, -it.row * 1.2, it.row * 0.5);
+      else if (faces) c.root.position.set(x * sx, -z * 2.6, 0);
       else c.root.position.set(x * sx, 0, z * sz);
       c.root.rotation.y = faces ? 0 : yaw;
       if (params.seated) c.play('sit');
@@ -74,7 +83,13 @@ export class CharViewScene {
       item.el = this.label(it.label, c);
     });
     const rows = Math.ceil(n / cols);
-    if (faces) {
+    if (params.heads) {
+      const hc = list[0].cols, hr = list[0].rows;
+      this.target = new THREE.Vector3(0, 1.45 - (hr - 1) * 0.6, (hr - 1) * 0.25);
+      this.dist = Math.max(hc * 1.25 * 1.75, hr * 1.2 * 2.4) + 1;
+      this.pitch = 0.0;
+      this.ground.visible = false;
+    } else if (faces) {
       this.target = new THREE.Vector3(0, 1.1 - (rows - 1) * 1.3, 0);
       this.dist = Math.max(cols * sx * 1.1, rows * 2.6 * 1.25) * 1.75;
       this.pitch = 0.0;

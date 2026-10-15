@@ -50,15 +50,23 @@ export function normalizeAcc(def) {
   // last hat / eyewear wins, no duplicate types
   const out = [];
   const seen = new Set();
+  // a sealed helmet (e.g. the Recruit's exosuit) is part of the outfit: it always keeps the
+  // hat slot (outfit skins can't swap it for a cap/chef hat), a crown sits on top of it, and
+  // eyewear / face items are dropped since there is no face
+  const sealed = !minus.has('helmet') && list.find((a) => a.type === 'helmet' && a.visor === 'sealed');
   let hat = false, eye = false;
+  if (sealed) { seen.add('helmet'); hat = true; eye = true; }
   for (let i = list.length - 1; i >= 0; i--) {
     const a = list[i];
     if (minus.has(a.type) || seen.has(a.type)) continue;
+    if (sealed && (a.type === 'shadesUp' || a.type === 'goggles')) continue;
+    if (sealed && a.type === 'crown') { seen.add(a.type); out.unshift({ ...a, onHelmet: true }); continue; }
     if (HATS.has(a.type)) { if (hat) continue; hat = true; }
     if (EYEWEAR.has(a.type)) { if (eye) continue; eye = true; }
     seen.add(a.type);
     out.unshift(a);
   }
+  if (sealed) out.unshift(sealed); // built first, so the crown can sit on the shell
   return out;
 }
 
@@ -182,7 +190,7 @@ const B = {
     blob(g, -0.5, 30, 0.5, 4.5, 2.5, 4.5, w);
   },
   crown(g, metal, def, a) {
-    const top = Math.max(19, topOfHead(g) - 2);
+    const top = a.onHelmet ? topOfHead(g) - 1 : Math.max(19, topOfHead(g) - 2);
     const gold = 0xffd23f, gem = [0xff2e88, 0x29b6f6, 0x5fdc4a];
     ring(metal, top, top + 2, 7.5, 7, gold, -0.5, 0.5, 1.6);
     for (let i = 0; i < 8; i++) {
@@ -259,16 +267,24 @@ const B = {
   },
 
   helmet(g, metal, def, a) {
-    // space helmet: open face, panel seams, comm discs, antenna, flip-up visor (a.visor: 'down' closes it)
+    // space helmet: panel seams, comm discs, antenna and a visor.
+    //   a.visor: 'up' (default, flipped onto the forehead) | 'down' (clear visor over the face)
+    //          | 'sealed' (fully closed helmet, opaque tinted glass, no face at all)
     const c = a.color ?? 0xeef2f8, d = shade(c, -0.16), e = shade(c, -0.34);
-    const vis = a.visorColor ?? 0x1e6fa8, glow = a.glow ?? 0x3fd2ee, acc = a.accent ?? def.accent ?? 0xff2e88;
+    const vis = a.visorColor ?? 0x1e6fa8, glow = a.glow ?? def.glow ?? 0x3fd2ee, acc = a.accent ?? def.accent ?? 0xff2e88;
+    const sealed = a.visor === 'sealed';
+    if (sealed) g.carve((x, y, z) => !inHead(x, y, z, 0)); // nose, hair, beard all go under the shell
     // keep the face (nose, fringe peeking out); everything else outside the skull goes under the helmet
-    g.carve((x, y, z) => !inHead(x, y, z, 0) && !(z >= 9 && y >= 3 && y <= 17 && Math.abs(x + 0.5) <= 7.5));
+    else g.carve((x, y, z) => !inHead(x, y, z, 0) && !(z >= 9 && y >= 3 && y <= 17 && Math.abs(x + 0.5) <= 7.5));
     const open = (x, y, z) => z >= 3 && y >= 3 && y <= 16 && Math.abs(x + 0.5) <= 7.5 + (y >= 6 && y <= 14 ? 0.6 : 0);
     for (let x = HEAD.x0 - 2; x <= HEAD.x1 + 2; x++)
       for (let y = HEAD.y0; y <= HEAD.y1 + 2; y++)
         for (let z = HEAD.z0 - 2; z <= HEAD.z1 + 2; z++) {
-          if (!inHead(x, y, z, 2) || inHead(x, y, z, 0) || open(x, y, z)) continue;
+          if (!inHead(x, y, z, 2) || inHead(x, y, z, 0)) continue;
+          if (open(x, y, z)) {
+            if (sealed) g.set(x, y, z, 0x0a0f18); // dark backing behind the glass
+            continue;
+          }
           if (y < 3 && z < 3) continue; // open neck at the back/bottom
           let col = c;
           if (y === 12 && z < 3) col = d;
@@ -284,7 +300,47 @@ const B = {
     }
     capsule(g, [HEAD.x0 - 3, 12, -1], [HEAD.x0 - 4, 22, -3], 0.5, 0.4, e);
     g.set(HEAD.x0 - 4, 23, -3, 0xff3d4d, true);
-    if (a.visor === 'down') {
+    if (sealed) {
+      // opaque, glossy tinted visor: a domed, round-cornered pane of dark mirror glass (metal
+      // grid = env reflections) with a reflected-horizon band, a diagonal sheen streak and a
+      // glint, a raised rim with a glow strip across the top and one small HUD light in the
+      // lower corner. Deliberately asymmetric so nothing reads as eyes or a mouth.
+      const tint = a.visorColor ?? 0x0e1a2e, tintD = shade(tint, -0.45);
+      const band = a.visorBand ?? 0x2a5a86;
+      const zf = HEAD.z1 + 2;
+      const inV = (x, y) => {
+        const ux = Math.abs(x + 0.5) / 8.6, uy = Math.abs(y - 9.5) / 7.4;
+        return y >= 3 && y <= 16 && ux ** 4 + uy ** 4 <= 1;
+      };
+      for (let x = -9; x <= 8; x++)
+        for (let y = 3; y <= 16; y++) {
+          if (!inV(x, y)) continue;
+          const edge = !inV(x - 1, y) || !inV(x + 1, y) || !inV(x, y - 1) || !inV(x, y + 1);
+          const ux = (x + 0.5) / 8, uy = (y - 9.5) / 7;
+          const dome = 1 - ux * ux * 0.8 - uy * uy * 0.6; // bulges forward in the middle
+          const zt = zf + (edge ? 0 : dome > 0.55 ? 2 : 1);
+          // dark glass, a little lighter towards the top; a soft reflected horizon low down
+          let col = y >= 13 ? shade(tint, 0.1) : y <= 5 ? shade(tint, -0.15) : tint;
+          if (y === 6) col = shade(band, -0.35);
+          if (y === 5) col = shade(band, -0.15);
+          // diagonal sheen streaks across the upper left
+          const k = x - y;
+          if (!edge && x <= 1 && y >= 9 && (k === -18 || k === -17)) col = 0x8fb4d8;
+          if (!edge && x <= 2 && y >= 8 && k === -14) col = 0x4d77a0;
+          for (let z = zf - 1; z <= zt; z++) metal.set(x, y, z, z === zt ? col : tintD);
+        }
+      // glint at the top of the streak + a small amber HUD light in the lower right of the glass
+      metal.set(-5, 14, zf + 2, 0xd8ecff);
+      metal.set(5, 5, zf + 1, 0xffb347, true);
+      // raised rim around the visor; its top edge carries a thin glow strip
+      for (let x = -10; x <= 9; x++)
+        for (let y = 2; y <= 17; y++) {
+          if (inV(x, y)) continue;
+          if (inV(x - 1, y) || inV(x + 1, y) || inV(x, y - 1) || inV(x, y + 1)) g.set(x, y, zf + 1, e);
+        }
+      for (let x = -6; x <= 5; x++) g.set(x, 17, zf + 1, glow, true);
+      for (let x = -9; x <= 8; x++) g.set(x, 2, zf + 1, d); // chin guard
+    } else if (a.visor === 'down') {
       for (let x = -9; x <= 8; x++) for (let y = 2; y <= 16; y++) g.set(x, y, HEAD.z1 + 2, (x - y) % 7 === 0 ? shade(vis, 0.35) : vis);
     } else {
       // visor flipped up onto the forehead

@@ -741,12 +741,19 @@ export class Chibi {
 
     const hairC = def.hair?.color ?? 0x3a2a20;
     const browColor = def.brow ?? (def.hair?.style === 'bald' ? 0x5a3a2a : shade(hairC, -0.38));
-    this.face = new PixelFace({ eyeColor: def.eyeColor, blush: def.blush ?? true, browColor, lashes: def.lashes, freckles: def.freckles });
+    // stubble shadow: def.stubble (true = from the beard/hair colour, or a hex colour)
+    const stubC = def.stubble ? (typeof def.stubble === 'number' ? def.stubble : typeof def.beard === 'number' ? def.beard : hairC) : null;
+    const stubble = stubC != null ? `rgba(${(stubC >> 16) & 255},${(stubC >> 8) & 255},${stubC & 255},0.3)` : null;
+    // blush only by default for lash (feminine) faces; hero faces stay clean
+    this.face = new PixelFace({ eyeColor: def.eyeColor, blush: def.blush ?? !!def.lashes, browColor, lashes: def.lashes, freckles: def.freckles, stubble });
     const faceMat = new THREE.MeshStandardMaterial({ map: this.face.texture, transparent: true, alphaTest: 0.05, roughness: 0.6, metalness: 0, envMapIntensity: 0.4, envMap: CHAR_MAT.envMap });
     const plane = new THREE.Mesh(PLANE_GEO, faceMat);
     plane.position.set(0, (HEAD_H / 2) * V, 0.5 + 0.004);
     this.head.add(plane);
     this.facePlane = plane;
+    // a sealed helmet (tinted visor) hides the face completely: no eyes / mouth anywhere
+    this.faceHidden = this.acc.some((a) => a.type === 'helmet' && a.visor === 'sealed');
+    if (this.faceHidden) plane.visible = false;
 
     // emote anchor above the head (top right)
     this.emoteAnchor = new THREE.Group();
@@ -991,7 +998,7 @@ export class Chibi {
       }
     }
 
-    this.face.update(dt);
+    if (!this.faceHidden) this.face.update(dt);
     this._emote?.update(dt);
 
     if (this.flashT > 0) {

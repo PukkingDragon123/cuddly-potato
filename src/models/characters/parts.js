@@ -64,6 +64,19 @@ export function buildHead(def) {
   rbox(g, HEAD.x0, HEAD.y0, HEAD.z0, HEAD.x1, HEAD.y1, HEAD.z1, HEAD.r, skin);
   // soft vertical shading: chin a touch darker, forehead brighter
   g.paint((x, y, z, c) => (y <= 2 ? shade(c, -0.05) : y >= 14 ? shade(c, 0.03) : undefined));
+  // hero faces (no lashes): square off the lower front of the skull into a firmer jaw/chin
+  if (!def.lashes) {
+    const chinC = shade(skin, -0.05);
+    for (let y = 0; y <= 3; y++)
+      for (let z = 3; z <= HEAD.z1; z++)
+        for (let x = HEAD.x0 + 2; x <= HEAD.x1 - 2; x++) {
+          if (g.has(x, y, z)) continue;
+          // keep the bottom-front corner bevelled by a voxel, and the sides a bit rounded
+          if (y === 0 && z === HEAD.z1) continue;
+          if (y <= 1 && (x <= HEAD.x0 + 2 || x >= HEAD.x1 - 2)) continue;
+          g.set(x, y, z, chinC);
+        }
+  }
   // ears
   for (const s of [-1, 1]) {
     const ex = s < 0 ? HEAD.x0 - 1 : HEAD.x1 + 1;

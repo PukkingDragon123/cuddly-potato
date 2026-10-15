@@ -1,6 +1,7 @@
 // Chibi character appearance definitions (used for Commanders and NPCs).
 //
-// Fields (all optional): skin, eyeColor, brow, lashes, freckles, blush,
+// Fields (all optional): skin, eyeColor, brow, freckles, stubble (true | hex: jaw shadow on the face),
+//   lashes (feminine face: lash line + wing, softer brows, blush on by default), blush,
 //   hair: { style: jimmy|messy|undercut|spiky|bob|ponytail|buzz|curly|short|bald, color, tie },
 //   beard (colour), beardStyle: full|chin|stubble,
 //   outfit: labcoat|hoodie|jersey|apron|suit|vest|mech|tee, glow (mech accents), shirt, coat, sleeve, accent, pants, shorts, socks,
@@ -35,17 +36,18 @@ export const CHARACTERS = {
   },
   juan: {
     id: 'juan', name: 'Juan', skin: 0xc98d62, eyeColor: 0x3a2618,
-    hair: { style: 'undercut', color: 0x1c1410 }, beard: 0x1c1410, beardStyle: 'chin',
+    hair: { style: 'undercut', color: 0x1c1410 }, beard: 0x1c1410, beardStyle: 'chin', stubble: true,
     outfit: 'jersey', shirt: 0x1f9e4a, accent: 0xffffff, number: 10, pants: 0x1a1a28, shoes: 0xffffff, chain: true, shorts: false,
     acc: [{ type: 'wristband', color: 0xffffff }, 'earring'],
     color: '#1f9e4a',
   },
   recruit: {
-    // the Lab Recruit (you): armoured space exosuit with jet boots and thrusters
+    // the Lab Recruit (you): armoured space exosuit with jet boots and thrusters. The helmet is
+    // sealed (opaque tinted visor), so the Recruit never shows a face - it's you behind the glass.
     id: 'recruit', name: 'You', skin: 0xf0c09c, eyeColor: 0x2a6ab8,
     hair: { style: 'spiky', color: 0xff8a2a },
     outfit: 'mech', coat: 0xeef2f8, shirt: 0x26304a, pants: 0x26304a, shoes: 0xeef2f8, accent: 0xff2e88, gloves: 0x3a4256, glow: 0x3fd2ee,
-    acc: [{ type: 'helmet', color: 0xeef2f8 }, 'jetpack'],
+    acc: [{ type: 'helmet', color: 0xeef2f8, visor: 'sealed' }, 'jetpack'],
     color: '#ff8a2a',
   },
   labTech: {
