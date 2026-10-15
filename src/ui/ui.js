@@ -489,15 +489,20 @@ engine.onFrame((dt) => updateWorldUI(dt));
 // ---------------------------------------------------------------------------
 // Juice: sparkles, bumps, number roll-ups
 
-/** Burst of pixel sparkles from an element (screen space). */
+const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Burst of pixel sparkles from an element (screen space). o: { count, colors, spread, stars (4-point sprites) } */
 export function sparkle(el, o = {}) {
+  if (!el?.isConnected) return;
   const r = el.getBoundingClientRect();
-  const n = o.count ?? 14;
+  const n = reducedMotion() ? Math.min(4, o.count ?? 14) : o.count ?? 14;
   const cols = o.colors ?? ['#ffffff', '#ffd84a', '#ff7ac0', '#8fd4ff'];
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
   for (let i = 0; i < n; i++) {
-    const s = h('div', { class: 'spark' });
-    s.style.background = cols[i % cols.length];
-    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    // every 3rd particle is a 4-point pixel star sprite, the rest are chunky pixels / plus shapes
+    const star = (o.stars ?? true) && i % 3 === 0;
+    const s = star ? h('img', { class: 'spark star', src: iconURL('spark4'), alt: '' }) : h('div', { class: 'spark' + (i % 3 === 1 ? ' plus' : '') });
+    if (!star) s.style.background = cols[i % cols.length];
     s.style.left = cx + 'px';
     s.style.top = cy + 'px';
     $overlay().appendChild(s);
@@ -507,6 +512,62 @@ export function sparkle(el, o = {}) {
       { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d}px)) scale(${0.4 + Math.random()})`, opacity: 0 },
     ], { duration: 450 + Math.random() * 400, easing: 'cubic-bezier(.2,.8,.3,1)' }).onfinish = () => s.remove();
   }
+}
+
+/**
+ * Claim burst on an element: expanding pixel shockwave ring + spinning pixel
+ * sunburst flash + sparkles. o: { color, count, rays (bool), ring (bool), scale }
+ */
+export function burst(el, o = {}) {
+  if (!el?.isConnected) return;
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const size = Math.max(r.width, r.height) * (o.scale ?? 1.6);
+  const col = o.color ?? '#ffd84a';
+  const layer = $overlay();
+  if (o.rays !== false && !reducedMotion()) {
+    const rays = h('div', { class: 'ui-burst-rays', style: { left: cx + 'px', top: cy + 'px', width: size * 1.6 + 'px', height: size * 1.6 + 'px' } });
+    layer.appendChild(rays);
+    rays.animate([{ transform: 'translate(-50%,-50%) scale(0.3) rotate(0deg)', opacity: 0.95 }, { transform: 'translate(-50%,-50%) scale(1.15) rotate(40deg)', opacity: 0 }], { duration: 700, easing: 'cubic-bezier(.2,.8,.3,1)' }).onfinish = () => rays.remove();
+  }
+  if (o.ring !== false) {
+    const ring = h('div', { class: 'ui-burst-ring', style: { left: cx + 'px', top: cy + 'px', '--bc': col } });
+    layer.appendChild(ring);
+    ring.animate([{ width: '8px', height: '8px', opacity: 1 }, { width: size + 'px', height: size + 'px', opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.1,.8,.3,1)' }).onfinish = () => ring.remove();
+  }
+  sparkle(el, { count: o.count ?? 18, spread: size * 0.55, colors: o.colors ?? [col, '#ffffff', '#ff7ac0', '#8fd4ff'] });
+}
+
+/**
+ * Fly a few pixel icons from one element to another (coins into the coin pill...).
+ * to: Element | {x, y} | null (flies upward). Resolves when the last one lands.
+ */
+export function flyIcons(from, iconName, to = null, o = {}) {
+  if (!from?.isConnected) return Promise.resolve();
+  const a = from.getBoundingClientRect();
+  let tx, ty;
+  if (to instanceof Element && to.isConnected) { const b = to.getBoundingClientRect(); tx = b.left + b.width / 2; ty = b.top + b.height / 2; }
+  else if (to && typeof to.x === 'number') { tx = to.x; ty = to.y; }
+  else { tx = a.left + a.width / 2; ty = Math.max(20, a.top - 160); }
+  const n = reducedMotion() ? 1 : o.count ?? 6;
+  const sz = o.size ?? 26;
+  const url = iconURL(iconName);
+  const jobs = [];
+  for (let i = 0; i < n; i++) {
+    const im = h('img', { class: 'ui-fly', src: url, alt: '', style: { width: sz + 'px', height: sz + 'px' } });
+    $overlay().appendChild(im);
+    const sx = a.left + a.width / 2 + (Math.random() - 0.5) * a.width * 0.5, sy = a.top + a.height / 2 + (Math.random() - 0.5) * a.height * 0.4;
+    const mx = sx + (Math.random() - 0.5) * 120, my = sy - 40 - Math.random() * 60;
+    const anim = im.animate([
+      { transform: `translate(${sx}px, ${sy}px) translate(-50%,-50%) scale(0.4)`, opacity: 0 },
+      { transform: `translate(${mx}px, ${my}px) translate(-50%,-50%) scale(1.25)`, opacity: 1, offset: 0.32 },
+      { transform: `translate(${tx}px, ${ty}px) translate(-50%,-50%) scale(0.7)`, opacity: 1 },
+    ], { duration: 620 + i * 70, delay: i * 55, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'both' });
+    jobs.push(new Promise((res) => { anim.onfinish = () => { im.remove(); res(); }; }));
+  }
+  return Promise.all(jobs).then(() => {
+    if (to instanceof Element) { bump(to); o.onLand?.(); }
+  });
 }
 export function bump(el, cls = 'bump') {
   if (!el) return;

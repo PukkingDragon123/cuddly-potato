@@ -506,6 +506,28 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
 
 /* DOM pixel sparkles */
 .spark { position: absolute; width: calc(var(--px) * 3); height: calc(var(--px) * 3); background: #fff; pointer-events: none; z-index: 80; box-shadow: 0 0 0 var(--px) rgba(255, 255, 255, 0.35); }
+.spark.plus { width: var(--px); height: var(--px); box-shadow: var(--px) 0 0 0 currentColor, calc(var(--px) * -1) 0 0 0 currentColor, 0 var(--px) 0 0 currentColor, 0 calc(var(--px) * -1) 0 0 currentColor; color: #fff; }
+.spark.star { width: calc(var(--px) * 7); height: calc(var(--px) * 7); background: none; box-shadow: none; image-rendering: pixelated; filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 236, 140, 0.9)); }
+/* claim bursts: pixel sunburst flash + shockwave ring (ui.js burst()) */
+.ui-burst-rays { position: absolute; left: 0; top: 0; z-index: 79; pointer-events: none; background: var(--tx-rays) center / 100% 100% no-repeat; image-rendering: pixelated; mix-blend-mode: screen; }
+.ui-burst-ring {
+  position: absolute; z-index: 79; pointer-events: none; translate: -50% -50%; border-radius: 50%;
+  border: calc(var(--px) * 2) solid var(--bc, #ffd84a); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 var(--px) rgba(255, 255, 255, 0.7), 0 0 calc(var(--px) * 4) var(--bc, #ffd84a);
+}
+.ui-fly { position: absolute; left: 0; top: 0; z-index: 91; pointer-events: none; image-rendering: pixelated; filter: drop-shadow(0 calc(var(--px) * 1) 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 236, 140, 0.7)); will-change: transform; }
+
+/* rotating pixel sunburst (put inside a positioned box); stepped = pixel-art frame rate */
+.px-rays { position: absolute; left: 50%; top: 50%; width: var(--rs, 160%); aspect-ratio: 1; translate: -50% -50%; pointer-events: none; z-index: 0; background: var(--tx-rays) center / 100% 100% no-repeat; image-rendering: pixelated; opacity: var(--ro, 0.55); animation: pxRays 16s steps(48) infinite; }
+.px-rays.w { background-image: var(--tx-rays-w); }
+@keyframes pxRays { to { rotate: 360deg; } }
+/* premium shimmer: drifting sparkle field */
+.px-stars { position: absolute; inset: 0; pointer-events: none; background: var(--tx-stars) 0 0 / calc(32 * var(--px)) calc(32 * var(--px)); image-rendering: pixelated; animation: pxStars 6s steps(32) infinite; opacity: 0.8; }
+@keyframes pxStars { to { background-position: calc(32 * var(--px)) calc(-32 * var(--px)); } }
+/* chunky extruded display text (--t3 = side colour) */
+.t-3d { color: #fff; text-shadow: var(--outline), 0 calc(var(--o) * 3.4) 0 var(--t3, #ff2e88), 0 calc(var(--o) * 4.6) 0 var(--ink), 0 0 calc(var(--px) * 6) color-mix(in srgb, var(--t3, #ff2e88) 55%, transparent); }
+/* riveted metal plate / pod frames (skin.js plateSkin / pod) */
+.plate { position: relative; padding: calc(var(--u) * 0.4); }
+.pod { position: relative; isolation: isolate; }
 
 /* inputs */
 .px-input {

@@ -1132,3 +1132,119 @@ export function addFlag(K, o) {
   });
   return grp;
 }
+
+// ---------------------------------------------------------------------------
+// Detailed nature brushes (voxel scale ~0.08-0.12)
+
+/**
+ * Leafy broadleaf tree: flared trunk with branches and a clumpy canopy (lit
+ * top-left, darker underside, speckled leaves, optional blossoms / fruit).
+ * o: { seed, h (trunk voxels), r (canopy radius), leaf, leafD, leafL, trunk, blossom, fruit }
+ */
+export function leafyTreeGrid(o = {}) {
+  const g = new VoxGrid();
+  const R = mulberry32((o.seed ?? 1) * 7919 + 3);
+  const leaf = o.leaf ?? 0x4cba3a, leafD = o.leafD ?? shade(leaf, -0.25), leafL = o.leafL ?? shade(leaf, 0.22), leafDD = shade(leafD, -0.2);
+  const trunk = o.trunk ?? 0x7a4a26, trunkD = shade(trunk, -0.22), trunkL = shade(trunk, 0.15);
+  const H = o.h ?? 10, r = o.r ?? 7;
+  // trunk + root flare
+  for (let y = 0; y < H + 2; y++) {
+    const w = y < 2 ? 2 : 1;
+    for (let x = -w; x < w; x++) for (let z = -w; z < w; z++) g.set(x, y, z, (x + z + y) % 4 === 0 ? trunkD : x < 0 ? trunkL : trunk);
+  }
+  // branches
+  const clumps = [[0, H + r * 0.55, 0, r]];
+  const nb = 3 + Math.floor(R() * 2);
+  for (let i = 0; i < nb; i++) {
+    const a = (i / nb) * Math.PI * 2 + R() * 0.8, L = r * (0.55 + R() * 0.3), y0 = H - 2 + Math.floor(R() * 3);
+    const ex = Math.round(Math.cos(a) * L), ez = Math.round(Math.sin(a) * L * 0.8), ey = y0 + Math.round(L * 0.6);
+    g.line(0, y0, 0, ex, ey, ez, trunk);
+    clumps.push([ex, ey + r * 0.25, ez, r * (0.55 + R() * 0.2)]);
+  }
+  for (const [cx, cy, cz, cr] of clumps) {
+    for (let x = Math.floor(cx - cr - 1); x <= cx + cr + 1; x++) for (let y = Math.floor(cy - cr * 0.8); y <= cy + cr * 0.9; y++) for (let z = Math.floor(cz - cr - 1); z <= cz + cr + 1; z++) {
+      const d = ((x - cx) / (cr + 0.4)) ** 2 + ((y - cy) / (cr * 0.82)) ** 2 + ((z - cz) / (cr + 0.4)) ** 2;
+      if (d > 1 + (hash3(x, y, z + (o.seed ?? 1)) - 0.5) * 0.35) continue;
+      const ly = (y - cy) / cr, lx = (x - cx + (z - cz) * 0.5) / cr;
+      const k = hash3(x * 3, y, z);
+      let c = ly - lx * 0.4 > 0.35 ? leafL : ly < -0.35 ? leafD : leaf;
+      if (k < 0.16) c = c === leafL ? leaf : leafD;
+      if (ly < -0.6 && k < 0.5) c = leafDD;
+      g.set(x, y, z, c);
+    }
+  }
+  // blossoms / fruit sprinkled on the surface
+  if (o.blossom || o.fruit) {
+    const extra = [];
+    g.forEach((x, y, z, c) => {
+      if (c === trunk || c === trunkD || c === trunkL) return;
+      if (g.has(x, y + 1, z) && g.has(x + 1, y, z) && g.has(x, y, z + 1)) return;
+      if (hash3(x, y * 5, z) < (o.fruit ? 0.04 : 0.09)) extra.push([x, y, z]);
+    });
+    for (const [x, y, z] of extra) g.set(x, y, z, o.fruit ?? o.blossom);
+  }
+  return g;
+}
+
+/** Layered conifer with a lit side, snow option and a slightly crooked tip. o: { seed, layers, r, leaf, trunk, snow } */
+export function pineTreeGrid(o = {}) {
+  const g = new VoxGrid();
+  const leaf = o.leaf ?? 0x2f8a4a, leafD = shade(leaf, -0.25), leafL = shade(leaf, 0.2), trunk = o.trunk ?? 0x6a4226;
+  const L = o.layers ?? 5, R0 = o.r ?? 6, seed = o.seed ?? 1;
+  g.box(-1, 0, -1, 0, 4, 0, trunk);
+  let y = 3;
+  for (let i = 0; i < L; i++) {
+    const r = R0 * (1 - i / (L + 0.6)), hh = 4;
+    for (let yy = 0; yy < hh; yy++) {
+      const rr = r * (1 - yy / (hh + 1.2)) + 0.6;
+      for (let x = -Math.ceil(rr) - 1; x <= Math.ceil(rr); x++) for (let z = -Math.ceil(rr) - 1; z <= Math.ceil(rr); z++) {
+        const d = Math.hypot(x + 0.5, z + 0.5);
+        if (d > rr + (hash3(x, y + yy, z + seed) - 0.5) * 0.9) continue;
+        let c = (x + 0.5) - (z + 0.5) * 0.3 < -rr * 0.25 ? leafL : yy === 0 && d > rr - 1.2 ? leafD : leaf;
+        if (hash3(x * 2, y + yy, z) < 0.12) c = leafD;
+        if (o.snow && yy === hh - 1 && hash3(x, y, z) < 0.75) c = o.snow;
+        if (o.snow && yy === 0 && d > rr - 1 && hash3(z, x, y) < 0.4) c = o.snow;
+        g.set(x, y + yy, z, c);
+      }
+    }
+    y += 3;
+  }
+  g.box(-1, y, -1, 0, y + 1, 0, o.snow ?? leafL);
+  return g;
+}
+
+/** Bush / hedge clump. o: { seed, w, h, d, leaf, flowers: [hex...] } */
+export function bushGrid(o = {}) {
+  const g = new VoxGrid();
+  const leaf = o.leaf ?? 0x45a83a, leafD = shade(leaf, -0.22), leafL = shade(leaf, 0.2);
+  const w = o.w ?? 6, h = o.h ?? 4, d = o.d ?? 4, seed = o.seed ?? 1;
+  for (let x = -w; x <= w; x++) for (let y = 0; y <= h * 1.6; y++) for (let z = -d; z <= d; z++) {
+    const n = (x / (w + 0.5)) ** 2 + (y / (h * 1.5)) ** 2 + (z / (d + 0.5)) ** 2;
+    if (n > 1 + (hash3(x, y, z + seed) - 0.5) * 0.4) continue;
+    let c = y > h * 0.9 ? leafL : y < h * 0.35 ? leafD : leaf;
+    if (hash3(x * 3, y, z) < 0.15) c = leafD;
+    if (o.flowers && hash3(x, y * 7, z + seed) < 0.07 && (y > h * 0.5)) c = o.flowers[Math.floor(hash3(z, x, y) * o.flowers.length)];
+    g.set(x, y, z, c);
+  }
+  return g;
+}
+
+/** Little flower: stem, two leaves and a petal cross. */
+export function flowerGrid(petal = 0xff6fb8, o = {}) {
+  const g = new VoxGrid();
+  const stem = o.stem ?? 0x3f9e3a, h = o.h ?? 4;
+  g.box(0, 0, 0, 0, h - 1, 0, stem);
+  g.set(1, 1, 0, shade(stem, 0.15)).set(-1, 2, 0, shade(stem, 0.15));
+  for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(a, h, b, petal);
+  g.set(0, h, 0, o.center ?? 0xffd23f);
+  g.set(0, h + 1, 0, shade(petal, 0.25));
+  return g;
+}
+
+/** Grass tuft with 4-6 blades. */
+export function tuftGrid(col = 0x4cb83a, o = {}) {
+  const g = new VoxGrid();
+  const light = o.light ?? shade(col, 0.25), dark = o.dark ?? shade(col, -0.25);
+  for (const [x, z, h] of o.blades ?? [[0, 0, 4], [1, 0, 3], [-1, 1, 3], [2, 1, 2], [-2, 0, 2], [0, -1, 3]]) for (let y = 0; y < h; y++) g.set(x + (y === h - 1 && x > 0 ? 1 : 0), y, z, y === h - 1 ? light : y === 0 ? dark : col);
+  return g;
+}

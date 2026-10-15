@@ -331,6 +331,161 @@ def('fire', (p) => p.poly([[8, 1], [13, 8], [13, 11], [10, 15], [6, 15], [3, 11]
 def('venom', (p) => p.circ(8, 10, 5, C.green).poly([[8, 1], [12, 8], [4, 8]], C.green).px(6, 8, C.greenL).px(6, 9, C.white));
 def('sludge', (p) => p.ell(8, 10, 7, 4, C.brown).circ(6, 7, 3, C.brown).circ(10, 6, 3, C.green).px(5, 6, C.white));
 
+// --------------------------------------------------------------------------- lobby / season set (v2)
+// More detailed redraws of plain icons + the Food Season food set, pass
+// ticket, arena gate and sparkle sprites.
+
+const F = {
+  crust: '#e8a24a', crustD: '#b86a22', cheese: '#ffd84a', pep: '#d8283a', dough: '#e8a860', frost: '#ff8ac4',
+  chocoL: '#8a5232', chocoD: '#4a2412', glass: '#cfeeff', glassD: '#7fb4e6', cream: '#fff4dc', asphalt: '#3a3f5a',
+};
+// trophy on the road it climbs
+def('road', (p) => {
+  // winding road climbing to a trophy
+  p.line(1.5, 15, 3, 11.5, C.brownD, 3).line(3, 11.5, 8, 10, C.brownD, 3).line(8, 10, 8.5, 7.5, C.brownD, 3);
+  p.line(1.5, 15, 3, 11.5, C.orangeL, 1).line(3, 11.5, 8, 10, C.orangeL, 1).line(8, 10, 8.5, 7.5, C.orangeL, 1);
+  p.px(2, 14, C.white).px(5, 11, C.white).px(8, 9, C.white);
+  p.poly([[9, 0], [16, 0], [15, 3.4], [10, 3.4]], C.gold).ell(12.5, 3.4, 2.6, 1.6, C.gold);
+  p.px(9, 1, C.goldD).px(15, 1, C.goldD).rect(12, 5, 1, 1, C.goldD).rect(10, 6, 5, 1, C.goldD);
+  p.px(11, 1, C.white).px(11, 2, C.goldL).px(12, 1, C.goldL);
+  p.px(4, 4, C.goldL).px(3, 5, C.white).px(5, 5, C.goldL).px(4, 6, C.goldL);
+});
+def('lock', (p) => {
+  p.circ(8, 6.5, 4.6, C.silverD).circ(8, 6.5, 2.7, null).rect(3, 7, 10, 2, null);
+  p.px(5, 3, C.silver).px(6, 2, C.white);
+  p.rect(3, 7, 10, 8, C.gold).rect(3, 7, 10, 1, C.goldL).rect(3, 13, 10, 2, C.goldD);
+  p.circ(8, 10, 1.4, C.goldDD).rect(7.5, 10, 1, 3, C.goldDD);
+  p.px(4, 8, C.white).px(11, 8, C.goldL).px(4, 13, C.goldL).px(11, 13, C.goldL);
+});
+def('chest', (p) => {
+  p.ell(8, 5.5, 7, 3.6, C.brown).rect(1, 5, 14, 3, C.brown);
+  p.rect(1, 8, 14, 7, C.brownD).rect(1, 7, 14, 2, C.gold);
+  p.rect(3, 3, 2, 12, C.goldD).rect(11, 3, 2, 12, C.goldD);
+  p.rect(6, 6, 4, 5, C.goldL).px(7, 8, C.goldDD).px(8, 8, C.goldDD).px(7, 9, C.goldDD);
+  p.line(2, 11, 13, 11, C.brown).px(3, 3, C.goldL).px(4, 2, C.white);
+});
+def('ticket', (p) => {
+  p.rect(1, 4, 14, 9, C.gold).rect(1, 4, 14, 1, C.goldL);
+  p.circ(1, 8.5, 1.6, null).circ(15, 8.5, 1.6, null);
+  for (let y = 5; y < 13; y += 2) p.px(5, y, C.goldD);
+  p.poly([[10.5, 5], [11.5, 7.6], [14, 7.8], [12, 9.4], [12.8, 12], [10.5, 10.5], [8.2, 12], [9, 9.4], [7, 7.8], [9.5, 7.6]], C.pink);
+  p.px(10, 7, C.white).px(3, 6, C.white).px(3, 10, C.goldD).px(3, 11, C.goldD);
+});
+def('pizza', (p) => {
+  p.poly([[1.5, 3], [14.5, 3], [8, 15.6]], F.cheese);
+  p.rect(1, 1, 14, 3, F.crust).rect(2, 0, 12, 1, F.crust).rect(1, 3, 14, 1, F.crustD);
+  p.circ(5, 6.2, 1.7, F.pep).circ(10.6, 6, 1.7, F.pep).circ(8, 10.2, 1.5, F.pep);
+  p.px(4, 5, C.redL).px(10, 5, C.redL).px(7, 9, C.redL);
+  p.px(4, 9, C.goldL).px(12, 8, C.goldL).px(3, 1, C.white).px(4, 1, C.white);
+});
+def('donut', (p) => {
+  p.circ(8, 8.6, 7.2, F.dough).circ(8, 8, 6.2, F.frost);
+  for (let a = 0; a < 8; a++) { const x = 8 + Math.cos(a * 0.8 + 0.3) * 6.4, y = 9.6 + Math.abs(Math.sin(a * 0.8 + 0.3)) * 4.8; if (y > 9) p.px(x, y, F.dough); }
+  p.circ(8, 8.4, 2.1, null);
+  const sp = [[4, 5, C.blueL], [11, 4, C.goldL], [5, 11, C.greenL], [12, 10, C.white], [8, 3, C.white], [3, 8, C.gold], [13, 7, C.blue], [10, 12, C.purpleL]];
+  for (const [x, y, c] of sp) p.px(x, y, c).flat(x, y);
+  p.px(5, 3, C.white).px(4, 4, C.pinkL);
+});
+def('soda', (p) => {
+  p.line(9, 3, 12, 0, C.pink, 1).px(12, 0, C.pinkL);
+  p.poly([[3, 5], [13, 5], [11.6, 15.5], [4.4, 15.5]], C.red);
+  p.rect(2, 3, 12, 2, C.white).rect(4, 2, 8, 1, C.silver);
+  p.rect(4, 9, 8, 2, C.white).px(6, 9, C.red).px(8, 9, C.red).px(10, 9, C.red);
+  p.rect(5, 6, 1, 3, C.redL).rect(5, 12, 1, 2, C.redL).px(3, 3, C.white);
+});
+def('fries', (p) => {
+  for (const [x, y, hh] of [[4, 2, 7], [6, 0, 8], [8, 1, 8], [10, 0, 8], [12, 2, 6], [5, 3, 6], [11, 3, 6]]) p.rect(x, y, 1, hh, x % 4 ? C.gold : C.goldL);
+  p.poly([[2, 6], [14, 6], [12.5, 15.5], [3.5, 15.5]], C.red);
+  p.rect(2, 6, 12, 1, C.redL).line(5, 10, 8, 12, C.goldL).line(8, 12, 11, 10, C.goldL);
+  p.px(4, 8, C.white);
+});
+def('choco', (p) => {
+  p.rect(2, 1, 12, 14, F.chocoL);
+  for (let y = 1; y < 9; y += 4) for (let x = 2; x < 14; x += 4) { p.rect(x, y, 4, 1, '#a8683e'); p.rect(x + 3, y, 1, 4, F.chocoD); }
+  p.poly([[1, 9], [15, 7], [15, 16], [1, 16]], C.blue).poly([[1, 9], [15, 7], [15, 9], [1, 11]], C.white);
+  p.rect(4, 12, 8, 2, C.gold).px(5, 12, C.white).px(13, 13, C.blueL);
+});
+def('gate', (p) => {
+  p.rect(1, 5, 3, 11, C.silver).rect(12, 5, 3, 11, C.silver).rect(2, 6, 1, 9, C.white);
+  p.rect(0, 2, 16, 3, C.red).rect(0, 2, 16, 1, C.redL).rect(5, 5, 6, 3, C.gold).px(6, 6, C.white);
+  p.rect(7, 0, 1, 2, C.silverD).poly([[8, 0], [12, 0.6], [8, 1.6]], C.pink);
+  p.rect(4, 13, 8, 3, '#2a1a5a').rect(5, 11, 6, 2, '#2a1a5a').px(6, 14, C.cyan).px(9, 12, C.cyan);
+});
+def('spark4', (p) => {
+  p.poly([[8, 0], [9.6, 6.4], [16, 8], [9.6, 9.6], [8, 16], [6.4, 9.6], [0, 8], [6.4, 6.4]], C.goldL);
+  p.poly([[8, 3], [9, 7], [13, 8], [9, 9], [8, 13], [7, 9], [3, 8], [7, 7]], C.white);
+}, { shade: false });
+def('megaphone', (p) => {
+  p.poly([[3, 6], [12, 1], [12, 15], [3, 10]], C.red).rect(1, 6, 3, 4, C.silver).rect(12, 2, 2, 12, C.white);
+  p.rect(5, 10, 2, 4, C.silverD).px(5, 6, C.redL).px(6, 5, C.redL);
+});
+
+// 24x24 reward art: coin stacks / piles / chests, gem heaps
+const coinFace = (p, x, y, r = 2.7) => {
+  p.circ(x, y, r, C.goldD).circ(x - 0.2, y - 0.2, r - 0.9, C.gold).px(x - 1, y - 1, C.goldL).px(x, y - 1, C.goldL);
+};
+def('coinStack', (p) => {
+  for (let i = 0; i < 5; i++) { const y = 20 - i * 3; p.ell(9, y + 1, 7.6, 2.9, C.goldDD).ell(9, y, 7.6, 2.9, i % 2 ? C.goldD : C.gold); }
+  p.ell(9, 8, 7.6, 2.9, C.gold).ell(9, 8, 5.2, 1.8, C.goldL).px(9, 8, C.goldD).px(8, 8, C.goldD);
+  for (let i = 0; i < 5; i++) p.px(2, 20 - i * 3, C.goldL);
+  p.circ(18.5, 15.5, 5.6, C.goldD).circ(18.3, 15.3, 4.7, C.gold).circ(18.6, 15.6, 3, C.goldD).circ(18.3, 15.3, 2.6, C.gold);
+  p.art(['.M', 'MM', 'M.'], 18, 14, { M: C.goldDD });
+  p.px(16, 12, C.white).px(15, 13, C.white).px(4, 7, C.white).px(5, 6, C.white);
+}, { size: 24 });
+def('coinPile', (p) => {
+  p.poly([[0.5, 23.5], [23.5, 23.5], [20, 15], [14, 9], [9, 10], [4, 15]], C.goldD);
+  const cs = [[4, 20], [9, 21], [14, 21], [19, 20], [6, 16], [11, 16.5], [16, 16], [9, 12.5], [14, 12], [11.5, 8.5]];
+  for (const [x, y] of cs) coinFace(p, x, y, 2.9);
+  p.px(20, 4, C.white).px(19, 5, C.goldL).px(21, 5, C.goldL).px(20, 6, C.goldL).px(4, 9, C.white).px(5, 10, C.goldL);
+}, { size: 24 });
+def('coinChest', (p) => {
+  p.poly([[3, 12], [21, 12], [19, 4], [5, 4]], C.brownD).rect(5, 4, 14, 1, C.brown).rect(3, 4, 2, 9, C.goldD).rect(19, 4, 2, 9, C.goldD);
+  p.poly([[3, 13], [21, 13], [18, 8], [12, 6], [6, 8]], C.goldD);
+  for (const [x, y] of [[6, 11], [11, 10.5], [16, 11], [9, 8], [14, 7.6], [19, 10.5]]) coinFace(p, x, y, 2.4);
+  p.rect(1, 13, 22, 10, C.brown).rect(1, 13, 22, 2, C.gold).rect(1, 21, 22, 2, C.brownD);
+  p.rect(4, 13, 2, 10, C.goldD).rect(18, 13, 2, 10, C.goldD).line(2, 18, 21, 18, C.brownD);
+  p.rect(10, 15, 4, 5, C.goldL).px(11, 17, C.goldDD).px(12, 17, C.goldDD).px(11, 18, C.goldDD);
+  p.px(21, 2, C.white).px(20, 3, C.goldL).px(22, 3, C.goldL).px(2, 15, C.white);
+}, { size: 24 });
+const gem = (p, x, y, s = 1) => {
+  p.poly([[x - 5 * s, y - 2 * s], [x - 3 * s, y - 5 * s], [x + 3 * s, y - 5 * s], [x + 5 * s, y - 2 * s], [x, y + 6 * s]], C.pink);
+  p.poly([[x - 5 * s, y - 2 * s], [x + 5 * s, y - 2 * s], [x, y + 6 * s]], C.pinkD).poly([[x - 2.6 * s, y - 2 * s], [x + 2.6 * s, y - 2 * s], [x, y + 4 * s]], C.pink);
+  p.poly([[x - 3 * s, y - 5 * s], [x + 3 * s, y - 5 * s], [x + 3.6 * s, y - 2 * s], [x - 3.6 * s, y - 2 * s]], C.pinkL);
+  p.px(x - 2 * s, y - 4 * s, C.white).px(x - 1 * s, y - 4 * s, C.white);
+};
+def('bucksPile', (p) => {
+  gem(p, 6, 15, 0.9);
+  gem(p, 18, 15, 0.9);
+  gem(p, 12, 11, 1.25);
+  p.px(20, 3, C.white).px(19, 4, C.pinkL).px(21, 4, C.pinkL).px(20, 5, C.pinkL).px(3, 6, C.white);
+}, { size: 24 });
+
+// Pass tier markers: erlenmeyer flasks (empty glass / goo / current / milestone gold)
+const flask = (p, liq, liqL, level, glass = F.glass, cork = C.brown) => {
+  p.rect(9, 0, 6, 3, cork).rect(9, 0, 6, 1, shadeC(cork, 0.35));
+  p.rect(9, 3, 6, 6, glass);
+  p.poly([[9, 8.5], [15, 8.5], [22, 19.5], [22, 23.5], [2, 23.5], [2, 19.5]], glass);
+  if (liq) {
+    const y0 = level, k = (y) => 3 + ((y - 8.5) / 11) * 7;
+    const half = (y) => Math.min(10, y < 8.5 ? 3 : k(y));
+    p.poly([[12 - half(y0), y0], [12 + half(y0), y0], [12 + 10, 19.5], [12 + 10, 23], [2, 23], [2, 19.5]], liq);
+    for (let x = Math.ceil(12 - half(y0)); x < 12 + half(y0); x++) p.px(x, Math.round(y0), liqL).flat(x, Math.round(y0));
+    p.px(8, 19, C.white).px(15, 21, liqL).px(12, 17, liqL).px(17, 18, C.white);
+  }
+  p.rect(10, 3, 1, 5, C.white).line(8, 11, 4, 18, C.white).px(10, 1, C.white);
+};
+const shadeC = (hex, f) => {
+  const h = parseInt(hex.slice(1), 16);
+  let r = (h >> 16) & 255, g = (h >> 8) & 255, b = h & 255;
+  if (f >= 0) { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; } else { r *= 1 + f; g *= 1 + f; b *= 1 + f; }
+  return '#' + ((Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).padStart(6, '0');
+};
+def('flaskOff', (p) => flask(p, '#2a3270', '#3a4490', 18, '#5a6aa8', '#6a5a7a'), { size: 24 });
+def('flaskOn', (p) => flask(p, '#4cd24a', '#c8ff9a', 11), { size: 24 });
+def('flaskCur', (p) => flask(p, '#ff2e98', '#ffb8dc', 13), { size: 24 });
+def('flaskGold', (p) => flask(p, '#ffc21a', '#fff4a8', 10, F.glass, C.pink), { size: 24 });
+def('flaskPrem', (p) => flask(p, '#c063ff', '#ecd0ff', 12, F.glass, C.gold), { size: 24 });
+
 // --------------------------------------------------------------------------- API
 
 const cache = new Map();

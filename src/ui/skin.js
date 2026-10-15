@@ -242,6 +242,53 @@ export function signSkin(o) {
   return { url: P.done(), sliceX: 12, sliceY: 6, w, h };
 }
 
+/**
+ * Riveted metal plate frame (lab hardware): bevelled steel ring with brushed
+ * dither, recessed inner edge, corner rivets and an optional fill. 9-slice.
+ * o: { w, h, r, border (ring px), metal, fill (null = transparent centre), rivet, inner, hazard (bottom stripe) }
+ */
+export function plateSkin(o = {}) {
+  const w = o.w ?? 24, h = o.h ?? 24, r = o.r ?? 3, bw = o.border ?? 4;
+  const P = painter(w, h);
+  const set = P.set;
+  const inside = (x, y) => x >= 1 && y >= 1 && x < w - 1 && y < h - 1 && insideRR(x - 1, y - 1, w - 2, h - 2, r);
+  const edge = (x, y) => {
+    for (let k = 1; k <= bw + 2; k++) if (!inside(x, y - k) || !inside(x, y + k) || !inside(x - k, y) || !inside(x + k, y)) return k;
+    return bw + 3;
+  };
+  const metal = o.metal ?? '#9aa6c8', ink = o.outline ?? '#0d0a1f';
+  const inner = o.inner ?? '#06041a';
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!inside(x, y)) {
+      if (inside(x + 1, y) || inside(x - 1, y) || inside(x, y + 1) || inside(x, y - 1)) set(x, y, ink);
+      continue;
+    }
+    const ed = edge(x, y);
+    const dl = x, dr = w - 1 - x, dt = y, db = h - 1 - y, m = Math.min(dl, dr, dt, db);
+    const side = m === dt ? 't' : m === dl ? 'l' : m === db ? 'b' : 'r';
+    if (ed <= bw) {
+      let f = side === 't' ? 0.3 : side === 'l' ? 0.14 : side === 'b' ? -0.34 : -0.2;
+      if (ed === 1) f += side === 't' || side === 'l' ? 0.35 : -0.15;
+      else if (ed === bw) f = side === 't' || side === 'l' ? -0.42 : 0.22; // inner bevel (recessed)
+      else if ((side === 't' || side === 'b') && bayer(x, y) < 0.22) f += 0.12; // brushed steel
+      let c = shadeHex(metal, f);
+      if (o.hazard && side === 'b' && ed > 1 && ed < bw) c = ((x + y) & 3) < 2 ? '#ffc21a' : '#1a1230';
+      set(x, y, c);
+    } else if (ed === bw + 1) set(x, y, side === 't' || side === 'l' ? inner : mixHex(inner, metal, 0.25));
+    else if (o.fill) set(x, y, o.fill);
+  }
+  if (o.rivet !== false) {
+    const rc = o.rivet ?? mixHex(metal, '#ffffff', 0.55);
+    const q = Math.max(1, Math.floor(bw / 2) - 0) + 1;
+    for (const [rx, ry] of [[q, q], [w - 1 - q, q], [q, h - 1 - q], [w - 1 - q, h - 1 - q]]) {
+      set(rx, ry, rc); set(rx - 1, ry, shadeHex(metal, 0.4)); set(rx, ry - 1, shadeHex(metal, 0.4));
+      set(rx + 1, ry, shadeHex(metal, -0.45)); set(rx, ry + 1, shadeHex(metal, -0.45));
+    }
+  }
+  const slice = Math.max(bw + 2, r + 2, 6);
+  return { url: P.done(), slice, w, h };
+}
+
 /** Old pixel ribbon with folded tails (kept for API compatibility). */
 export function ribbonSkin(o) {
   const w = 40, h = 18;
@@ -312,6 +359,59 @@ function hazardTile() {
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) P.set(x, y, ((x + y) & 7) < 4 ? '#ffc21a' : '#1a1230');
   return P.done();
 }
+/** Pixel sunburst (white rays, quantised radial fade + dither), n x n, transparent. */
+function raysTile(n = 64, rays = 14, warm = false) {
+  const P = painter(n, n);
+  const c = n / 2;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const dx = x + 0.5 - c, dy = y + 0.5 - c;
+    const d = Math.hypot(dx, dy) / c;
+    if (d > 1) continue;
+    const a = (Math.atan2(dy, dx) / (Math.PI * 2) + 1) % 1;
+    const s = (a * rays) % 1;
+    const inRay = s < 0.42;
+    const fade = 1 - d;
+    const lv = Math.round(fade * 4) / 4 + (bayer(x, y) - 0.5) * 0.25;
+    if (inRay && lv > 0.05) P.set(x, y, warm ? (d < 0.35 ? '#fffbe0' : '#ffe680') : '#ffffff', Math.round(Math.min(1, lv) * 200));
+    else if (!inRay && d < 0.3) P.set(x, y, '#ffffff', Math.round((0.3 - d) * 240));
+  }
+  return P.done();
+}
+/** Donut sprinkles on transparent (16x16). */
+function sprinkleTile() {
+  const P = painter(16, 16);
+  const cols = ['#ff4aa0', '#4fc8ff', '#ffd84a', '#7aff6a', '#ffffff', '#c08aff'];
+  const sp = [[1, 1, 1], [5, 3, 0], [10, 1, 1], [13, 5, 0], [2, 7, 0], [7, 9, 1], [12, 11, 1], [3, 13, 1], [9, 14, 0], [14, 14, 1]];
+  sp.forEach(([x, y, dir], i) => { const c = cols[i % cols.length]; P.set(x, y, c); P.set(x + (dir ? 1 : 0), y + (dir ? 0 : 1), c); });
+  return P.done();
+}
+/** Gingham picnic tablecloth (8x8). */
+function ginghamTile(a = '#ff5a6a', b = '#ffffff') {
+  const P = painter(8, 8);
+  const mid = mixHex(a, b, 0.45);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const cx = x < 4, cy = y < 4;
+    P.set(x, y, cx && cy ? a : cx || cy ? mid : b, cx && cy ? 255 : 210);
+  }
+  return P.done();
+}
+/** Tiny 4-point sparkles (32x32) for premium shimmer layers. */
+function starsTile() {
+  const P = painter(32, 32);
+  const st = [[4, 5, 2], [20, 3, 1], [27, 14, 2], [12, 18, 1], [5, 27, 1], [22, 25, 2], [15, 9, 0], [29, 29, 0], [9, 12, 0]];
+  for (const [x, y, s] of st) {
+    P.set(x, y, '#ffffff');
+    for (let k = 1; k <= s; k++) { const a = Math.round(255 * (1 - k / (s + 1))); P.set(x + k, y, '#fff2a0', a); P.set(x - k, y, '#fff2a0', a); P.set(x, y + k, '#fff2a0', a); P.set(x, y - k, '#fff2a0', a); }
+  }
+  return P.done();
+}
+/** Goo drip edge mask (opaque top band with drips), tileable horizontally (16x10). */
+function dripTile() {
+  const P = painter(16, 10);
+  const len = [3, 4, 6, 9, 8, 5, 3, 3, 4, 3, 5, 7, 6, 4, 3, 3];
+  for (let x = 0; x < 16; x++) for (let y = 0; y < len[x]; y++) P.set(x, y, '#000000');
+  return P.done();
+}
 /** Electric zig-zag (horizontal, tileable) for energy accents. */
 function zapTile() {
   const P = painter(16, 5);
@@ -370,6 +470,18 @@ export function injectSkins() {
   for (const [k, col] of Object.entries(rimC)) {
     add(`.sk-card-${k}`, frameSkin({ w: 16, h: 18, r: 2, fill: col, hi: shadeHex(col, 0.55), lo: shadeHex(col, -0.35), lip: 1, lipColor: shadeHex(col, -0.5), glint: 'big' }), '', { fill: false, unit: 'var(--pxs)' });
   }
+  // riveted metal plates (lab hardware frames) + reward pods (small glass capsules)
+  add('.sk-plate', plateSkin({ metal: '#9aa6c8', fill: '#141c4e' }));
+  add('.sk-plate-dark', plateSkin({ metal: '#5a6690', fill: '#0b1036', border: 3 }));
+  add('.sk-plate-gold', plateSkin({ metal: '#ffc21a', fill: '#3a1e08', rivet: '#fffadc' }));
+  add('.sk-plate-hazard', plateSkin({ metal: '#8a96b8', fill: '#141c4e', hazard: true, border: 5 }));
+  add('.sk-plate-ring', plateSkin({ metal: '#9aa6c8' }), '', { fill: false });
+  const pod = (rim, rimHi, rimLo, inner, g1, g2, base) => glassSkin({ w: 16, h: 16, r: 3, slice: 5, base: 1, rim, rimHi, rimLo, inner, glass: g1, glass2: g2, baseColor: base, dither: false });
+  add('.sk-pod', pod('#5ac8ff', '#d8f6ff', '#1e62b0', '#081040', '#2c56c0', '#18307e', '#163c8a'), '--liq:#4fb0ff;--liq2:#1a52b0;');
+  add('.sk-pod-gold', pod('#ffc21a', '#fff6c0', '#a8600e', '#2a1406', '#a86a1a', '#5a3008', '#8a4e0c'), '--liq:#ffc21a;--liq2:#c8640e;');
+  add('.sk-pod-green', pod('#7aff4a', '#e6ffd0', '#2a9a2a', '#06240a', '#2a9a3a', '#125a22', '#1a6a26'), '--liq:#7aff4a;--liq2:#1d9a3a;');
+  add('.sk-pod-pink', pod('#ff6ab4', '#ffe0f0', '#b0186a', '#2a0420', '#b02a7a', '#5a0c3e', '#8a0e4c'), '--liq:#ff4aa8;--liq2:#a8145a;');
+  add('.sk-pod-dim', pod('#4a5478', '#7a86aa', '#262c4a', '#05071a', '#1a2050', '#0e1236', '#20284a'), '--liq:#3a4490;--liq2:#1a1e50;');
   // neon lab signs (ribbons)
   for (const k of ['pink', 'blue', 'gold', 'green', 'purple', 'red']) {
     const rb = signSkin({ fill: NEON[k] });
@@ -389,10 +501,52 @@ export function injectSkins() {
     '--tx-hazard': hazardTile(),
     '--tx-zap': zapTile(),
     '--tx-paper': paper,
+    '--tx-rays': raysTile(64, 14, true),
+    '--tx-rays-w': raysTile(64, 18, false),
+    '--tx-sprinkles': sprinkleTile(),
+    '--tx-gingham': ginghamTile(),
+    '--tx-gingham-b': ginghamTile('#4fa8ff', '#ffffff'),
+    '--tx-stars': starsTile(),
+    '--tx-drip': dripTile(),
   };
   rules.push(`:root{${Object.entries(tex).map(([k, v]) => `${k}:url(${v})`).join(';')}}`);
   const style = document.createElement('style');
   style.id = 'pixel-skins';
   style.textContent = rules.join('\n');
   document.head.appendChild(style);
+}
+
+// ---------------------------------------------------------------------------
+// Runtime-tinted skins (per-arena colours etc.), generated once per colour.
+
+let dynStyle = null;
+const dynDone = new Set();
+/**
+ * ensureSkin(kind, hex) -> class name of a skin tinted with `hex`, injected on first use.
+ * kinds: 'plate' (riveted metal frame), 'glass' (specimen-tank panel), 'pod' (small glass capsule), 'btn' (jelly button)
+ */
+export function ensureSkin(kind, hex) {
+  const col = String(hex).replace('#', '').toLowerCase();
+  const cls = `sk-dyn-${kind}-${col}`;
+  if (dynDone.has(cls) || typeof document === 'undefined') return cls;
+  dynDone.add(cls);
+  const c = '#' + col;
+  let sk, extra = '';
+  if (kind === 'plate') sk = plateSkin({ metal: mixHex(c, '#c8d0e8', 0.35), fill: mixHex(c, '#0b1036', 0.78) });
+  else if (kind === 'pod') {
+    sk = glassSkin({ w: 16, h: 16, r: 3, slice: 5, base: 1, rim: c, rimHi: mixHex(c, '#ffffff', 0.75), rimLo: shadeHex(c, -0.45), inner: mixHex(c, '#05071a', 0.88), glass: mixHex(c, '#1a2466', 0.55), glass2: mixHex(c, '#0b1036', 0.78), baseColor: shadeHex(c, -0.5), dither: false });
+    extra = `--liq:${c};--liq2:${shadeHex(c, -0.45)};`;
+  } else if (kind === 'btn') sk = frameSkin({ w: 20, h: 22, r: 4, lip: 3, topRows: 8, dither: true, shadow: '#000000', gloss: true, deep: 3, fill: c, top: mixHex(c, '#ffffff', 0.2), lipColor: shadeHex(c, -0.42), hi: mixHex(c, '#ffffff', 0.7), lo: shadeHex(c, -0.12), deepColor: shadeHex(c, -0.06) });
+  else {
+    sk = glassSkin({ w: 24, h: 24, r: 5, slice: 7, rim: mixHex(c, '#ffffff', 0.25), rimHi: mixHex(c, '#ffffff', 0.8), rimLo: shadeHex(c, -0.4), inner: mixHex(c, '#05071a', 0.85), glass: mixHex(c, '#1a2466', 0.6), glass2: mixHex(c, '#0b1036', 0.8), baseColor: shadeHex(c, -0.5), bolts: true });
+    extra = `--liq:${c};--liq2:${shadeHex(c, -0.45)};`;
+  }
+  const rule = `.${cls}{border-style:solid;border-image:url(${sk.url}) ${sk.slice} fill / calc(${sk.slice} * var(--px)) / 0 stretch;border-width:calc(${sk.slice} * var(--px));--skb:${sk.slice};${extra}}`;
+  if (!dynStyle) {
+    dynStyle = document.createElement('style');
+    dynStyle.id = 'pixel-skins-dyn';
+    document.head.appendChild(dynStyle);
+  }
+  dynStyle.appendChild(document.createTextNode(rule + '\n'));
+  return cls;
 }

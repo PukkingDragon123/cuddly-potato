@@ -20,6 +20,7 @@ import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
 import { ChargeAura, BaseBadge } from './commandFx.js';
+import { voxelPuddle, voxelDome } from './voxfx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech } from '../../ui/ui.js';
@@ -1602,10 +1603,9 @@ export class BattleView {
       }
       case 'slimeFlood': {
         audio.play('slime');
-        const geo = new THREE.CylinderGeometry(ev.radius, ev.radius, 0.08, 24);
-        const mat = new THREE.MeshLambertMaterial({ color: 0x7cff3a, transparent: true, opacity: 0.6, emissive: 0x2a6a10 });
-        const pool = new THREE.Mesh(geo, mat);
-        pool.position.set(x, 0.05, 0);
+        const pool = voxelPuddle(ev.radius, 0x7cff3a);
+        const mat = pool.material[0];
+        pool.position.set(x, 0.02, 0);
         pool.scale.set(0.01, 1, 0.01);
         this.scene.add(pool);
         fx.slime(new THREE.Vector3(x, 3, 0), { count: 40, speed: 4, color: 0x7cff3a, scale: 1.4 });
@@ -1617,7 +1617,7 @@ export class BattleView {
             t += dt;
             if (Math.random() < dt * 12) fx.bubbles(new THREE.Vector3(x + rand(-ev.radius, ev.radius) * 0.8, 0.1, rand(-1, 1)), { count: 1, color: 0x9fff6a });
             if (t > ev.dur + 0.3) {
-              mat.opacity = Math.max(0, 0.6 - (t - ev.dur - 0.3));
+              mat.opacity = Math.max(0, 0.85 - (t - ev.dur - 0.3));
               if (mat.opacity <= 0) { this.scene.remove(pool); z.done = true; }
             }
           },
@@ -1662,10 +1662,10 @@ export class BattleView {
         audio.play('magic');
         const sd = this.sim.sides[side];
         const mk = (obj, b, r, y) => {
-          const geo = new THREE.SphereGeometry(r, 24, 16);
-          const mat = new THREE.MeshPhongMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.3, shininess: 120, depthWrite: false, emissive: 0x0a3a6a });
-          const bubble = new THREE.Mesh(geo, mat);
-          bubble.position.copy(obj.root.position).setY(y);
+          const bubble = voxelDome(r, 0x29b6f6);
+          const mat = bubble.userData.mats[0];
+          bubble.position.copy(obj.root.position).setY(0);
+          void y;
           bubble.scale.setScalar(0.01);
           this.scene.add(bubble);
           tween(bubble.scale, { x: 1, y: 1, z: 1 }, 0.5, { ease: 'outElastic' });

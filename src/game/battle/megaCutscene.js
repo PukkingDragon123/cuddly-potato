@@ -15,6 +15,7 @@ import { MEGAS } from '../../data/megas.js';
 import { battleCamera } from '../../models/arenas/kit.js';
 import { glassMat } from '../../models/props/common.js';
 import './megaCutscene.css';
+import { voxelBeam } from './voxfx.js';
 
 const CONTAINMENT = import.meta.glob('../../models/props/containment.js', { eager: true });
 const containmentModule = Object.values(CONTAINMENT)[0] ?? null;
@@ -243,11 +244,7 @@ export function megaSpecialFx(view, ev) {
     case 'beam': {
       rig.attack(0.7);
       audio.play('laser', { pitch: 0.5 });
-      const len = Math.abs(ev.x - ev.from);
-      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, len, 10, 1, true).rotateZ(Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(2.6), toneMapped: false, transparent: true, opacity: 0.95, depthWrite: false }));
-      beam.position.set((ev.from + ev.x) / 2, 1.9, z + 0.2);
-      view.scene.add(beam);
-      animate(0.75, (e) => { beam.scale.set(1, 1 + Math.sin(e * 40) * 0.3, 1 + Math.sin(e * 40) * 0.3); beam.material.opacity = 0.95 * (1 - e * e); }, { onComplete: () => view.scene.remove(beam) });
+      voxelBeam(view.scene, new THREE.Vector3(ev.from, 1.9, z + 0.2), new THREE.Vector3(ev.x, 1.9, z + 0.2), col, 0.75, 0.3);
       for (let i = 0; i < 18; i++) fx.sparkle(new THREE.Vector3(lerp(ev.from, ev.x, i / 17), 1.9, z), { count: 2, colors: [col, 0xffffff], speed: 3, life: 0.4 });
       engine.shake(0.35);
       break;

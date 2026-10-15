@@ -17,6 +17,7 @@ import { SNACK_MODELS } from './swarms/snacks.js';
 import { BOSS_MODELS } from './swarms/bosses.js';
 import { MEGA_MODELS } from './swarms/megas.js';
 import { WAVE2_MODELS } from './swarms/wave2.js';
+import { WAVE3_MODELS } from './swarms/wave3.js';
 
 // ---------------------------------------------------------------------------
 // Core models (more in swarmModelsExtra.js)
@@ -240,6 +241,7 @@ const MODELS = {
 const ALL_MODELS = {
   ...MODELS, ...EXTRA_MODELS,
   ...PANTHER_MODELS, ...HOME_HORROR_MODELS, ...CRITTER_MODELS, ...TECHNO_MODELS, ...TOXIC_MODELS, ...FUSION_MODELS, ...SNACK_MODELS, ...BOSS_MODELS, ...MEGA_MODELS, ...WAVE2_MODELS,
+  ...WAVE3_MODELS,
 };
 
 export function hasModel(id) {

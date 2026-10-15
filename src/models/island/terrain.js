@@ -10,10 +10,14 @@ import { hash3, clamp } from '../../core/util.js';
 
 export const CS = 0.5; // column size (world units)
 export const VY = 0.5; // height step
-export const X0 = -92, Z0 = -88, NX = 368, NZ = 352;
+// x in [-92, 128], z in [-214, 88]: the original island (south) + the Northern Wilds (north lobe + isthmus)
+export const X0 = -92, Z0 = -214, NX = 440, NZ = 604;
 const TPC = 2; // colour-map texels per column (0.25 units / texel)
 
-export const MAT = { WATER: 0, SAND: 1, GRASS: 2, ROCK: 3, SNOW: 4, DESERT: 5, ASH: 6, CANDY: 7, ROAD: 8, LUSH: 9, PASTEL: 10, CHANNEL: 11, PLAZA: 12 };
+export const MAT = {
+  WATER: 0, SAND: 1, GRASS: 2, ROCK: 3, SNOW: 4, DESERT: 5, ASH: 6, CANDY: 7, ROAD: 8, LUSH: 9, PASTEL: 10, CHANNEL: 11, PLAZA: 12,
+  JUNGLE: 13, SPOOKY: 14, BASALT: 15, TECH: 16, LAVACH: 17,
+};
 
 export const smooth = (a, b, x) => {
   const t = clamp((x - a) / (b - a), 0, 1);
@@ -52,6 +56,11 @@ const SIDES = {
   [MAT.ROAD]: [0xfff1d0, 0.12, 0xe2cfa2, 0xd2bd8c],
   [MAT.PLAZA]: [null, 0, 0xe2cfa2, 0xd2bd8c],
   [MAT.CHANNEL]: [null, 0, 0x8a7a5a, 0x6e6046],
+  [MAT.JUNGLE]: [0x34a83e, 0.34, 0x8a5e36, 0x6e4826, 0x9a6a3c, 0x5a3a20, 0x7e5430],
+  [MAT.SPOOKY]: [0x6a5a7e, 0.24, 0x4a3e58, 0x3a3048, 0x564866, 0x2e263a],
+  [MAT.BASALT]: [0x3a3238, 0.2, 0x262028, 0x1c181e, 0x30282e, 0x5a2216, 0x221c22],
+  [MAT.TECH]: [0xc8ced8, 0.14, 0x8e96a4, 0x7c8494, 0x9ea6b4, 0x6c7484],
+  [MAT.LAVACH]: [null, 0, 0x3a2a26, 0x24181a, 0x6a2410],
 };
 const FACE_SHADE = { px: 0.9, nx: 0.86, pz: 1.0, nz: 0.8 };
 
@@ -77,27 +86,47 @@ export function buildTerrain(spec) {
   const cz = (j) => Z0 + (j + 0.5) * CS;
 
   // ---------------------------------------------------------------- coast + natural height
+  // land = union of the original island (with its cliffy north/west coasts) and extra
+  // landmasses (spec.lobes: { x, z, rx, rz, seed, cliff(theta) }), each with a wobbly coast
   const landF = new Float32Array(N);
   const cliffF = new Float32Array(N);
+  const lobes = spec.lobes ?? [];
   for (let j = 0; j < NZ; j++) {
     const z = cz(j);
     for (let i = 0; i < NX; i++) {
       const x = cx(i);
-      const th = Math.atan2(z, x);
-      const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(x * 0.035, z * 0.035, 2, 3) - 0.5) * 0.22;
-      const rho = Math.sqrt((x / 76) ** 2 + ((z + 1) / 70) ** 2) / R;
-      let L = 1 - rho;
-      // cliffy north + west coasts, beaches south + east
-      const north = clamp(-z / 50, 0, 1), west = clamp(-x / 55, 0, 1);
-      const cliff = clamp(Math.max(north * 1.1, west * 0.95) - 0.12, 0, 1);
+      let L, cliff;
+      const em = (x / 76) ** 2 + ((z + 1) / 70) ** 2;
+      if (em > 3.2) { L = 1 - Math.sqrt(em); cliff = 1; } // far from the original island: skip the noise
+      else {
+        const th = Math.atan2(z, x);
+        const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(x * 0.035, z * 0.035, 2, 3) - 0.5) * 0.22;
+        L = 1 - Math.sqrt(em) / R;
+        // cliffy north + west coasts, beaches south + east
+        const north = clamp(-z / 50, 0, 1), west = clamp(-x / 55, 0, 1);
+        cliff = clamp(Math.max(north * 1.1, west * 0.95) - 0.12, 0, 1);
+      }
+      for (const B of lobes) {
+        const dx = (x - B.x) / B.rx, dz = (z - B.z) / B.rz;
+        const e = dx * dx + dz * dz;
+        if (e > 3.2) continue;
+        const th = Math.atan2(dz, dx), s = B.seed ?? 0;
+        const R = 1 + 0.06 * Math.sin(3 * th + s) + 0.045 * Math.sin(5 * th + 2.1 + s) + 0.03 * Math.sin(11 * th + s * 0.7) + (fbm(x * 0.035, z * 0.035, 2, 3 + s) - 0.5) * 0.22;
+        const Lb = 1 - Math.sqrt(e) / R;
+        if (Lb > L) { L = Lb; cliff = B.cliff ? B.cliff(th, x, z) : 0.3; }
+      }
       cliffF[j * NX + i] = cliff;
       landF[j * NX + i] = L;
     }
   }
-  // river distance (for the valley + calmer hills along it)
-  const riverPts = densify(spec.river, 0.25);
+  // river distance (for the valleys + calmer hills along them)
+  const rivers = (spec.rivers ?? []).map((RV) => ({ ...RV, dense: densify(RV.pts, 0.25) }));
   const rDist = new Float32Array(N).fill(99);
-  stamp(riverPts.filter((_, k) => k % 4 === 0), 16, (id, d) => { if (d < rDist[id]) rDist[id] = d; });
+  for (const RV of rivers) stamp(RV.dense.filter((_, k) => k % 4 === 0), 16, (id, d) => { if (d < rDist[id]) rDist[id] = d; });
+  // columns that zones or peaks can raise above the sea (everything else far offshore is open sea)
+  const lift = new Uint8Array(N);
+  for (const Z of zones) forDisc(Z.x, Z.z, Z.rp + Z.rb + 10, (id) => { lift[id] = 1; });
+  for (const [px, pz, , pr, po] of spec.peaks) forDisc(px, pz, pr * (po?.cone ? po.base ?? 2.8 : 3), (id) => { lift[id] = 1; });
   // zone RBF base height + hills + peaks
   const sig2 = 2 * 20 * 20;
   for (let j = 0; j < NZ; j++) {
@@ -105,6 +134,7 @@ export function buildTerrain(spec) {
     for (let i = 0; i < NX; i++) {
       const id = j * NX + i, x = cx(i);
       let L = landF[id];
+      if (L < -0.07 && !lift[id]) { H[id] = L * 40; continue; } // open sea
       // keep zones on land
       let near = 0, ws = 0, hs = 0;
       for (const Z of zones) {
@@ -129,8 +159,22 @@ export function buildTerrain(spec) {
       // rolling beach dunes
       if (L > 0 && L < 0.12 && cliff < 0.4) h = Math.max(h, 0.55 + vnoise(x * 0.12, 5, z * 0.12) * 0.6);
       if (L <= 0) h = Math.min(h, L * 40); // open sea
-      for (const [px, pz, ph, pr] of spec.peaks) {
+      for (const [px, pz, ph, pr, po] of spec.peaks) {
         let d2 = (x - px) ** 2 + (z - pz) ** 2;
+        if (po?.cone) {
+          // volcano-style cone (+ optional crater): straight-ish flanks, wobbly lava-ridge base
+          const Rb = pr * (po.base ?? 2.8);
+          if (d2 > Rb * Rb) continue;
+          const d = Math.sqrt(d2) * (0.9 + vnoise(x * 0.13 + px, 17, z * 0.13) * 0.2);
+          let hc = ph * Math.pow(Math.max(0, 1 - d / Rb), po.exp ?? 1.1);
+          if (po.crater) {
+            const [cr, depth] = po.crater;
+            const rim = ph * Math.pow(Math.max(0, 1 - cr / Rb), po.exp ?? 1.1);
+            if (d < cr) hc = rim - depth * (1 - (d / cr) ** 2);
+          }
+          h = Math.max(h, hc);
+          continue;
+        }
         if (d2 > 9 * pr * pr) continue;
         d2 *= 0.6 + vnoise(x * 0.16 + px, 13, z * 0.16) * 0.8;
         const k = Math.exp(-d2 / (2 * pr * pr));
@@ -147,8 +191,10 @@ export function buildTerrain(spec) {
     for (let i = 0; i < NX; i++) {
       const id = j * NX + i, x = cx(i);
       for (const Z of zones) {
+        const R0 = Z.rp + Z.rb;
+        if (Math.abs(x - Z.x) > R0 || Math.abs(z - Z.z) > R0) continue;
         const d = Math.hypot(x - Z.x, z - Z.z);
-        if (d > Z.rp + Z.rb) continue;
+        if (d > R0) continue;
         const s = smooth(Z.rp, Z.rp + Z.rb, d + (fbm(x * 0.2, z * 0.2, 2, 4) - 0.5) * 2.5);
         H[id] = lerp(Z.y - 0.5, H[id], s);
         fine[id] = 1;
@@ -212,29 +258,36 @@ export function buildTerrain(spec) {
     }
   }
 
-  // ---------------------------------------------------------------- river
-  // water level profile: monotonically descending along the path
-  let wl = Infinity;
-  const riverInfo = [];
-  for (let k = 0; k < riverPts.length; k++) {
-    const p = riverPts[k];
-    const id = colAt(p.x, p.z);
-    let g = id >= 0 ? hv[id] * VY : 0;
-    if (k === 0) g = (spec.riverStartY ?? g);
-    // under the road: keep clear of the bridge deck
-    let rd = 99, ry = 0;
-    if (id >= 0) { rd = roadD[id]; ry = roadY[id]; }
-    if (rd < RW + 2.6) g = Math.min(g, ry - 1.0);
-    wl = Math.min(wl, g - 0.12);
-    if (k > riverPts.length - 12) wl = Math.min(wl, 0.12 * (riverPts.length - k) / 12);
-    // pool-and-drop: water levels on whole units so cascades are fewer + taller
-    p.y = Math.max(0.05, k === 0 ? wl : Math.floor((wl + 0.12) / 1.0) * 1.0 - 0.15);
-    p.w = (spec.riverWidth ? spec.riverWidth(k / (riverPts.length - 1)) : 1.2);
-    riverInfo.push(p);
+  // ---------------------------------------------------------------- rivers (water + lava)
+  // water level profile: monotonically descending along each path
+  const riverK = new Uint8Array(N); // 1 = lava channel
+  const riverInfos = [];
+  for (const RV of rivers) {
+    const riverPts = RV.dense;
+    let wl = Infinity;
+    const info = [];
+    for (let k = 0; k < riverPts.length; k++) {
+      const p = riverPts[k];
+      const id = colAt(p.x, p.z);
+      let g = id >= 0 ? hv[id] * VY : 0;
+      if (k === 0) g = (RV.startY ?? g);
+      // under the road: keep clear of the bridge deck
+      let rd = 99, ry = 0;
+      if (id >= 0) { rd = roadD[id]; ry = roadY[id]; }
+      if (rd < RW + 2.6) g = Math.min(g, ry - 1.0);
+      wl = Math.min(wl, g - 0.12);
+      if (k > riverPts.length - 12) wl = Math.min(wl, 0.12 * (riverPts.length - k) / 12);
+      // pool-and-drop: levels on whole units so cascades are fewer + taller
+      p.y = Math.max(0.05, k === 0 ? wl : Math.floor((wl + 0.12) / 1.0) * 1.0 - 0.15);
+      p.w = (RV.width ? RV.width(k / (riverPts.length - 1)) : 1.2);
+      info.push(p);
+    }
+    info.lava = !!RV.lava;
+    riverInfos.push(info);
+    stamp(riverPts, 4.5, (id, d, p) => {
+      if (d < riverD[id]) { riverD[id] = d; riverW[id] = p.w; riverY[id] = p.y; riverK[id] = RV.lava ? 1 : 0; }
+    });
   }
-  stamp(riverPts, 4.5, (id, d, p) => {
-    if (d < riverD[id]) { riverD[id] = d; riverW[id] = p.w; riverY[id] = p.y; }
-  });
   for (let id = 0; id < N; id++) {
     const d = riverD[id];
     if (d > riverW[id] + 1.2) continue;
@@ -242,17 +295,17 @@ export function buildTerrain(spec) {
     if (d <= riverW[id] + 0.25) {
       hv[id] = Math.min(hv[id], Math.floor((wy - 0.3) / VY));
       if (hv[id] < -2) hv[id] = -2;
-      mat[id] = MAT.CHANNEL;
+      mat[id] = riverK[id] ? MAT.LAVACH : MAT.CHANNEL;
     } else if (hv[id] * VY < wy + 0.2 && wy > 0.3 && roadD[id] > RW + 0.5) {
       hv[id] = Math.ceil((wy + 0.2) / VY); // levee so the water never floats
     }
   }
-  // summit lagoon
-  if (spec.lagoon) {
-    const [lx, lz, lr, ly] = spec.lagoon;
-    forDisc(lx, lz, lr + 1.5, (id, d, x, z) => {
-      const rr = lr * (1 + (fbm(x * 0.3, z * 0.3, 2, 9) - 0.5) * 0.35);
-      if (d < rr) { hv[id] = Math.floor((ly - 0.75) / VY); mat[id] = MAT.CHANNEL; }
+  // lagoons / springs / crater lakes: [{ x, z, r, y, lava }]
+  for (const LG of spec.lagoons ?? []) {
+    forDisc(LG.x, LG.z, LG.r + 1.5, (id, d, x, z) => {
+      const rr = LG.r * (1 + (fbm(x * 0.3, z * 0.3, 2, 9) - 0.5) * 0.35);
+      if (d < rr) { hv[id] = Math.floor((LG.y - 0.75) / VY); mat[id] = LG.lava ? MAT.LAVACH : MAT.CHANNEL; }
+      else if (LG.rim && hv[id] * VY < LG.y + 0.2) hv[id] = Math.ceil((LG.y + 0.2) / VY); // keep a lip so it never spills
     });
   }
 
@@ -272,15 +325,19 @@ export function buildTerrain(spec) {
     const z = cz(j);
     for (let i = 0; i < NX; i++) {
       const id = j * NX + i, x = cx(i);
-      if (hv[id] < 1) { if (mat[id] !== MAT.CHANNEL) mat[id] = MAT.WATER; continue; }
-      if (mat[id] === MAT.CHANNEL) continue;
+      if (hv[id] < 1) { if (mat[id] !== MAT.CHANNEL && mat[id] !== MAT.LAVACH) mat[id] = MAT.WATER; continue; }
+      if (mat[id] === MAT.CHANNEL || mat[id] === MAT.LAVACH) continue;
       const B = biomeAt(x, z);
       let m = B ? B.mat : MAT.GRASS;
       const y = hv[id] * VY;
       const bn = vnoise(x * 0.1, 2, z * 0.1) - 0.5;
       const beach = (y <= 1.0 + bn && landF[id] < 0.2 && cliffF[id] < 0.6) || (y <= 1.5 + bn && landF[id] < 0.1 && cliffF[id] < 0.75);
-      if (beach && m !== MAT.SNOW) m = MAT.SAND;
-      for (const [px, pz, , pr] of spec.peaks) if (Math.hypot(x - px, z - pz) < pr * 1.25 && y > 9) m = m === MAT.SNOW ? m : MAT.ROCK;
+      if (beach && m !== MAT.SNOW && m !== MAT.BASALT) m = MAT.SAND;
+      for (const [px, pz, , pr, po] of spec.peaks) {
+        const d = Math.hypot(x - px, z - pz);
+        if (po?.mat) { if (d < pr * (po.matR ?? 2.2) * (0.9 + bn * 0.4)) m = po.mat; }
+        else if (d < pr * 1.25 && y > 9) m = m === MAT.SNOW ? m : MAT.ROCK;
+      }
       if (roadD[id] < RW) m = MAT.ROAD;
       for (const Z of zones) {
         const d = Math.hypot(x - Z.x, z - Z.z);
@@ -311,8 +368,8 @@ export function buildTerrain(spec) {
   }
 
   const api = {
-    hv, mat, roadD, roadY, riverD, riverW, riverY, landF, colBiome,
-    road, zIdx, river: riverInfo, RW,
+    hv, mat, roadD, roadY, riverD, riverW, riverY, riverK, landF, colBiome,
+    road, zIdx, rivers: riverInfos, river: riverInfos[0], RW,
     colAt,
     forDisc,
     /** Top surface height (world y) at x,z (0 for water). */
@@ -507,6 +564,11 @@ function paintColorMap(T, spec) {
     [MAT.SAND]: [0xf8e6ae, 0xf0da98, 0xfff0c4, 0xffffff, 0xe0c482],
     [MAT.CHANNEL]: [0x6fc8d8, 0x5ab8cc, 0x80d4e0, 0x80d4e0, 0x4aa8c0],
     [MAT.PLAZA]: [0xece0c0, 0xe2d4b0, 0xf4ead0, 0xfff6e0, 0xc8b48a],
+    [MAT.JUNGLE]: [0x3aa846, 0x2c9440, 0x4cbc52, 0x86dc6a, 0x1f7a36],
+    [MAT.SPOOKY]: [0x6a5e7a, 0x5a4e6a, 0x786c88, 0x9a8cb0, 0x40364e],
+    [MAT.BASALT]: [0x3c363e, 0x2e2a32, 0x4a424c, 0x5e5660, 0x201c22],
+    [MAT.TECH]: [0xbcc2cc, 0xaab0bc, 0xc8ced8, 0xe2e6ee, 0x8e96a2],
+    [MAT.LAVACH]: [0x6a1e10, 0x4a1410, 0x8a2a12, 0x8a2a12, 0x3a1010],
   };
   const put = (o, hex) => { d[o] = (hex >> 16) & 255; d[o + 1] = (hex >> 8) & 255; d[o + 2] = hex & 255; d[o + 3] = 255; };
   const lcache = new Map();
@@ -529,19 +591,22 @@ function paintColorMap(T, spec) {
       const id = j * NX + i;
       const m = mat[id], h = hv[id];
       const xc = X0 + (i + 0.5) * CS;
-      if (h < 1 && m !== MAT.CHANNEL) {
+      if (h < 1 && m !== MAT.CHANNEL && m !== MAT.LAVACH) {
         for (let lj = 0; lj < 2; lj++) for (let li = 0; li < 2; li++) put((((j * 2 + lj) * TW) + i * 2 + li) * 4, 0x2a9ad8);
         continue;
       }
       // per-column values
       const P = m === MAT.PLAZA ? (spec.biomeById[T.colBiome[id]]?.plaza ?? pal[MAT.PLAZA]) : (pal[m] ?? pal[MAT.GRASS]);
-      const natural = m !== MAT.ROAD && m !== MAT.PLAZA;
+      const natural = m !== MAT.ROAD && m !== MAT.PLAZA && m !== MAT.TECH;
       const n0 = natural ? vnoise(xc * 0.12, 3.3, zc * 0.12) : 0;
       let flower = -1;
-      if (m === MAT.GRASS || m === MAT.LUSH || m === MAT.PASTEL) {
+      if (m === MAT.GRASS || m === MAT.LUSH || m === MAT.PASTEL || m === MAT.JUNGLE) {
         const fl = hash3(i, j, 5);
         const fz = vnoise(xc * 0.09, 8.1, zc * 0.09);
-        if (fz > (m === MAT.LUSH || m === MAT.PASTEL ? 0.55 : 0.66) && fl < 0.05) flower = m === MAT.PASTEL ? [0xff9ec8, 0xffffff, 0xffc2dc][Math.floor(fl * 60) % 3] : FLOWERS[Math.floor(fl * 100) % FLOWERS.length];
+        if (fz > (m === MAT.LUSH || m === MAT.PASTEL || m === MAT.JUNGLE ? 0.55 : 0.66) && fl < 0.05) {
+          flower = m === MAT.PASTEL ? [0xff9ec8, 0xffffff, 0xffc2dc][Math.floor(fl * 60) % 3]
+            : m === MAT.JUNGLE ? [0xff4fa3, 0xb05cff, 0xffd23f, 0xff6a3a][Math.floor(fl * 80) % 4] : FLOWERS[Math.floor(fl * 100) % FLOWERS.length];
+        }
       }
       const dn = m === MAT.DESERT ? vnoise(xc * 0.2, 1, zc * 0.2) * 4 : 0;
       const pool = m === MAT.ASH ? vnoise(xc * 0.2, 9, zc * 0.2) : 0;
@@ -571,6 +636,13 @@ function paintColorMap(T, spec) {
         } else if (m === MAT.PLAZA) {
           const gx = ti % 3, gz = tj % 3;
           c = gx === 0 || gz === 0 ? P[1] : (((Math.floor(ti / 3) + Math.floor(tj / 3)) & 1) ? P[0] : P[2]);
+        } else if (m === MAT.TECH) {
+          // poured concrete slabs with seams, oil stains and yellow hazard lines
+          const gx = ti & 7, gz = tj & 7;
+          c = gx === 0 || gz === 0 ? P[4] : (((ti >> 3) + (tj >> 3)) & 1) ? P[0] : P[1];
+          if (hs < 0.03) c = P[3];
+          else if (hs > 0.985) c = 0x6c7280;
+          if (((ti >> 3) % 5 === 0) && gz > 2 && gz < 5 && ((ti + tj) & 2)) c = 0xffc21a;
         } else {
           const n = n0 + (bayer(ti, tj) - 0.5) * 0.12;
           c = n > 0.62 ? P[2] : n < 0.36 ? P[1] : P[0];
@@ -588,6 +660,21 @@ function paintColorMap(T, spec) {
             if (hash3(ti, tj, 77) < 0.006) c = [0xff9e9e, 0xffffff, 0xffb070][Math.floor(hs * 3)];
           } else if (m === MAT.SNOW) {
             if (hash3(ti >> 2, tj >> 2, 31) < 0.03) c = 0xbfe0f6;
+          } else if (m === MAT.JUNGLE) {
+            // leaf litter + moss patches under the canopy
+            if (hs > 0.93 && hs <= 0.955) c = 0x8a6a3a;
+            else if (vnoise(x * 0.4, 6, z * 0.4) > 0.72) c = (ti + tj) & 1 ? 0x2a8a3c : 0x3a9a46;
+          } else if (m === MAT.SPOOKY) {
+            // dead leaves, bare dirt and pale bones
+            if (hs > 0.94 && hs <= 0.955) c = 0xc8642a;
+            else if (hs > 0.995) c = 0xe8e2d4;
+            else if (vnoise(x * 0.3, 4, z * 0.3) > 0.7) c = (ti & 1) ? 0x4a3a40 : 0x54444a;
+          } else if (m === MAT.BASALT) {
+            // cooling lava cracks between the obsidian plates
+            const cr = vnoise(x * 0.45, 7, z * 0.45);
+            if (cr > 0.485 && cr < 0.505) c = hs < 0.4 ? 0xffb84a : 0xff6a1f;
+            else if (cr > 0.47 && cr < 0.52) c = 0x7a2a16;
+            else if (hs > 0.97) c = 0x6a6070;
           }
         }
         // crisp voxel edges: lit rim where the ground drops, contact shade where it rises
