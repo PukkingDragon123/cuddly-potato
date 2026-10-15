@@ -960,7 +960,7 @@ export function buildBattle(K) {
       K.mesh('tower', towerGrid, { scale: 0.12, ao: true }, x, 0, z, 0, 1, { shadow: true });
       const head = new THREE.Group();
       head.position.set(x, 7.4, z + 0.45);
-      const beam = beamMesh(K, { id: 'circleSpot', len: 13, r0: 0.2, r1: 1.7, vox: 0.25, color: 0xfff0c0, opacity: 0.28 });
+      const beam = beamMesh(K, { id: 'circleSpot', len: 13, r0: 0.2, r1: 1.7, vox: 0.32, color: 0xfff0c0, opacity: 0.28 });
       beam.rotation.x = -0.95;
       head.add(beam);
       K.add(head);

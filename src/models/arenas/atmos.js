@@ -10,6 +10,7 @@
 // Everything is instanced / greedy-meshed and animated through K.onUpdate
 // without per-frame allocations. Battle-lane rules: shafts + mist stay behind
 // the lane (z < -3.5); foreground motes stay tiny and low.
+import { engine } from '../../core/engine.js';
 import { THREE, VoxGrid, greedyGeometry, mulberry32, hash3, clamp, canvasTex, bayer, liveInstances, setInstance, swayInst, FIELD } from './kit.js';
 
 /** Multiply a hex colour's channels by k (0..1+). */
@@ -24,10 +25,28 @@ export function lightMat(opacity = 1, side = THREE.FrontSide) {
   const k = opacity + '|' + side;
   let m = addMats.get(k);
   if (!m) {
-    m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side });
+    // toneMapped: false keeps additive light volumes from being tone-mapped + graded (lifted) per layer in the
+    // direct (no-composer) render path; in the composer path tone mapping happens once in the OutputPass anyway
+    m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side, toneMapped: false });
+    m.userData.base = opacity;
     addMats.set(k, m);
   }
   return m;
+}
+/**
+ * Additive light volumes add in display (sRGB) space when there is no composer (medium / low quality),
+ * which reads ~2.5x brighter than adding in linear HDR before tone mapping: dim them there.
+ */
+export function syncLightMats(K) {
+  if (K._lightSync) return;
+  K._lightSync = true;
+  let last = null;
+  K.onUpdate(() => {
+    const comp = engine.useComposer;
+    if (comp === last) return;
+    last = comp;
+    for (const m of addMats.values()) m.opacity = m.userData.base * (comp ? 1 : 0.42);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +85,7 @@ export function addShafts(K, o = {}) {
     all.push({ k: i % kinds, x: (o.x0 ?? -40) + u * ((o.x1 ?? 40) - (o.x0 ?? -40)), z: (o.z0 ?? -12) + R() * ((o.z1 ?? -30) - (o.z0 ?? -12)), s: 0.7 + R() * 0.6, ph: R() * 6.28, sp: 0.15 + R() * 0.2 });
   }
   const mat = lightMat(o.opacity ?? 1);
+  syncLightMats(K);
   const sets = [];
   for (let k = 0; k < kinds; k++) {
     const list = all.filter((s) => s.k === k);
@@ -123,6 +143,7 @@ export function beamMesh(K, o) {
   const vox = o.vox ?? 0.25;
   const geo = greedyGeometry('atm_beam_' + (o.id ?? 'b') + '_' + K.id, () => beamGrid(Math.round(o.len / vox), (o.r0 ?? 0.3) / vox, (o.r1 ?? 1.5) / vox, o.color ?? 0xfff0c0, o), { scale: vox, pivot: [0.5, 0, 0.5], jitter: 0, shadeSides: false });
   const m = new THREE.Mesh(geo, lightMat(o.opacity ?? 0.35));
+  syncLightMats(K);
   m.name = 'beam';
   m.renderOrder = 3;
   return m;
@@ -243,7 +264,7 @@ export const ATMOS = {
     mist: { layers: [{ z: -58, y: -0.5, h: 5, w: 260, alpha: 0.45, speed: 0.003, color: 0xe8f6ff, seed: 1 }] },
   },
   circle: {
-    ground: { seed: 13, tuft: 0x5ab83a, pebble: 0xc8b890, front: [0, 0, 0], back: [24, 10, 10], flowers: [0xffffff, 0xffd23f] },
+    ground: { seed: 13, tuft: 0x5ab83a, pebble: 0xc8b890, front: [0, 0, 0], back: [14, 8, 0] },
     grade: { exposure: 0.03, sat: 0.1, contrast: 0.1, tint: [0.04, 0.012, -0.04], lift: [0.03, 0.01, 0.0], vignette: 0.24 },
     fill: [0x9cc0ff, 0.38],
     shafts: { n: 6, x0: -44, x1: 44, z0: -14, z1: -30, top: 19, len: 21, w: 6, vox: 0.55, tilt: -0.42, color: 0x3c2c18, seed: 5 },
@@ -293,11 +314,11 @@ export const ATMOS = {
   },
   pyramid: {
     ground: { seed: 8, tuft: 0xb8a04a, tuftL: 0xe0c870, pebble: 0xc8945a, front: [20, 26, 0], back: [12, 16, 0] },
-    grade: { exposure: 0.03, sat: 0.1, contrast: 0.12, tint: [0.04, 0.015, -0.05], lift: [0.03, 0.012, 0.0], vignette: 0.24 },
+    grade: { exposure: 0.0, sat: 0.08, contrast: 0.14, tint: [0.02, 0.008, -0.03], lift: [0.0, 0.0, 0.02], vignette: 0.24 },
     fill: [0x9cc4ff, 0.4],
     shafts: { n: 5, x0: -40, x1: 40, z0: -16, z1: -30, top: 19, len: 20, w: 7, vox: 0.55, tilt: -0.36, color: 0x3c3020, seed: 15 },
     motes: [{ id: 'sand', n: 36, box: [-30, 30, 0.1, 3.5, -3.6, -16], color: 0xf8dca0, vel: [1.4, 0.05, 0], vox: 0.045, wob: 0.15 }],
-    mist: { layers: [{ z: -14, y: -0.4, h: 1.6, w: 220, alpha: 0.3, speed: 0.012, color: 0xffe0b0, seed: 9 }, { z: -62, y: -0.5, h: 5, w: 260, alpha: 0.4, speed: 0.004, color: 0xffd8a8, seed: 10 }] },
+    mist: { layers: [{ z: -14, y: -0.4, h: 1.6, w: 220, alpha: 0.18, speed: 0.012, color: 0xffe0b0, seed: 9 }, { z: -62, y: -0.5, h: 5, w: 260, alpha: 0.28, speed: 0.004, color: 0xffd8a8, seed: 10 }] },
   },
   island: {
     ground: { seed: 9, tuft: 0x6ab84a, pebble: 0xfff2e0, front: [14, 26, 0], back: [8, 12, 0] },
@@ -339,7 +360,7 @@ export const ATMOS = {
   },
   volcano: {
     ground: { seed: 11, tuft: 0x4a3a3a, tuftL: 0x6a4a3a, pebble: 0x2e2830, front: [10, 30, 0], back: [6, 20, 0] },
-    grade: { exposure: 0.02, sat: 0.08, contrast: 0.14, tint: [0.05, -0.01, -0.04], lift: [0.04, 0.0, 0.02], vignette: 0.34 },
+    grade: { exposure: 0.04, sat: 0.08, contrast: 0.12, tint: [0.03, -0.005, -0.03], lift: [0.015, 0.0, 0.02], vignette: 0.3 },
     fill: [0x8a7aff, 0.35],
     shafts: null,
     motes: [
@@ -347,7 +368,7 @@ export const ATMOS = {
       { id: 'emberF', n: 12, box: [-24, 24, 0.1, 2.2, LH + 0.7, 8], color: 0xffb050, glow: true, vel: [0.2, 0.5, 0], vox: 0.03, wob: 0.4, twinkle: 0.6 },
       { id: 'ash', n: 30, box: BACK(0.5, 12), color: 0x5a4a50, vel: [0.3, -0.35, 0], vox: 0.06, wob: 0.5, spin: 1.2 },
     ],
-    mist: { layers: [{ z: -12, y: -0.4, h: 2, w: 220, alpha: 0.32, speed: 0.006, color: 0xff8a5a, seed: 17 }, { z: -46, y: -0.5, h: 6, w: 260, alpha: 0.42, speed: -0.004, color: 0x8a3a2a, seed: 18 }] },
+    mist: { layers: [{ z: -12, y: -0.4, h: 2, w: 220, alpha: 0.2, speed: 0.006, color: 0xff8a5a, seed: 17 }, { z: -46, y: -0.5, h: 6, w: 260, alpha: 0.3, speed: -0.004, color: 0x8a3a2a, seed: 18 }] },
   },
   space: {
     grade: { exposure: 0.03, sat: 0.08, contrast: 0.12, tint: [-0.01, 0.0, 0.03], lift: [0.01, 0.0, 0.05], vignette: 0.34 },

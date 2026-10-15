@@ -265,7 +265,7 @@ export function addIslandExtras(ctx) {
   {
     const blimp = new THREE.Group();
     blimp.name = 'blimp';
-    const body = P.mesh(P.geo('blimp', blimpGrid, 0.25, 'center'), { shadow: true });
+    const body = P.mesh(P.geo('blimp', blimpGrid, 0.25, 'center'), { shadow: false }); // too high for its shadow to land in a zone's shadow box
     const prop = P.mesh(P.geo('blimpProp', () => propGrid(5), 0.25, 'center'), { shadow: false });
     prop.position.set(0, 0, -8.2);
     blimp.add(body, prop);
@@ -457,7 +457,7 @@ export function addIslandExtras(ctx) {
     }
     const postIM = new THREE.InstancedMesh(P.geo('plinthLantern', lanternPostGrid, 0.13, 'bottom'), Mats.pair, posts.length);
     posts.forEach((p, i) => setM(postIM, i, p[0], p[1], p[2], p[3]));
-    postIM.castShadow = true;
+    postIM.castShadow = false; // spans every zone: one instanced draw would hit every shadow pass
     postIM.computeBoundingSphere();
     postIM.name = 'plinthLanterns';
     root.add(postIM);
@@ -505,7 +505,7 @@ export function addIslandExtras(ctx) {
   // ---- rainbow over the tallest waterfall
   if (ctx.falls?.length) {
     const F = ctx.falls.reduce((a, b) => (b.h > a.h ? b : a));
-    const m = new THREE.Mesh(P.geo('rainbow', () => rainbowGrid(18), 0.5, [0, 0, 0.5], 0), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+    const m = new THREE.Mesh(P.geo('rainbow', () => rainbowGrid(18), 0.5, [0, 0, 0.5], 0), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false }));
     m.position.set(F.x + 1.5, F.y - 2, F.z + 3);
     m.rotation.y = 0.5;
     m.scale.setScalar(0.55);
