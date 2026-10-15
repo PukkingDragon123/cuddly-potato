@@ -690,13 +690,20 @@ export function buildZone(K) {
   }, { scale: 0.13 }, 0, 0, -3.4, 0, 1, { shadow: true });
   // balloon arch by the doors
   {
-    const bGeo = new THREE.SphereGeometry(0.2, 8, 6);
+    // voxel balloons (one cached mesh per colour, glossy toy plastic)
+    const balloonGrid = (col) => () => {
+      const g = new VoxGrid();
+      g.ellipsoid(0, 0, 0, 3.2, 3.6, 3.2, (x, y, z) => (x + y > 3 ? shade(col, 0.45) : y < -2 ? shade(col, -0.2) : col));
+      g.set(0, -4, 0, shade(col, -0.3));
+      g.set(-1, 2, 2, 0xffffff);
+      return g;
+    };
     const balloons = [];
     for (let i = 0; i < 11; i++) {
       const a = (i / 10) * Math.PI;
-      const b = new THREE.Mesh(bGeo, new THREE.MeshPhongMaterial({ color: [C.pink, C.blue, C.yellow][i % 3], shininess: 80 }));
+      const col = [C.pink, C.blue, C.yellow][i % 3];
+      const b = K.mesh('zoneBalloon' + (i % 3), balloonGrid(col), { scale: 0.06, pivot: 'center', ao: true }, 0, 0, 0, 0, 1, { shadow: false });
       b.userData = { x: Math.cos(a) * 1.0, y: 0.25 + Math.sin(a) * 2.1, o: i };
-      K.add(b);
       balloons.push(b);
     }
     K.onUpdate((dt, t) => { for (const b of balloons) { const u = b.userData; b.position.set(u.x + Math.sin(t * 2 + u.o) * 0.02, u.y + Math.sin(t * 1.7 + u.o) * 0.04, -3.05); } });

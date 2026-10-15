@@ -24,6 +24,7 @@ import { G, rbox, cyl, capsule, stamp, shade, n3 } from '../models/kit.js';
 import { makeVial, LAB_BADGE } from '../models/props/vials.js';
 import { makeBeaker, makeMoneyBag, makeSodaRocket, makeFood } from '../models/props/abilities.js';
 import { createSwarm } from '../models/swarmModels.js';
+import { voxelDome } from '../game/battle/voxfx.js';
 import { h, icon, button, pill, bar, ribbon, bigBanner, pointAt, rollNumber, bump, sparkle, $ui } from '../ui/ui.js';
 import { cardEl } from '../ui/cards.js';
 import { vialThumb } from '../ui/vialThumb.js';
@@ -208,8 +209,7 @@ function spellModel(id) {
       break;
     }
     case 'labShield': {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x29b6f6, roughness: 0.1, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
-      g.add(m);
+      g.add(voxelDome(0.62, 0x29b6f6));
       add(makeBeaker(0x29b6f6), 0, 0, 0, 1.4);
       break;
     }

@@ -38,36 +38,6 @@ const tankGrid = (liquid) => () => {
   return g;
 };
 
-function addTank(K, x, z, liquid, s = 0.12) {
-  const grp = new THREE.Group();
-  grp.position.set(x, 0, z);
-  K.add(grp);
-  K.mesh('tankFrame', tankGrid(liquid), { scale: s, ao: true }, 0, 0, 0, 0, 1, { parent: grp, shadow: true });
-  const r = 5.4 * s, h = 19 * s;
-  const liq = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.96, r * 0.96, h * 0.86, 20), new THREE.MeshBasicMaterial({ color: liquid, transparent: true, opacity: 0.55, toneMapped: false }));
-  liq.position.y = 3 * s + h * 0.43;
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 20, 1, true), glassMat(C.glass, 0.22));
-  glass.position.y = 3 * s + h / 2;
-  grp.add(liq, glass);
-  // floating specimen silhouette + rising bubbles
-  const bubbles = [];
-  for (let i = 0; i < 7; i++) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), glowMat(shade(liquid, 0.6)));
-    b.userData.o = Math.random() * 10;
-    b.position.set((Math.random() - 0.5) * r, 0, (Math.random() - 0.5) * r);
-    grp.add(b);
-    bubbles.push(b);
-  }
-  K.onUpdate((dt, t) => {
-    for (const b of bubbles) {
-      const k = ((t * 0.35 + b.userData.o) % 1);
-      b.position.y = 3 * s + k * h * 0.84;
-    }
-    liq.material.opacity = 0.5 + Math.sin(t * 2 + x) * 0.05;
-  });
-  return grp;
-}
-
 const domeGrid = () => {
   const g = new VoxGrid();
   const R = 14;
@@ -781,7 +751,8 @@ export function buildZone(K) {
     return g;
   }, { scale: 0.25 }, 0, -0.25, 0);
   K.mesh('dome', domeGrid, { scale: 0.16 }, -2.5, 0, -2.5, 0.4);
-  for (const [x, z, col] of [[3.2, -2.6, 0x7cff3a], [4.6, 0.2, 0xff4fd8], [-4.8, 1.6, 0x29e0ff]]) addTank(K, x, z, col, 0.09);
+  // voxel specimen tanks (same as the battle arena's), a little smaller on the diorama
+  [[3.2, -2.6, 0x7cff3a], [4.6, 0.2, 0xff4fd8], [-4.8, 1.6, 0x29e0ff]].forEach(([x, z, col], i) => addTankV(K, x, z, col, i).scale.setScalar(0.75));
   K.mesh('billboard', () => signGrid('LAB', { textScale: 3, pad: 2, legH: 10, bg: 0x15121f, frame: C.blue, color: C.pink }), { scale: 0.12 }, 2, 0, -5);
   const dish = K.mesh('dish', dishGrid, { scale: 0.09, ao: true }, -5.5, 0, -2, 0.3, 1, { shadow: true });
   K.onUpdate((dt, t) => { dish.rotation.y = Math.sin(t * 0.4) * 0.8; });
