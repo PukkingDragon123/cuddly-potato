@@ -179,6 +179,10 @@ export class BattleAI {
       else if (id === 'trashCompactor') use = !troopsOk || (others.length && others.every((o) => o.cost >= 5));
       else if (id === 'doubleUp') use = others.some((o) => !o.spell && o.cost + h.cost + 1 <= s.energy);
       else if (id === 'copyCat') use = !!s.last && s.energy >= 4;
+      else if (id === 'adrenaline' || id === 'ironCoat') use = sim.alliesOf(si).filter((u) => !u.dead).length >= 3 && (threat > 0.5 || this.r() < 0.4);
+      else if (id === 'titanSerum') use = others.some((o) => !o.spell && o.cost + h.cost <= s.energy && o.def.role !== 'swarm');
+      else if (id === 'overclockChip') use = threat > 0.5 || s.energy < 4;
+      else if (id === 'timeFreeze') use = threat > 2.5 || sim.enemiesOf(si).length >= 6;
       else if (id === 'goldenTicket') use = s.queue.some((k) => !s.deck[k].special && (SWARMS[s.deck[k].unit]?.elixir ?? 0) >= 4) && s.energy >= 3;
       // a card that never gets played clogs the hand: eventually cycle it anyway
       if (!use && s.energy >= sim.maxPower(si) - 1) use = true;

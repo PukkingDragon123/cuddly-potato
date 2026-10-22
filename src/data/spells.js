@@ -32,43 +32,70 @@ export const SPELLS = {
     freeze: 3, dmg: 95,
   },
 
-  // ---- SPECIAL cards: card-game tricks that play with your hand and your draw.
-  // Tap to play (no aiming). Keywords: DRAW (pull cards from your deck into
-  // your hand, up to 6), DISCARD (send cards to the back of your deck), ECHO
-  // (the next troop deploys twice), COPY (a temporary card that vanishes after
-  // use), EXHAUST (once per battle: it leaves your deck when played).
+  // ---- SPECIAL cards: lab experiments that bend the battle. Tap to play (no
+  // aiming). They mix card-game tricks (DRAW, DISCARD, ECHO, COPY, EXHAUST =
+  // once per battle) with battlefield effects: army buffs (SURGE = damage,
+  // FRENZY = attack speed, HASTE = move speed, ARMOR = shields), GIANT troops
+  // and base OVERCLOCK. Ids are kept stable for old saves.
   quickDraw: {
-    name: 'Quick Draw', icon: 'cards', color: '#3ff2e0', rarity: 'common', arena: 'lab', elixir: 1, special: true,
-    keywords: ['DRAW 2'], desc: 'Draw 2 extra cards from your deck. Your hand can hold up to 6.',
-    draw: 2,
+    name: 'Hyperdrive Draw', icon: 'cards', color: '#3ff2e0', rarity: 'common', arena: 'lab', elixir: 1, special: true,
+    keywords: ['DRAW 2', 'HASTE'], desc: 'DRAW 2 cards (hand up to 6) and your army gets HASTE: +25% move speed for 6s.',
+    draw: 2, haste: 6,
   },
   energyDrink: {
-    name: 'Energy Drink', icon: 'soda', color: '#ffd23f', rarity: 'common', arena: 'lab', elixir: 0, special: true,
-    keywords: ['+3 POWER', 'EXHAUST'], desc: 'Gain 3 POWER right now. EXHAUST: it can only be played once per battle.',
-    gain: 3, exhaust: true,
+    name: 'Feastables Fuel', icon: 'soda', color: '#ffd23f', rarity: 'common', arena: 'lab', elixir: 0, special: true,
+    keywords: ['+4 POWER', 'FRENZY', 'EXHAUST'], desc: 'Gain 4 POWER and your army goes into a FRENZY: +30% attack speed for 6s. EXHAUST: once per battle.',
+    gain: 4, frenzy: 6, exhaust: true,
   },
   couponBook: {
-    name: 'Coupon Book', icon: 'ticket', color: '#ff8ab4', rarity: 'rare', arena: 'circle', elixir: 1, special: true,
-    keywords: ['HAND -1 COST'], desc: 'Every other card in your hand costs 1 less until you play it.',
-    discount: 1,
+    name: 'Black Friday Frenzy', icon: 'ticket', color: '#ff8ab4', rarity: 'rare', arena: 'circle', elixir: 1, special: true,
+    keywords: ['HAND -1 COST', 'ARMOR'], desc: 'Every other card in your hand costs 1 less, and troops you deploy in the next 8s arrive with ARMOR (a shield of 25% HP).',
+    discount: 1, armorWindow: 8, armor: 0.25,
   },
   trashCompactor: {
-    name: 'Trash Compactor', icon: 'trash', color: '#9be36a', rarity: 'rare', arena: 'factory', elixir: 0, special: true,
-    keywords: ['DISCARD HAND', '+1 POWER EACH'], desc: 'DISCARD your whole hand and draw a fresh one. Gain 1 POWER for each card discarded.',
+    name: 'Recycle Reactor', icon: 'trash', color: '#9be36a', rarity: 'rare', arena: 'factory', elixir: 0, special: true,
+    keywords: ['DISCARD HAND', '+1 POWER EACH', 'BLAST'], desc: 'DISCARD your hand and draw a fresh one. +1 POWER per card discarded, and the reactor BLASTS enemies near your base for 90 damage per card.',
+    blast: 90, radius: 4.5,
   },
   doubleUp: {
-    name: 'Double Up', icon: 'swords', color: '#ff7a3d', rarity: 'epic', arena: 'mart', elixir: 2, special: true,
-    keywords: ['ECHO'], desc: 'ECHO: the next troop card you play deploys twice.',
-    echo: 1,
+    name: 'Clone Protocol', icon: 'swords', color: '#ff7a3d', rarity: 'epic', arena: 'mart', elixir: 2, special: true,
+    keywords: ['ECHO', 'CLONES +20%'], desc: 'ECHO: the next troop card you play deploys twice, and both clones get +20% HP and damage.',
+    echo: 1, boost: 0.2,
   },
   copyCat: {
-    name: 'Copy Cat', icon: 'card', color: '#b48aff', rarity: 'epic', arena: 'redlight', elixir: 1, special: true,
-    keywords: ['COPY', 'DRAW'], desc: 'Add a COPY of the last card you played to your hand. It costs 1 less. Copies vanish after use.',
+    name: 'Mimic Serum', icon: 'card', color: '#b48aff', rarity: 'epic', arena: 'redlight', elixir: 1, special: true,
+    keywords: ['COPY', 'MUTATED +25%'], desc: 'Add a COPY of the last card you played to your hand. It costs 1 less and comes out MUTATED: +25% HP and damage. Copies vanish after use.',
+    boost: 0.25,
   },
   goldenTicket: {
-    name: 'Golden Ticket', icon: 'ticket', color: '#ffd84a', rarity: 'legendary', arena: 'antarctica', elixir: 2, special: true,
-    keywords: ['TUTOR', 'COST 0', 'EXHAUST'], desc: 'Draw the most expensive card left in your deck. It costs 0 POWER. EXHAUST.',
-    exhaust: true,
+    name: 'Golden Ticket Jackpot', icon: 'ticket', color: '#ffd84a', rarity: 'legendary', arena: 'antarctica', elixir: 2, special: true,
+    keywords: ['TUTOR', 'COST 0', 'GOLDEN +30%', 'EXHAUST'], desc: 'Draw the most expensive card left in your deck: it costs 0 and is GOLDEN (+30% HP and damage). EXHAUST.',
+    exhaust: true, boost: 0.3,
+  },
+  adrenaline: {
+    name: 'Adrenaline Injection', icon: 'flask', color: '#ff3d55', rarity: 'rare', arena: 'circle', elixir: 2, special: true,
+    keywords: ['SURGE +40%'], desc: 'Your whole army on the field SURGES: +40% damage for 6s.',
+    surge: 6, amt: 0.4,
+  },
+  ironCoat: {
+    name: 'Iron Lab Coat', icon: 'shield', color: '#9fb4d8', rarity: 'rare', arena: 'factory', elixir: 2, special: true,
+    keywords: ['ARMOR 35%'], desc: 'Every troop of yours on the field gets ARMOR: a shield that soaks 35% of its max HP.',
+    armor: 0.35,
+  },
+  titanSerum: {
+    name: 'Titan Serum', icon: 'dna', color: '#7cff3a', rarity: 'epic', arena: 'mart', elixir: 3, special: true,
+    keywords: ['GIANT', '+80% HP', '+40% DMG'], desc: 'The next troop you play drinks it and turns GIANT: 1.5x size, +80% HP, +40% damage.',
+    giant: { scale: 1.5, hp: 1.8, dmg: 1.4 },
+  },
+  overclockChip: {
+    name: 'Overclock Chip', icon: 'bolt', color: '#5fe8ff', rarity: 'epic', arena: 'redlight', elixir: 1, special: true,
+    keywords: ['BASE OVERCLOCK', 'POWER +60%'], desc: 'For 8s your base zapper fires twice as fast and your POWER fills 60% faster.',
+    overclock: 8,
+  },
+  timeFreeze: {
+    name: 'Time Stop Remote', icon: 'clock', color: '#c99aff', rarity: 'legendary', arena: 'reactor', elixir: 3, special: true,
+    keywords: ['FREEZE ALL', 'EXHAUST'], desc: 'Pauses time for the enemy: EVERY enemy troop is frozen for 2.5s (bosses 1s). EXHAUST: once per battle.',
+    freezeAll: 2.5, exhaust: true,
   },
 };
 for (const [id, s] of Object.entries(SPELLS)) {

@@ -115,7 +115,8 @@ export class BattleSim {
       lab, turret: null,
       mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
       cmd, cmdLevel: lvl, sig: 0.15, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
-      perks, buffs: { rally: 0, dance: 0, immortal: 0 },
+      perks, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0 },
+      nextGiant: null,
       stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       power: cmdPower(lvl),
     };
@@ -283,11 +284,13 @@ export class BattleSim {
     } else {
       // troops pop out of the base (tap) or drop where you dragged them in your half
       const dx = x === null ? s.labX + s.dir * (LAB_HALF + 0.35) : this.clampDeploy(si, x);
-      this.deployTroop(si, card, dx);
+      const echoing = s.echo > 0;
+      const dcard = echoing ? { ...card, echoBoost: SPELLS.doubleUp.boost } : card;
+      this.deployTroop(si, dcard, dx);
       // ECHO: deploy it again
-      if (s.echo > 0) {
+      if (echoing) {
         s.echo--;
-        this.later(0.45, () => { if (!this.over) this.deployTroop(si, card, dx - s.dir * 0.6, true); });
+        this.later(0.45, () => { if (!this.over) this.deployTroop(si, dcard, dx - s.dir * 0.6, true); });
         this.emit('echo', { side: si, card: card.id, x: dx });
       }
     }
@@ -301,6 +304,8 @@ export class BattleSim {
     const s = this.sides[si];
     const k = s.hand[slot];
     s.mod[k] = 0;
+    // a GOLDEN draw is golden once
+    if (s.deck[k].goldenOnce) s.deck[k] = { ...s.deck[k], boost: 0, goldenOnce: false };
     if (exhaust) {
       s.exhausted++;
       const pool = s.hand.length - 1 + s.queue.length;
@@ -332,17 +337,51 @@ export class BattleSim {
     switch (id) {
       case 'quickDraw': {
         const n = this.drawCards(si, def.draw);
-        info = n ? `Drew ${n}` : 'Hand full!';
+        s.buffs.haste = def.haste;
+        info = (n ? `Drew ${n}` : 'Hand full!') + ' + HASTE';
         break;
       }
       case 'energyDrink': {
         s.energy = Math.min(this.maxPower(si), s.energy + def.gain);
-        info = `+${def.gain} POWER`;
+        s.buffs.frenzy = def.frenzy;
+        info = `+${def.gain} POWER + FRENZY`;
         break;
       }
       case 'couponBook': {
         for (const k of s.hand) s.mod[k] -= def.discount;
-        info = 'Hand -1 cost';
+        s.buffs.armorWin = def.armorWindow;
+        info = 'Hand -1 cost + ARMOR';
+        break;
+      }
+      case 'adrenaline': {
+        s.buffs.surge = def.surge;
+        info = `SURGE +${Math.round(def.amt * 100)}% damage`;
+        break;
+      }
+      case 'ironCoat': {
+        let n = 0;
+        for (const u of this.alliesOf(si)) { if (u.mega) continue; u.shieldHp = Math.max(u.shieldHp ?? 0, u.maxHp * def.armor); n++; this.emit('shield', { unit: u }); }
+        info = n ? `${n} troops ARMORED` : 'No troops on the field';
+        break;
+      }
+      case 'titanSerum': {
+        s.nextGiant = { ...def.giant };
+        info = 'Next troop turns GIANT';
+        break;
+      }
+      case 'overclockChip': {
+        s.buffs.overclock = def.overclock;
+        info = 'Base OVERCLOCKED';
+        break;
+      }
+      case 'timeFreeze': {
+        let n = 0;
+        for (const e of this.enemiesOf(si)) {
+          if (e.mega) continue;
+          e.buffs.freeze = Math.max(e.buffs.freeze, def.freezeAll * (e.boss ? 0.4 : 1));
+          n++;
+        }
+        info = `${n} enemies FROZEN`;
         break;
       }
       case 'trashCompactor': {
@@ -358,7 +397,12 @@ export class BattleSim {
         s.handSize = handSizeFor(s.queue.length);
         while (s.hand.length < s.handSize && s.queue.length) s.hand.push(s.queue.shift());
         s.energy = Math.min(this.maxPower(si), s.energy + n);
-        info = `Discarded ${n}: +${n} POWER`;
+        if (n) {
+          const bx = s.labX + s.dir * 3.5;
+          this.areaDamage(si, bx, def.radius, def.blast * n, { kind: 'acid' });
+          this.emit('impact', { x: bx, radius: def.radius, kind: 'acid', side: si });
+        }
+        info = `Discarded ${n}: +${n} POWER + BLAST`;
         break;
       }
       case 'doubleUp': {
@@ -368,7 +412,7 @@ export class BattleSim {
       }
       case 'copyCat': {
         if (s.last && s.hand.length < HAND_MAX) {
-          s.deck.push({ ...s.last, temp: true });
+          s.deck.push({ ...s.last, temp: true, boost: (s.last.boost ?? 0) + def.boost });
           const k = s.deck.length - 1;
           s.mod.push(-1);
           s.hand.push(k);
@@ -383,6 +427,7 @@ export class BattleSim {
         if (best >= 0 && s.hand.length < HAND_MAX) {
           const k = s.queue.splice(best, 1)[0];
           s.mod[k] = -99;
+          s.deck[k] = { ...s.deck[k], boost: def.boost, goldenOnce: true };
           s.hand.push(k);
           info = 'Free ' + ((s.deck[k].spell ? SPELLS[s.deck[k].unit] : SWARMS[s.deck[k].unit])?.name ?? '');
         } else info = 'Nothing to draw';
@@ -402,7 +447,18 @@ export class BattleSim {
     const s = this.sides[si];
     const def = SWARMS[card.unit];
     const n = def.count ?? 1;
-    for (let k = 0; k < n; k++) this.spawnUnit(si, card, { x: x - s.dir * k * 0.42, z: (k - (n - 1) / 2) * 0.55, delay: DEPLOY_DELAY + k * 0.05 });
+    // stat boosts: MUTATED / GOLDEN cards, ECHO clones, GIANT serum, ARMOR window
+    let hp = 1 + (card.boost ?? 0), dmg = 1 + (card.boost ?? 0), scale = 1;
+    const g = echo ? s.lastGiant : s.nextGiant;
+    if (g) { hp *= g.hp; dmg *= g.dmg; scale = g.scale; }
+    if (!echo) { s.lastGiant = g; s.nextGiant = null; }
+    if (card.echoBoost) { hp *= 1 + card.echoBoost; dmg *= 1 + card.echoBoost; }
+    const armor = s.buffs.armorWin > 0 ? SPELLS.couponBook.armor : 0;
+    for (let k = 0; k < n; k++) {
+      const u = this.spawnUnit(si, card, { x: x - s.dir * k * 0.42, z: (k - (n - 1) / 2) * 0.55, delay: DEPLOY_DELAY + k * 0.05, hpMult: hp, dmgMult: dmg, scale });
+      if (armor) u.shieldHp = u.maxHp * armor;
+      if (g) this.emit('giant', { unit: u });
+    }
     s.stats.deployed += n;
     const key = card.id;
     s.stats.deployById[key] = (s.stats.deployById[key] ?? 0) + n;
@@ -870,8 +926,8 @@ export class BattleSim {
     if (b.stun > 0) { b.stun -= dt; u.state = 'stun'; u.atkPhase = 0; return; }
 
     const dance = s.buffs.dance > 0, rally = s.buffs.rally > 0;
-    const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1);
-    const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1);
+    const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.haste > 0 ? 1.25 : 1);
+    const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.frenzy > 0 ? 1.3 : 1);
 
     if (u.mega) {
       u.life -= dt;
@@ -961,7 +1017,8 @@ export class BattleSim {
   }
 
   unitDamage(u) {
-    let dmg = u.st.dmg * u.dmgMult * (this.sides[u.side].buffs.dance > 0 ? 1.5 : 1);
+    const sb = this.sides[u.side].buffs;
+    let dmg = u.st.dmg * u.dmgMult * (sb.dance > 0 ? 1.5 : 1) * (sb.surge > 0 ? 1 + (SPELLS.adrenaline.amt ?? 0.4) : 1);
     if (u.ambush) {
       dmg *= u.ambush;
       u.ambush = 0;
@@ -1059,6 +1116,14 @@ export class BattleSim {
     if (src && src.st && e.flying && !src.st.projectile) d *= 0.5;
     if (e.buffs.freeze > 0 && o.kind !== 'ice') d *= 1.25;
     if (d <= 0) return;
+    // ARMOR shields soak damage first
+    if (e.shieldHp > 0) {
+      const soak = Math.min(e.shieldHp, d);
+      e.shieldHp -= soak;
+      d -= soak;
+      if (e.shieldHp <= 0) this.emit('shieldBreak', { unit: e });
+      if (d <= 0) { if (!o.silent) this.emit('hit', { unit: e, amount: 0, kind: 'shield', src }); return; }
+    }
     const before = e.hp;
     e.hp -= d;
     if (e.hp <= 0 && def.buffs.immortal > 0) e.hp = 1;
@@ -1145,7 +1210,7 @@ export class BattleSim {
     if (b.shieldT > 0) { b.shieldT -= dt; if (b.shieldT <= 0) b.shield = 0; }
     if (b.frozen > 0) { b.frozen -= dt; return; }
     if (!b.active) return;
-    b.cool -= dt;
+    b.cool -= dt * (this.sides[b.side].buffs.overclock > 0 ? 2 : 1);
     if (b.cool > 0) return;
     // nearest enemy in range
     let best = null, bd = Infinity;
@@ -1196,7 +1261,7 @@ export class BattleSim {
 
   energyRate(si) {
     const s = this.sides[si];
-    return ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1);
+    return ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
   }
 
   tick(dt) {
