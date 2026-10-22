@@ -10,10 +10,14 @@ import { mulberry32, hashString, todayKey } from '../../core/util.js';
 import {
   state, upgradeInfo, shopOffers, shopBought, markBought, spendBucks, spendCoins, addCoins, grantReward, refreshDaily,
 } from '../../game/state.js';
-import { cardDef, RARITIES } from '../../data/cards.js';
+import { cardDef, isSpell, RARITIES } from '../../data/cards.js';
 import { VIALS } from '../../data/vials.js';
 import { BANNERS, SWARM_SKINS, CMD_SKINS } from '../../data/season.js';
 import { COMMANDERS } from '../../data/commanders.js';
+import { ENTRANCES } from '../../data/entrances.js';
+import { entranceArt } from '../entranceArt.js';
+import { ownsEntrance, equipEntrance, equippedEntrance } from '../../game/state.js';
+import { game } from '../../game/game.js';
 import {
   screenShell, secHead, timerChip, midnightMs, vialArt, rewardArt, rewardLabel, showRewards, confirmBox, deny,
   refreshCtx, fmt, fmtN, bannerEl, swarmImg, cmdFullImg, cmdSkinOwned,
@@ -286,6 +290,44 @@ export function mount(el, ctx) {
     return tile;
   }
 
+  // ------------------------------------------------------------------ entrance animations (NEW CARD cutscene cosmetics)
+
+  /** Preview an entrance with one of your best troops (plays the cutscene, then comes back here). */
+  function previewEntrance(id) {
+    const owned = Object.keys(state.p.cards).filter((c) => cardDef(c) && !isSpell(c));
+    const order = (c) => RARITIES[cardDef(c).rarity]?.order ?? 0;
+    const card = owned.sort((a, b) => order(b) - order(a))[0] ?? 'panther';
+    game.go('vialopen', { type: 'testTube', preview: { entrance: id, card }, back: 'home', backParams: { tab: 'shop' } });
+  }
+
+  function entranceTile(e) {
+    const owned = ownsEntrance(e.id);
+    const equipped = equippedEntrance() === e.id;
+    const key = 'ent:' + e.id;
+    const tile = h('div', { class: `mn-ent ${owned ? 'owned' : ''} ${equipped ? 'eq' : ''}`, style: { '--ec': e.color } },
+      equipped ? cornerRibbon('EQUIPPED', 'teal') : e.pass && !owned ? cornerRibbon('FOOD PASS', 'pink') : null,
+      h('div', { class: 'mn-ent-art' }, entranceArt(e.id)),
+      h('div', { class: 'mn-ent-n t-d outline' }, e.name),
+      h('div', { class: 'mn-ent-s' }, e.desc),
+      h('div', { class: 'mn-ent-btns' },
+        button('', () => previewEntrance(e.id), 'blue sm mn-ent-pv', { icon: 'play', sound: 'tap' }),
+        owned
+          ? equipped ? h('div', { class: 'mn-soldtag t-d outline' }, icon('check', 's'), 'IN USE')
+            : button('EQUIP', () => { equipEntrance(e.id); audio.play('upgrade'); sparkle(tile, { count: 14 }); shell.render(); }, 'yellow sm', { sound: 'tap' })
+          : e.pass ? h('div', { class: 'mn-ent-pass t-d outline' }, icon('calorie', 's'), 'PASS REWARD')
+            : priceButton('bucks', e.price, false, () => buy({
+              key, cur: 'bucks', price: e.price, tile,
+              title: 'ENTRANCE', art: entranceArt(e.id, 'mn-ent-confirm'), text: `Get the <b>${e.name}</b> entrance?`,
+              sub: h('div', { class: 'center-t t-sm c-muted' }, 'Plays every time you unlock a NEW card.'),
+              async onPaid() {
+                const got = grantReward({ type: 'entrance', id: e.id });
+                equipEntrance(e.id);
+                await showRewards(got, { title: 'NEW ENTRANCE!', note: 'Equipped! It plays when you unlock a new card.' });
+              },
+            }))));
+    return tile;
+  }
+
   // ------------------------------------------------------------------ render
 
   function render() {
@@ -307,6 +349,8 @@ export function mount(el, ctx) {
     // featured
     const feat = featuredOffers();
     if (feat.length) inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('FEATURED', 'pink'), h('div', { class: 'mn-feats' }, ...feat.map(featuredTile))));
+    // entrance animations
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('ENTRANCES', 'pink', h('span', { class: 't-xs c-muted' }, 'New card cutscenes')), h('div', { class: 'mn-ents' }, ...Object.values(ENTRANCES).map(entranceTile))));
     // vials
     const restVials = off.vials.filter((v) => v.id !== hero?.heroId);
     if (restVials.length) inner.appendChild(h('div', { class: 'mn-shopsec' }, secHead('VIALS', 'blue'), h('div', { class: 'mn-vials' }, ...restVials.map(vialTile))));

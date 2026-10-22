@@ -10,6 +10,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, paintStars, px, disc, skyTexture, parallaxWidth, canvasTex, glassMat,
 } from './kit.js';
+import { hdGlow, hdStarfield, hdMoon, hdSun, rgba } from './hdpaint.js';
 import { pixels, setInst, liveInst, fitSky, addParticles, addGlints, zoneDisc, anchor } from './wildsKit.js';
 
 const C = {
@@ -206,6 +207,7 @@ const boltGrid = () => { const g = new VoxGrid(); g.box(-1, 0, -1, 0, 0, 0, C.de
 // --------------------------------------------------------------------------- painted backdrops
 
 function paintSpaceSky(ctx, w, h) {
+  if (ctx._hd) return paintSpaceSkyHD(ctx, w, h);
   const P = pixels(ctx, w, h);
   // galaxy band + soft nebula clouds (banded, lightly dithered)
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -235,6 +237,48 @@ function paintSpaceSky(ctx, w, h) {
   for (let k = -30; k <= 30; k++) px(ctx, sx + k, sy, 1, 1, 0xfff8e0, 0.5 * (1 - Math.abs(k) / 30));
   for (let k = -14; k <= 14; k++) px(ctx, sx, sy + k, 1, 1, 0xfff8e0, 0.5 * (1 - Math.abs(k) / 14));
 }
+/** Painted (HD) deep-space sky: soft galaxy band + nebulae, star field, ringed planet, moon and a sun flare. */
+function paintSpaceSkyHD(ctx, w, h) {
+  const R = mulberry32(41);
+  // galaxy band: many soft glows along a tilted line
+  for (let i = 0; i < 160; i++) {
+    const t = R(), off = (R() + R() - 1) * 16;
+    const x = t * w * 1.2 - w * 0.1, y = h * 0.62 - (x - w * 0.5) * 0.35 + off;
+    const n = vnoise(x * 0.03, y * 0.05, 3);
+    hdGlow(ctx, x, y, 10 + R() * 18, 6 + R() * 10, n > 0.5 ? 0x6a58b0 : 0x3a3a88, 0.08 + n * 0.12, 1.4);
+  }
+  // nebulae: magenta on the left, teal-blue on the right
+  for (let i = 0; i < 40; i++) {
+    const left = i % 2 === 0;
+    const x = left ? w * (0.05 + R() * 0.35) : w * (0.55 + R() * 0.4), y = h * (0.15 + R() * 0.55);
+    hdGlow(ctx, x, y, 14 + R() * 22, 8 + R() * 14, left ? (R() < 0.5 ? 0xa83a8a : 0x6a2a7a) : (R() < 0.5 ? 0x2a7ab8 : 0x1e4a8a), 0.1 + R() * 0.1, 1.6);
+  }
+  hdStarfield(ctx, w, h, { n: 300, ymax: h, seed: 29, tint: 0xc8d0ff });
+  // ringed planet: shaded sphere, banding, ring in front + behind
+  const px0 = w * 0.16, py0 = h * 0.2, pr = 12;
+  const ring = (front) => {
+    ctx.save();
+    ctx.translate(px0, py0); ctx.rotate(0.22);
+    ctx.beginPath();
+    if (front) ctx.ellipse(0, 0, pr * 2.1, pr * 0.42, 0, 0, Math.PI); else ctx.ellipse(0, 0, pr * 2.1, pr * 0.42, 0, Math.PI, Math.PI * 2);
+    ctx.strokeStyle = rgba(0xf4d8a8, 0.85); ctx.lineWidth = 2.2; ctx.stroke();
+    ctx.strokeStyle = rgba(0xc89a6a, 0.6); ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.restore();
+  };
+  ring(false);
+  hdGlow(ctx, px0, py0, pr * 1.6, pr * 1.6, 0xffb070, 0.25, 1.5);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(px0, py0, pr, 0, Math.PI * 2); ctx.clip();
+  const g = ctx.createRadialGradient(px0 - pr * 0.4, py0 - pr * 0.4, 0, px0, py0, pr * 1.1);
+  g.addColorStop(0, rgba(0xffd8a0)); g.addColorStop(0.6, rgba(0xe8a86a)); g.addColorStop(1, rgba(0x8a4a2a));
+  ctx.fillStyle = g; ctx.fillRect(px0 - pr, py0 - pr, pr * 2, pr * 2);
+  for (let y = -pr; y <= pr; y += 3.2) { ctx.fillStyle = rgba(0xc87a3a, 0.35); ctx.fillRect(px0 - pr, py0 + y, pr * 2, 1.1); }
+  ctx.restore();
+  ring(true);
+  hdMoon(ctx, w * 0.6, h * 0.1, 5, { color: 0xe8eaf0, dark: 0x4a5070, phase: 0.2, halo: 0x9aa8e8, haloA: 0.25, seed: 4 });
+  hdSun(ctx, w * 0.92, h * 0.07, 3, { color: 0xfff8e0, core: 0xffffff, halo: 0xfff0c8, haloR: 7, haloA: 0.5, rays: 8, rayLen: 9 });
+}
+
 /** The Earth's curved limb far below: ocean, continents, clouds, atmosphere glow. */
 function paintEarth(ctx, w, h) {
   const P = pixels(ctx, w, h);

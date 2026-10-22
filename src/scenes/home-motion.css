@@ -1,0 +1,56 @@
+/* =========================================================================
+   Home lobby motion (v4). Press / release / hover / entrance motion is spring
+   tweens from homeMotion.js (Web Animations, composite: add). This sheet holds
+   the pieces those tweens need: the sliding nav indicator, the breathing
+   BATTLE pedestal (no shockwave rings), counter pops and the pre-entrance hold.
+   ========================================================================= */
+/* waiting behind the loading screen: the entrance plays once it has faded */
+.home.hm-pre > * { opacity: 0; }
+
+/* everything the springs touch keeps a centred origin and a GPU layer */
+.hm-mini, .hm-slot, .hm-zbox, .hm-tabbtn, .hm-prof, .hm-bwrap, .hm-top .pill, .hm-side-play, .hm-nav-ind { will-change: transform; }
+.hm-mini, .hm-slot, .hm-zbox, .hm-tabbtn, .hm-bwrap { transform-origin: 50% 70%; }
+
+/* ---- BATTLE: a soft breathing pedestal glow instead of shock rings */
+.hm-bwrap { animation: hmBwrapBreathe 2.6s ease-in-out infinite; }
+@keyframes hmBwrapBreathe { 0%, 100% { scale: 1; } 50% { scale: 1.028; } }
+.hm-bglow {
+  position: absolute; left: -14%; right: -14%; top: -30%; bottom: -36%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 50% 50% at 50% 55%, rgba(255, 236, 140, 0.55), rgba(255, 180, 40, 0.22) 50%, transparent 72%);
+  animation: hmBglow 2.6s ease-in-out infinite;
+}
+@keyframes hmBglow { 0%, 100% { opacity: 0.55; scale: 0.96; } 50% { opacity: 1; scale: 1.04; } }
+/* the crossed swords clash every few seconds: a smooth wind-up, strike and settle */
+.hm-battle .pi { animation: hmSwords2 3.2s cubic-bezier(.3, 1.5, .5, 1) infinite; transform-origin: 50% 60%; }
+@keyframes hmSwords2 {
+  0%, 78% { rotate: 0deg; scale: 1; }
+  83% { rotate: -16deg; scale: 0.92; }
+  88% { rotate: 8deg; scale: 1.22; }
+  93% { rotate: -3deg; scale: 1.06; }
+  100% { rotate: 0deg; scale: 1; }
+}
+.hm-battle .sub { opacity: 0.92; }
+
+/* ---- bottom nav: one glass tube that slides between the tabs */
+.hm-nav-ind {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 0; pointer-events: none; translate: 0 calc(var(--u) * -1.8);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.75)) calc(var(--px) * 3) calc(var(--px) * 2) / 40% var(--px) no-repeat,
+    linear-gradient(#9fe8ff 0 8%, #4fb0ff 8% 46%, #2b78f2 46% 74%, #1a52c8 74%);
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 1.5) 0 #d8f6ff, inset 0 calc(var(--px) * -2) 0 #10307a, 0 0 calc(var(--u) * 2.4) rgba(79, 200, 255, 0.75);
+}
+.hm-tabbtn { z-index: 1; }
+.hm-nav .hm-tabbtn.on { background: none; box-shadow: none; }
+/* the label + icon brighten smoothly instead of snapping */
+.hm-tabbtn .tl { transition: opacity 0.25s, color 0.25s; }
+.hm-tabbtn .pi { transition: transform 0.3s cubic-bezier(.3, 1.6, .5, 1), filter 0.25s; }
+
+/* ---- counters */
+.hm-pname .bar .fill { transition: width 0.9s cubic-bezier(.2, .9, .3, 1); }
+.hm-zbox .zt .tv { font-variant-numeric: tabular-nums; }
+.hm-zbox .zt.hm-tro-pop { animation: jelly 0.5s cubic-bezier(.3, 1.6, .5, 1); }
+.hm-top .pill .val { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-bwrap, .hm-bglow, .hm-battle .pi, .hm-zbox .zt.hm-tro-pop { animation: none !important; }
+}

@@ -89,6 +89,14 @@ export const CHARACTERS = {
     acc: [{ type: 'cape', color: 0xff2e88, logoColor: 0xffd23f }, { type: 'glasses', color: 0x29b6f6 }, 'phone'],
     color: '#ff2e88',
   },
+  anchor: {
+    // BEAST NEWS anchor: presents the battle report on the result screen (game/battle/result.js)
+    id: 'anchor', name: 'Nora Newsly', skin: 0xf2c4a2, eyeColor: 0x2a6ab8, lashes: true,
+    hair: { style: 'bob', color: 0xffcf4a },
+    outfit: 'suit', shirt: 0xe0263f, accent: 0x14183a, pants: 0x14183a, shoes: 0x111111,
+    acc: ['earpiece', 'mic'],
+    color: '#ff3a52',
+  },
 };
 
 export function speaker(id) {

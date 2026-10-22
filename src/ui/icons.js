@@ -70,9 +70,14 @@ const bayer = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
 // --------------------------------------------------------------------------- raster canvas
 
 class Pix {
-  /** n = design units, s = raw pixels per design unit. */
-  constructor(n = N, s = 2) {
-    this.n = n; this.s = s; this.R = n * s;
+  /**
+   * n = design units, s = raw pixels per design unit at the designed resolution,
+   * q = supersampling (HD) factor: shapes are evaluated q times finer (smoother curves,
+   * finer shading / dithering), while raw-pixel helpers (dot, spark, raw) keep their
+   * designed footprint as q x q blocks.
+   */
+  constructor(n = N, s = 2, q = 1) {
+    this.n = n; this.q = q; this.s = s * q; this.R = n * this.s;
     this.g = new Array(this.R * this.R).fill(null);
     this.fl = new Uint8Array(this.R * this.R);
   }
@@ -145,12 +150,16 @@ class Pix {
   }
   /** Raw-pixel ascii art (1 char = 1 raw pixel), flat (unshaded) unless shade = true. */
   raw(rows, i0, j0, pal, shade = false) {
-    rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch] !== undefined) this._set(i0 + i, j0 + j, pal[ch], !shade); }));
+    const q = this.q;
+    rows.forEach((r, j) => [...r].forEach((ch, i) => {
+      if (pal[ch] === undefined) return;
+      for (let b = 0; b < q; b++) for (let a = 0; a < q; a++) this._set((i0 + i) * q + a, (j0 + j) * q + b, pal[ch], !shade);
+    }));
     return this;
   }
   flat(x, y) { const s = this.s; for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) { const k = (Math.round(y) * s + j) * this.R + Math.round(x) * s + i; if (k >= 0 && k < this.fl.length) this.fl[k] = 1; } return this; }
   /** Unshaded single raw pixel. */
-  dot(i, j, c) { this._set(Math.round(i), Math.round(j), c, true); return this; }
+  dot(i, j, c) { const q = this.q, i0 = Math.round(i) * q, j0 = Math.round(j) * q; for (let b = 0; b < q; b++) for (let a = 0; a < q; a++) this._set(i0 + a, j0 + b, c, true); return this; }
   /** 4-point sparkle at raw (i, j): white core, arms of length l fading to gold. */
   spark(i, j, l = 2, c = C.white, c2 = '#fff2a0') {
     this.dot(i, j, c);
@@ -165,7 +174,10 @@ class Pix {
 // --------------------------------------------------------------------------- shader / renderer
 
 function render(p, o = {}) {
-  const R = p.R, g = p.g, M = 2, S = R + M * 2;
+  // q = HD supersampling: every size threshold, bevel band, glint, outline and shadow ring
+  // scales with it, so a q = 2 icon reads like the designed one, only twice as fine.
+  const q = p.q ?? 1, q2 = q * q;
+  const R = p.R, g = p.g, M = 2 * q, S = R + M * 2;
   const filled = (x, y) => x >= 0 && y >= 0 && x < R && y < R && g[y * R + x] !== null;
   // ---- regions (4-connected same colour)
   const lab = new Int32Array(R * R).fill(-1);
@@ -193,60 +205,88 @@ function render(p, o = {}) {
   let sx0 = R, sx1 = 0, sy0 = R, sy1 = 0;
   for (let k = 0; k < R * R; k++) if (g[k] !== null) { const x = k % R, y = (k / R) | 0; if (x < sx0) sx0 = x; if (x > sx1) sx1 = x; if (y < sy0) sy0 = y; if (y > sy1) sy1 = y; }
   // small details (ticks, dots, eyes) sit ON a surface: they don't bevel the region around them
-  const out1 = (X, Y, l) => { if (X < 0 || Y < 0 || X >= R || Y >= R) return true; const m = lab[Y * R + X]; return m !== l && (m < 0 || regs[m].n >= 16 || g[Y * R + X] === C.ink && regs[m].n >= 6); };
+  const out1 = (X, Y, l) => { if (X < 0 || Y < 0 || X >= R || Y >= R) return true; const m = lab[Y * R + X]; return m !== l && (m < 0 || regs[m].n >= 16 * q2 || g[Y * R + X] === C.ink && regs[m].n >= 6 * q2); };
+  // edge test over a band: strong = within q px of the edge, soft = within 2q px
+  const band = (x, y, dx, dy, l) => { for (let d = 1; d <= q; d++) if (out1(x + dx * d, y + dy * d, l)) return 2; for (let d = q + 1; d <= 2 * q; d++) if (out1(x + dx * d, y + dy * d, l)) return 1; return 0; };
   for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) {
     const k = y * R + x, col = g[k];
     if (col === null) continue;
     const l = lab[k], r = regs[l];
-    if (!shadeOn || p.fl[k] || col === C.ink || col === C.white || r.n < 5) { out[k] = col; continue; }
-    // bevel: which sides of the region this pixel touches (1 px band, plus a softer 2nd band on bigger regions)
-    let e = 0;
-    if (out1(x, y - 1, l)) e += 1; else if (r.n > 60 && out1(x, y - 2, l)) e += 0.45;
-    if (out1(x - 1, y, l)) e += 0.55; else if (r.n > 60 && out1(x - 2, y, l)) e += 0.25;
-    if (out1(x, y + 1, l)) e -= 0.95; else if (r.n > 60 && out1(x, y + 2, l)) e -= 0.4;
-    if (out1(x + 1, y, l)) e -= 0.6; else if (r.n > 60 && out1(x + 2, y, l)) e -= 0.25;
+    if (!shadeOn || p.fl[k] || col === C.ink || col === C.white || r.n < 5 * q2) { out[k] = col; continue; }
+    const big = r.n > 60 * q2;
+    // bevel: which sides of the region this pixel touches (a q px band, plus a softer 2nd band on bigger regions)
+    let e = 0, b;
+    b = band(x, y, 0, -1, l); e += b === 2 ? 1 : b && big ? 0.45 : 0;
+    b = band(x, y, -1, 0, l); e += b === 2 ? 0.55 : b && big ? 0.25 : 0;
+    b = band(x, y, 0, 1, l); e -= b === 2 ? 0.95 : b && big ? 0.4 : 0;
+    b = band(x, y, 1, 0, l); e -= b === 2 ? 0.6 : b && big ? 0.25 : 0;
     // silhouette rim (outer edges of the whole object read strongest)
     let rim = 0;
-    if (!filled(x, y - 1)) rim += 0.35; if (!filled(x, y + 1)) rim -= 0.3; if (!filled(x + 1, y)) rim -= 0.15;
+    if (!filled(x, y - q)) rim += 0.35; if (!filled(x, y + q)) rim -= 0.3; if (!filled(x + q, y)) rim -= 0.15;
     // soft light falloff across the region and the whole object (top-left -> bottom-right)
-    const bw = (r.x1 - r.x0) / 2 + 1, bh = (r.y1 - r.y0) / 2 + 1;
+    const bw = (r.x1 - r.x0) / 2 + q, bh = (r.y1 - r.y0) / 2 + q;
     const gr = -(((x - (r.x0 + r.x1) / 2) / bw) * 0.45 + ((y - (r.y0 + r.y1) / 2) / bh) * 0.75);
-    const gs = -(((x - (sx0 + sx1) / 2) / ((sx1 - sx0) / 2 + 1)) * 0.45 + ((y - (sy0 + sy1) / 2) / ((sy1 - sy0) / 2 + 1)) * 0.75);
+    const gs = -(((x - (sx0 + sx1) / 2) / ((sx1 - sx0) / 2 + q)) * 0.45 + ((y - (sy0 + sy1) / 2) / ((sy1 - sy0) / 2 + q)) * 0.75);
     const v = Math.max(-1.2, Math.min(1.2, e)) * 0.62 + rim + gr * 0.32 + gs * 0.28 + (o.bias ?? 0);
     if (v > r.best + 0.001) { r.best = v; r.bk = k; }
+    // ordered dithering on the ramp boundaries (anti-banding); at HD it's twice as fine
     const lv = Math.max(-2, Math.min(2, Math.round(v * 1.9 + (bayer(x, y) - 0.5) * (o.dither ?? 0.42))));
     out[k] = ramp(col)[lv + 2];
   }
-  // ---- specular glints on the two biggest shaded regions
+  // ---- specular glints on the two biggest shaded regions (a q x q highlight + a softer neighbour)
   if (shadeOn && o.glint !== false) {
-    const big = regs.filter((r) => r.bk >= 0 && r.n >= 40).sort((a, b) => b.n - a.n).slice(0, o.glints ?? 2);
+    const big = regs.filter((r) => r.bk >= 0 && r.n >= 40 * q2).sort((a, b) => b.n - a.n).slice(0, o.glints ?? 2);
     for (const r of big) {
-      const x = r.bk % R, y = (r.bk / R) | 0;
-      out[r.bk] = mix(ramp(r.col)[4], '#ffffff', 0.75);
-      if (filled(x + 1, y) && lab[r.bk + 1] === lab[r.bk]) out[r.bk + 1] = mix(ramp(r.col)[4], '#ffffff', 0.35);
+      const x0 = r.bk % R, y0 = (r.bk / R) | 0, id = lab[r.bk];
+      for (let j = 0; j < q; j++) for (let i = 0; i < 2 * q; i++) {
+        const x = x0 + i, y = y0 + j;
+        if (!filled(x, y) || lab[y * R + x] !== id) continue;
+        out[y * R + x] = mix(ramp(r.col)[4], '#ffffff', i < q ? 0.75 : 0.35);
+      }
     }
   }
-  // ---- paint: outer contact ring, selective outline, pixels (one ImageData write)
+  // ---- outline + contact shadow: distance field around the silhouette (4-connected BFS),
+  // remembering which shape pixel each outline pixel came from
+  const W = S, dist = new Uint8Array(W * W).fill(255), src = new Int32Array(W * W).fill(-1);
+  let fr = [];
+  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) if (g[y * R + x] !== null) { const i = (y + M) * W + x + M; dist[i] = 0; src[i] = y * R + x; fr.push(i); }
+  for (let d = 1; d <= M; d++) {
+    const nx = [];
+    for (const i of fr) {
+      const x = i % W, y = (i / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= W || yy >= W) continue;
+        const j = yy * W + xx;
+        if (dist[j] !== 255) continue;
+        dist[j] = d; src[j] = src[i]; nx.push(j);
+      }
+    }
+    fr = nx;
+  }
+  // ---- paint (one ImageData write)
   const c = document.createElement('canvas');
   c.width = S;
   c.height = S;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   const img = ctx.createImageData(S, S);
   const data = img.data;
-  const put = (x, y, hex, a = 255) => { const [r, gg, b] = rgbOf(hex), i = ((y + M) * S + x + M) * 4; data[i] = r; data[i + 1] = gg; data[i + 2] = b; data[i + 3] = a; };
+  const putI = (i, hex, a = 255) => { const [r, gg, b] = rgbOf(hex); data[i * 4] = r; data[i * 4 + 1] = gg; data[i * 4 + 2] = b; data[i * 4 + 3] = a; };
   const ink = o.outline ?? C.ink;
-  const isOut = (x, y) => !filled(x, y) && (filled(x + 1, y) || filled(x - 1, y) || filled(x, y + 1) || filled(x, y - 1));
-  for (let y = -M; y < R + M; y++) for (let x = -M; x < R + M; x++) {
-    if (filled(x, y)) continue;
-    if (isOut(x, y)) {
-      // lit side (shape is below / right of this outline pixel): tinted dark outline
-      const nb = filled(x, y + 1) ? g[(y + 1) * R + x] : filled(x + 1, y) ? g[y * R + x + 1] : null;
-      put(x, y, nb && o.selout !== false && nb !== C.ink ? mix(ramp(nb)[0], ink, 0.62) : ink);
-    } else if (o.drop !== false && (isOut(x, y - 1) || isOut(x - 1, y) || isOut(x, y + 1) || isOut(x + 1, y))) {
-      put(x, y, '#060414', isOut(x, y - 1) || isOut(x - 1, y) ? 128 : 56);
+  for (let i = 0; i < W * W; i++) {
+    const d = dist[i];
+    if (d === 0 || d === 255) continue;
+    const x = (i % W) - M, y = ((i / W) | 0) - M, k = src[i], sxp = k % R, syp = (k / R) | 0;
+    if (d <= q) {
+      // lit side (the shape is below / right of this outline pixel): a tinted dark outline, ink outermost
+      const lit = syp > y || sxp > x, nb = g[k];
+      putI(i, lit && o.selout !== false && nb !== C.ink && (q === 1 || d < q) ? mix(ramp(nb)[0], ink, 0.62) : ink);
+    } else if (o.drop !== false) {
+      // soft contact shadow ring, heavier toward the bottom-right
+      putI(i, '#060414', syp < y || sxp < x ? 128 : 56);
     }
   }
-  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) { const col = out[y * R + x]; if (col) put(x, y, col); }
+  for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) { const col = out[y * R + x]; if (col) putI((y + M) * W + x + M, col); }
   ctx.putImageData(img, 0, 0);
   render.last = c;
   return c.toDataURL();
@@ -1062,14 +1102,46 @@ def('logoBolt', (p) => {
   p.spark(42, 6, 3).spark(4, 30, 2).spark(30, 44, 2);
 }, { size: 48, s: 1, glints: 1 });
 
+// --------------------------------------------------------------------------- Beast panther emblem (battle emote button) [engineer C]
+
+def('beastLogo', (p) => {
+  // ears
+  p.poly([[3, 14], [2, 1], [13, 7]], C.blueD).poly([[29, 14], [30, 1], [19, 7]], C.blueD);
+  p.poly([[5, 11], [4.5, 4.5], [10.5, 7.8]], C.pink).poly([[27, 11], [27.5, 4.5], [21.5, 7.8]], C.pink);
+  // head: an angular panther mask
+  p.poly([[3, 12], [9, 6], [23, 6], [29, 12], [29.5, 20], [23, 28.5], [9, 28.5], [2.5, 20]], C.blue);
+  p.poly([[12.5, 6], [19.5, 6], [17.5, 12.5], [14.5, 12.5]], C.blueD); // brow stripe
+  p.poly([[2.6, 18], [7, 19.5], [6, 24], [3.4, 21.5]], C.blueL).poly([[29.4, 18], [25, 19.5], [26, 24], [28.6, 21.5]], C.blueL); // cheek tufts
+  // muzzle
+  p.ell(16, 22.2, 8.2, 6, C.snow);
+  // fierce eyes + brows
+  p.poly([[5, 12.6], [15, 14.8], [13.8, 19.6], [7.4, 18.6]], C.ink).poly([[27, 12.6], [17, 14.8], [18.2, 19.6], [24.6, 18.6]], C.ink);
+  p.poly([[6.4, 13.8], [13.8, 15.6], [12.9, 18.5], [8.2, 17.6]], C.goldW).poly([[25.6, 13.8], [18.2, 15.6], [19.1, 18.5], [23.8, 17.6]], C.goldW);
+  p.rect(10.2, 15.6, 2.2, 2.8, C.ink).rect(19.6, 15.6, 2.2, 2.8, C.ink);
+  p.dot(10, 15, C.white).dot(19, 15, C.white);
+  p.line(5, 11.6, 14.5, 14.2, C.ink, 0.6).line(27, 11.6, 17.5, 14.2, C.ink, 0.6);
+  // nose + roaring mouth with fangs
+  p.poly([[13.2, 18.4], [18.8, 18.4], [16, 21.4]], C.pinkD);
+  p.dot(14, 19, C.pinkL);
+  p.poly([[10.5, 22.4], [21.5, 22.4], [19.5, 27.2], [12.5, 27.2]], C.ink);
+  p.ell(16, 26, 2.6, 1.2, C.red);
+  p.poly([[11.2, 22.4], [13.6, 22.4], [12.4, 25.2]], C.white).poly([[18.4, 22.4], [20.8, 22.4], [19.6, 25.2]], C.white);
+  p.spark(29, 26, 2).spark(3, 27, 1);
+}, nat({ glints: 1 }));
+
 // --------------------------------------------------------------------------- API
 
+/**
+ * HD factor: every icon is drawn twice as fine as its design grid (32 px designs -> 64 px,
+ * 48 px reward art -> 96 px), so icons stay crisp on 2-3x phone screens and big tiles.
+ */
+const HD = 2;
 const cache = new Map();
 export function iconURL(name) {
   if (cache.has(name)) return cache.get(name);
   const d = D[name] ?? D.star;
   const o = d.opts ?? {};
-  const p = new Pix(o.size ?? N, o.s ?? 2);
+  const p = new Pix(o.size ?? N, o.s ?? 2, HD);
   d.fn(p);
   const url = render(p, o);
   cache.set(name, url);
@@ -1101,7 +1173,7 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
   iconURL(name);
   // re-render to get the canvas (iconURL caches the data URL only)
   const d0 = D[name] ?? D.star, o = d0.opts ?? {};
-  const p0 = new Pix(o.size ?? N, o.s ?? 2);
+  const p0 = new Pix(o.size ?? N, o.s ?? 2, HD);
   d0.fn(p0);
   render(p0, o);
   const src = render.last;
@@ -1138,12 +1210,12 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
     for (let f = 0; f < idle; f++) frames.push(base);
     for (let f = 0; f < sweep; f++) {
       const out = new Uint8ClampedArray(base);
-      const t = -4 + ((S + H + 8) * f) / (sweep - 1);
+      const t = -4 * HD + ((S + H + 8 * HD) * f) / (sweep - 1);
       for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
         const i = at(x, y);
         if (base[i + 3] < 250 || lumA(base, i) < 45) continue;
         const dd = Math.abs(x + y - t);
-        const k = dd < 1.2 ? 0.8 : dd < 2.4 ? 0.42 : 0;
+        const k = dd < 1.2 * HD ? 0.8 : dd < 2.4 * HD ? 0.42 : 0;
         if (!k) continue;
         out[i] += (255 - out[i]) * k; out[i + 1] += (255 - out[i + 1]) * k; out[i + 2] += (255 - out[i + 2]) * k;
       }
@@ -1178,7 +1250,7 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
     for (let x = 0; x < S; x++) {
       let yb = -1;
       for (let y = H - 1; y >= 0; y--) if (inner(x, y)) { yb = y; break; }
-      if (yb > 0) { let yt = yb; while (yt > 0 && inner(x, yt - 1)) yt--; if (yb - yt >= 4) cols.push({ x, yb, yt }); }
+      if (yb > 0) { let yt = yb; while (yt > 0 && inner(x, yt - 1)) yt--; if (yb - yt >= 4 * HD) cols.push({ x, yb, yt }); }
     }
     const F = 12;
     const picks = cols.length ? [cols[Math.floor(cols.length * 0.3)], cols[Math.floor(cols.length * 0.62)], cols[Math.floor(cols.length * 0.85)]] : [];
@@ -1188,9 +1260,12 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
         if (!c) return;
         const span = c.yb - c.yt, ph = ((f + b * 4) % F) / F, y = Math.round(c.yb - ph * span);
         if (y < c.yt) return;
-        const i = at(c.x, y);
-        out[i] = 255; out[i + 1] = 255; out[i + 2] = 255;
-        if (ph > 0.4 && y - 1 >= c.yt && c.x + 1 < S && inner(c.x + 1, y)) { const j = at(c.x + 1, y); out[j] = Math.min(255, out[j] + 90); out[j + 1] = Math.min(255, out[j + 1] + 90); out[j + 2] = Math.min(255, out[j + 2] + 90); }
+        for (let b2 = 0; b2 < HD; b2++) for (let a2 = 0; a2 < HD; a2++) {
+          if (y - b2 < c.yt || c.x + a2 >= S || !inner(c.x + a2, y - b2)) continue;
+          const i = at(c.x + a2, y - b2);
+          out[i] = 255; out[i + 1] = 255; out[i + 2] = 255;
+        }
+        if (ph > 0.4 && y - 1 >= c.yt && c.x + HD < S && inner(c.x + HD, y)) { const j = at(c.x + HD, y); out[j] = Math.min(255, out[j] + 90); out[j + 1] = Math.min(255, out[j + 1] + 90); out[j + 2] = Math.min(255, out[j + 2] + 90); }
       });
       frames.push(out);
     }

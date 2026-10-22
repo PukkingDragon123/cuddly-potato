@@ -1,20 +1,22 @@
-// Frozen battle: the home lobby's cinematic backdrop. A time-stopped frame of
-// an epic side-view lane fight in the selected arena, built from the real
+// Frozen battle: the title screen's (and loading screen's) cinematic. A
+// time-stopped frame of an epic side-view lane fight in the selected arena, built from the real
 // battle assets (arena backdrop + atmosphere grade, the two bases with their
 // Commanders, the player's deck Swarms vs. the arena's Swarms, spells and
 // projectiles) and posed like a paused movie frame: a leap mid-air, a tank
 // shove, a rival knocked flying, shots hanging in the air, a $100K bag over a
 // cluster, a soda rocket mid-arc, debris / coins / slime suspended.
 //
-// Time is stopped but the VFX stay alive: suspended debris creeps and spins
-// in slow motion, glows pulse, electric arcs crackle around the clash and the
-// Commander, shockwave rings shimmer, light shafts breathe, motes drift and a
-// "time ripple" rolls out from the focal hit every few seconds.
+// Time is stopped but the VFX stay alive: suspended debris and rock chunks
+// creep and spin in slow motion, sparks hang as streaks of light, glows and an
+// anamorphic flare pulse on the focal hit, electric arcs crackle around the
+// clash and the Commander, light shafts breathe and motes drift. (No ring /
+// shockwave effects: spells and the hit read through filled glow pools,
+// radial light streaks and debris.)
 //
-// The camera is a cinematic Battle Cats rig the player can pan along the lane
-// (drag, with inertia), zoom a little (pinch / wheel) and that sways like a
-// handheld camera when idle. Owns its own THREE.Scene + camera; the home
-// scene swaps it in (see home.js).
+// Two camera rigs: a Battle Cats side view (pan / zoom / handheld sway) and a
+// scripted cinematic one (shots(): slow dolly / crane / truck moves framed per
+// aspect, see setShot) that the title screen cuts between. Owns its own
+// THREE.Scene + camera; the title scene swaps it in (see title.js).
 import * as THREE from 'three';
 import { engine, addLights } from '../core/engine.js';
 import { VoxGrid, makeMesh, Mats } from '../core/voxel.js';
@@ -341,13 +343,16 @@ export class FrozenBattle {
     this.r = rng(1013 + k * 7919);
     this.cam = { x: 0, vx: 0, zoom: 1, tz: 1, idle: 0, intro: 0, drag: false, dragX: 0 };
     this.liveGrade = null;
-    this.rippleT = 2.4;
+    this.cineShot = null; // cinematic camera shot (title)
   }
 
   // ------------------------------------------------------------------ build
   async load() {
     const scene = this.scene;
+    // build in a few slices so the page can paint (and CSS keeps animating) in between
+    const breathe = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     const A = (this.arena = await makeArenaBattle(this.A.theme ?? this.A.id, { seed: 1 }));
+    await breathe();
     scene.add(A.root);
     const L = A.lights ?? {};
     this.lightDir = L.dir ?? [-6, 14, 10];
@@ -371,9 +376,9 @@ export class FrozenBattle {
     } catch (e) {
       console.error('frozen battle staging failed', e);
     }
+    await breathe();
     this.bits.finalize(scene);
     this.addMotes();
-    this.addRipple();
     this.resize(engine.width, engine.height);
     this.rest();
     this.updateCamera(0);
@@ -519,13 +524,19 @@ export class FrozenBattle {
     const rM = this.unit(rMid, 1, 3.55, 0, 0.6, { walk: 0.7 });
     const rR = this.unit(rRanged, 1, 5.5, 0, -0.3, { atk: 0.58 });
     this.unit(rBack, 1, 7.4, 0, 0.42, { walk: 0.1 });
+    // who's who, for the cinematic camera's shots and captions
+    this.cast = { leap, leapId: megaId ?? bLeap?.id, mega: !!megaId, shover, shoverId: bShove?.id, kb, kbId: rKb?.id, rA, rAtkId: rAtk?.id, rivalChar, cmdChar: cfg?.char ?? 'recruit' };
     // shots frozen mid-flight
     this.shot(bRanged, bR, rA, 0.5);
     this.shot(rRanged, rR, bR, 0.56);
 
-    // the big hit: impact star, shockwave rings, debris + slime hanging in the air
+    // the big hit: impact star + anamorphic flare, light streaks bursting out, a scorched glow
+    // on the ground, rock chunks, debris + slime hanging in the air
     this.impactStar(I, 1.35, 0);
-    this.frozenRings(I, 0xffffff);
+    this.anamorphic(I, 0xbfe8ff, 7.5);
+    this.streaks(I, 0xfff0c0, 14, 2.6);
+    this.glowPool(I.x, I.z, 2.4, 0xffa040, 0.55);
+    this.chunks(I, 9);
     const kbCol = seriesColor(rKb.id);
     B.sim(() => {
       fx.burst(I, { count: 34, colors: [0xffffff, 0xffe27a, 0xffd23f], size: 0.1, speed: 7, grav: -6 });
@@ -553,7 +564,8 @@ export class FrozenBattle {
       fx.slime(v, { count: 14, color: seriesColor(bBack.id), speed: 3.4 });
       fx.bubbles(v, { count: 6, color: seriesColor(bBack.id) });
     }, 0.14);
-    this.decal(back.root.position.x, back.root.position.z, 1.9, 1.3, this.ringMats[0], (t, m) => { m.material.opacity = 0.6 + Math.sin(t * 4) * 0.25; });
+    this.glowPool(back.root.position.x, back.root.position.z, 1.5, seriesColor(bBack.id), 0.5);
+    this.streaks(new THREE.Vector3(back.root.position.x, 0.5, back.root.position.z), 0xcff2ff, 7, 1.1);
     // smoke off the battered rival base
     const rb = this.bases[1];
     B.sim(() => {
@@ -706,29 +718,58 @@ export class FrozenBattle {
     this.updaters.push((dt, t) => sp.scale.setScalar(size * (0.9 + Math.sin(t * 3.7 + ph) * 0.12)));
   }
 
-  /** Shockwave rings frozen mid-expansion: one facing the camera, one on the ground; they shimmer. */
-  frozenRings(pos, color) {
-    const mk = (op) => this.own(new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.6), transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false }));
-    const geo = this.own(new THREE.RingGeometry(0.86, 1, 40));
-    const v = new THREE.Mesh(geo, mk(0.5));
-    v.position.copy(pos);
-    v.rotation.y = -0.25;
-    const v2 = new THREE.Mesh(geo, mk(0.3));
-    v2.position.copy(pos);
-    v2.rotation.y = -0.25;
-    const g = new THREE.Mesh(geo, mk(0.55));
-    g.rotation.x = -Math.PI / 2;
-    g.position.set(pos.x, 0.06, pos.z);
-    this.scene.add(v, v2, g);
+  /** Anamorphic lens flare: a long thin horizontal streak + a soft core (movie lens look). */
+  anamorphic(pos, color, len = 7) {
+    const col = new THREE.Color(color).multiplyScalar(1.6);
+    const mk = (op) => this.own(new THREE.SpriteMaterial({ map: flareTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: op }));
+    const line = new THREE.Sprite(mk(0.55)), line2 = new THREE.Sprite(mk(0.3));
+    for (const sp of [line, line2]) { sp.position.copy(pos); sp.renderOrder = 9; this.scene.add(sp); }
     this.updaters.push((dt, t) => {
-      v.scale.setScalar(1.3 + Math.sin(t * 1.6) * 0.05);
-      v.rotation.z = t * 0.12;
-      v.material.opacity = 0.42 + Math.sin(t * 7) * 0.08 + Math.sin(t * 17) * 0.05;
-      v2.scale.setScalar(2.0 + Math.sin(t * 1.6 + 1) * 0.07);
-      v2.material.opacity = 0.2 + Math.sin(t * 5 + 2) * 0.07;
-      g.scale.set(2.7 + Math.sin(t * 1.3) * 0.08, 1.6, 1);
-      g.material.opacity = 0.45 + Math.sin(t * 6) * 0.1;
+      const k = 1 + Math.sin(t * 5.3) * 0.05 + Math.sin(t * 1.7) * 0.06;
+      line.scale.set(len * k, 0.09 * k, 1);
+      line2.scale.set(len * 0.45 * k, 0.32, 1);
+      line.material.opacity = 0.5 + Math.sin(t * 2.1) * 0.08;
     });
+  }
+
+  /** Light streaks bursting out of a hit: thin additive shards frozen mid-flight, flickering. */
+  streaks(pos, color, n = 12, reach = 2.4) {
+    const col = new THREE.Color(color).multiplyScalar(1.8);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + (this.r() - 0.5) * 0.5;
+      const mat = this.own(new THREE.SpriteMaterial({ map: flareTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, transparent: true, opacity: 0.7 }));
+      mat.rotation = a;
+      const sp = new THREE.Sprite(mat);
+      const d = reach * (0.45 + this.r() * 0.6);
+      const len = reach * (0.35 + this.r() * 0.45);
+      sp.position.set(pos.x + Math.cos(a) * d * 0.62, pos.y + Math.sin(a) * d * 0.5, pos.z + 0.25 + this.r() * 0.3);
+      sp.renderOrder = 8;
+      this.scene.add(sp);
+      const ph = this.r() * 6.28, th = 0.05 + this.r() * 0.05;
+      this.updaters.push((dt, t) => {
+        const f = 0.75 + Math.sin(t * 9 + ph) * 0.18 + Math.sin(t * 23 + ph * 2) * 0.07;
+        sp.scale.set(len * f, th, 1);
+        mat.opacity = 0.42 + f * 0.3;
+      });
+    }
+  }
+
+  /** A filled glow pool on the ground (scorch / spell light) — soft disc, no ring edge. */
+  glowPool(x, z, r, color, op = 0.5) {
+    const mat = this.own(new THREE.MeshBasicMaterial({ map: flareTex(), color: new THREE.Color(color).multiplyScalar(1.4), transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, fog: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    const ph = this.r() * 6;
+    return this.decal(x, z, r * 2, r * 1.4, mat, (t, m) => { m.material.opacity = op * (0.82 + Math.sin(t * 2.3 + ph) * 0.18); });
+  }
+
+  /** Chunks of the ground blasted up by a hit, hanging in the air (tumbling slowly). */
+  chunks(pos, n = 8) {
+    const cols = [0x8a7050, 0x6e5a44, 0xa08a6a, 0x5a4a3a];
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI * (0.15 + this.r() * 0.7) * (this.r() < 0.5 ? 1 : -1) + Math.PI / 2;
+      const d = 0.6 + this.r() * 1.6;
+      const s = 0.12 + this.r() * 0.16;
+      this.bits.add('cube', { x: pos.x + Math.cos(a) * d, y: 0.25 + Math.abs(Math.sin(a)) * d * 0.9 + this.r() * 0.6, z: pos.z + (this.r() - 0.3) * 1.1, sx: s, sy: s * (0.7 + this.r() * 0.5), sz: s, color: cols[i % cols.length], vx: Math.cos(a) * 3, vy: 2, drift: 0.8 });
+    }
   }
 
   /** A soft god-ray cone falling onto x (additive vertex-colour gradient, breathing). */
@@ -762,11 +803,8 @@ export class FrozenBattle {
       v.y += 2;
       return v;
     };
-    const ringAt = (r, color) => {
-      const mat = this.own(new THREE.MeshBasicMaterial({ map: ringTex(), color, transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, fog: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-      const m = this.decal(x, 0.1, r * 2, r * 1.5, mat, (t, mm) => { mm.material.opacity = 0.55 + Math.sin(t * 5) * 0.3; const s = 1 + Math.sin(t * 2.5) * 0.04; mm.scale.set(r * 2 * s, 1, r * 1.5 * s); });
-      return m;
-    };
+    // the spell's target lights up the ground (a soft filled pool, no rings)
+    const ringAt = (r, color) => this.glowPool(x, 0.1, r * 0.9, color, 0.45);
     switch (id) {
       case 'moneyDrop': {
         const bag = makeMoneyBag();
@@ -894,41 +932,6 @@ export class FrozenBattle {
     M.im.instanceMatrix.needsUpdate = true;
   }
 
-  /** "Time ripple": a ring rolling out from the focal hit every few seconds (or from a tap). */
-  addRipple() {
-    const geo = this.own(new THREE.RingGeometry(0.93, 1, 56));
-    const mat = this.own(new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 1.7, 2.0), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false }));
-    const ring = new THREE.Mesh(geo, mat);
-    ring.renderOrder = 9;
-    ring.visible = false;
-    this.scene.add(ring);
-    this.ripple = { ring, mat, t: -1, at: new THREE.Vector3() };
-  }
-  /** Start a ripple at a world point (default: the focal hit). */
-  pulse(at) {
-    const R = this.ripple;
-    if (!R) return;
-    R.at.copy(at ?? this.focus ?? _a.set(0, 1, 0));
-    R.t = 0;
-    R.ring.visible = true;
-  }
-  updateRipple(dt) {
-    const R = this.ripple;
-    if (!R) return 0;
-    this.rippleT -= dt;
-    if (this.rippleT <= 0) { this.rippleT = 6.5; this.pulse(); }
-    if (R.t < 0) return 0;
-    R.t += dt;
-    const k = R.t / 1.7;
-    if (k >= 1) { R.t = -1; R.ring.visible = false; return 0; }
-    const e = 1 - Math.pow(1 - k, 3);
-    R.ring.position.copy(R.at);
-    R.ring.quaternion.copy(this.camera.quaternion);
-    R.ring.scale.setScalar(0.3 + e * 11);
-    R.mat.opacity = 0.5 * (1 - k) * smooth(k * 8);
-    return Math.sin(Math.min(1, k * 2.5) * Math.PI);
-  }
-
   // ------------------------------------------------------------------ camera
   baseWidth() {
     const a = this.camera.aspect;
@@ -985,7 +988,94 @@ export class FrozenBattle {
     return engine.rayToZPlane(cx, cy, 0.3, this.camera);
   }
 
+  // ------------------------------------------------------------------ cinematic camera
+  /**
+   * The title sequence's shots, built from where everything was staged. A shot
+   * moves between two keys { look:[x,y,z], yaw, pitch (deg), w (world width in
+   * frame), roll } over `dur` seconds; framing adapts to the screen aspect.
+   */
+  shots() {
+    const I = this.focus ?? new THREE.Vector3(0, 1, 0);
+    const C = this.cast ?? {};
+    const v = (o) => [o.x, o.y, o.z];
+    const cmd = this.cmds?.[0]?.root.position ?? new THREE.Vector3(-LAB_X, 3, 0);
+    const lp = C.leap?.root.position ?? I;
+    const lh = C.leap?.height ?? 1;
+    const rb = this.bases[1]?.root.position ?? new THREE.Vector3(LAB_X, 0, 0);
+    const rbh = Math.min(5, this.bases[1]?.height ?? 3);
+    const name = (id) => SWARMS[id]?.name?.toUpperCase?.() ?? '';
+    const ch = (id) => (CHARACTERS[id]?.name ?? '').toUpperCase();
+    return [
+      // 0: the reveal — tight and low on the clash, pulling up and back to the whole fight
+      { id: 'reveal', dur: 9, from: { look: [I.x + 0.1, I.y + 0.05, I.z], yaw: -20, pitch: 2, w: 7, roll: 2 }, to: { look: [I.x - 0.8, 1.6, 0], yaw: -6, pitch: 9, w: 15, roll: 0 } },
+      // 1: push in on your Commander crackling with MEGA charge
+      { id: 'cmd', dur: 7, from: { look: [cmd.x + 0.2, cmd.y + 0.9, cmd.z], yaw: 30, pitch: 3, w: 4.6, roll: -1 }, to: { look: [cmd.x, cmd.y + 1.0, cmd.z], yaw: 16, pitch: 7, w: 3.1, roll: 0.5 },
+        cap: { k: 'COMMANDER', n: (state.p?.name || ch(C.cmdChar) || 'YOU').toUpperCase(), ac: '#4fb0ff' } },
+      // 2: truck along your line, Battle Cats style
+      { id: 'line', dur: 8, from: { look: [-8.2, 1.1, 0.3], yaw: -9, pitch: 5, w: 7.5 }, to: { look: [-2.2, 1.1, 0.3], yaw: -14, pitch: 7, w: 7 },
+        cap: { k: 'YOUR SWARM', n: name(C.shoverId), ac: '#4fb0ff' } },
+      // 3: hero low angle on the leaper hanging in the air
+      { id: 'leap', dur: 7, from: { look: [lp.x, lp.y + lh * 0.4, lp.z], yaw: -32, pitch: -6, w: 4.6 + lh * 0.9, roll: -3 }, to: { look: [lp.x + 0.4, lp.y + lh * 0.45, lp.z], yaw: -14, pitch: 2, w: 5.8 + lh * 0.9, roll: 0 },
+        cap: { k: C.mega ? 'MEGA ULTIMATE' : 'POUNCE', n: name(C.leapId), ac: C.mega ? '#ff4fa3' : '#ffd23f' } },
+      // 4: the battered rival base, smoke and fire frozen mid-billow
+      { id: 'rival', dur: 7, from: { look: [rb.x - 1.6, rbh * 0.55, 0.2], yaw: 18, pitch: 5, w: 9.5 }, to: { look: [rb.x - 1.2, rbh * 0.6, 0.2], yaw: 31, pitch: 9, w: 7.2, roll: -0.8 },
+        cap: { k: 'THE RIVAL', n: C.rivalChar === 'recruit' ? 'RIVAL RECRUIT' : ch(C.rivalChar), ac: '#ff3d55' } },
+      // 5: wide crane over the whole lane
+      { id: 'wide', dur: 8, from: { look: [-1, 1.2, 0], yaw: -5, pitch: 6, w: 21 }, to: { look: [0.6, 1.7, 0], yaw: 5, pitch: 12, w: 18 },
+        cap: { k: this.A.legendary ? 'LEGENDARY ARENA' : `ARENA ${this.k + 1}`, n: (this.A.name ?? '').toUpperCase(), ac: this.A.color ?? '#ffd23f' } },
+    ].map((sh) => ({ ...sh, focus: v(I) }));
+  }
+  /** Put the camera on a shot (title). null returns to the side-view rig. */
+  setShot(shot) {
+    this.cineShot = shot ? { ...shot, t: 0 } : null;
+  }
+  /** Camera pose for a shot key, framed for the current aspect. */
+  shotPose(k, outPos, outLook) {
+    const cam = this.camera, a = cam.aspect;
+    const vf = (cam.fov * Math.PI) / 180;
+    const hf = 2 * Math.atan(Math.tan(vf / 2) * a);
+    // portrait screens crop the sides instead of shrinking everything to a sliver
+    const w = k.w * (a < 1 ? 0.58 + a * 0.3 : 1);
+    const dist = Math.max(w / 2 / Math.tan(hf / 2), (w * 0.42) / 2 / Math.tan(vf / 2));
+    const yaw = (k.yaw * Math.PI) / 180, pitch = (k.pitch * Math.PI) / 180;
+    // portrait: the logo owns the top of the screen, so the subject sits a little lower
+    outLook.set(k.look[0], k.look[1] + (a < 1 ? w * 0.14 : w * 0.03), k.look[2]);
+    outPos.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(dist).add(outLook);
+    outPos.y = Math.max(0.35, outPos.y);
+  }
+  updateShot(dt) {
+    const S = this.cineShot, cam = this.camera, t = this.t;
+    S.t += dt;
+    const u = clamp(S.t / S.dur, 0, 1);
+    // steady dolly: mostly linear with a soft start / end (no "game camera" snap)
+    const e = u * 0.55 + smooth(u) * 0.45;
+    const A = S.from, B = S.to;
+    const k = {
+      look: [lerp(A.look[0], B.look[0], e), lerp(A.look[1], B.look[1], e), lerp(A.look[2], B.look[2], e)],
+      yaw: lerp(A.yaw, B.yaw, e), pitch: lerp(A.pitch, B.pitch, e), w: lerp(A.w, B.w, e),
+    };
+    this.shotPose(k, _a, _b);
+    // a little handheld breathing on top
+    cam.position.set(_a.x + Math.sin(t * 0.71) * 0.03, _a.y + Math.sin(t * 0.93) * 0.025, _a.z);
+    cam.lookAt(_b.x + Math.sin(t * 0.37) * 0.02, _b.y, _b.z);
+    cam.rotateZ((((A.roll ?? 0) + ((B.roll ?? 0) - (A.roll ?? 0)) * e) * Math.PI) / 180 + Math.sin(t * 0.29) * 0.004);
+    this.camX = _b.x;
+    if (this.sun) {
+      const d = this.lightDir;
+      this.sun.position.set(_b.x + d[0], d[1], d[2]);
+      this.sun.target.position.set(_b.x, 0, 0);
+      const ext = Math.max(8, k.w / 2 + 6);
+      const sc = this.sun.shadow.camera;
+      if (Math.abs(sc.right - ext) > 0.5) {
+        sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext;
+        sc.updateProjectionMatrix();
+      }
+      this.sun.target.updateMatrixWorld();
+    }
+  }
+
   updateCamera(dt) {
+    if (this.cineShot) { this.updateShot(dt); return; }
     const c = this.cam, cam = this.camera, t = this.t;
     c.idle += dt;
     c.zoom = damp(c.zoom, c.tz, 7, dt);
@@ -1052,12 +1142,11 @@ export class FrozenBattle {
     for (const u of this.updaters) u(dt, t);
     this.bits.update(dt, t);
     this.updateMotes(dt, t);
-    const rp = this.updateRipple(dt);
-    // the grade breathes with each ripple
+    // the grade breathes slowly (a held breath in the stopped moment)
     const g = this.liveGrade, G = this.grade;
     if (g) {
-      g.exposure = G.exposure + rp * 0.07 + Math.sin(t * 0.6) * 0.01;
-      g.sat = G.sat - rp * 0.12;
+      g.exposure = G.exposure + Math.sin(t * 0.6) * 0.012 + Math.sin(t * 0.23) * 0.01;
+      g.sat = G.sat + Math.sin(t * 0.31) * 0.03;
     }
     this.updateCamera(dt);
   }

@@ -84,13 +84,18 @@ export function addShafts(K, o = {}) {
     const u = n === 1 ? 0.5 : (i + 0.15 + R() * 0.7) / n;
     all.push({ k: i % kinds, x: (o.x0 ?? -40) + u * ((o.x1 ?? 40) - (o.x0 ?? -40)), z: (o.z0 ?? -12) + R() * ((o.z1 ?? -30) - (o.z0 ?? -12)), s: 0.7 + R() * 0.6, ph: R() * 6.28, sp: 0.15 + R() * 0.2 });
   }
-  const mat = lightMat(o.opacity ?? 1);
+  // smooth soft-edged light volume (gradient texture on a plane), not stepped voxels
+  const mat = new THREE.MeshBasicMaterial({ map: shaftTex(), transparent: true, opacity: o.opacity ?? 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
+  mat.color.setHex(o.color ?? 0xfff0c8).multiplyScalar((o.gain ?? 2.4) * 0.8);
+  mat.userData.base = o.opacity ?? 1;
+  addMats.set('shaft|' + K.id + '|' + (o.id ?? 's'), mat);
   syncLightMats(K);
   const sets = [];
   for (let k = 0; k < kinds; k++) {
     const list = all.filter((s) => s.k === k);
     if (!list.length) continue;
-    const geo = greedyGeometry('atm_shaft_' + K.id + '_' + (o.id ?? 's') + k, () => shaftGrid(W + k, L - k * 3, o.color ?? 0xfff0c8, (o.seed ?? 3) * 11 + k, o), { scale: vox, pivot: [(W + k) / 2, L - k * 3, 0.5], jitter: 0, shadeSides: false });
+    const geo = new THREE.PlaneGeometry((W + k) * vox, (L - k * 3) * vox);
+    geo.translate(0, -((L - k * 3) * vox) / 2, 0);
     const im = new THREE.InstancedMesh(geo, mat, list.length);
     im.name = 'shafts';
     im.renderOrder = 3;
@@ -113,6 +118,27 @@ export function addShafts(K, o = {}) {
   place(0);
   if (br > 0) K.onUpdate((dt, t) => place(t));
   return sets.map((s) => s[0]);
+}
+
+/** Soft light-shaft alpha texture: fade-in at the top, long fade toward the ground, feathered sides, faint streaks. */
+function shaftTex() {
+  return canvasTex('atm_shaft_soft', 48, 160, (ctx, w, h) => {
+    const img = ctx.createImageData(w, h), d = img.data;
+    for (let y = 0; y < h; y++) {
+      const t = y / (h - 1); // 0 top .. 1 bottom
+      const v = Math.min(1, t / 0.16) * Math.pow(1 - t, 1.25);
+      for (let x = 0; x < w; x++) {
+        const u = Math.abs(x / (w - 1) - 0.5) * 2;
+        const side = 1 - Math.pow(u, 2.2);
+        const streak = 0.82 + 0.18 * Math.sin(x * 0.9 + Math.sin(y * 0.05) * 2);
+        const a = clamp(v * side * streak, 0, 1);
+        const i = (y * w + x) * 4;
+        d[i] = d[i + 1] = d[i + 2] = Math.round(255 * a);
+        d[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }, { hd: 1, mip: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -199,15 +225,14 @@ function mistTex(seed, o = {}) {
       for (let y = 0; y < h; y++) {
         if (y < top) continue;
         const t = (y - top) / Math.max(1, h - top);
-        let a = Math.min(1, t * 3.2) * (1 - Math.max(0, (t - 0.7) / 0.3) * (o.solid ? 0 : 0.85));
-        a = Math.floor(a * 4 + bayer(x, y) * 0.99) / 4;
+        const a = Math.min(1, t * 3.2) * (1 - Math.max(0, (t - 0.7) / 0.3) * (o.solid ? 0 : 0.85));
         const i = (y * w + x) * 4;
         d[i] = d[i + 1] = d[i + 2] = 255;
         d[i + 3] = Math.round(a * 255);
       }
     }
     ctx.putImageData(img, 0, 0);
-  }, { repeatX: true, mip: false });
+  }, { repeatX: true, mip: false, hd: 1 });
 }
 /**
  * o: { id, layers: [{ z, y, h, w, x, alpha, speed, seed, color, rep }], color }

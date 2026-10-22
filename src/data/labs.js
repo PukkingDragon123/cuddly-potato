@@ -33,7 +33,7 @@ export const POWER = ENERGY;
 // In-battle BASE UPGRADES: every battle starts in a tent. `cost` is the POWER
 // needed to upgrade FROM that tier to the next one.
 export const BASE_UPGRADES = [
-  { tier: 1, name: 'Camp Tent', regen: 1.0, max: 12, hp: 1.0, dmg: 0.55, range: 5.4, cost: 5 },
+  { tier: 1, name: 'Camp Lab', regen: 1.0, max: 12, hp: 1.0, dmg: 0.55, range: 5.4, cost: 5 },
   { tier: 2, name: 'Lab Shack', regen: 1.15, max: 15, hp: 1.12, dmg: 0.75, range: 5.8, cost: 7 },
   { tier: 3, name: 'Trailer Lab', regen: 1.3, max: 18, hp: 1.26, dmg: 0.95, range: 6.1, cost: 9 },
   { tier: 4, name: 'Field Lab', regen: 1.45, max: 22, hp: 1.42, dmg: 1.15, range: 6.4, cost: 11 },

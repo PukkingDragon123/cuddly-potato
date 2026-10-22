@@ -10,7 +10,9 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
+    "@fontsource-variable/handjet": "5.3.1",
     "@fontsource/jersey-10": "^5.3.0",
+    "@fontsource/jersey-25": "5.3.0",
     "@fontsource/pixelify-sans": "5.3.0",
     "@fontsource/press-start-2p": "5.3.0",
     "three": "0.183.2"

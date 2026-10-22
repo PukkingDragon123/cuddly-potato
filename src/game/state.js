@@ -5,7 +5,8 @@ import { SWARMS, VARIANTS, MAX_LEVEL } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
 import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_CARDS, UPGRADE, UPGRADE_XP, lineupSlots } from '../data/cards.js';
 import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS, rollPerk, PERK_ROLL_COST, perkSlotsForLevel } from '../data/commanders.js';
-import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId } from '../data/vials.js';
+import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId, upgradedVial, maxVialUpgrades, vialTier } from '../data/vials.js';
+import { ENTRANCES, DEFAULT_ENTRANCE } from '../data/entrances.js';
 import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
 import {
   ARENAS, arenaById, currentArena, cardPool, trophyFloor, TROPHY_ROAD, QUESTS, QUEST_CHAINS, SECRETS, BOSSES,
@@ -38,7 +39,7 @@ function defaultProfile() {
     commanders: { owned: { recruit: { level: 1, xp: 0, perks: [null, null, null], skin: null } }, equipped: 'recruit' },
     megaUnlocked: {},
     megas: { owned: {}, equipped: null },
-    vials: { slots: Array(VIAL_SLOTS).fill(null), storage: [], cycle: 0, freeNext: 0, freeStock: 1, crowns: 0, crownDay: '', crownClaimed: false },
+    vials: { slots: Array(VIAL_SLOTS).fill(null), storage: [], cycle: 0, freeNext: 0, freeStock: 1, crowns: 0, crownDay: '', crownClaimed: false, opening: null },
     shop: { day: '', bought: {}, freeClaimed: false },
     pass: { premium: false, free: {}, premium_: {} },
     challenges: { day: '', ids: [], base: {}, claimed: {} },
@@ -47,7 +48,7 @@ function defaultProfile() {
     arenaSeen: 0,
     bosses: {},
     secrets: {},
-    cosmetics: { banners: ['default'], banner: 'default', labSkins: ['default'], labSkin: 'default', swarmSkins: {}, cmdSkins: {} },
+    cosmetics: { banners: ['default'], banner: 'default', labSkins: ['default'], labSkin: 'default', swarmSkins: {}, cmdSkins: {}, entrances: [DEFAULT_ENTRANCE], entrance: DEFAULT_ENTRANCE },
     stats: {
       wins: 0, losses: 0, draws: 0, battles: 0, deployed: 0, vialsOpened: 0, signatures: 0, deployFood: 0, martBattles: 0, cartsSmashed: 0,
       crowns: 0, threeCrowns: 0, cardsFound: 0, winStreak: 0, bestStreak: 0,
@@ -69,6 +70,7 @@ export const state = {
         const data = migrate(JSON.parse(raw));
         this.p = deepMerge(defaultProfile(), data);
         sanitize(this.p);
+        recoverOpening(this.p);
       }
     } catch (e) {
       console.warn('Save load failed', e);
@@ -151,6 +153,12 @@ function sanitize(p) {
   p.deckIdx = Math.max(0, Math.min(DECK_PRESETS - 1, p.deckIdx | 0));
   p.vials.slots = p.vials.slots.map((s) => (s && VIALS[vialId(s.type)] ? { ...s, type: vialId(s.type) } : null));
   p.vials.storage = p.vials.storage.map(vialId);
+  // entrance animations (NEW CARD cutscene cosmetics)
+  const cz = p.cosmetics;
+  if (!Array.isArray(cz.entrances)) cz.entrances = [DEFAULT_ENTRANCE];
+  cz.entrances = cz.entrances.filter((id, i) => ENTRANCES[id] && cz.entrances.indexOf(id) === i);
+  if (!cz.entrances.includes(DEFAULT_ENTRANCE)) cz.entrances.unshift(DEFAULT_ENTRANCE);
+  if (!cz.entrances.includes(cz.entrance)) cz.entrance = DEFAULT_ENTRANCE;
   if (p.tutorial === 'done' || p.tutorial === 'home') {
     for (const id of STARTER_CARDS) if (!p.cards[id]) p.cards[id] = newCard();
   }
@@ -163,6 +171,22 @@ function sanitize(p) {
 }
 
 const P = () => state.p;
+
+/** A vial whose opening was interrupted (tab closed mid-shake): its rolled contents are applied on the next load. */
+function recoverOpening(p) {
+  const o = p.vials?.opening;
+  if (!o) return;
+  p.vials.opening = null;
+  try {
+    if (o.result && !o.result._applied) applyVial(o.result);
+  } catch (e) { console.warn('vial recovery failed', e); }
+  state.save();
+}
+/** Remember the vial being opened right now (cleared when its rewards are applied). */
+export function setOpeningVial(o) {
+  P().vials.opening = o ?? null;
+  state.save();
+}
 
 // ---------------------------------------------------------------------------
 // Currencies
@@ -543,12 +567,14 @@ const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 /** Roll vial contents (does NOT apply). Card stacks are ordered like Clash Royale: commons first, best last. */
 export function rollVial(type, opts = {}) {
   type = vialId(type);
-  const vial = VIALS[type];
+  // opts.upgrade: shake upgrades won while opening (more cards + the higher tier's guarantee)
+  const upgrade = Math.min(opts.upgrade | 0, maxVialUpgrades(VIALS[type]));
+  const vial = upgradedVial(VIALS[type], upgrade);
   const p = P();
   const rng = opts.rng ?? Math.random;
   const arenaIdx = currentArena(p.bestTrophies).index;
   const coins = Math.round(randInt(vial.coins[0], vial.coins[1]) * (1 + arenaIdx * 0.25));
-  const result = { type, coins, bucks: vial.bucks ?? 0, cards: [] };
+  const result = { type, coins, bucks: vial.bucks ?? 0, cards: [], upgrade, tier: vialTier(VIALS[type], upgrade) };
   if (opts.fixed) return { ...result, ...opts.fixed };
   if (!vial.cards) return result;
   const N = Math.round(vial.cards * (1 + arenaIdx * 0.2));
@@ -655,11 +681,41 @@ export function grantReward(r) {
     case 'cmdSkin': p.cosmetics.cmdSkins[r.id] = true; push({ icon: 'crown', label: 'Commander Outfit', kind: 'cmdSkin', id: r.id }); break;
     case 'banner': if (!p.cosmetics.banners.includes(r.id)) p.cosmetics.banners.push(r.id); push({ icon: 'flag', label: `Banner: ${BANNERS[r.id]?.name ?? r.id}`, kind: 'banner', id: r.id }); break;
     case 'serum': unlockMega(r.id); push({ icon: 'mega', label: `Mega Serum: ${SWARMS[r.id].name}`, kind: 'serum', id: r.id }); break;
+    case 'entrance': {
+      const e = ENTRANCES[r.id];
+      if (!e) break;
+      if (ownsEntrance(r.id)) { p.coins += 500; push({ icon: 'coin', label: `${e.name} (owned): 500 Beast Coins`, kind: 'coins', amount: 500 }); break; }
+      grantEntrance(r.id);
+      push({ icon: e.icon ?? 'star', label: `Entrance: ${e.name}`, kind: 'entrance', id: r.id });
+      break;
+    }
     default: break;
   }
   state.emit('reward');
   return out;
 }
+// ---------------------------------------------------------------------------
+// Entrance animations (NEW CARD cutscene cosmetics)
+
+export function ownsEntrance(id) { return !!ENTRANCES[id] && (ENTRANCES[id].free || P().cosmetics.entrances.includes(id)); }
+export function grantEntrance(id) {
+  if (!ENTRANCES[id]) return false;
+  const c = P().cosmetics;
+  if (!c.entrances.includes(id)) c.entrances.push(id);
+  state.emit('cosmetics');
+  return true;
+}
+export function equipEntrance(id) {
+  if (!ownsEntrance(id)) return false;
+  P().cosmetics.entrance = id;
+  state.emit('cosmetics');
+  return true;
+}
+export function equippedEntrance() {
+  const id = P().cosmetics.entrance;
+  return ownsEntrance(id) ? id : DEFAULT_ENTRANCE;
+}
+
 export function grantBundle(b) {
   const out = [];
   if (!b) return out;

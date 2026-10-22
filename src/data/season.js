@@ -19,7 +19,8 @@ export function seasonEndMs(now = Date.now()) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
 }
 
-// reward types: coins, bucks, vial, swarm, spell, commander, skin (swarm skin), labSkin, cmdSkin, banner, serum (mega form unlock)
+// reward types: coins, bucks, vial, swarm, spell, commander, skin (swarm skin), labSkin, cmdSkin, banner, serum (mega form unlock),
+//               entrance (NEW CARD cutscene entrance animation, see data/entrances.js)
 export const PASS_TIERS = [
   { free: { type: 'coins', amount: 200 }, premium: { type: 'vial', id: 'snackPack' } },
   { free: { type: 'card', id: 'fryFiend' }, premium: { type: 'bucks', amount: 30 } },
@@ -34,11 +35,11 @@ export const PASS_TIERS = [
   { free: { type: 'coins', amount: 500 }, premium: { type: 'skin', id: 'ketchupClog', swarm: 'cloggedToilet' } },
   { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'bucks', amount: 60 } },
   { free: { type: 'card', id: 'burgerBrute' }, premium: { type: 'banner', id: 'animDrip' } },
-  { free: { type: 'coins', amount: 600 }, premium: { type: 'card', id: 'chocoChomper' } },
+  { free: { type: 'entrance', id: 'heroLanding' }, premium: { type: 'card', id: 'chocoChomper' } },
   { free: { type: 'serum', id: 'feastablesPanther' }, premium: { type: 'cmdSkin', id: 'juanGold', commander: 'juan' } },
   { free: { type: 'vial', id: 'testTube' }, premium: { type: 'vial', id: 'hyperchrome' } },
   { free: { type: 'card', id: 'sodaSurge' }, premium: { type: 'skin', id: 'cartCan', swarm: 'trashedCan' } },
-  { free: { type: 'bucks', amount: 40 }, premium: { type: 'coins', amount: 1500 } },
+  { free: { type: 'bucks', amount: 40 }, premium: { type: 'entrance', id: 'rocketDrop' } },
   { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'card', id: 'melonMauler' } },
   { free: { type: 'card', id: 'chocoChomper' }, premium: { type: 'labSkin', id: 'chocoLab' } },
   { free: { type: 'coins', amount: 900 }, premium: { type: 'banner', id: 'animFeast' } },
@@ -49,7 +50,7 @@ export const PASS_TIERS = [
   // ---- tiers 26-50: the second half of the season (new Swarms, outfits, the Mansion Lab, a Golden MEGA)
   { free: { type: 'coins', amount: 1000 }, premium: { type: 'card', id: 'pumpkinBrute', copies: 2, alt: { type: 'card', id: 'burgerBrute', copies: 6 } } },
   { free: { type: 'card', id: 'donutDasher', copies: 8 }, premium: { type: 'banner', id: 'sprinkleParty' } },
-  { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'coins', amount: 2000 } },
+  { free: { type: 'vial', id: 'snackPack' }, premium: { type: 'entrance', id: 'glitchTeleport' } },
   { free: { type: 'bucks', amount: 40 }, premium: { type: 'card', id: 'jellyZapper', copies: 4, alt: { type: 'card', id: 'atomicSlime', copies: 10 } } },
   { free: { type: 'vial', id: 'megaLab' }, premium: { type: 'cmdSkin', id: 'nolanFryCook', commander: 'nolan' } },
   { free: { type: 'coins', amount: 1400 }, premium: { type: 'card', id: 'emberImps', copies: 4, alt: { type: 'card', id: 'emberWolf', copies: 6 } } },

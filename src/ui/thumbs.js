@@ -367,7 +367,7 @@ const baseUrls = new Map();
 let baseModP = null;
 const loadBaseMod = () => (baseModP ??= import('../models/props/base.js'));
 /**
- * Turntable frames (data URLs) of a battle base tier (1 = Camp Tent ... 6 = Mega HQ).
+ * Turntable frames (data URLs) of a battle base tier (1 = Camp Lab ... 6 = Mega HQ).
  * o: { side, style, size, frames }. Cached; resolves with an array (frame 0 = the 3/4 hero angle).
  */
 export async function baseSpin(tier, o = {}) {

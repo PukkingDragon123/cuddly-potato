@@ -10,6 +10,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, paintStars, px, disc, skyTexture, parallaxWidth, canvasTex,
 } from './kit.js';
+import { hdStarfield, hdMoon, hdStreaks, hdBirds } from './hdpaint.js';
 import { pixels, ridge, setInst, liveInst, fitSky, addFlyers, orbitList, addParticles, addFlames, zoneDisc, anchor } from './wildsKit.js';
 
 const C = {
@@ -319,6 +320,14 @@ const boltGrid = () => {
 // --------------------------------------------------------------------------- painted backdrops
 
 function paintMoonSky(ctx, w, h) {
+  if (ctx._hd) {
+    hdStarfield(ctx, w, h, { n: 90, ymax: h * 0.5, seed: 17, tint: 0xd8c8ff });
+    const mx = w * 0.7, my = h * 0.26, r = 16;
+    hdMoon(ctx, mx, my, r, { color: C.moon, dark: 0xb8aac8, phase: 0.5, halo: 0xe8d8ff, haloA: 0.45, seed: 4 });
+    hdStreaks(ctx, w, { n: 5, y0: my - 8, y1: my + 14, len: [30, 70], color: 0x4a3a6a, shade: 0x2a1e48, seed: 6, alpha: 0.85 });
+    hdBirds(ctx, [[mx - 6, my - 3, 1], [mx + 5, my + 4, 1], [mx - 1, my + 8, 0]], 0x120c1a, 1);
+    return;
+  }
   paintStars(ctx, w, h, { n: 70, ymax: h * 0.5, seed: 17, tint: 0xd8c8ff });
   const mx = w * 0.7, my = h * 0.26, r = 16;
   for (let k = 4; k >= 1; k--) { ctx.globalAlpha = 0.07 * k; disc(ctx, mx, my, r + k * 5, 0xe8d8ff); }

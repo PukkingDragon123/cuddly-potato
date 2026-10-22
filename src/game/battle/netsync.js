@@ -1,6 +1,15 @@
-// Friend-battle networking: the HOST runs the authoritative BattleSim and
-// streams snapshots + events; the GUEST runs a RemoteSim replica (mirrored so
-// the guest's own Lab is on the left) that the normal view & HUD can read.
+// Friend / online battle networking: the HOST runs the authoritative BattleSim
+// and streams snapshots + events; the GUEST runs a RemoteSim replica (mirrored
+// so the guest's own Lab is on the left) that the normal view & HUD can read.
+//
+// Two transports share this code:
+//  * WebRTC (src/net/p2p.js): one ordered channel, every tick carries a full
+//    snapshot plus all events since the last tick.
+//  * the claude.ai room (src/net/roomNet.js RoomLink, `peer.sendState`): the
+//    snapshot is latest-wins state (presence), events that change what exists
+//    (spawns, deaths, the card cycle, spells, the end...) go on the RELIABLE
+//    ordered stream, and purely cosmetic events (hits, shots, attacks) go on
+//    the lossy fast path. Every payload stays well under the 4 KiB limit.
 import { SWARMS, swarmStats } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
 import { COMMANDERS } from '../../data/commanders.js';
@@ -11,29 +20,60 @@ import { LAB_X, LAB_HALF, DECK_MAX } from './sim.js';
 
 const STATES = ['walk', 'attack', 'kb', 'stun', 'frozen', 'spawn'];
 const SEND_HZ = 15;
+const ROOM_HZ = 12;
+/** Cosmetic events: safe to lose (the snapshot carries the state they hint at). */
+const COSMETIC = new Set(['hit', 'attack', 'shoot', 'towerShoot', 'projHit', 'towerHit', 'shieldHit', 'heal', 'kb', 'areaFx', 'areaHit', 'chain', 'moverHit', 'healBurst', 'impact', 'shield', 'shieldBreak', 'energyGain', 'explode', 'ambush', 'bossSlam', 'grow', 'shrink', 'landed']);
+const r2 = (v) => Math.round(v * 100) / 100;
 
-const unitFull = (u) => ({
-  i: u.id, s: u.side, ty: u.type, cd: u.card, m: u.model ?? null, sk: u.skin ?? null, v: u.variant, x: +u.x.toFixed(3), y: +u.y.toFixed(3), z: +u.z.toFixed(3),
-  hp: Math.round(u.hp), mh: Math.round(u.maxHp), sz: u.size, b: u.boss ? 1 : 0, mg: u.mega ? 1 : 0, c: u.cost, lv: u.st.level, gs: u.buffs.growScale ?? 1, st: u.state, sp: u.spawnT ?? 0,
-});
+const unitFull = (u, t) => {
+  const o = {
+    i: u.id, s: u.side, ty: u.type, cd: u.card, x: r2(u.x), y: r2(u.y), z: r2(u.z),
+    hp: Math.round(u.hp), mh: Math.round(u.maxHp), sz: r2(u.size), c: u.cost, lv: u.st.level, st: u.state, sp: r2(u.spawnT ?? 0),
+  };
+  // defaults are left out (RemoteSim.toUnit fills them back in)
+  if (u.model) o.m = u.model;
+  if (u.skin) o.sk = u.skin;
+  if (u.variant && u.variant !== 'base') o.v = u.variant;
+  if (u.boss) o.b = 1;
+  if (u.mega) o.mg = 1;
+  if ((u.buffs.growScale ?? 1) !== 1) o.gs = r2(u.buffs.growScale);
+  if (t !== undefined) o.ts = r2(t);
+  return o;
+};
 const bref = (b) => ({ bk: b.kind, bs: b.side });
 
-function serEvent(e) {
+function serEvent(e, t) {
   const o = { type: e.type };
   for (const k in e) {
     if (k === 'type' || k === 't') continue;
     const v = e[k];
-    if (k === 'unit') o.unit = e.type === 'spawn' ? unitFull(v) : { i: v.id, x: v.x, size: v.size, side: v.side, type: v.type };
-    else if (k === 'src') o.src = v ? (v.building ? bref(v) : v.id ? { i: v.id, size: v.size, side: v.side } : null) : null;
+    if (v === undefined) continue;
+    if (k === 'unit') o.unit = e.type === 'spawn' ? unitFull(v, t) : { i: v.id, x: r2(v.x), size: r2(v.size), side: v.side, type: v.type };
+    else if (k === 'src') o.src = v ? (v.building ? bref(v) : v.id ? { i: v.id, size: r2(v.size), side: v.side } : null) : null;
     else if (k === 'proj') {
       o.proj = {
-        i: v.id, kind: v.kind, x0: v.x0, tx: v.tx, flight: v.flight, h: v.height, s: v.side,
+        i: v.id, kind: v.kind, x0: r2(v.x0), tx: r2(v.tx), flight: r2(v.flight), h: r2(v.height ?? 0), s: v.side,
         src: v.src?.building ? bref(v.src) : v.src?.id, tgt: v.target?.building ? bref(v.target) : v.target?.id, tw: v.tower ? 1 : 0,
       };
-    } else if (k === 'mover') o.mover = { i: v.id, kind: v.kind, side: v.side, x: v.x, speed: v.speed };
+    } else if (k === 'mover') o.mover = { i: v.id, kind: v.kind, side: v.side, x: r2(v.x), speed: v.speed };
+    else if (typeof v === 'number') o[k] = r2(v);
     else o[k] = v;
   }
   return o;
+}
+
+/** Split events into messages of at most ~`max` JSON bytes each. */
+function chunkEvents(evs, max) {
+  const out = [];
+  let cur = [], size = 0;
+  for (const e of evs) {
+    const n = JSON.stringify(e).length + 1;
+    if (cur.length && size + n > max) { out.push(cur); cur = []; size = 0; }
+    cur.push(e);
+    size += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 /** Host side: forwards the sim's events and periodic state to the guest. */
@@ -41,12 +81,14 @@ export class HostSync {
   constructor(sim, peer) {
     this.sim = sim;
     this.peer = peer;
+    this.room = typeof peer.sendState === 'function';
     this.acc = 0;
     this.pending = [];
+    this.stats = { maxState: 0, maxRel: 0, maxFx: 0, fxDropped: 0, ticks: 0 };
     const orig = sim.drainEvents.bind(sim);
     sim.drainEvents = () => {
       const evs = orig();
-      for (const e of evs) this.pending.push(serEvent(e));
+      for (const e of evs) this.pending.push(serEvent(e, sim.t));
       return evs;
     };
     this.offMsg = peer.on((msg) => this.onMsg(msg));
@@ -54,13 +96,15 @@ export class HostSync {
   onMsg(msg) {
     const sim = this.sim;
     if (msg.t !== 'in' || sim.over) return;
+    const x = typeof msg.x === 'number' && Number.isFinite(msg.x) ? -msg.x : null;
+    const slot = msg.slot | 0;
     switch (msg.a) {
-      case 'play': sim.play(1, msg.slot, msg.x === null ? null : -msg.x); break;
+      case 'play': if (slot >= 0 && slot < 8) sim.play(1, slot, x); break;
       case 'sig': sim.useSignature(1); break;
       case 'mega': sim.useMega(1); break;
-      case 'skill': sim.useSkill(1, msg.k); break;
+      case 'skill': sim.useSkill(1, msg.k | 0); break;
       case 'lab': sim.upgradeLab(1); break;
-      case 'emote': this.peerEmote && this.peerEmote(msg.e); break;
+      case 'emote': this.peerEmote && this.peerEmote(msg.e | 0); break;
       case 'surrender': sim.end(0, { reason: 'surrender' }); break;
       default: break;
     }
@@ -68,25 +112,66 @@ export class HostSync {
   snapshot() {
     const sim = this.sim;
     const tw = (b) => [Math.round(b.hp), b.maxHp, b.alive ? 1 : 0, b.active ? 1 : 0, Math.round(b.shield)];
-    return {
+    // room mode: only the temp cards (Copy Cat...) the hand / NEXT point at travel, as [deckIndex, ...card]
+    const cards = (s) => {
+      if (!this.room) return s.deck.slice(s.baseLen).map((c) => [c.id, c.unit, c.level, c.variant ?? 'base', c.skin ?? null]);
+      const out = [];
+      for (const k of [...s.hand, s.queue[0] ?? -1]) {
+        const c = k >= s.baseLen ? s.deck[k] : null;
+        if (c) out.push([k, c.id, c.unit, c.level, c.variant ?? 'base', c.skin ?? null]);
+      }
+      return out;
+    };
+    const snap = {
       t: 's', time: +sim.t.toFixed(2), tl: sim.timeLimit, ot: sim.overtime ? 1 : 0, de: sim.doubleEnergy ? 1 : 0, p: sim.paused ? 1 : 0,
-      sides: sim.sides.map((s) => [+s.energy.toFixed(2), s.overclock, +s.sig.toFixed(3), s.hand, [s.hand.map((_, k) => sim.cardCost(s.i, k)), s.queue[0] ?? -1, s.deck.slice(s.baseLen).map((c) => [c.id, c.unit, c.level, c.variant ?? 'base', c.skin ?? null])], s.skillCds.map((c) => +c.toFixed(2)),
-        [+s.buffs.rally.toFixed(2), +s.buffs.dance.toFixed(2), +s.buffs.immortal.toFixed(2)], null, tw(s.lab),
+      sides: sim.sides.map((s) => [+s.energy.toFixed(2), s.overclock, +s.sig.toFixed(3), s.hand, [s.hand.map((_, k) => sim.cardCost(s.i, k)), s.queue[0] ?? -1, cards(s)], s.skillCds.map((c) => +c.toFixed(1)),
+        [+s.buffs.rally.toFixed(1), +s.buffs.dance.toFixed(1), +s.buffs.immortal.toFixed(1)], null, tw(s.lab),
         s.mega ? [+s.mega.charge.toFixed(3), s.mega.used ? 1 : 0] : null]),
       cin: +(sim.cinematic ?? 0).toFixed(2),
-      u: sim.units.filter((u) => !u.dead).map((u) => [u.id, +u.x.toFixed(3), +u.y.toFixed(3), Math.round(u.hp), Math.round(u.maxHp), Math.max(0, STATES.indexOf(u.state)), u.buffs.growScale ?? 1,
-        (u.buffs.burnT > 0 ? 1 : 0) | (u.buffs.slowT > 0 && u.buffs.slow > 0 ? 2 : 0)]),
-      mv: sim.movers.map((m) => [m.id, +m.x.toFixed(3)]),
+      mv: sim.movers.map((m) => [m.id, r2(m.x)]),
     };
+    const live = sim.units.filter((u) => !u.dead);
+    const flags = (u) => (u.buffs.burnT > 0 ? 1 : 0) | (u.buffs.slowT > 0 && u.buffs.slow > 0 ? 2 : 0);
+    if (this.room) {
+      // one flat array, 7 numbers per unit: id, x*100, y*100, hp, maxHp, state*4+flags, grow*100
+      const f = [];
+      for (const u of live) f.push(u.id, Math.round(u.x * 100), Math.round(u.y * 100), Math.round(u.hp), Math.round(u.maxHp), Math.max(0, STATES.indexOf(u.state)) * 4 + flags(u), Math.round((u.buffs.growScale ?? 1) * 100));
+      snap.uf = f;
+    } else {
+      snap.u = live.map((u) => [u.id, +u.x.toFixed(3), +u.y.toFixed(3), Math.round(u.hp), Math.round(u.maxHp), Math.max(0, STATES.indexOf(u.state)), u.buffs.growScale ?? 1, flags(u)]);
+    }
+    return snap;
   }
   update(dt) {
     this.acc += dt;
-    if (this.acc < 1 / SEND_HZ && !this.sim.over) return;
+    if (this.acc < 1 / (this.room ? ROOM_HZ : SEND_HZ) && !this.sim.over) return;
     this.acc = 0;
     const snap = this.snapshot();
-    snap.e = this.pending;
+    if (!this.room) {
+      snap.e = this.pending;
+      this.pending = [];
+      this.peer.send(snap);
+      return;
+    }
+    // room: reliable events first (in order), then cosmetic, then the latest state
+    const crit = [], fx = [];
+    for (const e of this.pending) (COSMETIC.has(e.type) ? fx : crit).push(e);
     this.pending = [];
-    this.peer.send(snap);
+    for (const batch of chunkEvents(crit, 900)) {
+      this.peer.send({ t: 'e', e: batch });
+      this.stats.maxRel = Math.max(this.stats.maxRel, JSON.stringify(batch).length);
+    }
+    if (fx.length) {
+      // lossy fast path: keep it to one emit per tick, drop the overflow (projectiles first in line)
+      fx.sort((a, b) => (a.proj ? 0 : 1) - (b.proj ? 0 : 1));
+      const keep = chunkEvents(fx, 3000);
+      for (let i = 1; i < keep.length; i++) this.stats.fxDropped += keep[i].length;
+      this.peer.sendFx({ t: 'x', e: keep[0] });
+      this.stats.maxFx = Math.max(this.stats.maxFx, JSON.stringify(keep[0]).length);
+    }
+    this.peer.sendState(snap);
+    this.stats.maxState = Math.max(this.stats.maxState, JSON.stringify(snap).length);
+    this.stats.ticks++;
   }
   dispose() {
     this.offMsg && this.offMsg();
@@ -145,23 +230,47 @@ export class RemoteSim {
   }
 
   onMsg(msg) {
+    // room transport: reliable events ('e') and cosmetic events ('x') arrive apart from the state
+    if (msg.t === 'e' || msg.t === 'x') {
+      if (Array.isArray(msg.e)) for (const e of msg.e) this.applySafe(e, msg.t === 'x');
+      return;
+    }
     if (msg.t !== 's') return;
-    for (const e of msg.e || []) this.applyEvent(e);
+    for (const e of msg.e || []) this.applySafe(e, false);
+    if (typeof msg.time !== 'number' || !Array.isArray(msg.sides)) return;
+    // latest-wins state can arrive out of order on a lossy path: keep the newest
+    if (msg.time < this.t - 0.001 && !msg.e) return;
     this.t = msg.time;
     this.timeLimit = msg.tl;
     this.overtime = !!msg.ot;
     this.doubleEnergy = !!msg.de;
     this.paused = !!msg.p;
     this.cinematic = msg.cin ?? 0;
+    const room = Array.isArray(msg.uf);
     msg.sides.forEach((arr, hs) => {
       const s = this.sides[mSide(hs)];
-      let cyc;
-      [s.energy, s.overclock, s.sig, s.hand, cyc, s.skillCds] = arr;
-      s.costs = cyc[0];
-      s.queue = cyc[1] >= 0 ? [cyc[1]] : [];
-      while (s.deck.length - s.baseLen < cyc[2].length) {
-        const [id, unit, level, variant, skin] = cyc[2][s.deck.length - s.baseLen];
-        s.deck.push({ id, unit, level, variant, skin, spell: !!SPELLS[unit], special: !!SPELLS[unit]?.special, temp: true });
+      if (!s || !Array.isArray(arr)) return;
+      const [energy, overclock, sig, hand, cyc, skillCds] = arr;
+      s.energy = energy;
+      s.overclock = overclock;
+      s.sig = sig;
+      s.skillCds = skillCds;
+      if (room) {
+        // temp cards come as [deckIndex, id, unit, level, variant, skin]
+        for (const [k, id, unit, level, variant, skin] of cyc[2]) {
+          if (!s.deck[k] || s.deck[k].id !== id) s.deck[k] = { id, unit, level, variant, skin, spell: !!SPELLS[unit], special: !!SPELLS[unit]?.special, temp: true };
+        }
+      } else {
+        while (s.deck.length - s.baseLen < cyc[2].length) {
+          const [id, unit, level, variant, skin] = cyc[2][s.deck.length - s.baseLen];
+          s.deck.push({ id, unit, level, variant, skin, spell: !!SPELLS[unit], special: !!SPELLS[unit]?.special, temp: true });
+        }
+      }
+      // never point the hand at a card we have not heard of yet
+      if (Array.isArray(hand) && hand.every((k) => s.deck[k])) {
+        s.hand = hand;
+        s.costs = cyc[0];
+        s.queue = cyc[1] >= 0 && s.deck[cyc[1]] ? [cyc[1]] : [];
       }
       [s.buffs.rally, s.buffs.dance, s.buffs.immortal] = arr[6];
       const b = s.lab, a = arr[8];
@@ -173,25 +282,45 @@ export class RemoteSim {
       if (s.mega && arr[9]) { s.mega.charge = arr[9][0]; s.mega.used = !!arr[9][1]; }
     });
     const alive = new Set();
-    for (const a of msg.u) {
-      const u = this.unitMap.get(a[0]);
-      if (!u) continue;
-      alive.add(a[0]);
-      u.x = mX(a[1]);
-      u.y = a[2];
-      u.hp = a[3];
-      u.maxHp = a[4];
-      u.state = STATES[a[5]] ?? 'walk';
-      u.buffs.growScale = a[6];
-      u.buffs.burnT = a[7] & 1 ? 0.3 : 0;
-      u.buffs.slowT = a[7] & 2 ? 0.3 : 0;
-      u.buffs.slow = a[7] & 2 ? 0.4 : 0;
+    const setU = (id, x, y, hp, mh, st, gs, fl) => {
+      const u = this.unitMap.get(id);
+      if (!u) return;
+      alive.add(id);
+      u.x = mX(x);
+      u.y = y;
+      u.hp = hp;
+      u.maxHp = mh;
+      u.state = STATES[st] ?? 'walk';
+      u.buffs.growScale = gs;
+      u.buffs.burnT = fl & 1 ? 0.3 : 0;
+      u.buffs.slowT = fl & 2 ? 0.3 : 0;
+      u.buffs.slow = fl & 2 ? 0.4 : 0;
+    };
+    if (room) {
+      const f = msg.uf;
+      for (let i = 0; i + 6 < f.length; i += 7) setU(f[i], f[i + 1] / 100, f[i + 2] / 100, f[i + 3], f[i + 4], f[i + 5] >> 2, f[i + 6] / 100, f[i + 5] & 3);
+    } else for (const a of msg.u || []) setU(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+    const now = performance.now();
+    for (const u of this.units) {
+      if (alive.has(u.id) || u.dead) continue;
+      // gone from the host's state: only trust a snapshot taken after the unit was born
+      const stale = u._ts !== undefined ? msg.time > u._ts + 0.25 : now - u._born > 400;
+      if (stale) { u.dead = true; u._deadAt = now; }
     }
-    for (const u of this.units) if (!alive.has(u.id) && !u.dead && performance.now() - u._born > 400) u.dead = true;
-    this.units = this.units.filter((u) => !u.dead || performance.now() - (u._deadAt ?? 0) < 100);
+    this.units = this.units.filter((u) => !u.dead || now - (u._deadAt ?? 0) < 100);
     for (const m of msg.mv || []) {
       const mv = this.moverMap.get(m[0]);
       if (mv) mv.x = mX(m[1]);
+    }
+  }
+
+  /** Apply one event from the network; a malformed one is skipped, never fatal. */
+  applySafe(e, cosmetic) {
+    if (!e || typeof e !== 'object' || typeof e.type !== 'string') return;
+    try {
+      this.applyEvent(e, cosmetic);
+    } catch (err) {
+      if (!this._warned) { this._warned = true; console.warn('net event skipped', e.type, err); }
     }
   }
 
@@ -206,6 +335,7 @@ export class RemoteSim {
       buffs: { growScale: d.gs ?? 1, burnT: 0, slowT: 0, slow: 0 }, radius: 0.3 * d.sz, dead: false, _born: performance.now(),
       flying: !!def.traits?.flying, level: d.lv ?? 1, mega: !!d.mg,
     };
+    if (typeof d.ts === 'number') u._ts = d.ts;
     this.unitMap.set(d.i, u);
     this.units.push(u);
     return u;
@@ -215,7 +345,9 @@ export class RemoteSim {
     return this.unitMap.get(d.i) || { id: d.i, x: mX(d.x ?? 0), size: d.size ?? 1, side: mSide(d.side ?? 0), type: d.type ?? 'panther', st: swarmStats(d.type ?? 'panther', 1), buffs: {}, dead: true, z: 0, y: 0 };
   }
 
-  applyEvent(e) {
+  applyEvent(e, cosmetic = false) {
+    // a cosmetic hint about a unit we no longer track (late, or its death already arrived): skip it
+    if (cosmetic && e.unit && !this.unitMap.has(e.unit.i)) return;
     const ev = { ...e };
     if ('side' in ev && typeof ev.side === 'number') ev.side = mSide(ev.side);
     if ('killerSide' in ev) ev.killerSide = mSide(ev.killerSide);
@@ -271,6 +403,14 @@ export class RemoteSim {
   // ---- interface used by view / HUD / scene
   update(dt) {
     if (this.over) return;
+    if (this.projectiles.some((p) => p.t > p.flight + 1.5)) {
+      // the hit that should have removed it was lost on the lossy path
+      this.projectiles = this.projectiles.filter((p) => {
+        if (p.t <= p.flight + 1.5) return true;
+        this.projMap.delete(p.id);
+        return false;
+      });
+    }
     for (const p of this.projectiles) {
       p.t += dt;
       if (p.target && !p.target.building && !p.target.dead) p.tx = p.target.x;
@@ -412,6 +552,9 @@ export class RemoteSim {
     this.send('emote', { e: id });
   }
   end() {
+    this.send('surrender');
+  }
+  surrender() {
     this.send('surrender');
   }
   dispose() {

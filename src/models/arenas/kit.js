@@ -15,6 +15,7 @@ import { mulberry32, hash3, shade, mixHex, clamp } from '../../core/util.js';
 import { greedyGeometry, buildGreedy } from '../props/greedy.js';
 import { instanced, vgeo, glassMat, glowMat, text, textW, vnoise, PAL, css } from '../props/common.js';
 import { FIELD } from '../../game/battle/field.js';
+import { hdCanvas, hdGradient, hdGrain, hdGlow, hdSun, hdMoon, hdCloud, hdStreaks, hdStarfield, hdAurora, hdBirds, hdRange, hdRidge, hdPixbuf, rgba } from './hdpaint.js';
 
 export { THREE, VoxGrid, Mats, makeMesh, mulberry32, hash3, shade, mixHex, clamp, greedyGeometry, buildGreedy, instanced, vgeo, glassMat, glowMat, text, textW, vnoise, PAL, css, FIELD };
 
@@ -40,6 +41,7 @@ export const rgb = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
  * (classic pixel-art sky). stops: [[t, hex], ...] t in 0..1 (top -> bottom).
  */
 export function paintGradient(ctx, x0, y0, w, h, stops, o = {}) {
+  if (ctx._hd) { ctx._P?.sync(); return hdGradient(ctx, x0, y0, w, h, stops); }
   const bands = o.bands ?? 10;
   const img = ctx.getImageData(x0, y0, w, h);
   const d = img.data;
@@ -66,6 +68,8 @@ export function paintGradient(ctx, x0, y0, w, h, stops, o = {}) {
 
 /** Fill a rect. */
 export function px(ctx, x, y, w, h, hex, a = 1) {
+  // HD canvas: legacy pixel painting goes through the smooth-upscaled pixel buffer
+  if (ctx._hd && ctx.globalCompositeOperation === 'source-over') { hdPixbuf(ctx, ctx._lw, ctx._lh).rect(x, y, w, h, hex, a * ctx.globalAlpha); return; }
   ctx.globalAlpha = a;
   ctx.fillStyle = css(hex);
   ctx.fillRect(x, y, w, h);
@@ -75,6 +79,7 @@ export function px(ctx, x, y, w, h, hex, a = 1) {
 /** Pixel disc. */
 export function disc(ctx, cx, cy, r, hex) {
   ctx.fillStyle = css(hex);
+  if (ctx._hd) { hdPixbuf(ctx, ctx._lw, ctx._lh).disc(cx, cy, r, hex, ctx.globalAlpha); return; }
   for (let y = -r; y <= r; y++) {
     const hw = Math.floor(Math.sqrt(r * r - y * y + r * 0.6));
     ctx.fillRect(Math.round(cx - hw), Math.round(cy + y), hw * 2 + 1, 1);
@@ -95,6 +100,7 @@ export function paintClouds(ctx, w, h, o = {}) {
     const puffs = 4 + Math.floor(R() * 4);
     const pts = [];
     for (let k = 0; k < puffs; k++) pts.push([cx + (k - puffs / 2) * s * 0.8 + (R() - 0.5) * s * 0.5, cy - R() * s * 0.6, s * (0.55 + R() * 0.5)]);
+    if (ctx._hd) { ctx._P?.sync(); hdCloud(ctx, pts, cy + s * 0.55 + 1.5, { color: base, shade: dark, light, dark: shade(dark, -0.1), sunX: -1, alpha: o.alpha ?? 1 }); continue; }
     for (const [x, y, r] of pts) disc(ctx, x, y + 2, Math.round(r), dark);
     for (const [x, y, r] of pts) disc(ctx, x, y, Math.round(r), base);
     for (const [x, y, r] of pts) disc(ctx, x - r * 0.25, y - r * 0.3, Math.max(1, Math.round(r * 0.45)), light);
@@ -105,6 +111,7 @@ export function paintClouds(ctx, w, h, o = {}) {
 
 /** Twinkly pixel stars. */
 export function paintStars(ctx, w, h, o = {}) {
+  if (ctx._hd) { ctx._P?.sync(); return hdStarfield(ctx, w, h, { n: o.n ?? 80, ymax: o.ymax ?? h * 0.6, seed: o.seed ?? 3, tint: o.tint }); }
   const R = mulberry32(o.seed ?? 3);
   for (let i = 0; i < (o.n ?? 80); i++) {
     const x = Math.floor(R() * w), y = Math.floor(R() * (o.ymax ?? h * 0.6));
@@ -120,6 +127,7 @@ export function paintStars(ctx, w, h, o = {}) {
  * o: { color, rim, dark, base (0..1 of h, average top), amp (px), freq, seed, jag (0..1), snow, speck }
  */
 export function paintRidge(ctx, w, h, o = {}) {
+  if (ctx._hd) { ctx._P?.sync(); return hdRidge(ctx, w, h, o); }
   const base = (o.base ?? 0.5) * h, amp = o.amp ?? h * 0.2, freq = o.freq ?? 0.02, seed = o.seed ?? 1, jag = o.jag ?? 0.2;
   const tops = [];
   for (let x = 0; x < w; x++) {
@@ -200,6 +208,7 @@ export function paintTrees(ctx, w, y, o = {}) {
 
 /** Soft pixel sun / moon with a glow halo. */
 export function paintSun(ctx, cx, cy, r, color = 0xfff2b0, halo = 0xfff8d8) {
+  if (ctx._hd) { ctx._P?.sync(); return hdSun(ctx, cx, cy, r, { color, halo, haloR: 2.6, haloA: 0.5 }); }
   for (let k = 3; k >= 1; k--) {
     ctx.globalAlpha = 0.12 * k;
     disc(ctx, cx, cy, r + k * 3, halo);
@@ -217,11 +226,13 @@ const texCache = new Map();
 export function canvasTex(id, w, h, paint, o = {}) {
   let t = texCache.get(id);
   if (!t) {
-    const ctx = canvas(w, h);
+    const ctx = o.hd ? hdCanvas(w, h, o.hd) : canvas(w, h);
     paint(ctx, w, h);
+    ctx._P?.flush();
     t = new THREE.CanvasTexture(ctx.canvas);
-    t.magFilter = THREE.NearestFilter;
-    t.minFilter = o.mip === false ? THREE.NearestFilter : THREE.NearestMipmapNearestFilter;
+    t.magFilter = o.hd ? THREE.LinearFilter : THREE.NearestFilter;
+    t.minFilter = o.hd ? (o.mip === false ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter) : o.mip === false ? THREE.NearestFilter : THREE.NearestMipmapNearestFilter;
+    if (o.hd) t.anisotropy = 4;
     t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = o.repeatX ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
     t.wrapT = THREE.ClampToEdgeWrapping;
@@ -333,15 +344,18 @@ export class ArenaKit {
    * o: { z (negative), y (bottom), w, h (world units), tw, th (texture px), paint(ctx, tw, th), fogTint: [hex, amount] }
    */
   parallax(id, o) {
+    // painted in HD (smooth shapes, ~2400 px wide backing store), never as hard pixel art
+    const hd = clamp(2400 / o.tw, 1, 8);
     const tex = canvasTex('px_' + this.id + '_' + id, o.tw, o.th, (ctx, w, h) => {
       o.paint(ctx, w, h);
+      ctx._P?.flush();
       if (o.fogTint) {
         ctx.globalCompositeOperation = 'source-atop';
         px(ctx, 0, 0, w, h, o.fogTint[0], o.fogTint[1]);
         ctx.globalCompositeOperation = 'source-over';
       }
-    }, { repeatX: !!o.repeat });
-    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, fog: false, depthWrite: true });
+    }, { repeatX: !!o.repeat, hd });
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.02, fog: false, depthWrite: false });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(o.w, o.h), mat);
     mesh.position.set(o.x ?? 0, (o.y ?? -1) + o.h / 2, o.z);
     mesh.renderOrder = -5;
@@ -386,10 +400,14 @@ export function coverFit(tex, aspect) {
 }
 
 export function skyTexture(id, stops, paint, o = {}) {
-  return canvasTex('sky_' + id, o.w ?? 160, o.h ?? 90, (ctx, w, h) => {
+  const w = o.w ?? 160, h = o.h ?? 90;
+  // painted in HD: smooth gradient + soft painted clouds / glows (~1600 px wide), lightly grained against banding
+  return canvasTex('sky_' + id, w, h, (ctx) => {
     paintGradient(ctx, 0, 0, w, h, stops, { bands: o.bands ?? 12 });
     paint && paint(ctx, w, h);
-  }, { mip: false });
+    ctx._P?.flush();
+    hdGrain(ctx, 1.6);
+  }, { mip: false, hd: 1600 / w });
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +488,7 @@ export function signGrid(label, o = {}) {
 
 /** Direct pixel access to a canvas region at (0,0)..(w,h). Call flush() when done. */
 export function pixbuf(ctx, w, h) {
+  if (ctx._hd) return hdPixbuf(ctx, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   const P = {
     w, h, d,
@@ -509,6 +528,7 @@ export function pixbuf(ctx, w, h) {
 
 /** Soft elliptical glow blended into the pixels with dithered bands (sun halos, horizon glow, nebulae). */
 export function skyGlow(P, cx, cy, rx, ry, hex, strength = 1, o = {}) {
+  if (P.hd) { P.sync(); return hdGlow(P.ctx, cx, cy, rx, ry, hex, strength, o.pow ?? 2); }
   const bands = o.bands ?? 5, pow = o.pow ?? 2;
   for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
     const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
@@ -518,6 +538,7 @@ export function skyGlow(P, cx, cy, rx, ry, hex, strength = 1, o = {}) {
 
 /** Pixel sun: dithered halo rings, optional rays, shaded disc. o: { color, core, halo, halo2, rays, rayColor, rayLen } */
 export function paintSunPx(P, cx, cy, r, o = {}) {
+  if (P.hd) { P.sync(); return hdSun(P.ctx, cx, cy, r, o); }
   const col = o.color ?? 0xfff0b0, core = o.core ?? 0xffffff, halo = o.halo ?? 0xfff6d8;
   skyGlow(P, cx, cy, r * (o.haloR ?? 5), r * (o.haloR ?? 5), halo, o.haloA ?? 0.55, { bands: 6, pow: 1.6 });
   skyGlow(P, cx, cy, r * 2.2, r * 2.2, o.halo2 ?? halo, 0.85, { bands: 4, pow: 1.2 });
@@ -548,6 +569,7 @@ export function paintSunPx(P, cx, cy, r, o = {}) {
 
 /** Pixel moon with craters and a dithered terminator. o: { color, dark, phase (-1..1, + = lit from the left), halo } */
 export function paintMoonPx(P, cx, cy, r, o = {}) {
+  if (P.hd) { P.sync(); return hdMoon(P.ctx, cx, cy, r, o); }
   const col = o.color ?? 0xf4f2e4, dark = o.dark ?? 0x9aa4c4;
   if (o.halo !== false) skyGlow(P, cx, cy, r * 3.4, r * 3.4, o.halo ?? 0xbfd4ff, o.haloA ?? 0.35, { bands: 4, pow: 1.5 });
   const R = mulberry32(o.seed ?? 77);
@@ -570,6 +592,7 @@ export function paintMoonPx(P, cx, cy, r, o = {}) {
  * o: { light, color, shade, dark, alpha, sunX (-1 sun left / 1 right), shadeAt (0..1) }
  */
 export function paintCloudShape(P, discs, bottom, o = {}) {
+  if (P.hd) { P.sync(); return hdCloud(P.ctx, discs, bottom, o); }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity;
   for (const [x, y, r] of discs) { x0 = Math.min(x0, Math.floor(x - r - 1)); x1 = Math.max(x1, Math.ceil(x + r + 1)); y0 = Math.min(y0, Math.floor(y - r - 1)); }
   bottom = Math.round(bottom);
@@ -633,6 +656,7 @@ export function paintCloudBank(P, w, y, o = {}) {
 
 /** Thin stratus streaks. o: { n, y0, y1, len: [a, b], color, shade, seed, alpha } */
 export function paintStreaks(P, w, o = {}) {
+  if (P.hd) { P.sync(); return hdStreaks(P.ctx, w, o); }
   const R = mulberry32((o.seed ?? 9) * 37);
   const [la, lb] = o.len ?? [10, 40];
   for (let i = 0; i < (o.n ?? 8); i++) {
@@ -648,6 +672,7 @@ export function paintStreaks(P, w, o = {}) {
 
 /** Star field (dimmer toward the horizon) + optional milky-way band. o: { n, ymax, seed, tint, milky: [x0,y0,x1,y1,width], milkyColor } */
 export function paintStarfield(P, w, h, o = {}) {
+  if (P.hd) { P.sync(); return hdStarfield(P.ctx, w, h, o); }
   const R = mulberry32(o.seed ?? 3);
   const ymax = o.ymax ?? h * 0.6;
   if (o.milky) {
@@ -672,6 +697,7 @@ export function paintStarfield(P, w, h, o = {}) {
 
 /** Aurora curtain painted into the sky. o: { y, amp, freq, height, colors: [low, mid, high], seed, alpha } */
 export function paintAuroraPx(P, w, o = {}) {
+  if (P.hd) { P.sync(); return hdAurora(P.ctx, w, o); }
   const [c0, c1, c2] = o.colors ?? [0x6effa8, 0x4ae0d0, 0xb070ff];
   const seed = o.seed ?? 1, H = o.height ?? 30, A = o.alpha ?? 0.7;
   for (let x = 0; x < w; x++) {
@@ -688,6 +714,7 @@ export function paintAuroraPx(P, w, o = {}) {
 
 /** Tiny pixel birds ("v" shapes). list: [[x, y, size], ...] */
 export function paintBirdsPx(P, list, hex = 0x3a3a4a, a = 0.85) {
+  if (P.hd) { P.sync(); return hdBirds(P.ctx, list, hex, a); }
   for (const [x, y, s = 1] of list) {
     for (let k = 1; k <= s + 1; k++) { P.set(x - k, y - Math.round(k * 0.7), hex, a); P.set(x + k, y - Math.round(k * 0.7), hex, a); }
     P.set(x, y, hex, a);
@@ -702,6 +729,7 @@ export function paintBirdsPx(P, list, hex = 0x3a3a4a, a = 0.85) {
  * Returns the top y per column.
  */
 export function paintRange(P, w, h, o = {}) {
+  if (P.hd) { P.sync(); return hdRange(P.ctx, w, h, o); }
   const base = (o.base ?? 0.6) * h, amp = o.amp ?? h * 0.3, freq = o.freq ?? 0.02, seed = o.seed ?? 1, sx = o.sunX ?? -1;
   const lit = o.lit ?? 0x8aa8d0, mid = o.mid ?? shade(lit, -0.12), dark = o.dark ?? shade(lit, -0.28), rim = o.rim ?? shade(lit, 0.25);
   const tops = new Float32Array(w);
@@ -809,6 +837,17 @@ export function puffGrid(o = {}) {
   return g;
 }
 
+/** Soft round puff texture in the puff colours (lit top, shaded belly), cached per colour set. */
+function puffTex(o = {}) {
+  const light = o.light ?? 0xffffff, base = o.color ?? 0xeef2f8, sh = o.shade ?? 0xc4ccd8;
+  return canvasTex('puff_' + light + '_' + base + '_' + sh, 64, 64, (ctx, w, h) => {
+    const R = mulberry32((o.seed ?? 3) * 7 + 1);
+    const discs = [[32, 36, 16]];
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + R(); discs.push([32 + Math.cos(a) * 11, 34 + Math.sin(a) * 9, 9 + R() * 4]); }
+    hdCloud(ctx, discs, 56, { light, color: base, shade: sh, dark: shade(sh, -0.08), sunX: -1, shadeAt: 0.5 });
+  }, { hd: 2 });
+}
+
 /**
  * Rising, growing and vanishing voxel puffs (steam, smoke, sea spray, dust).
  * o: { id, sources: [[x, y, z], ...], n (per source), life (s), rise, drift: [dx, dz], wobble, size: [s0, s1],
@@ -818,8 +857,23 @@ export function addPuffs(K, o) {
   const per = o.n ?? 6, N = o.sources.length * per;
   const op = o.opacity ?? 1;
   const mats = op < 1 ? [new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: op, depthWrite: false, emissive: o.emissive ?? 0x000000 }), Mats.glow] : o.emissive ? [new THREE.MeshLambertMaterial({ vertexColors: true, emissive: o.emissive }), Mats.glow] : Mats.pair;
-  const im = liveInstances(K, o.id ?? 'puff', () => puffGrid(o), { scale: o.scale ?? 0.1, pivot: 'center', jitter: 0.03 }, N, { mats });
-  if (op < 1) im.renderOrder = 2;
+  // soft painted puff sprites (camera-facing quads with a lit top / shaded belly), not voxel blobs
+  let im, sprite = o.voxel !== true;
+  if (sprite) {
+    const D = (2 * (o.r ?? 4) + 1) * (o.scale ?? 0.1) * 1.2;
+    const geo = new THREE.PlaneGeometry(D, D);
+    const mat = new THREE.MeshBasicMaterial({ map: puffTex(o), transparent: true, opacity: op, depthWrite: false, fog: true });
+    im = new THREE.InstancedMesh(geo, mat, N);
+    im.name = o.id ?? 'puff';
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    im.frustumCulled = false;
+    im.renderOrder = 2;
+    for (let i = 0; i < N; i++) setInstance(im, i, 0, -50, 0, 0, 0, 0, 0.0001);
+    K.add(im);
+  } else {
+    im = liveInstances(K, o.id ?? 'puff', () => puffGrid(o), { scale: o.scale ?? 0.1, pivot: 'center', jitter: 0.03 }, N, { mats });
+    if (op < 1) im.renderOrder = 2;
+  }
   const R = mulberry32(o.seed ?? 21);
   const P = [];
   for (const [x, y, z] of o.sources) for (let k = 0; k < per; k++) P.push({ x, y, z, ph: k / per + R() * 0.08, r: R() * 6.28, w: 0.5 + R() });
@@ -828,7 +882,9 @@ export function addPuffs(K, o) {
     for (let i = 0; i < N; i++) {
       const p = P[i], k = (t / life + p.ph) % 1;
       const s = (s0 + (s1 - s0) * k) * Math.min(1, k * 7) * Math.min(1, (1 - k) * 4);
-      setInstance(im, i, p.x + dx * k + Math.sin(t * p.w + p.r) * wob * k, p.y + rise * Math.pow(k, o.ease ?? 0.85), p.z + dz * k, p.r + t * 0.25 * p.w, 0, 0, Math.max(0.0001, s));
+      const px0 = p.x + dx * k + Math.sin(t * p.w + p.r) * wob * k, py0 = p.y + rise * Math.pow(k, o.ease ?? 0.85), pz0 = p.z + dz * k;
+      if (sprite) setInstance(im, i, px0, py0, pz0, 0, 0, p.r + t * 0.15 * p.w, Math.max(0.0001, s));
+      else setInstance(im, i, px0, py0, pz0, p.r + t * 0.25 * p.w, 0, 0, Math.max(0.0001, s));
     }
     im.instanceMatrix.needsUpdate = true;
   });
@@ -895,9 +951,27 @@ export function unlitPair(key = 'u') {
   return m;
 }
 
+/** Painted cumulus billboard texture (HD, soft edges, lit top / shaded belly) in the cloudGrid colours. */
+function cloudBillboardTex(key, seed, o = {}) {
+  return canvasTex('cloudbb_' + key, 128, 56, (ctx, w, h) => {
+    const R = mulberry32(seed * 977 + 13);
+    const discs = [];
+    // a continuous flat-bottomed base of small puffs + big overlapping crown puffs
+    for (let x = w * 0.14; x <= w * 0.86; x += 5) discs.push([x, h * 0.72, h * (0.1 + R() * 0.04)]);
+    const n = 5 + Math.floor(R() * 2);
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1) - 0.5;
+      const r = h * (0.22 + R() * 0.1) * (1 - Math.abs(u) * 0.75);
+      discs.push([w / 2 + u * w * 0.56 + (R() - 0.5) * 4, h * 0.72 - r * 0.45 - (1 - Math.abs(u) * 2) * h * 0.1, r]);
+    }
+    for (let i = 0; i < 2; i++) discs.push([w / 2 + (R() - 0.5) * w * 0.22, h * (0.44 + R() * 0.06), h * (0.2 + R() * 0.06)]);
+    hdCloud(ctx, discs, h * 0.8, { light: o.light ?? 0xffffff, color: o.color ?? 0xf2f6fc, shade: o.shade ?? 0xc6d4ea, dark: o.dark ?? shade(o.shade ?? 0xc6d4ea, -0.1), sunX: o.sunX ?? -1, shadeAt: 0.55 });
+  }, { hd: 4 });
+}
+
 /**
- * Drifting voxel clouds (instanced, a few shapes). Wraps around in x.
- * o: { id, n, kinds, x0, x1, y0, y1, z0, z1, s0, s1 (instance scale), scale (voxel), speed, seed, ...cloudGrid colours }
+ * Drifting painted clouds (instanced soft billboards, a few shapes). Wraps around in x.
+ * o: { id, n, kinds, x0, x1, y0, y1, z0, z1, s0, s1 (instance scale), scale (size), len, speed, seed, ...cloudGrid colours }
  */
 export function addClouds(K, o = {}) {
   const kinds = o.kinds ?? 3, n = o.n ?? 8;
@@ -905,13 +979,23 @@ export function addClouds(K, o = {}) {
   const x0 = o.x0 ?? -110, x1 = o.x1 ?? 110, span = x1 - x0;
   const all = [];
   for (let i = 0; i < n; i++) all.push({ k: i % kinds, x: x0 + R() * span, y: o.y0 + R() * (o.y1 - o.y0), z: o.z0 + R() * (o.z1 - o.z0), s: (o.s0 ?? 1) + R() * ((o.s1 ?? 1.6) - (o.s0 ?? 1)), v: (o.speed ?? 0.4) * (0.7 + R() * 0.6) });
+  const W = (o.len ?? 22) * (o.scale ?? 1) * 1.35, H = W * (56 / 128);
   const sets = [];
   for (let k = 0; k < kinds; k++) {
     const list = all.filter((c) => c.k === k);
     if (!list.length) continue;
-    const im = K.inst((o.id ?? 'cloud') + k, () => cloudGrid(k + 1 + (o.seed ?? 5) * 10, o), { scale: o.scale ?? 1, jitter: 0.03 }, list.map((c) => [c.x, c.y, c.z, 0, c.s]), { receive: false, mats: o.mats ?? (o.lit ? undefined : unlitPair()) });
+    const tex = cloudBillboardTex((o.id ?? 'cloud') + k + '_' + K.id, k + 1 + (o.seed ?? 5) * 10, o);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: true });
+    const geo = new THREE.PlaneGeometry(W, H);
+    geo.translate(0, H * 0.3, 0); // cloud base (texture v = 0.8) sits at the instance y
+    const im = new THREE.InstancedMesh(geo, mat, list.length);
+    im.name = (o.id ?? 'cloud') + k;
+    im.renderOrder = -4;
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     im.frustumCulled = false;
+    list.forEach((c, i) => setInstance(im, i, c.x, c.y, c.z, 0, 0, 0, c.s));
+    im.instanceMatrix.needsUpdate = true;
+    K.add(im);
     sets.push([im, list]);
   }
   if (o.speed !== 0) K.onUpdate((dt) => {
@@ -1028,14 +1112,26 @@ export function voxRange(K, id, o = {}) {
     const strata = Math.floor(y / 2 + vnoise(xv * 0.2, zv * 0.2, seed) * 2) % 3;
     return strata === 0 ? rockD : j < 0.15 ? rockL : rock;
   });
+  // built at `detail`x the voxel resolution with heights interpolated between column centres:
+  // smoother, more detailed slopes instead of big chunky steps (colours still follow the coarse columns)
+  const dt = Math.max(1, Math.round(o.detail ?? 2));
   return K.mesh(id, () => {
     const g = new VoxGrid();
-    for (let x = xs; x < xe; x++) for (let z = 0; z < D; z++) {
-      const h = H(x, z);
-      for (let y = 0; y < h; y++) g.set(x, y, -z, col(x, y, z, h));
+    const memo = new Map();
+    const Hc = (x, z) => { z = clamp(z, 0, D - 1); const k = x * 64 + z; let v = memo.get(k); if (v === undefined) { v = H(x, z); memo.set(k, v); } return v; };
+    for (let xf = xs * dt; xf < xe * dt; xf++) for (let zf = 0; zf < D * dt; zf++) {
+      const xv = (xf + 0.5) / dt - 0.5, zv = (zf + 0.5) / dt - 0.5;
+      const x0 = Math.floor(xv), z0 = Math.floor(zv), fx = xv - x0, fz = zv - z0;
+      const hb = (Hc(x0, z0) * (1 - fx) + Hc(x0 + 1, z0) * fx) * (1 - fz) + (Hc(x0, z0 + 1) * (1 - fx) + Hc(x0 + 1, z0 + 1) * fx) * fz;
+      const hf = Math.max(1, Math.round(hb * dt));
+      const xc = Math.floor(xf / dt), zc = Math.min(D - 1, Math.floor(zf / dt)), hc = Math.max(1, Math.round(hf / dt));
+      for (let y = 0; y < hf; y++) {
+        const yc = y >= hf - dt ? hc - 1 : Math.min(hc - 1, Math.floor(y / dt));
+        g.set(xf, y, -zf, col(xc, yc, zc, hc));
+      }
     }
     return g;
-  }, { scale: s, pivot: [0, 0, 0], jitter: o.jitter ?? 0.05 }, 0, o.y ?? -0.5, o.z ?? -100, 0, 1, { receive: false, mats: o.mats });
+  }, { scale: s / dt, pivot: [0, 0, 0], jitter: o.jitter ?? 0.05 }, 0, o.y ?? -0.5, o.z ?? -100, 0, 1, { receive: false, mats: o.mats });
 }
 
 /**

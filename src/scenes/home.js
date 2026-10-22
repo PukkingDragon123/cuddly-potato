@@ -1,28 +1,24 @@
-// Home lobby with the Clash Royale home UI on top — profile + currencies,
-// free / crown vials, the arena banner (arrows browse the arenas), the BATTLE
-// button, boss challenges, 4 vial slots and the bottom nav whose tabs (Shop,
-// Cards, Lab, Pass) slide over the 3D backdrop.
-//
-// The backdrop has two views:
-//  * BATTLE (default): a cinematic FROZEN BATTLE in the selected arena — a
-//    time-stopped frame of a lane fight with live VFX (see frozenBattle.js).
-//    Drag to pan along the lane, pinch / wheel to zoom, tap for a time ripple.
-//  * MAP: the living 3D Beast Island (every arena is a diorama on the trophy
-//    road) with NPC quests, boss gates and secrets; swipe or arrows fly
-//    between zones. Built lazily the first time it is opened.
-// Also plays the arena-unlock cinematic (on the island) when the player
-// reaches a new arena, then cuts to that arena's frozen battle.
+// Home lobby: the living 3D Beast Island (every arena is a diorama on the
+// trophy road) with the Clash Royale home UI on top — profile + currencies,
+// free / crown vials, the arena banner (swipe or arrows fly between the
+// island's zones), the BATTLE button, boss challenges, 4 vial slots and the
+// bottom nav whose tabs (Shop, Cards, Lab, Pass) slide over the island.
+// NPC quests, boss gates and secrets live on the island; the arena-unlock
+// cinematic flies up the trophy road when the player reaches a new arena.
+// Motion: staggered spring entrances, press squash / release overshoot /
+// hover lift on every tappable, a sliding nav indicator, carousel tab
+// transitions and rolling currency counters (see homeMotion.js).
 import * as THREE from 'three';
 import './home.css';
 import './home-mega.css';
-import './home-frozen.css';
+import './home-motion.css';
 import { engine, addLights } from '../core/engine.js';
 import { audio } from '../core/audio.js';
-import { fx, particles } from '../core/particles.js';
-import { h, icon, animIcon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, sparkle, bump, burst, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
+import { fx } from '../core/particles.js';
+import { h, icon, animIcon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, bump, burst, rollNumber, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
 import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
-import { buildFrozenBattle } from './frozenBattle.js';
+import * as M from './homeMotion.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { Chibi } from '../core/chibi.js';
 import { CHARACTERS } from '../data/characters.js';
@@ -51,6 +47,7 @@ const fmtTime = (sec) => {
   if (sec >= 60) return `${Math.floor(sec / 60)}m ${sec % 60}s`;
   return `${sec}s`;
 };
+const fmtN = (n) => Math.round(n).toLocaleString('en-US');
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const NPC_OF_ZONE = Object.fromEntries(Object.entries(QUEST_NPC_ZONE).map(([npc, z]) => [z, npc]));
 const ZONE_EXTRAS = { circle: 'fan', factory: 'labTech', redlight: 'guard', antarctica: 'labTech', reactor: 'labTech', pyramid: 'fan', island: 'fan', jungle: 'fan', laser: 'guard', haunted: 'fan', reef: 'fan', volcano: 'labTech', space: 'labTech' };
@@ -69,6 +66,7 @@ const MODULES = {
   '../ui/home/profile.js': () => import('../ui/home/profile.js'),
   '../ui/home/settings.js': () => import('../ui/home/settings.js'),
   '../ui/home/friend.js': () => import('../ui/home/friend.js'),
+  '../ui/home/online.js': () => import('../ui/home/online.js'),
   '../ui/home/boss.js': () => import('../ui/home/boss.js'),
 };
 const loadOpt = (path) => (MODULES[path] ? MODULES[path]() : Promise.reject(new Error('missing ' + path)));
@@ -82,16 +80,14 @@ function vialImg(type, cls = 'vt') {
 }
 
 const _camOff = new THREE.Vector3(), _camLook = new THREE.Vector3(), _yAxis = new THREE.Vector3(0, 1, 0), _tagV = new THREE.Vector3();
+// what the counters showed when the lobby was last on screen: coming back from a
+// battle / the shop rolls them up to the new values instead of snapping
+const shown = { coins: null, bucks: null, trophies: null };
 
 export class HomeScene {
   constructor() {
-    this.islandScene = new THREE.Scene();
-    this.islandCam = new THREE.PerspectiveCamera(35, engine.aspect, 0.5, 3000);
-    this.mode = 'battle'; // 'battle' (frozen battle) | 'island' (Beast Island map)
-    this.fb = null; // the frozen battle on screen
-    this.fbCache = new Map(); // arena key -> FrozenBattle (small LRU)
-    this.fbToken = 0;
-    this.ptrs = new Map();
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(35, engine.aspect, 0.5, 3000);
     this.t = 0;
     this.tab = 'battle';
     this.cam = { pos: new THREE.Vector3(0, 80, 120), look: new THREE.Vector3() };
@@ -101,19 +97,14 @@ export class HomeScene {
     this.tags = [];
   }
 
-  // the engine renders whichever view is active
-  get scene() { return this.mode === 'battle' && this.fb ? this.fb.scene : this.islandScene; }
-  get camera() { return this.mode === 'battle' && this.fb ? this.fb.camera : this.islandCam; }
-  get grade() { return this.mode === 'battle' && this.fb ? this.fb.liveGrade : engine.sceneGrade({ scene: this.islandScene }); }
-  get bloom() { return this.mode === 'battle' && this.fb ? this.fb.bloom ?? {} : {}; }
-
   // -------------------------------------------------------------------------
   async enter(params = {}) {
     this.params = params;
     const p = state.p;
     if (p.tutorial !== 'done' && p.tutorial !== 'home') {
-      // the first-time flow lives in the title scene
-      setTimeout(() => game.go('title', {}), 0);
+      // the first-time flow lives in the title scene (once the router is free again)
+      this.redirect = true;
+      this.showT = setTimeout(() => this.shown(), 1500);
       return;
     }
     const best = currentArena(p.bestTrophies).index;
@@ -121,23 +112,36 @@ export class HomeScene {
     const pending = pendingArenaUnlock();
     this.unlockTarget = pending ? pending.index : -1;
     this.zoneIdx = pending ? Math.max(0, pending.index - 1) : Math.min(best, params.zone ?? best);
-    // the unlock cinematic (and ?map=1) start on the island; everything else on the frozen battle
-    let view = pending || params.map ? 'island' : 'battle';
-    if (view === 'battle' && !(await this.loadFrozen(this.zoneIdx))) view = 'island';
-    if (view === 'island') {
-      await this.ensureIsland();
-      this.placeZone(this.zoneIdx, true);
-    }
-    this.mode = view;
+    await this.buildIsland();
+    this.placeZone(this.zoneIdx, true);
 
     this.buildUI();
-    this.activate(view, true);
+    if (params.tab) this.setTab(params.tab, true); // e.g. back from a shop entrance preview
     this.offState = state.on(() => this.refresh());
     this.bindInput();
     audio.music('map');
     if (params.dev) window.__home = this;
-    if (pending) setTimeout(() => this.unlockCinematic(pending), 600);
-    else this.afterEnter();
+    // the lobby waits behind the loading screen; game.go calls shown() once it has faded
+    this.pending = pending;
+    this.root.classList.add('hm-pre');
+    this.showT = setTimeout(() => this.shown(), 3000);
+  }
+
+  /** Called by the router when the loading screen is gone: entrance, unlock cinematic, tutorial. */
+  shown() {
+    if (this.wasShown || this.exited) return;
+    if (this.redirect) { this.wasShown = true; clearTimeout(this.showT); game.go('title', {}); return; }
+    if (!this.root) return;
+    this.wasShown = true;
+    clearTimeout(this.showT);
+    // the unlock cinematic flies over a bare island; the lobby springs in when it ends
+    if (this.pending) this.root.style.visibility = 'hidden';
+    this.root.classList.remove('hm-pre');
+    if (this.pending) setTimeout(() => this.unlockCinematic(this.pending), 450);
+    else {
+      this.intro();
+      this.afterEnter();
+    }
   }
 
   async afterEnter() {
@@ -145,7 +149,7 @@ export class HomeScene {
     if (p.tutorial === 'home') {
       p.tutorial = 'done';
       state.save();
-      await wait(0.6);
+      await wait(1.0);
       const J = { name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) };
       await say(J, 'Welcome to *BEAST ISLAND*! Every arena on this island is from one of my videos. Win battles to earn *trophies* and climb the road to the top!');
       await say(J, 'Battles also win you *vials* full of Swarms. Upgrade your cards in the *CARDS* tab and build your best deck. Now go get some trophies!');
@@ -155,137 +159,26 @@ export class HomeScene {
   }
 
   // -------------------------------------------------------------------------
-  // Views: frozen battle <-> Beast Island map
+  // Beast Island
 
-  /** Build the Beast Island (once): lights, padlocks, NPCs, bosses, secrets, your squad. */
-  ensureIsland() {
-    if (this.islandP) return this.islandP;
-    this.islandP = (async () => {
-      const { makeBeastIsland } = await import('../models/island/beastIsland.js');
-      const I = await makeBeastIsland({ log: false });
-      const sc = this.islandScene;
-      sc.add(I.root);
-      sc.background = I.sky;
-      sc.fog = new THREE.Fog(I.fog.color, I.fog.near, I.fog.far);
-      const L = I.lights;
-      const { sun } = addLights(sc, { sky: L.sky, ground: L.ground, hemi: L.hemi, sun: L.sun, sunColor: L.sunColor, dir: L.dir, rimIntensity: L.rim, rimColor: L.rimColor, shadowExtent: 30, shadowFar: 400 });
-      sun.shadow.mapSize.set(engine.shadowRes ?? 2048, engine.shadowRes ?? 2048);
-      this.sun = sun;
-      this.sunDir = new THREE.Vector3(...L.dir).normalize();
-      // arenas above the player's best are locked behind padlocks
-      const best = currentArena(state.p.bestTrophies).index;
-      for (const z of I.zones) if (z.index > best || (this.unlockTarget >= 0 && z.index >= this.unlockTarget)) I.setLocked(z.id, true);
-      this.I = I;
-      this.populate();
-      if (this.tagLayer) for (const pk of this.pickables) if (pk.tag && !pk.tag.parentNode) this.tagLayer.appendChild(pk.tag);
-      return I;
-    })();
-    return this.islandP;
-  }
-
-  isLocked(k) {
-    return k > currentArena(state.p.bestTrophies).index || this.unlockTarget === k;
-  }
-
-  /** Build (or reuse) the frozen battle for arena k and make it current. Returns false if it failed. */
-  async loadFrozen(k) {
-    const token = ++this.fbToken;
-    const locked = this.isLocked(k);
-    const key = `${k}${locked ? 'L' : ''}`;
-    let fb = this.fbCache.get(key);
-    if (!fb) {
-      this.root?.classList.add('fz-loading');
-      try {
-        fb = await buildFrozenBattle(k, { locked });
-      } catch (e) {
-        console.error('frozen battle failed', k, e);
-        fb = null;
-      }
-      this.root?.classList.remove('fz-loading');
-      if (!fb) return false;
-      if (this.exited) { fb.dispose(); return false; }
-    }
-    // keep a few recent arenas (LRU); dispose the rest
-    this.fbCache.delete(key);
-    this.fbCache.set(key, fb);
-    if (token !== this.fbToken) return false; // a newer browse superseded this one
-    const prev = this.fb;
-    this.fb = fb;
-    fb.resize(engine.width, engine.height);
-    fb.rest(true);
-    for (const [kk, f] of this.fbCache) {
-      if (this.fbCache.size <= 3) break;
-      if (f === fb || f === prev) continue;
-      this.fbCache.delete(kk);
-      f.dispose();
-    }
-    if (this.mode === 'battle' && this.root) this.activate('battle');
-    return true;
-  }
-
-  /** Switch the engine over to a view (scene, particles, grade, bloom) and update the UI. */
-  activate(view, quiet = false) {
-    this.mode = view;
-    particles.attach(this.scene);
-    particles.clear();
-    engine.setBloom(this.bloom || {});
-    engine.setGrade(this.grade);
-    if (this.root) {
-      this.root.classList.toggle('mode-island', view === 'island');
-      this.root.classList.toggle('mode-battle', view === 'battle');
-      this.root.classList.toggle('fz-locked', view === 'battle' && !!this.fb?.locked);
-      if (view === 'battle' && !quiet) this.slam();
-      if (view === 'battle' && quiet) setTimeout(() => this.slam(), 350);
-    }
-    this.ptrs.clear();
-    this.ptr = null;
-  }
-
-  /** MAP button: the Beast Island <-> the frozen battle. */
-  async toggleMap() {
-    if (this.switching) return;
-    this.switching = true;
-    this.root.classList.add('fz-flash');
-    try {
-      if (this.mode === 'battle') {
-        if (!this.I) this.root.classList.add('fz-loading');
-        await this.ensureIsland();
-        this.root.classList.remove('fz-loading');
-        this.placeZone(this.zoneIdx, true);
-        this.idleK = 0;
-        this.activate('island');
-        audio.play('whoosh', { pitch: 0.7 });
-      } else {
-        const fbk = this.fb && this.fb.k === this.zoneIdx && this.fb.locked === this.isLocked(this.zoneIdx);
-        if (!fbk) await this.loadFrozen(this.zoneIdx);
-        if (this.fb) { this.fb.rest(true); this.activate('battle'); }
-        audio.play('whoosh', { pitch: 1.1 });
-      }
-    } finally {
-      this.switching = false;
-      setTimeout(() => this.root?.classList.remove('fz-flash'), 420);
-    }
-  }
-
-  /** Arena title slam over the frozen frame. */
-  slam() {
-    const el = this.slamEl;
-    if (!el || this.mode !== 'battle') return;
-    const k = this.zoneIdx, A = ARENAS[k];
-    const locked = this.isLocked(k);
-    el.querySelector('.k').textContent = A.legendary ? 'LEGENDARY ARENA' : `ARENA ${k + 1}`;
-    el.querySelector('.n').textContent = A.name.toUpperCase();
-    const sub = el.querySelector('.s');
-    sub.innerHTML = '';
-    if (locked) sub.append(icon('lock'), h('span', {}, `Reach ${A.trophies.toLocaleString('en-US')}`), icon('trophy'));
-    else sub.append(h('span', {}, `"${A.video}"`));
-    el.style.setProperty('--ac', A.color ?? '#ffd23f');
-    el.classList.remove('go');
-    void el.offsetWidth;
-    el.classList.add('go');
-    clearTimeout(this.slamT);
-    this.slamT = setTimeout(() => el.classList.remove('go'), 3200);
-    setTimeout(() => { if (this.mode === 'battle' && this.tab === 'battle') { engine.shake(0.22); audio.play('thud', { pitch: 1.4, vol: 0.35, gap: 0.2 }); } }, 260);
+  /** Build the Beast Island: sky, lights, padlocks, NPCs, bosses, secrets, your squad. */
+  async buildIsland() {
+    const { makeBeastIsland } = await import('../models/island/beastIsland.js');
+    const I = await makeBeastIsland({ log: false });
+    const sc = this.scene;
+    sc.add(I.root);
+    sc.background = I.sky;
+    sc.fog = new THREE.Fog(I.fog.color, I.fog.near, I.fog.far);
+    const L = I.lights;
+    const { sun } = addLights(sc, { sky: L.sky, ground: L.ground, hemi: L.hemi, sun: L.sun, sunColor: L.sunColor, dir: L.dir, rimIntensity: L.rim, rimColor: L.rimColor, shadowExtent: 30, shadowFar: 400 });
+    this.sun = sun;
+    this.sunDir = new THREE.Vector3(...L.dir).normalize();
+    // arenas above the player's best are locked behind padlocks
+    const best = currentArena(state.p.bestTrophies).index;
+    for (const z of I.zones) if (z.index > best || (this.unlockTarget >= 0 && z.index >= this.unlockTarget)) I.setLocked(z.id, true);
+    this.I = I;
+    this.populate();
+    return I;
   }
 
   // -------------------------------------------------------------------------
@@ -294,7 +187,7 @@ export class HomeScene {
   zoneCam(k) {
     const Z = this.I.zones[k];
     const off = Z.camPos.clone().sub(Z.camLook);
-    const a = this.islandCam.aspect;
+    const a = this.camera.aspect;
     off.multiplyScalar(a < 1 ? Math.min(2.1, 0.98 / a) : a < 1.4 ? 1.2 : 1);
     const look = Z.camLook.clone();
     // keep the diorama above the bottom dock in portrait
@@ -350,7 +243,7 @@ export class HomeScene {
         c.root.position.copy(np);
         c.root.lookAt(Z.camPos.x, np.y, Z.camPos.z);
         c.play('idle');
-        this.islandScene.add(c.root);
+        this.scene.add(c.root);
         const quest = !!NPC_OF_ZONE[Z.id] && npcId !== 'jimmy' ? npcId : null;
         this.actors.push({ kind: 'npc', obj: c, update: (dt) => c.update(dt), zone: Z });
         this.addPick(c.root, () => this.talkNpc(npcId, c, quest), { label: CHARACTERS[npcId].name ?? npcId, cls: quest ? 'quest' : '', iconName: quest ? 'quest' : 'smile', h: 3.2, zone: Z });
@@ -363,10 +256,10 @@ export class HomeScene {
         rig.root.position.copy(bp);
         rig.root.lookAt(Z.camPos.x, bp.y, Z.camPos.z);
         rig.setState('idle');
-        this.islandScene.add(rig.root);
+        this.scene.add(rig.root);
         const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.5, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff2e88, transparent: true, opacity: 0.7, depthWrite: false }));
         ring.position.copy(bp).setY(bp.y + 0.06);
-        this.islandScene.add(ring);
+        this.scene.add(ring);
         this.actors.push({ kind: 'boss', obj: rig, update: (dt) => { rig.update(dt); ring.rotation.y += dt; ring.material.opacity = 0.5 + Math.sin(this.t * 3) * 0.25; }, zone: Z });
         const defeated = !!p.bosses?.[boss.id];
         this.addPick(rig.root, () => this.openBoss(boss.id), { label: defeated ? `${boss.name} ✓` : boss.name, cls: 'boss', iconName: 'skull', h: rig.height + 0.6, zone: Z });
@@ -378,7 +271,7 @@ export class HomeScene {
         if (!sp) continue;
         const o = new THREE.Object3D();
         o.position.copy(sp);
-        this.islandScene.add(o);
+        this.scene.add(o);
         const st = { found: false };
         this.actors.push({ kind: 'secret', obj: o, update: () => { if (!st.found && Math.random() < 0.08) fx.sparkle(sp, { count: 1, colors: [0xffd84a, 0xffffff], speed: 0.6, radius: 0.6 }); }, zone: Z });
         this.addPick(o, () => { if (!st.found) { st.found = true; this.secretFound(sid, sp); } }, { label: '?', cls: 'secret', iconName: 'star', h: 0.6, zone: Z, radius: 1.6 });
@@ -399,7 +292,7 @@ export class HomeScene {
       const home = center.clone().addScaledVector(toCam, 4.5 + (i % 2) * 1.2).addScaledVector(side, (i - (ids.length - 1) / 2) * 2.6);
       home.y = Math.max(Z.center.y, this.I.heightAt(home.x, home.z));
       rig.root.position.copy(home);
-      this.islandScene.add(rig.root);
+      this.scene.add(rig.root);
       const a = { kind: 'swarm', obj: rig, home, target: home.clone(), wait: Math.random() * 3, zone: Z, id };
       a.update = (dt) => {
         const pos = rig.root.position;
@@ -450,23 +343,18 @@ export class HomeScene {
   buildUI() {
     const p = state.p;
     const root = (this.root = h('div', { class: 'home' }));
-    // cinematic framing over the frozen battle: letterbox bands, vignette, speed lines, grain, title slam
-    this.slamEl = h('div', { class: 'fz-slam' }, h('div', { class: 'k' }), h('div', { class: 'n' }), h('div', { class: 's' }));
-    root.appendChild(h('div', { class: 'fz-cine' },
-      h('i', { class: 'fz-bar top' }), h('i', { class: 'fz-bar bot' }), h('i', { class: 'fz-lines' }), h('i', { class: 'fz-grain' }), h('i', { class: 'fz-flashl' }),
-      h('div', { class: 'fz-stop' }, h('i', { class: 'fz-pause' }), h('span', {}, 'TIME STOP')),
-      this.slamEl,
-      h('div', { class: 'fz-load' }, h('i'), h('span', {}, 'LOADING'))));
     // top bar
     this.lvlEl = h('div', { class: 'hm-lvl' }, '1');
     this.nameEl = h('div', { class: 'nm' }, p.name);
     this.xpBar = bar(0, 'blue', '');
     const prof = h('div', { class: 'hm-prof hit', 'data-tip': 'Your *Lab Level*: upgrade cards and win battles for Lab XP', onclick: () => this.openModal('profile', 'openProfile') }, h('div', { class: 'hm-lvlw' }, this.lvlEl, h('i', { class: 'hm-lvl-ring' })), h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
-    this.coinPill = pill('coin', p.coins, { plus: () => this.setTab('shop'), cls: 'hm-pill-coin' });
-    this.buckPill = pill('bucks', p.bucks, { plus: () => this.setTab('shop'), cls: 'hm-pill-buck' });
+    // pills start at what they showed last time; refresh() after the entrance rolls them up
+    this.coinPill = pill('coin', shown.coins ?? p.coins, { plus: () => this.setTab('shop'), cls: 'hm-pill-coin' });
+    this.buckPill = pill('bucks', shown.bucks ?? p.bucks, { plus: () => this.setTab('shop'), cls: 'hm-pill-buck' });
     this.coinPill.dataset.tip = '*Beast Coins*: upgrade cards, roll perks';
     this.buckPill.dataset.tip = '*Beast Bucks*: vials, skins and skips';
-    root.appendChild(h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill));
+    this.top = h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill);
+    root.appendChild(this.top);
     // side buttons
     this.freeEl = h('div', { class: 'hm-mini hm-freebtn sk-panel-dark hit', 'data-tip': 'A *free vial* every 4 hours', onclick: () => this.openFree() }, h('i', { class: 'hm-mini-rays' }), vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
     this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', 'data-tip': 'Your *MEGA ultimate*: unleash it in battle', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
@@ -475,9 +363,7 @@ export class HomeScene {
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
       button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only hm-sb hm-sb-fr', { icon: 'friends' }),
-      this.roadBtn = button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only hm-sb hm-sb-road', { icon: 'road' }),
-      this.mapBtn = h('button', { class: 'btn sk-btn-green icon-only hm-sb hm-sb-map', type: 'button', 'data-tip': 'Explore *Beast Island*: quests, bosses and secrets', onclick: (e) => { e.stopPropagation(); audio.play('tap'); this.toggleMap(); } },
-        h('span', { class: 'row' }, h('img', { class: 'pi mi', src: iconURL('island'), alt: 'map', draggable: 'false' }), h('img', { class: 'pi bi', src: iconURL('swords'), alt: 'battle', draggable: 'false' })))));
+      this.roadBtn = button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only hm-sb hm-sb-road', { icon: 'road' })));
     // tags over the island
     this.tagLayer = h('div', { class: 'hm-tags' });
     for (const pk of this.pickables) if (pk.tag) this.tagLayer.appendChild(pk.tag);
@@ -487,19 +373,18 @@ export class HomeScene {
     this.nextBtn = button('', () => this.browse(1), 'blue icon-only arr', { icon: 'arrowR' });
     this.zArena = h('div', { class: 'an' }, 'ARENA 1');
     this.zRibbon = ribbon('BEAST LAB', 'blue');
-    this.zTro = h('div', { class: 'zt' }, icon('trophy'), h('span', {}, String(p.trophies)));
+    this.zTro = h('div', { class: 'zt' });
     this.zProg = bar(0, 'gold', '', { cls: 'hm-zprog' });
     this.zBox = h('div', { class: 'hm-zbox', 'data-sfx': 'tap', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
     const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
-    // lane scrubber: where the camera is between the two bases (drag the 3D view to pan)
-    this.laneView = h('i', { class: 'v' });
-    this.laneEl = h('div', { class: 'fz-lane' }, h('i', { class: 'b0' }), h('i', { class: 'track' }, this.laneView, h('i', { class: 'mid' })), h('i', { class: 'b1' }),
-      h('span', { class: 'hint' }, icon('arrowL'), 'DRAG TO PAN', icon('arrowR')));
     this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Ranked - win trophies & vials', sound: 'go' });
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
     this.practiceBtn = button('TRAIN', () => game.go('battle', { mode: 'practice' }), 'gray lg hm-side-play', { icon: 'sword' });
-    const bwrap = h('div', { class: 'hm-bwrap' }, h('i', { class: 'hm-bring' }), h('i', { class: 'hm-bring b2' }), this.battleBtn);
+    // the wrapper breathes + lifts on hover; the button itself keeps the generic press / release
+    const bwrap = (this.bwrap = h('div', { class: 'hm-bwrap' }, h('i', { class: 'hm-bglow' }), this.battleBtn));
     const play = h('div', { class: 'hm-play' }, this.practiceBtn, bwrap, this.bossBtn);
+    // ONLINE BATTLE (engineer A): the LIVE 1v1 sticker on the BATTLE button + live-match lobby
+    loadOpt('../ui/home/online.js').then((m) => m.mountOnlineEntry(bwrap, this.ctx())).catch((e) => console.warn('online unavailable', e));
     this.slotEls = [0, 1, 2, 3].map((i) => {
       const el = h('div', { class: 'hm-slot sk-slot', onclick: () => this.tapSlot(i) });
       return { el, key: null };
@@ -510,26 +395,66 @@ export class HomeScene {
       b.dataset.tab = t.id;
       return b;
     });
-    this.nav = h('div', { class: 'hm-nav' }, this.navBtns);
-    this.dock = h('div', { class: 'hm-dock' }, this.laneEl, zone, h('div', { class: 'hm-mid' }, play, slots), this.nav);
+    // the glass tube behind the active tab slides between tabs on a spring
+    this.navInd = h('i', { class: 'hm-nav-ind' });
+    this.nav = h('div', { class: 'hm-nav' }, this.navInd, this.navBtns);
+    this.zoneEl = zone;
+    this.playEl = play;
+    this.slotsEl = slots;
+    this.dock = h('div', { class: 'hm-dock' }, zone, h('div', { class: 'hm-mid' }, play, slots), this.nav);
     root.appendChild(this.dock);
     $ui().appendChild(root);
+    // press squash / release overshoot / hover lift on everything tappable that isn't a generic button
+    M.pressable(prof, { press: { sx: 0.95, sy: 0.92, y: 1 }, hover: { y: -2, sx: 1.02, sy: 1.02 } });
+    for (const el of [this.freeEl, this.megaEl, this.labEl]) M.pressable(el, { press: { sx: 1.08, sy: 0.86, y: 3 }, hover: { y: -4, sx: 1.06, sy: 1.06, r: -2 } });
+    M.pressable(this.zBox, { press: { sx: 0.95, sy: 0.9, y: 2 }, hover: { y: -2, sx: 1.03, sy: 1.03 } });
+    for (const s of this.slotEls) M.pressable(s.el, { press: { sx: 1.07, sy: 0.86, y: 3 }, hover: { y: -5, sx: 1.05, sy: 1.05 } });
+    for (const b of this.navBtns) M.pressable(b, { press: { sx: 1.1, sy: 0.84, y: 3 }, hover: { y: -3, sx: 1.06, sy: 1.06 } });
+    M.pressable(bwrap, { press: { sx: 1, sy: 1, y: 0 }, hover: { y: -4, sx: 1.03, sy: 1.03 } });
+    for (const pl of [this.coinPill, this.buckPill]) M.pressable(pl, { press: { sx: 0.96, sy: 0.9, y: 1 }, hover: { y: -2, sx: 1.03, sy: 1.03 } });
     this.setTab('battle', true);
-    this.refresh();
-    requestAnimationFrame(() => this.layoutCine());
-    setTimeout(() => this.layoutCine(), 600);
+    this.refresh(true);
   }
 
-  refresh() {
+  /** Lobby entrance: everything springs in from its own edge, staggered. */
+  intro() {
+    if (!this.root) return;
+    const q = (s) => [...this.root.querySelectorAll(s)];
+    M.enter([this.top], { from: { y: -90 }, stiffness: 260, damping: 22, fade: false });
+    M.enter([this.root.querySelector('.hm-prof'), this.coinPill, this.buckPill], { from: { y: -24, sx: 0.6, sy: 0.6 }, delay: 0.12, step: 0.07, stiffness: 380, damping: 14 });
+    M.enter(q('.hm-side.left > *'), { from: { x: -110, r: -12 }, delay: 0.2, step: 0.07, stiffness: 300, damping: 16 });
+    M.enter(q('.hm-side.right > *'), { from: { x: 110, r: 12 }, delay: 0.24, step: 0.07, stiffness: 300, damping: 16 });
+    M.enter([this.nav], { from: { y: 110 }, stiffness: 260, damping: 22, fade: false });
+    M.enter(this.navBtns, { from: { y: 40, sx: 0.5, sy: 0.5 }, delay: 0.14, step: 0.045, stiffness: 420, damping: 15 });
+    this.dockIntro(0.3);
+    // counters roll up to their real values once the bar has landed
+    setTimeout(() => this.refresh(), 650);
+  }
+  /** The battle tab's dock (arena sign, BATTLE, side plays, slots) pops in, staggered. */
+  dockIntro(delay = 0) {
+    M.enter([this.zoneEl], { from: { y: -30, sx: 0.7, sy: 0.7 }, delay, stiffness: 360, damping: 14 });
+    M.enter([this.bwrap], { from: { y: 30, sx: 0.35, sy: 0.35 }, delay: delay + 0.08, stiffness: 340, damping: 11 });
+    M.enter([this.practiceBtn, this.bossBtn], { from: { y: 40, sx: 0.6, sy: 0.6 }, delay: delay + 0.16, step: 0.05, stiffness: 380, damping: 14 });
+    M.enter(this.slotEls.map((s) => s.el), { from: { y: 70, sx: 0.8, sy: 0.8 }, delay: delay + 0.18, step: 0.055, stiffness: 340, damping: 15 });
+  }
+
+  /** first: the lobby is still flying in, so counters keep last visit's values until intro() rolls them. */
+  refresh(first = false) {
     if (!this.root) return;
     const p = state.p;
+    this.rollReady = !first;
     const xp = labXpInfo();
-    this.lvlEl.textContent = String(xp.level);
+    if (this.lvlEl.textContent !== String(xp.level)) {
+      if (this.lvlEl.textContent !== '1' || xp.level !== 1) M.pop(this.lvlEl.parentNode, 0.4);
+      this.lvlEl.textContent = String(xp.level);
+    }
     this.nameEl.textContent = p.name;
     const xf = xp.max ? 1 : xp.xp / Math.max(1, xp.need);
     this.xpBar.set(xf, xp.max ? 'MAX' : `${xp.xp}/${xp.need}`);
-    this.setPill(this.coinPill, p.coins);
-    this.setPill(this.buckPill, p.bucks);
+    if (!first) {
+      this.setPill(this.coinPill, p.coins);
+      this.setPill(this.buckPill, p.bucks);
+    }
     this.updateZoneBanner();
     this.updateSlots(true);
     this.updateMinis();
@@ -558,7 +483,20 @@ export class HomeScene {
     this.zBox.classList.toggle('locked', locked);
     this.zTro.innerHTML = '';
     if (locked) this.zTro.append(icon('lock'), h('span', { class: 'lockt' }, `Unlocks at ${A.trophies}`), icon('trophy'));
-    else this.zTro.append(animIcon('trophy'), h('span', {}, p.trophies.toLocaleString('en-US')));
+    else {
+      // trophy counter: rolls up (or down) from what it showed last time
+      const sp = h('span', { class: 'tv' });
+      this.zTro.append(animIcon('trophy'), sp);
+      const to = p.trophies;
+      const from = this.troShown ?? shown.trophies ?? to;
+      if (!this.rollReady) { sp.textContent = fmtN(from); this.troShown = from; }
+      else if (from !== to) {
+        sp.textContent = fmtN(from);
+        rollNumber(sp, from, to, Math.min(1.4, 0.5 + Math.abs(to - from) / 120), fmtN);
+        bump(this.zTro, 'hm-tro-pop');
+        this.troShown = to;
+      } else sp.textContent = fmtN(to);
+    }
     // progress tube toward the next arena (on your current arena only)
     const nextA = ARENAS[k + 1];
     const cur = currentArena(p.trophies).index;
@@ -602,6 +540,8 @@ export class HomeScene {
       const key = `${mode}|${e?.type}|${mode === 'unlocking' ? Math.ceil(left) : ''}|${mode === 'locked' ? unlocking : ''}`;
       if (!force && key === s.key) return;
       const rebuild = !s.key || s.key.split('|').slice(0, 2).join('|') !== key.split('|').slice(0, 2).join('|') || (!!e && !!vialThumbFn && !!s.el.querySelector('img.vt.pi'));
+      // a slot changing state (new vial, unlock started, ready) gets an elastic pop
+      if (s.key && s.key.split('|')[0] !== mode) M.pop(s.el, 0.22);
       s.key = key;
       if (rebuild) {
         s.el.innerHTML = '';
@@ -666,24 +606,31 @@ export class HomeScene {
   async setTab(id, instant = false) {
     const prevIdx = TABS.findIndex((t) => t.id === this.tab);
     const idx = TABS.findIndex((t) => t.id === id);
+    const homeIdx = TABS.findIndex((t) => t.id === 'battle');
+    const changed = prevIdx !== idx;
     this.tab = id;
     this.navBtns.forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
+    M.slideIndicator(this.navInd, this.navBtns[idx], instant || !changed);
     const oldTab = this.currentTab, oldEl = this.tabEl;
     this.currentTab = null;
     this.tabEl = null;
     const disposeOld = () => { if (oldTab) { try { oldTab.dispose?.(); } catch (e) { console.error(e); } } oldEl?.remove(); };
-    if (oldEl && !instant && prevIdx !== idx) {
-      // slide the old screen away in the direction of travel, then dispose it
-      oldEl.classList.add('hm-tab-out', idx < prevIdx ? 'to-right' : 'to-left');
+    const dir = idx > prevIdx ? 1 : -1;
+    if (oldEl && !instant && changed) {
+      // the old screen leaves in the direction of travel (or drops away when going home), then is disposed
+      oldEl.classList.add('hm-tab-out');
       oldEl.style.pointerEvents = 'none';
-      setTimeout(disposeOld, 300);
+      M.tabOut(oldEl, id === 'battle' ? 0 : dir).then(disposeOld);
     } else disposeOld();
     this.root.classList.toggle('tabbed', id !== 'battle');
-    if (id === 'battle') { requestAnimationFrame(() => this.layoutCine()); return; }
-    const el = (this.tabEl = h('div', { class: `hm-tab ${idx < prevIdx ? 'from-left' : ''} ${prevIdx === TABS.findIndex((t) => t.id === 'battle') ? 'from-home' : ''}` }));
+    if (id === 'battle') {
+      if (!instant && changed) this.dockIntro(0.05);
+      return;
+    }
+    const el = (this.tabEl = h('div', { class: 'hm-tab' }));
     this.layoutTab();
     this.root.insertBefore(el, this.dock);
-    if (instant) el.style.animation = 'none';
+    if (!instant && changed) M.tabIn(el, prevIdx === homeIdx ? 0 : dir);
     try {
       const mod = await loadOpt(`../ui/home/${id}.js`);
       if (this.tab !== id || this.tabEl !== el) return;
@@ -693,19 +640,8 @@ export class HomeScene {
       el.appendChild(h('div', { class: 'hm-soon' }, icon(TABS[idx].icon, 'xl'), h('div', { class: 't-d outline t-xl' }, TABS[idx].label), h('div', { class: 'c-muted' }, 'Coming soon!')));
     }
   }
-  /** The 3D viewport between the top bar and the dock (for the letterbox bands + title slam). */
-  layoutCine() {
-    if (!this.root) return;
-    const top = this.root.querySelector('.hm-top')?.getBoundingClientRect().bottom ?? 0;
-    const land = engine.width > engine.height;
-    const ref = land ? this.root.querySelector('.hm-mid') : this.root.querySelector('.hm-zone');
-    let bot = ref?.getBoundingClientRect().top ?? engine.height * 0.62;
-    if (!land && this.laneEl) bot = Math.min(bot, this.laneEl.getBoundingClientRect().top);
-    this.root.style.setProperty('--fz-top', Math.round(top) + 'px');
-    this.root.style.setProperty('--fz-bot', Math.round(Math.max(top + 80, bot - 4)) + 'px');
-  }
   layoutTab() {
-    this.layoutCine();
+    if (this.navInd) M.slideIndicator(this.navInd, this.navBtns[TABS.findIndex((t) => t.id === this.tab)], true);
     if (!this.tabEl) return;
     const top = this.root.querySelector('.hm-top').getBoundingClientRect().bottom;
     const bottom = this.nav.getBoundingClientRect().top;
@@ -799,22 +735,17 @@ export class HomeScene {
     if (k === this.zoneIdx) return;
     this.goArena(k);
   }
-  /** Show arena k: fly the island camera there, or swap in its frozen battle. */
+  /** Fly the island camera to arena k; the arena sign kicks in from the side it came from. */
   goArena(k, dur) {
+    const dir = Math.sign(k - this.zoneIdx) || 1;
     this.zoneIdx = k;
     this.updateZoneBanner();
-    if (this.mode === 'island' && this.I) this.placeZone(k, false, dur);
-    else {
-      if (this.I) this.placeZone(k, true);
-      this.root.classList.add('fz-flash');
-      setTimeout(() => this.root?.classList.remove('fz-flash'), 420);
-      audio.play('whoosh', { pitch: 1.3, vol: 0.6 });
-      this.loadFrozen(k);
-    }
+    M.slideSwap(this.zBox, dir);
+    if (this.I) this.placeZone(k, false, dur);
   }
   battle() {
     if (this.tutPtr) { this.tutPtr(); this.tutPtr = null; }
-    burst(this.battleBtn, { color: '#ffd84a', count: 22, scale: 1.4 });
+    burst(this.battleBtn, { color: '#ffd84a', count: 22, scale: 1.4, ring: false });
     const best = currentArena(state.p.bestTrophies).index;
     // ranked battles always happen in your current arena (like Clash Royale)
     game.go('battle', { mode: 'ranked', arena: ARENAS[Math.min(best, currentArena(state.p.trophies).index)].id });
@@ -899,113 +830,45 @@ export class HomeScene {
       this.unlockTarget = next.index;
       return this.unlockCinematic(next);
     }
-    for (const a of this.actors) if (a.kind === 'swarm') this.islandScene.remove(a.obj.root);
+    for (const a of this.actors) if (a.kind === 'swarm') this.scene.remove(a.obj.root);
     this.actors = this.actors.filter((a) => a.kind !== 'swarm');
     this.pickables = this.pickables.filter((pk) => pk.zone?.index !== -1);
     this.spawnSquad(I.zones[k]);
     this.zoneIdx = k;
     this.refresh();
-    // cut to the new arena's frozen battle
-    if (await this.loadFrozen(k)) {
-      this.root.classList.add('fz-flash');
-      setTimeout(() => this.root?.classList.remove('fz-flash'), 420);
-      this.activate('battle');
-    }
     this.root.style.visibility = '';
+    this.intro();
     this.afterEnter();
   }
 
   // -------------------------------------------------------------------------
-  // Input. Frozen battle: drag pans the lane (with inertia), pinch / wheel
-  // zooms, a tap sends a time ripple. Island: swipe browses arenas, tap picks
-  // actors / NPCs / bosses / secrets. Only touches on the bare 3D canvas get
-  // here: every button / panel sits above it in the DOM and keeps its events.
+  // Input: swipe to browse arenas, tap actors / NPCs / bosses / secrets. Only
+  // touches on the bare 3D canvas get here: every button / panel sits above it.
 
   bindInput() {
     const c = engine.canvas;
     this.onDown = (e) => {
-      if (this.tab !== 'battle' || this.switching) return;
-      this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (this.ptrs.size === 2) {
-        // second finger: pinch zoom (no pan, no tap)
-        this.ptr = null;
-        this.pinch = this.pinchDist();
-        return;
-      }
-      this.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, lt: performance.now(), t: performance.now(), vx: 0, moved: false };
-    };
-    this.onMove = (e) => {
-      const q = this.ptrs.get(e.pointerId);
-      if (!q) return;
-      q.x = e.clientX; q.y = e.clientY;
-      if (this.ptrs.size >= 2 && this.pinch) {
-        const d = this.pinchDist();
-        if (d > 0 && this.fb && this.mode === 'battle') this.fb.zoomBy(this.pinch / d);
-        this.pinch = d;
-        return;
-      }
-      const p = this.ptr;
-      if (!p || p.id !== e.pointerId || this.mode !== 'battle' || !this.fb) return;
-      if (!p.moved && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) { p.moved = true; this.fb.dragStart(); this.panned(); }
-      if (!p.moved) return;
-      const now = performance.now();
-      const dx = e.clientX - p.lx;
-      const dtm = Math.max(1, now - p.lt);
-      p.vx = p.vx * 0.6 + (dx / dtm) * 1000 * 0.4;
-      p.lx = e.clientX;
-      p.lt = now;
-      this.fb.dragMove(dx);
+      if (this.tab !== 'battle') return;
+      this.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
     };
     this.onUp = (e) => {
-      this.ptrs.delete(e.pointerId);
-      if (this.ptrs.size < 2) this.pinch = 0;
       const p = this.ptr;
       if (!p || p.id !== e.pointerId) return;
       this.ptr = null;
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
-      if (this.mode === 'battle') {
-        if (!this.fb) return;
-        if (p.moved) { this.fb.dragEnd(performance.now() - p.lt > 90 ? 0 : p.vx); return; }
-        if (Math.hypot(dx, dy) < 12) this.tapFrozen(e.clientX, e.clientY);
-        return;
-      }
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) { this.browse(dx < 0 ? 1 : -1); return; }
       if (Math.hypot(dx, dy) < 12) this.tapWorld(e.clientX, e.clientY);
     };
-    this.onWheel = (e) => {
-      if (this.tab !== 'battle' || this.mode !== 'battle' || !this.fb) return;
-      e.preventDefault();
-      this.fb.zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 300)) * 0.25));
-      this.panned();
-    };
     c.addEventListener('pointerdown', this.onDown);
-    window.addEventListener('pointermove', this.onMove);
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onUp);
-    c.addEventListener('wheel', this.onWheel, { passive: false });
-  }
-  pinchDist() {
-    const [a, b] = [...this.ptrs.values()];
-    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
-  }
-  /** The first pan / zoom retires the "drag to pan" hint. */
-  panned() {
-    if (this.laneEl && !this.laneEl.classList.contains('used')) this.laneEl.classList.add('used');
-  }
-  tapFrozen(x, y) {
-    const fb = this.fb;
-    const at = fb.screenToLane(x, y);
-    if (!at) return;
-    at.y = Math.max(0.3, Math.min(6, at.y));
-    fb.pulse(at);
-    audio.play('magic', { pitch: 1.8, vol: 0.25, gap: 0.3 });
   }
   tapWorld(x, y) {
     let best = null, bd = Infinity;
     const v = new THREE.Vector3();
     for (const pk of this.pickables) {
       pk.obj.getWorldPosition(v);
-      const s = engine.toScreen(v.clone().setY(v.y + (pk.tagH ?? 1) * 0.4), this.islandCam);
+      const s = engine.toScreen(v.clone().setY(v.y + (pk.tagH ?? 1) * 0.4), this.camera);
       if (!s.visible) continue;
       const d = Math.hypot(s.x - x, s.y - y);
       const scaled = 26 + pk.radius * 18;
@@ -1017,24 +880,15 @@ export class HomeScene {
   // -------------------------------------------------------------------------
 
   resize(w, hh) {
-    this.islandCam.aspect = w / hh;
-    this.islandCam.updateProjectionMatrix();
-    for (const f of this.fbCache.values()) f.resize(w, hh);
+    this.camera.aspect = w / hh;
+    this.camera.updateProjectionMatrix();
     if (this.I && !this.fly) this.placeZone(this.zoneIdx, true);
     this.layoutTab();
   }
 
   update(dt) {
     this.t += dt;
-    if (this.mode === 'battle' && this.fb) {
-      this.fb.update(dt);
-      engine.setGrade(this.fb.liveGrade);
-      if (this.laneView) {
-        const f = this.fb.panFrac();
-        const key = Math.round(f * 200);
-        if (key !== this.laneKey) { this.laneKey = key; this.laneView.style.left = (f * 100).toFixed(1) + '%'; }
-      }
-    } else if (this.I) this.updateIsland(dt);
+    if (this.I) this.updateIsland(dt);
     // timers
     this.tickT = (this.tickT ?? 0) - dt;
     if (this.tickT <= 0 && this.root) {
@@ -1046,7 +900,7 @@ export class HomeScene {
 
   updateIsland(dt) {
     this.I.update(dt, this.t);
-    const cam = this.islandCam;
+    const cam = this.camera;
     // camera: fly between zones, then gently sway
     if (this.fly) {
       const f = this.fly;
@@ -1089,18 +943,15 @@ export class HomeScene {
     this.exited = true;
     const c = engine.canvas;
     c.removeEventListener('pointerdown', this.onDown);
-    c.removeEventListener('wheel', this.onWheel);
-    window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onUp);
     this.offState && this.offState();
     try { this.currentTab?.dispose?.(); } catch (e) { /* ignore */ }
     if (this.tutPtr) this.tutPtr();
-    clearTimeout(this.slamT);
-    // free the frozen battles' GPU memory once the next scene has taken over
-    const all = [...this.fbCache.values()];
-    this.fbCache.clear();
-    setTimeout(() => { for (const f of all) { try { f.dispose(); } catch (e) { /* ignore */ } } }, 0);
+    clearTimeout(this.showT);
+    // remember what the counters showed so the next visit can roll them up
+    const p = state.p;
+    if (p) Object.assign(shown, { coins: p.coins, bucks: p.bucks, trophies: p.trophies });
   }
 }
 

@@ -15,7 +15,7 @@ import { MEGAS } from '../../data/megas.js';
 import { battleCamera } from '../../models/arenas/kit.js';
 import { glassMat } from '../../models/props/common.js';
 import './megaCutscene.css';
-import { voxelBeam } from './voxfx.js';
+import { voxelBeam, groundHit, groundImpact } from './voxfx.js';
 
 const CONTAINMENT = import.meta.glob('../../models/props/containment.js', { eager: true });
 const containmentModule = Object.values(CONTAINMENT)[0] ?? null;
@@ -144,7 +144,7 @@ export function playMegaCutscene(view, ev) {
         engine.shake(0.75);
         audio.play('thud', { pitch: 0.5 });
         audio.play('explode', { pitch: 0.6, vol: 0.6 });
-        fx.impact(new THREE.Vector3(x, 0, 0), { radius: 4.5, colors: [0xd8c4a0, 0xffffff, 0x9ff2ff] });
+        groundImpact(new THREE.Vector3(x, 0, 0), { radius: 4.5, colors: [0xd8c4a0, 0xffffff, 0x9ff2ff] });
         fx.dust(new THREE.Vector3(x, 0, 0.5), { count: 30, scale: 2.6 });
         rig.root.visible = true;
         warn.classList.add('on');
@@ -184,7 +184,7 @@ export function playMegaCutscene(view, ev) {
       fx.slime(c, { count: 60, color: hexOf(def?.color ?? '#29b6f6'), speed: 9 });
       fx.bubbles(c, { count: 40, color: 0xcff2ff, radius: 3, speed: 4 });
       fx.burst(c, { count: 60, colors: [0xffffff, 0xcff2ff, 0x9fe6ff], size: 0.14, speed: 11 });
-      fx.shockwave(new THREE.Vector3(x, 0.05, 0), { radius: 9, color: hexOf(def?.bolt ?? '#ff2e88') });
+      groundHit(new THREE.Vector3(x, 0.05, 0), { radius: 9, color: hexOf(def?.bolt ?? '#ff2e88') });
       fx.confetti(new THREE.Vector3(x, H * 1.1, 0), { count: 80, spread: 3 });
       engine.shake(1);
       engine.hitstop(0.12);

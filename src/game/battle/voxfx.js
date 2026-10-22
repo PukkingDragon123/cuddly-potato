@@ -109,3 +109,80 @@ export function voxelDome(radius, color = 0x29b6f6) {
   m.userData.mats = [mat, glow];
   return m;
 }
+
+// ---------------------------------------------------------------------------
+// Ring-free impacts. Battles used to punctuate every landing / blast / upgrade
+// with an expanding flat ring (fx.shockwave); these read as chunky toy-world
+// hits instead: a white-hot flash pop, coloured sparks, voxel debris that
+// bounces and rolling dust puffs that billow out irregularly (never a circle).
+//   groundHit(pos, { radius, color, colors, power, debris, dust, sparks })
+import { particles } from '../../core/particles.js';
+
+const DUSTS = [0xe8dcc0, 0xd8c4a0, 0xc8b28a, 0xf2ead8];
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pickc = (a) => a[(Math.random() * a.length) | 0];
+const toHex = (c) => (typeof c === 'number' ? c : c?.isColor ? c.getHex() : 0xffffff);
+
+export function groundHit(pos, o = {}) {
+  const R = o.radius ?? 2;
+  const col = toHex(o.color ?? 0xffffff);
+  const pw = o.power ?? Math.min(1.6, 0.45 + R * 0.28);
+  const x = pos.x, z = pos.z ?? 0, y = Math.max(0, pos.y ?? 0);
+  // flash pop: a few big additive cubes that blink out fast
+  for (let i = 0; i < 3; i++) {
+    particles.spawn('glow', {
+      x: x + rnd(-0.15, 0.15) * R, y: y + 0.25 + rnd(0, 0.3), z: z + rnd(-0.1, 0.1),
+      vx: 0, vy: rnd(0.2, 0.8), vz: 0, rvx: 0, rvy: 0, rvz: 0,
+      size: (0.35 + R * 0.12) * rnd(0.7, 1.1), life: rnd(0.08, 0.16), grav: 0, drag: 2, shrinkStart: 0.1,
+      color: i ? col : 0xffffff,
+    });
+  }
+  // sparks: fast glowing chips flung up + out
+  const ns = o.sparks ?? Math.round(8 + R * 5);
+  for (let i = 0; i < ns; i++) {
+    const a = rnd(0, Math.PI * 2), sp = rnd(2.5, 6.5) * pw;
+    particles.spawn('glow', {
+      x, y: y + 0.15, z,
+      vx: Math.cos(a) * sp, vy: rnd(2.5, 7) * pw, vz: Math.sin(a) * sp * 0.45,
+      rvx: rnd(-9, 9), rvy: rnd(-9, 9), size: rnd(0.04, 0.09), life: rnd(0.25, 0.55), grav: -16, drag: 1.2,
+      ground: 0, bounce: 0.3, color: Math.random() < 0.35 ? 0xffffff : pickc(o.colors ?? [col]),
+    });
+  }
+  // voxel debris: chunky bits that tumble and bounce
+  const nd = o.debris ?? Math.round(5 + R * 3);
+  for (let i = 0; i < nd; i++) {
+    const a = rnd(0, Math.PI * 2), sp = rnd(1.5, 4.5) * pw;
+    const s = rnd(0.06, 0.15) * Math.min(1.6, 0.7 + R * 0.15);
+    particles.spawn('cube', {
+      x: x + Math.cos(a) * 0.2, y: y + 0.1, z: z + Math.sin(a) * 0.15,
+      vx: Math.cos(a) * sp, vy: rnd(3, 7.5) * pw, vz: Math.sin(a) * sp * 0.5,
+      rvx: rnd(-10, 10), rvy: rnd(-10, 10), rvz: rnd(-10, 10), size: s, life: rnd(0.8, 1.4), grav: -18, drag: 0.4,
+      ground: 0, bounce: 0.4, color: pickc(o.debrisColors ?? o.colors ?? DUSTS),
+    });
+  }
+  // dust: billowing puffs that roll outward and rise (irregular, clumped)
+  const nu = o.dust ?? Math.round(6 + R * 4);
+  for (let i = 0; i < nu; i++) {
+    const a = rnd(0, Math.PI * 2), r = rnd(0.1, 0.5) * R * 0.5, sp = rnd(0.8, 2.6) * Math.sqrt(R) * 0.8;
+    particles.spawn('cube', {
+      x: x + Math.cos(a) * r, y: 0.08 + rnd(0, 0.15), z: z + Math.sin(a) * r * 0.6,
+      vx: Math.cos(a) * sp, vy: rnd(0.3, 1.4), vz: Math.sin(a) * sp * 0.5,
+      rvx: rnd(-2, 2), rvy: rnd(-2, 2), size: rnd(0.12, 0.26) * Math.min(1.8, 0.6 + R * 0.2), grow: 1.4,
+      life: rnd(0.45, 0.9), grav: 0.6, drag: 2.6, shrinkStart: 0.45, fadeIn: 0.04,
+      color: pickc(o.dustColors ?? DUSTS),
+    });
+  }
+}
+/** Big impact (spell / slam): groundHit + a heavier smoke billow. */
+export function groundImpact(pos, o = {}) {
+  groundHit(pos, { ...o, color: o.color ?? o.colors?.[0] ?? 0xffffff, debrisColors: o.colors ?? DUSTS, power: o.power ?? 1.2 });
+  const R = o.radius ?? 2.5;
+  for (let i = 0; i < 6; i++) {
+    particles.spawn('cube', {
+      x: pos.x + rnd(-0.3, 0.3) * R * 0.5, y: 0.2 + rnd(0, 0.3), z: (pos.z ?? 0) + rnd(-0.3, 0.3),
+      vx: rnd(-0.8, 0.8), vy: rnd(0.8, 1.8), vz: rnd(-0.4, 0.4), rvx: rnd(-1, 1), rvy: rnd(-1, 1),
+      size: rnd(0.2, 0.36), grow: 1.2, life: rnd(0.8, 1.4), grav: 0.5, drag: 1.4, shrinkStart: 0.5, fadeIn: 0.1,
+      color: pickc([0x9aa0aa, 0xb8bec8, 0x80868f]),
+    });
+  }
+}

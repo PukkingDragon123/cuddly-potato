@@ -43,7 +43,6 @@
 }
 .bh-floatl, .bh-floatr { display: flex; align-items: flex-end; gap: calc(var(--u) * 1.2); pointer-events: none; }
 .bh-floatl > *, .bh-floatr > * { pointer-events: auto; }
-.bh-emote { width: calc(var(--u) * 9) !important; min-height: calc(var(--u) * 8.6) !important; }
 
 /* ---------------------------------------------------------------- POWER wallet */
 .bh-wallet {
@@ -106,7 +105,6 @@
   box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 1.5) 0 rgba(255, 255, 255, 0.35), inset 0 calc(var(--px) * -3) 0 rgba(0, 0, 0, 0.35), 0 calc(var(--px) * 2) 0 var(--px) rgba(0, 0, 0, 0.4);
   transition: transform 0.14s cubic-bezier(.3, 1.8, .5, 1), filter 0.2s;
 }
-.bh-basebtn:active { transform: scale(0.95, 0.9); }
 .bb-stage { position: absolute; left: calc(var(--u) * -0.2); bottom: calc(var(--u) * 3.4); width: calc(var(--u) * 19); height: calc(var(--u) * 19); z-index: 2; pointer-events: none; }
 .bb-plinth { position: absolute; left: 12%; right: 12%; bottom: 4%; height: 18%; border-radius: 50%; background: radial-gradient(closest-side, rgba(180, 230, 255, 0.75), rgba(120, 90, 255, 0.35) 60%, transparent); }
 .bb-model { position: absolute; left: 0; bottom: 0; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; image-rendering: auto; filter: drop-shadow(0 var(--px) 0 var(--ink)) drop-shadow(0 0 calc(var(--px) * 2) rgba(0, 0, 0, 0.5)); }
@@ -133,12 +131,12 @@
 .bb-rays { position: absolute; left: calc(var(--u) * 7.8); bottom: calc(var(--u) * 11); width: calc(var(--u) * 30); aspect-ratio: 1; translate: -50% 50%; z-index: 1; pointer-events: none; opacity: 0; background: var(--tx-rays) center / 100% 100% no-repeat; image-rendering: pixelated; }
 .bb-shine { position: absolute; inset: 0; z-index: 4; border-radius: inherit; pointer-events: none; overflow: hidden; }
 /* can afford: gold + rays + sheen + pulse */
-.bh-basebtn.afford { --bb1: #fff3a0; --bb2: #ffc21a; --bb3: #d87a0a; animation: bbPulse 0.9s ease-in-out infinite; box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 1.5) 0 rgba(255, 255, 255, 0.55), inset 0 calc(var(--px) * -3) 0 rgba(120, 50, 0, 0.4), 0 calc(var(--px) * 2) 0 var(--px) rgba(0, 0, 0, 0.4), 0 0 calc(var(--u) * 3) rgba(255, 210, 60, 0.85); }
+.bh-basebtn.afford { --bb1: #fff3a0; --bb2: #ffc21a; --bb3: #d87a0a; animation: bbPulse 1.2s ease-in-out infinite; box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 1.5) 0 rgba(255, 255, 255, 0.55), inset 0 calc(var(--px) * -3) 0 rgba(120, 50, 0, 0.4), 0 calc(var(--px) * 2) 0 var(--px) rgba(0, 0, 0, 0.4), 0 0 calc(var(--u) * 3) rgba(255, 210, 60, 0.85); }
 .bh-basebtn.afford .bb-txt small { color: #5a2a00; text-shadow: none; }
 .bh-basebtn.afford .bb-fill i { background: linear-gradient(#ffffff 0 25%, #8dff7a 25% 70%, #2fc04a 70%); }
 .bh-basebtn.afford .bb-rays { opacity: 0.75; animation: pxRays 6s steps(24) infinite; }
 .bh-basebtn.afford .bb-shine::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.65) 45%, transparent 55%) no-repeat; background-size: 250% 100%; animation: shineSweep 1.8s ease-in-out infinite; }
-@keyframes bbPulse { 50% { transform: scale(1.04); } }
+@keyframes bbPulse { 50% { transform: scale(1.03); } }
 .bh-basebtn.max { --bb1: #8affe0; --bb2: #2fc0a0; --bb3: #1a6a6a; }
 .bh-basebtn.max .bb-fill { display: none; }
 .bh-basebtn.max .bb-cost { bottom: calc(var(--u) * 1.4); }
@@ -155,7 +153,6 @@
   position: relative; flex: none; width: var(--us); height: var(--us); cursor: pointer; touch-action: manipulation; isolation: isolate;
   transition: transform 0.14s cubic-bezier(.3, 1.8, .5, 1);
 }
-.bh-ult:active { transform: scale(0.92); }
 .bh-ult::before {
   content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 50%;
   background: radial-gradient(circle, #1a2266 0 60%, #070a26 72%);
@@ -200,12 +197,12 @@
   position: absolute; left: 50%; top: calc(var(--u) * -1.8); translate: -50% 0; z-index: 4; white-space: nowrap;
   font-family: var(--font-d); font-size: calc(var(--u) * 3.2); line-height: 1; color: #fff; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) var(--uc);
 }
-.bh-ult.ready { animation: uReady 0.7s ease-in-out infinite; }
+.bh-ult.ready { animation: uReady 1.1s ease-in-out infinite; }
 .bh-ult.ready::before { background: radial-gradient(circle, color-mix(in srgb, var(--uc) 35%, #1a2266) 0 60%, #070a26 72%); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.4) #fff, 0 0 calc(var(--u) * 4) var(--uc), 0 0 calc(var(--u) * 8) color-mix(in srgb, var(--uc) 60%, transparent); }
 .bh-ult.ready .u-rays { opacity: 0.9; animation: pxRays 5s steps(20) infinite; }
-.bh-ult.ready .u-pct { font-size: calc(var(--u) * 4.4); color: #fff6b8; animation: chargeReady 0.45s ease-in-out infinite; }
+.bh-ult.ready .u-pct { color: #fff6b8; animation: chargeReady 0.9s ease-in-out infinite; }
 .bh-ult.ready .u-model { animation: uModel 0.7s ease-in-out infinite; }
-@keyframes uReady { 50% { transform: scale(1.07) rotate(-2deg); } }
+@keyframes uReady { 50% { transform: scale(1.045); } }
 @keyframes uModel { 50% { filter: brightness(1.35) drop-shadow(0 0 calc(var(--px) * 3) #fff); } }
 .bh-ult.pop { animation: uPop 0.5s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes uPop { 0% { transform: scale(0.8); } 50% { transform: scale(1.25); } 100% { transform: none; } }
@@ -229,7 +226,7 @@
 .bh-ult.none .u-pct { top: auto; bottom: calc(var(--u) * -1.4); font-size: calc(var(--u) * 2.6); }
 /* the signature ultimate sits in the dock and pokes up out of it */
 .bh-ults .bh-ult.sig { --us: calc(var(--u) * 22); margin-top: calc(var(--u) * -5); margin-bottom: calc(var(--u) * 0.6); }
-.bh-floatr .bh-ult.mega { --us: calc(var(--u) * 17); margin-bottom: calc(var(--u) * 1); }
+.bh-floatr .bh-ult.mega { --us: calc(var(--u) * 17); margin-bottom: calc(var(--u) * 3.2); }
 
 /* skills: small round buttons with a cooldown shutter */
 .bh-skill {
@@ -238,7 +235,6 @@
   box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * -1.5) 0 #1a3a9a, inset 0 var(--px) 0 #d4f0ff, 0 0 calc(var(--px) * 3) rgba(79, 180, 255, 0.5);
   transition: transform 0.16s cubic-bezier(.3, 1.8, .5, 1);
 }
-.bh-skill:active { transform: scale(0.88); }
 .bh-skill img { width: 100%; height: 100%; }
 .bh-skill .cdv { position: absolute; left: 0; right: 0; top: 0; background: rgba(8, 6, 24, 0.72); box-shadow: 0 var(--px) 0 rgba(127, 230, 255, 0.6); }
 .bh-skill .cdn { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-d); font-size: calc(var(--u) * 4); color: #fff; text-shadow: var(--outline-thin); }
@@ -250,7 +246,6 @@
 .bh-cards .bh-slot { flex: 0 1 calc(var(--u) * 20); min-width: 0; aspect-ratio: 0.8 / 1; }
 .bh-slot { position: relative; pointer-events: auto; touch-action: none; cursor: pointer; transition: transform 0.14s cubic-bezier(.2, 1.5, .4, 1), filter 0.2s; }
 .bh-slot.gone { display: none; }
-.bh-slot:active:not(.poor) { transform: translateY(calc(var(--u) * -1)) scale(1.04); }
 
 /* the card face */
 .bh-slot { --rc: #9fb4e8; }
@@ -382,29 +377,9 @@ body.touch .cf .key { display: none; }
 .bh-fly { position: absolute !important; left: 0; top: 0; z-index: 40; pointer-events: none; will-change: transform, opacity; transform-origin: 50% 50%; filter: drop-shadow(0 0 calc(var(--u) * 2) var(--rc)); }
 .bh-fly .cf .flash { animation: cardFlash 0.3s 0.05s ease-out both; }
 .bh-fly .cf .need { display: none; }
-.bh-dropring {
-  position: absolute; z-index: 39; pointer-events: none; width: calc(var(--u) * 4); height: calc(var(--u) * 1.6); translate: -50% -50%; border-radius: 50%;
-  border: calc(var(--px) * 2) solid var(--rc); box-shadow: 0 0 calc(var(--u) * 2) var(--rc), inset 0 0 calc(var(--u) * 1) var(--rc);
-  animation: dropRing 0.55s cubic-bezier(.1, .8, .3, 1) forwards;
-}
-@keyframes dropRing { 0% { width: calc(var(--u) * 4); height: calc(var(--u) * 1.6); opacity: 1; } 100% { width: calc(var(--u) * 34); height: calc(var(--u) * 11); opacity: 0; } }
-
-/* ---------------------------------------------------------------- base HP banner hit reactions */
-.bh-side.hurt .bh-base { animation: hurtShake 0.25s; }
-.bh-side.hurtbig .bh-base { animation: hurtShake 0.4s; }
-.bh-side.hurt .bhp, .bh-side.hurtbig .bhp { animation: hurtFlash 0.3s; }
-@keyframes hurtShake { 0%, 100% { translate: 0 0; } 25% { translate: calc(var(--u) * -0.8) calc(var(--u) * 0.3); } 50% { translate: calc(var(--u) * 0.7) 0; } 75% { translate: calc(var(--u) * -0.4) calc(var(--u) * -0.2); } }
-@keyframes hurtFlash { 0% { filter: brightness(2.2) saturate(0.4); } 100% { filter: none; } }
-
 /* ---------------------------------------------------------------- misc */
 .bhud.cine { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 .bhud.cine * { pointer-events: none !important; }
-.bh-emotes {
-  position: absolute; z-index: 32; display: grid; grid-template-columns: repeat(3, auto); gap: calc(var(--u) * 1); padding: calc(var(--u) * 1.4);
-  background: var(--tx-grid) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)), linear-gradient(rgba(14, 22, 72, 0.96), rgba(8, 12, 44, 0.96));
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 var(--px) rgba(127, 230, 255, 0.45), 0 0 calc(var(--px) * 5) rgba(63, 200, 255, 0.4); pointer-events: auto; animation: popIn 0.25s cubic-bezier(.2, 1.4, .4, 1);
-}
-.bh-emotes button { font-size: 0.8em !important; min-height: calc(var(--u) * 8) !important; }
 
 /* ---------------------------------------------------------------- landscape */
 body.landscape .bh-dock {
@@ -527,3 +502,88 @@ body.landscape .bh-float { padding-bottom: calc(var(--u) * 1.2); }
 .bh-rivalcard b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 3.4); text-shadow: var(--outline-thin); }
 .bh-rivalcard span { font-family: var(--font-b); font-size: calc(var(--u) * 2.2); color: #ffe27a; }
 @keyframes rivalIn { 0% { transform: translateX(120%); } 12%, 85% { transform: none; } 100% { transform: translateX(120%); } }
+
+/* =========================================================================
+   Button feel (v2): every battle button squashes on press and springs back
+   with an elastic overshoot on release. Press / release animate the `scale`
+   property only, so they compose with the `transform` ready-pulses and the
+   `translate` shakes instead of fighting them (the old :active transforms
+   were swallowed by running pulse animations and felt dead / jumpy).
+   ========================================================================= */
+@property --k { syntax: '<number>'; inherits: true; initial-value: 0; }
+.pfx { transition: scale 0.09s cubic-bezier(.3, 0, .6, 1), transform 0.16s cubic-bezier(.2, 1.5, .4, 1), filter 0.2s, --k 0.35s ease-out; }
+.pfx.prs { scale: 0.9 0.86; transition: scale 0.07s cubic-bezier(.3, 0, .6, 1), transform 0.16s cubic-bezier(.2, 1.5, .4, 1), filter 0.2s, --k 0.35s ease-out; }
+.bh-slot.pfx.prs:not(.poor) { scale: 0.94 0.9; }
+.bh-slot.pfx.prs.poor { scale: 0.97; }
+.pfx.rel { animation: pfxRel 0.42s cubic-bezier(.2, .9, .3, 1); }
+@keyframes pfxRel { 0% { scale: 0.9 0.86; } 35% { scale: 1.09 1.12; } 60% { scale: 0.97 0.96; } 80% { scale: 1.02 1.02; } 100% { scale: 1 1; } }
+/* the charge ring + liquid fill glide instead of stepping */
+.bh-ult { transition: --k 0.35s ease-out; }
+.bh-ult.ready::before { animation: uGlow 1.1s ease-in-out infinite; }
+@keyframes uGlow { 50% { filter: brightness(1.3); } }
+.u-pct { font-variant-numeric: tabular-nums; min-width: 3ch; text-align: center; }
+.bh-skill .cdv { transition: height 0.25s linear; }
+.bb-fill i, .pw-f { transition-timing-function: cubic-bezier(.2, .8, .3, 1); transition-duration: 0.22s; }
+
+/* ULT: the live 3D Commander */
+.bh-ult.live .u-model { left: -6%; top: -6%; width: 112%; height: 112%; object-fit: contain; image-rendering: auto; }
+.bh-ult.live.ready .u-model { animation: none; filter: drop-shadow(0 0 calc(var(--px) * 2) #fff) drop-shadow(0 0 calc(var(--px) * 4) var(--uc)); }
+.bh-ult.live.hot .u-model { filter: drop-shadow(0 0 calc(var(--px) * 2) color-mix(in srgb, var(--uc) 80%, #fff)); }
+
+/* EMOTE button: the Beast panther emblem on a lab-glass puck, cooldown shutter */
+.bh-emote {
+  --ec: #3fb8ff;
+  position: relative; width: calc(var(--u) * 10); height: calc(var(--u) * 10); flex: none; cursor: pointer; touch-action: manipulation; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * 2.6);
+  background: radial-gradient(circle at 50% 35%, #2a3a9a, #10164a 70%);
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1) rgba(127, 230, 255, 0.55), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.4), 0 calc(var(--px) * 1.5) 0 rgba(0, 0, 0, 0.4), 0 0 calc(var(--u) * 1.4) rgba(63, 160, 255, 0.45);
+}
+.bh-emote .logo { width: 86%; height: 86%; image-rendering: pixelated; position: relative; z-index: 1; animation: emLogo 3.2s ease-in-out infinite; filter: drop-shadow(0 calc(var(--px) * 0.67) 0 var(--ink)); }
+@keyframes emLogo { 0%, 80%, 100% { rotate: 0deg; } 85% { rotate: -9deg; } 90% { rotate: 7deg; } 95% { rotate: -3deg; } }
+.bh-emote .cd { position: absolute; left: 0; right: 0; bottom: 0; height: 0; z-index: 2; display: block; background: rgba(6, 4, 22, 0.66); box-shadow: 0 calc(var(--px) * -0.75) 0 var(--ec); transition: height 0.1s linear; }
+.bh-emote.cool .logo { filter: grayscale(0.7) brightness(0.8); animation: none; }
+.bh-emote.open { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1.4) #fff, 0 0 calc(var(--u) * 2.4) rgba(127, 230, 255, 0.85); }
+.bh-emote.open .logo { animation: emOpen 0.5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes emOpen { 0% { scale: 0.6; rotate: -20deg; } 100% { scale: 1; rotate: 0deg; } }
+.bh-emote.sent { animation: emSent 0.5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes emSent { 0% { filter: brightness(2.2); } 100% { filter: none; } }
+.bh-emote.back { animation: emBack 0.45s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes emBack { 0% { filter: brightness(2); } 100% { filter: none; } }
+.bh-emote.shake { animation: shakeX 0.3s; }
+
+/* emote picker: a pop-up tray of 8 big emote chips that bloom in one by one */
+.bh-emotes {
+  position: absolute; z-index: 32; display: grid; grid-template-columns: repeat(4, calc(var(--u) * 15)); gap: calc(var(--u) * 1); padding: calc(var(--u) * 1.4);
+  border-radius: calc(var(--u) * 2.2); pointer-events: auto; transform-origin: 0 100%;
+  background: var(--tx-grid) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)), linear-gradient(rgba(16, 26, 84, 0.97), rgba(7, 10, 40, 0.97));
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 var(--px) rgba(127, 230, 255, 0.5), 0 calc(var(--px) * 2) 0 rgba(0, 0, 0, 0.4), 0 0 calc(var(--u) * 3) rgba(63, 200, 255, 0.35);
+  animation: emTrayIn 0.32s cubic-bezier(.2, 1.5, .4, 1) both;
+}
+.bh-emotes::after { content: ''; position: absolute; left: calc(var(--u) * 3.6); bottom: calc(var(--u) * -1.5); width: calc(var(--u) * 3); height: calc(var(--u) * 1.6); background: rgba(7, 10, 40, 0.97); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.bh-emotes.out { animation: emTrayOut 0.18s ease-in both; }
+@keyframes emTrayIn { 0% { scale: 0.3 0.2; opacity: 0; } 100% { scale: 1; opacity: 1; } }
+@keyframes emTrayOut { to { scale: 0.6 0.4; opacity: 0; } }
+.em-b {
+  --ec: #3fb8ff;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 0.3); height: calc(var(--u) * 13); cursor: pointer; touch-action: manipulation;
+  border-radius: calc(var(--u) * 1.6);
+  background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--ec) 55%, #1a2470), #0c1244 80%);
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 0.75) 0 rgba(255, 255, 255, 0.35), inset 0 calc(var(--px) * -1.5) 0 rgba(0, 0, 0, 0.35);
+  animation: emChipIn 0.36s calc(var(--i) * 0.03s) cubic-bezier(.2, 1.7, .4, 1) both;
+}
+.em-b img { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); image-rendering: pixelated; transition: scale 0.15s; }
+.em-b span { font-family: var(--font-d); font-size: calc(var(--u) * 2.5); line-height: 1; color: #fff; text-shadow: var(--outline-thin); white-space: nowrap; }
+.em-b:hover img { scale: 1.12; }
+.em-b:hover { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1) var(--ec), 0 0 calc(var(--u) * 1.6) var(--ec); }
+@keyframes emChipIn { 0% { transform: translateY(calc(var(--u) * 4)) scale(0.3); opacity: 0; } 100% { transform: none; opacity: 1; } }
+body.landscape .bh-emotes { grid-template-columns: repeat(4, calc(var(--u) * 14)); }
+body.landscape .em-b { height: calc(var(--u) * 11.5); }
+/* keep the idle pulses running underneath the release spring */
+.bh-basebtn.afford.rel { animation: pfxRel 0.42s cubic-bezier(.2, .9, .3, 1), bbPulse 1.2s ease-in-out infinite; }
+.bh-ult.ready.rel { animation: pfxRel 0.42s cubic-bezier(.2, .9, .3, 1), uReady 1.1s ease-in-out infinite; }
+.bh-emote.rel .logo { animation: emOpen 0.4s cubic-bezier(.2, 1.6, .4, 1); }
+/* OVERCLOCK special: the wallet crackles cyan while POWER regen is boosted */
+.bh-wallet.oc .pw-bar { box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.2) #3ff2ff, 0 0 calc(var(--u) * 3) rgba(63, 242, 255, 0.85); animation: ocBar 0.5s steps(2) infinite; }
+.bh-wallet.oc .pw-f { background: var(--tx-zap) 0 50% / calc(16 * var(--px)) calc(5 * var(--px)) repeat-x, linear-gradient(#ffffff 0 18%, #b8fbff 18% 38%, #3ff2ff 38% 74%, #10a0c0 74%); animation: zapRun 0.3s steps(8) infinite; }
+.bh-wallet.oc .pw-ic { filter: drop-shadow(0 0 calc(var(--px) * 4) #3ff2ff) hue-rotate(150deg) saturate(1.4); }
+@keyframes ocBar { 50% { filter: brightness(1.3); } }

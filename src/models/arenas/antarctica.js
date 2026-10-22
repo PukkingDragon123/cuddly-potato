@@ -11,6 +11,7 @@ import {
   pixbuf, skyGlow, paintMoonPx, paintStarfield, paintAuroraPx, paintStreaks, paintRange,
   setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, pineTreeGrid,
 } from './kit.js';
+import { hdPixbuf } from './hdpaint.js';
 
 const C = {
   snow: 0xedf3fb, snow2: 0xe1eaf6, snowS: 0xc8d7ec, snowB: 0xb2c6e2, snowW: 0xf8fbff,
@@ -26,6 +27,7 @@ const LH = FIELD.LANE_HALF;
 
 /** Direct pixel buffer for fast per-pixel painting (flush() writes it back). */
 function pixels(ctx, w, h) {
+  if (ctx._hd) return hdPixbuf(ctx, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   return {
     set(x, y, hex, a = 1) {
@@ -641,23 +643,24 @@ function addSnowfall(K, n, area) {
 
 /** Aurora curtain texture: vertical rays fading upward, bright lower hem. */
 function auroraTex(id, pal) {
-  return canvasTex(id, 128, 48, (ctx, w, h) => {
-    const P = pixels(ctx, w, h);
+  // smooth curtain: continuous alpha + colour ramp (hem -> mid -> low -> top), soft vertical rays
+  return canvasTex(id, 256, 96, (ctx, w, h) => {
+    const img = ctx.createImageData(w, h), d = img.data;
+    const ramp = (t) => (t > 0.8 ? mixHex(pal.mid, pal.hem, (t - 0.8) / 0.2) : t > 0.5 ? mixHex(pal.low, pal.mid, (t - 0.5) / 0.3) : t > 0.28 ? mixHex(pal.top, pal.low, (t - 0.28) / 0.22) : pal.top);
     for (let x = 0; x < w; x++) {
-      const ray = 0.35 + 0.65 * vnoise(x * 0.42, 1, pal.seed);
-      const top = h * (0.05 + 0.4 * vnoise(x * 0.07, 3, pal.seed));
+      const ray = 0.35 + 0.65 * vnoise(x * 0.21, 1, pal.seed);
+      const top = h * (0.05 + 0.4 * vnoise(x * 0.035, 3, pal.seed));
       for (let y = 0; y < h; y++) {
         const t = (y - top) / (h - top);
         if (t < 0) continue;
         let a = t < 0.82 ? Math.pow(t / 0.82, 1.5) : 1 - ((t - 0.82) / 0.18) * 0.75;
-        a *= ray;
-        const q = Math.floor(a * 4 + bayer(x, y)) / 4;
-        if (q <= 0) continue;
-        P.set(x, y, t > 0.8 ? pal.hem : t > 0.5 ? pal.mid : t > 0.28 ? pal.low : pal.top, Math.min(1, q));
+        a *= ray * Math.min(1, t * 6);
+        const c = ramp(t), i = (y * w + x) * 4;
+        d[i] = (c >> 16) & 255; d[i + 1] = (c >> 8) & 255; d[i + 2] = c & 255; d[i + 3] = Math.round(255 * Math.min(1, a));
       }
     }
-    P.flush();
-  }, { repeatX: true });
+    ctx.putImageData(img, 0, 0);
+  }, { repeatX: true, hd: 1 });
 }
 
 /** Rippling aurora ribbons far behind the mountains (vertex-animated). */

@@ -1,0 +1,70 @@
+/* Entrance animation poster tiles (src/ui/entranceArt.js). */
+.ent-art {
+  --ec: #29b6f6;
+  position: relative; width: 100%; height: 100%; min-height: calc(var(--u) * 14); overflow: hidden; isolation: isolate;
+  background: radial-gradient(ellipse at 50% 85%, color-mix(in srgb, var(--ec) 55%, transparent), transparent 70%), linear-gradient(#0d1033, #1b1450 60%, #0a0a22);
+  box-shadow: inset 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) color-mix(in srgb, var(--ec) 60%, #fff 0%);
+}
+.ent-rays {
+  position: absolute; inset: -40%; z-index: 0; opacity: 0.35; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg at 50% 62%, var(--ec) 0 6deg, transparent 6deg 18deg);
+  animation: entSpin 9s linear infinite;
+}
+@keyframes entSpin { to { transform: rotate(360deg); } }
+.ent-clap {
+  position: absolute; left: 0; right: 0; top: 0; height: 13%; z-index: 2;
+  background: repeating-linear-gradient(120deg, #f6f8ff 0 calc(var(--px) * 3), #15121f calc(var(--px) * 3) calc(var(--px) * 6));
+  box-shadow: 0 var(--px) 0 var(--ink);
+}
+.ent-floor {
+  position: absolute; left: 8%; right: 8%; bottom: 10%; height: 8%; z-index: 1; border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--ec) 80%, #fff 20%), transparent 70%); opacity: 0.8;
+}
+.ent-hero { position: absolute; left: 50%; bottom: 14%; width: 58%; height: 58%; translate: -50% 0; z-index: 3; }
+.ent-ic { width: 100%; height: 100%; filter: drop-shadow(0 0 calc(var(--px) * 3) var(--ec)) drop-shadow(0 calc(var(--px) * 2) 0 rgba(0, 0, 0, 0.45)); }
+.ent-fx { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+/* per-entrance loops */
+.ent-strut .ent-hero { animation: entStrut 2.4s ease-in-out infinite; }
+@keyframes entStrut { 0% { transform: translateX(-70%); } 40%, 100% { transform: translateX(0); } 50% { transform: translateX(0) scale(1.08); } }
+.ent-heroLanding .ent-hero { animation: entLand 2s cubic-bezier(.5, 0, .9, .5) infinite; }
+@keyframes entLand { 0% { transform: translateY(-140%) scale(0.8); } 35% { transform: translateY(0) scale(1.25, 0.75); } 45%, 100% { transform: none; } }
+.ent-heroLanding .ent-fx { background: radial-gradient(ellipse at 50% 88%, #fff 0 6%, transparent 30%); animation: entPuff 2s linear infinite; }
+@keyframes entPuff { 0%, 30% { opacity: 0; transform: scale(0.4); } 36% { opacity: 1; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.4); } }
+.ent-labExplosion .ent-fx { background: radial-gradient(circle at 50% 70%, #eaffd0 0 8%, #7cff3a 18%, rgba(60, 200, 40, 0.6) 32%, transparent 50%); animation: entBoom 2.2s ease-out infinite; }
+@keyframes entBoom { 0% { opacity: 0; transform: scale(0.2); } 12% { opacity: 1; transform: scale(1); } 60%, 100% { opacity: 0; transform: scale(1.6); } }
+.ent-labExplosion .ent-hero { animation: entEmerge 2.2s ease-out infinite; }
+@keyframes entEmerge { 0%, 20% { opacity: 0; transform: scale(0.6); } 45%, 100% { opacity: 1; transform: none; } }
+.ent-redCarpet .ent-floor { left: 0; right: 0; bottom: 6%; height: 14%; border-radius: 0; background: linear-gradient(90deg, #8a0a1e, #ff3a5a 50%, #8a0a1e); clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%); }
+.ent-redCarpet .ent-fx { background: radial-gradient(circle at 18% 40%, #fff 0 3%, transparent 6%), radial-gradient(circle at 82% 30%, #fff 0 3%, transparent 6%), radial-gradient(circle at 70% 60%, #fff 0 2%, transparent 5%); animation: entFlash 1.1s steps(2) infinite; }
+@keyframes entFlash { 50% { opacity: 0; } }
+.ent-rocketDrop .ent-hero { animation: entRocket 2s cubic-bezier(.4, 0, 1, 1) infinite; }
+@keyframes entRocket { 0% { transform: translate(-120%, -120%) rotate(45deg); } 40% { transform: translate(0, 0) rotate(45deg); } 46% { transform: scale(1.3, 0.7); } 55%, 100% { transform: none; } }
+.ent-rocketDrop .ent-fx { background: radial-gradient(circle at 50% 80%, #fff2a0 0 6%, #ff8a2a 16%, transparent 36%); animation: entPuff 2s linear infinite; }
+.ent-glitchTeleport .ent-hero { animation: entGlitch 1.6s steps(1) infinite; }
+@keyframes entGlitch {
+  0% { transform: translate(-10%, 0); filter: drop-shadow(3px 0 0 #ff2e88) drop-shadow(-3px 0 0 #3ff2e0); opacity: 0.4; }
+  12% { transform: translate(8%, -4%) skewX(20deg); opacity: 1; }
+  24% { transform: translate(-4%, 2%); opacity: 0.2; }
+  36%, 100% { transform: none; filter: none; opacity: 1; }
+}
+.ent-glitchTeleport .ent-fx { background: repeating-linear-gradient(180deg, rgba(63, 242, 224, 0.22) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 3)); animation: entScan 0.8s linear infinite; }
+@keyframes entScan { to { background-position: 0 calc(var(--px) * 6); } }
+@media (prefers-reduced-motion: reduce) { .ent-art * { animation: none !important; } }
+
+/* shop: ENTRANCES section tiles (src/ui/home/shop.js) */
+.mn-ents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 3); }
+body.landscape .mn-ents { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mn-ent {
+  --ec: #29b6f6;
+  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * 1.2); padding: calc(var(--u) * 2);
+  background: linear-gradient(#1a2470, #0e1442); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 1.5) color-mix(in srgb, var(--ec) 55%, #1a2470);
+}
+.mn-ent.eq { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) var(--ec), 0 0 calc(var(--u) * 3) color-mix(in srgb, var(--ec) 60%, transparent); }
+.mn-ent-art { height: calc(var(--u) * 26); }
+.mn-ent-n { font-size: calc(var(--u) * 4.6); line-height: 1; color: #fff; }
+.mn-ent-s { font-size: calc(var(--u) * 3); color: var(--muted, #9aa6c8); line-height: 1.2; flex: 1 1 auto; }
+.mn-ent-btns { display: flex; align-items: center; gap: calc(var(--u) * 1.6); }
+.mn-ent-btns > :last-child { flex: 1 1 auto; }
+.mn-ent-pv { flex: none; min-width: 0; padding-left: calc(var(--u) * 2); padding-right: calc(var(--u) * 2); }
+.mn-ent-pass { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: calc(var(--u) * 3.4); color: #ff8ac4; }
+.mn-ent-confirm { width: calc(var(--u) * 40); height: calc(var(--u) * 30); margin: 0 auto; }

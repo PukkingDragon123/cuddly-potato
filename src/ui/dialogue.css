@@ -1,0 +1,166 @@
+/* =========================================================================
+   Cinematic dialogue (dialogue.js): letterbox bars, a skewed "face cam"
+   window with a live 3D close-up of the speaker over speaker-colour rays,
+   halftone and a light sweep, a slammed name plate, and a dark glass text
+   panel where words pop in one by one (emphasis words glow + shake).
+   ========================================================================= */
+.cdlg { position: absolute; inset: 0; z-index: 45; pointer-events: none !important; --spk: #2b8cf2; --spk-d: color-mix(in srgb, var(--spk) 55%, #070420); --spk-l: color-mix(in srgb, var(--spk) 45%, #fff); }
+.cdlg-catch {
+  position: absolute; inset: 0; pointer-events: auto;
+  background: radial-gradient(ellipse 120% 90% at 50% 50%, transparent 40%, rgba(5, 3, 20, 0.5) 100%), rgba(5, 3, 20, 0.16);
+  animation: fadeIn 0.25s both;
+}
+.cdlg.cont .cdlg-catch, .cdlg.cont .cdlg-bar { animation: none; }
+.cdlg.closing .cdlg-catch { opacity: 0; transition: opacity 0.18s; }
+
+/* letterbox bars */
+.cdlg-bar { position: absolute; left: 0; right: 0; height: calc(4.2vh + 6px); background: linear-gradient(#04020c, #0a0620); pointer-events: none; z-index: 0; }
+.cdlg-bar.t { top: 0; box-shadow: 0 2px 0 rgba(255, 255, 255, 0.06); animation: cBarT 0.32s cubic-bezier(.2, 1, .3, 1) both; }
+.cdlg-bar.b { bottom: 0; box-shadow: 0 -2px 0 rgba(255, 255, 255, 0.06); animation: cBarB 0.32s cubic-bezier(.2, 1, .3, 1) both; }
+.cdlg.closing .cdlg-bar.t { animation: cBarT 0.2s ease-in reverse both; }
+.cdlg.closing .cdlg-bar.b { animation: cBarB 0.2s ease-in reverse both; }
+@keyframes cBarT { from { transform: translateY(-100%); } }
+@keyframes cBarB { from { transform: translateY(100%); } }
+
+/* the panel */
+.cdlg-panel {
+  position: absolute; left: 50%; translate: -50% 0; z-index: 1; pointer-events: auto; cursor: pointer;
+  width: min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)), 560px);
+  display: flex; flex-direction: column; align-items: stretch;
+}
+.cdlg.wide .cdlg-panel { flex-direction: row; align-items: flex-end; width: min(calc(100vw - 20px - var(--safe-l) - var(--safe-r)), 680px); gap: calc(var(--px) * 2); }
+.cdlg.wide.at-top .cdlg-panel { align-items: flex-start; }
+.cdlg-panel.kick { animation: cKick 0.3s cubic-bezier(.3, 2, .5, 1); }
+@keyframes cKick { 0% { transform: none; } 25% { transform: translate(3px, -4px) rotate(-0.6deg) scale(1.015); } 55% { transform: translate(-2px, 1px) rotate(0.4deg); } 100% { transform: none; } }
+.cdlg.closing .cdlg-panel { animation: cOut 0.18s ease-in forwards; }
+@keyframes cOut { to { opacity: 0; transform: translateY(10px) scale(0.97); } }
+.cdlg.at-top.closing .cdlg-panel { animation-name: cOutTop; }
+@keyframes cOutTop { to { opacity: 0; transform: translateY(-10px) scale(0.97); } }
+
+/* ---- face cam: skewed window, live 3D close-up */
+.cdlg-cam {
+  position: relative; z-index: 1; flex: none;
+  height: clamp(104px, 18vh, 176px); margin: 0 calc(var(--px) * 3) calc(var(--px) * -2);
+  transform: skewX(-7deg); overflow: hidden; border-radius: calc(var(--px) * 1.5);
+  background: var(--spk-d);
+  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2) #fff, 0 0 0 calc(var(--px) * 3) var(--ink), 0 calc(var(--px) * 3) 0 calc(var(--px) * 2) rgba(5, 3, 20, 0.45);
+  animation: cCamIn 0.42s cubic-bezier(.16, 1.35, .35, 1) both;
+}
+.cdlg.wide .cdlg-rays { left: 50%; }
+.cdlg.wide .cdlg-cam { width: clamp(112px, 25%, 172px); height: auto; aspect-ratio: 1 / 1.08; margin: 0 0 calc(var(--px) * 2) calc(var(--px) * 3); }
+.cdlg.cont .cdlg-cam { animation: none; }
+@keyframes cCamIn { 0% { transform: skewX(-7deg) translateX(-30%) scaleX(0.3); opacity: 0; filter: brightness(3); } 60% { opacity: 1; filter: brightness(1.4); } 100% { transform: skewX(-7deg); filter: none; } }
+.cdlg-cam-in { position: absolute; inset: 0 -14%; transform: skewX(7deg); overflow: hidden; }
+.cdlg-rays {
+  position: absolute; left: 62%; top: 45%; width: 260%; aspect-ratio: 1; translate: -50% -50%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--spk) 70%, #fff) 0 6deg, color-mix(in srgb, var(--spk) 80%, #0a0630) 6deg 15deg);
+  animation: cSpin 18s linear infinite;
+}
+.cdlg-rays::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--spk) 30%, #fff) 0 6%, transparent 26%, rgba(6, 4, 24, 0.55) 46%);
+}
+@keyframes cSpin { to { rotate: 360deg; } }
+.cdlg-dots {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle, rgba(10, 6, 30, 0.38) 1.1px, transparent 1.6px) 0 0 / 6px 6px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 80% at 50% 45%, transparent 35%, #000 85%); mask-image: radial-gradient(ellipse 70% 80% at 50% 45%, transparent 35%, #000 85%);
+}
+.cdlg-host { position: absolute; inset: 0; }
+.cdlg-host > canvas { position: absolute; inset: 0; display: block; image-rendering: auto; }
+.cdlg-still { position: absolute; left: 50%; top: 54%; height: 150%; translate: -50% -50%; object-fit: contain; image-rendering: auto; animation: cStill 6s ease-out both; }
+@keyframes cStill { from { scale: 0.85; } to { scale: 1.05; } }
+.cdlg-sweep {
+  position: absolute; top: -20%; bottom: -20%; left: -60%; width: 35%; rotate: 18deg; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5) 45%, rgba(255, 255, 255, 0.85) 50%, rgba(255, 255, 255, 0.5) 55%, transparent);
+  mix-blend-mode: overlay; animation: cSweep 4.5s cubic-bezier(.5, 0, .3, 1) 0.15s infinite;
+}
+@keyframes cSweep { 0% { left: -60%; } 22%, 100% { left: 140%; } }
+.cdlg-grade {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(transparent 0 2px, rgba(0, 0, 0, 0.08) 2px 3px),
+    linear-gradient(transparent 62%, rgba(5, 3, 20, 0.5));
+  box-shadow: inset 0 0 calc(var(--px) * 10) rgba(5, 3, 20, 0.55);
+}
+/* viewfinder corner marks */
+.cdlg-mark { position: absolute; width: calc(var(--px) * 4); height: calc(var(--px) * 4); border: 0 solid rgba(255, 255, 255, 0.9); z-index: 2; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5)); }
+.cdlg-mark.tl { left: calc(var(--px) * 3); top: calc(var(--px) * 3); border-left-width: var(--pxs); border-top-width: var(--pxs); }
+.cdlg-mark.tr { right: calc(var(--px) * 3); top: calc(var(--px) * 3); border-right-width: var(--pxs); border-top-width: var(--pxs); }
+.cdlg-mark.bl { left: calc(var(--px) * 3); bottom: calc(var(--px) * 3); border-left-width: var(--pxs); border-bottom-width: var(--pxs); }
+.cdlg-mark.br { right: calc(var(--px) * 3); bottom: calc(var(--px) * 3); border-right-width: var(--pxs); border-bottom-width: var(--pxs); }
+
+/* ---- text panel */
+.cdlg-box {
+  position: relative; z-index: 2; flex: 1; min-width: 0; min-height: clamp(66px, calc(var(--u) * 18), 104px);
+  padding: calc(var(--px) * 5 + 0.45em) calc(var(--px) * 4 + 0.35em) calc(var(--px) * 4 + 0.35em) calc(var(--px) * 4 + 0.4em);
+  color: #fff; border-radius: calc(var(--px) * 2.5);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--spk) 22%, transparent), transparent 40%),
+    repeating-linear-gradient(transparent 0 3px, rgba(255, 255, 255, 0.025) 3px 4px),
+    linear-gradient(#1e1650, #120c38 55%, #0c0828);
+  box-shadow:
+    0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.8) color-mix(in srgb, var(--spk) 75%, #fff),
+    inset 0 calc(var(--px) * 1.6) 0 rgba(255, 255, 255, 0.12),
+    0 calc(var(--px) * 2) 0 var(--px) rgba(5, 3, 20, 0.5), 0 calc(var(--px) * 4) calc(var(--px) * 10) rgba(5, 3, 20, 0.45);
+  animation: cBoxIn 0.36s cubic-bezier(.2, 1.4, .4, 1) 0.06s both;
+}
+.cdlg.at-top .cdlg-box { animation-name: cBoxInTop; }
+.cdlg.cont .cdlg-box { animation: none; }
+@keyframes cBoxIn { 0% { transform: translateY(40px) scale(0.92); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes cBoxInTop { 0% { transform: translateY(-30px) scale(0.92); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
+/* name plate: slams onto the top-left corner of the panel */
+.cdlg-name {
+  position: absolute; left: calc(var(--px) * 3); top: 0; translate: 0 -62%; z-index: 3;
+  padding: 0.04em 0.75em 0.12em; transform: skewX(-10deg); white-space: nowrap;
+  font-family: var(--font-d); font-size: clamp(22px, 1.8em, 34px); line-height: 1; letter-spacing: 0.06em; color: #fff; text-shadow: var(--outline-thin);
+  background: linear-gradient(var(--spk-l) 0 calc(var(--px) * 1.2), var(--spk) calc(var(--px) * 1.2) 56%, color-mix(in srgb, var(--spk) 70%, #0a0820) 56%);
+  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 1.8) #fff, 0 0 0 calc(var(--px) * 2.6) var(--ink), 0 calc(var(--px) * 2) 0 calc(var(--px) * 2) rgba(5, 3, 20, 0.4);
+  border-radius: calc(var(--px) * 1.2);
+}
+.cdlg-name > span { display: inline-block; transform: skewX(10deg); }
+.cdlg:not(.cont) .cdlg-name { animation: cNameIn 0.42s cubic-bezier(.2, 1.7, .4, 1) 0.14s both; }
+@keyframes cNameIn { 0% { opacity: 0; scale: 2.4; filter: brightness(4); } 40% { opacity: 1; } 100% { scale: 1; filter: none; } }
+
+/* ---- words */
+.cdlg-txt { font-family: var(--font-b); font-size: clamp(15px, 1.12em, 20px); line-height: 1.42; font-weight: 400; letter-spacing: 0.01em; overflow-wrap: break-word; text-shadow: 0 2px 0 rgba(5, 3, 20, 0.85); }
+.cdlg-txt .w { display: inline-block; white-space: nowrap; opacity: 0; transform-origin: 50% 85%; }
+.cdlg-txt .w.on { opacity: 1; animation: cwPop 0.34s cubic-bezier(.2, 1.9, .4, 1) both; }
+.cdlg-txt .w.now { animation: fadeIn 0.12s both; }
+@keyframes cwPop {
+  0% { opacity: 0; transform: translateY(0.55em) scale(0.15) rotate(var(--r)); }
+  45% { opacity: 1; transform: translateY(-0.14em) scale(1.2) rotate(calc(var(--r) * -0.35)); color: #fff6c8; }
+  100% { transform: none; }
+}
+.cdlg-txt b { font-weight: 700; color: #ffd84a; }
+.cdlg-txt b .w { text-shadow: 0 0 6px rgba(255, 170, 30, 0.75), 0 2px 0 #5a2a00, 0 0 0 transparent; }
+.cdlg-txt b .w.on { animation: cwSlam 0.44s cubic-bezier(.2, 2.1, .4, 1) both, cwShake 0.3s steps(2) 0.44s infinite, cwGlow 1.1s ease-in-out var(--d) infinite; }
+.cdlg-txt b .w.now { animation: fadeIn 0.12s both, cwShake 0.3s steps(2) infinite, cwGlow 1.1s ease-in-out var(--d) infinite; }
+@keyframes cwSlam {
+  0% { opacity: 0; transform: scale(2.6) rotate(var(--r)); color: #fff; }
+  40% { opacity: 1; transform: scale(0.86) rotate(calc(var(--r) * -0.4)); color: #fff; }
+  70% { transform: scale(1.12); }
+  100% { transform: none; }
+}
+@keyframes cwShake { 0% { translate: 0 0; rotate: 0deg; } 50% { translate: 0.6px -0.8px; rotate: -1.6deg; } 100% { translate: -0.6px 0.6px; rotate: 1.4deg; } }
+@keyframes cwGlow { 50% { text-shadow: 0 0 12px rgba(255, 210, 60, 1), 0 0 3px #fff, 0 2px 0 #5a2a00; } }
+.cdlg-txt em { font-style: normal; font-weight: 700; color: #8fe0ff; }
+.cdlg-txt em .w { text-shadow: 0 0 6px rgba(80, 200, 255, 0.7), 0 2px 0 #062040; }
+
+/* tap-to-continue badge */
+.cdlg-next {
+  position: absolute; right: calc(var(--px) * 4); bottom: 0; translate: 0 55%; display: flex; align-items: center; gap: 0.3em;
+  padding: 0.05em 0.5em 0.1em 0.6em; font-family: var(--font-d); font-size: clamp(13px, 1em, 18px); line-height: 1.1; letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin);
+  background: linear-gradient(var(--spk-l) 0 calc(var(--px) * 0.8), var(--spk) calc(var(--px) * 0.8) 60%, color-mix(in srgb, var(--spk) 72%, #0a0820) 60%);
+  box-shadow: 0 0 0 calc(var(--px) * 0.8) var(--ink); border-radius: calc(var(--px) * 1.5);
+  opacity: 0; scale: 0.4; transition: opacity 0.12s, scale 0.26s cubic-bezier(.2, 1.8, .4, 1); pointer-events: none;
+}
+.cdlg-next > i { width: calc(var(--px) * 3.4); height: calc(var(--px) * 2.4); background: #fff; clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 1px 0 var(--ink)); }
+.cdlg.ready .cdlg-next { opacity: 1; scale: 1; }
+.cdlg.ready .cdlg-next > i { animation: nextBob 0.6s ease-in-out infinite; }
+.cdlg-choices { display: flex; gap: var(--u); margin-top: calc(var(--u) * 1.6); flex-wrap: wrap; justify-content: flex-end; animation: popIn 0.3s cubic-bezier(.2, 1.4, .4, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cdlg-panel, .cdlg-cam, .cdlg-box, .cdlg-name, .cdlg-bar, .cdlg-rays, .cdlg-sweep, .cdlg-txt .w.on, .cdlg-txt b .w.on, .cdlg-next > i { animation: none !important; }
+}

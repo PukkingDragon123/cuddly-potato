@@ -1,7 +1,9 @@
 // Battle HUD (DOM): a Clash Royale card cycle in a Battle Cats control dock.
-//   top    - your (blue) and the rival's (red) name banners with each base's
-//            HP bar + tier, the match timer with 2x / overtime tags, a lane
-//            minimap and pause
+//   top    - one slim tug-of-war bar: your (blue) and the rival's (red) base
+//            HP meet at a crackling seam that slides toward whoever is losing,
+//            names + trophies at the ends, a compact clock with 2x / overtime
+//            tags, a WINNING / LOSING lean chip, hit flashes + shakes, a tiny
+//            lane strip (camera window, tap / drag to pan) and pause
 //   dock   - Battle Cats layout: the big BASE UPGRADE button ("Worker Cat":
 //            a 3D model of the next base tier, its cost and a fill bar) on
 //            the left, the POWER wallet ("12/30" + a fill bar that ticks up)
@@ -28,6 +30,7 @@ import { audio } from '../../core/audio.js';
 import { FIELD } from './field.js';
 import { plateBounds } from './view.js';
 import { HAND_MAX } from './sim.js';
+import { LiveChibi } from './liveChibi.js';
 
 const fmtT = (s) => {
   s = Math.max(0, Math.ceil(s));
@@ -39,20 +42,57 @@ const SIG_COL = { beakerBarrage: '#7cff3a', megaGiveaway: '#ffd84a', bellyFlop: 
 const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const _v = new THREE.Vector3();
 
+// Emotes: the Commander acts each one out (wind-up pose + bar, then the big
+// reaction with a mood, a voxel emote over its head and themed particles).
+// Indices 0-5 are stable (friend battles + AI replies send them).
 export const EMOTES = [
-  { icon: 'smile', text: 'Good luck!' },
-  { icon: 'heart', text: 'Thanks!' },
-  { icon: 'star', text: 'Well played!' },
-  { icon: 'alert', text: 'Oops!' },
-  { icon: 'fire', text: 'WOW!' },
-  { icon: 'skull', text: 'Grrr!' },
+  { icon: 'smile', text: 'Good luck!', color: '#3fb8ff', wind: 'crossArms', windMood: 'cool', act: 'thumbsUp', mood: 'confident', vox: 'sparkle', fx: 'sparkle', dur: 1.5 },
+  { icon: 'heart', text: 'Thanks!', color: '#ff5aa8', wind: 'bow', windMood: 'happy', act: 'love', mood: 'love', vox: 'heart', fx: 'hearts', dur: 1.7 },
+  { icon: 'star', text: 'Well played!', color: '#ffd84a', wind: 'think', windMood: 'think', act: 'clap', mood: 'excited', vox: 'star', fx: 'confetti', dur: 1.6 },
+  { icon: 'alert', text: 'Oops!', color: '#8fd4ff', wind: 'shocked', windMood: 'shock', act: 'facepalm', mood: 'embarrassed', vox: 'sweat', fx: 'sweat', dur: 1.6 },
+  { icon: 'fire', text: 'WOW!', color: '#ff8a2a', wind: 'nervous', windMood: 'surprised', act: 'celebrate', mood: 'excited', vox: '!!', fx: 'fire', dur: 1.7 },
+  { icon: 'skull', text: 'Grrr!', color: '#ff3d55', wind: 'angry', windMood: 'angry', act: 'rage', mood: 'rage', vox: 'anger', fx: 'steam', dur: 1.5 },
+  { icon: 'crown', text: 'Too easy!', color: '#c08aff', wind: 'yawn', windMood: 'yawn', act: 'taunt', mood: 'tease', vox: 'note', fx: 'sparkle', dur: 1.6 },
+  { icon: 'megaphone', text: "LET'S GO!", color: '#7cff3a', wind: 'stretch', windMood: 'focus', act: 'fistPump', mood: 'determined', vox: '!', fx: 'bolt', dur: 1.5 },
 ];
+const EMOTE_WIND = 0.75;
+const EMOTE_CD = 4.5;
+
+/**
+ * Juicy press feedback for a HUD button: squash on press (the `scale`
+ * property, so it composes with any `transform` pulse already running),
+ * elastic overshoot on release.
+ */
+let pfxGlobal = false;
+function pfxUp(el) {
+  if (!el.classList.contains('prs')) return;
+  el.classList.remove('prs');
+  el.classList.remove('rel');
+  void el.offsetWidth;
+  el.classList.add('rel');
+}
+export function pressFx(el) {
+  if (!pfxGlobal && typeof document !== 'undefined') {
+    // a press that ends elsewhere (pointer captured by a drag, finger slid off) still springs back
+    pfxGlobal = true;
+    const release = () => { for (const p of document.querySelectorAll('.pfx.prs')) pfxUp(p); };
+    document.addEventListener('pointerup', release, true);
+    document.addEventListener('pointercancel', release, true);
+  }
+  const down = () => { el.classList.remove('rel'); el.classList.add('prs'); };
+  const up = () => pfxUp(el);
+  el.classList.add('pfx');
+  el.addEventListener('pointerdown', down);
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, up);
+  el.addEventListener('animationend', (e) => { if (e.animationName === 'pfxRel') el.classList.remove('rel'); });
+  return el;
+}
 
 /** Burst (ring + rays + sparks) at a screen point. */
 function burstAt(x, y, o = {}) {
   const el = h('div', { style: { position: 'absolute', left: x - 20 + 'px', top: y - 20 + 'px', width: '40px', height: '40px', pointerEvents: 'none' } });
   $overlay().appendChild(el);
-  burst(el, o);
+  burst(el, { ring: false, ...o });
   setTimeout(() => el.remove(), 50);
 }
 
@@ -93,47 +133,48 @@ export class BattleHUD {
     const s0 = sim.sides[0];
     const root = (this.root = h('div', { class: 'bhud' }));
 
-    // ------------------------------------------------------------ top
-    const side = (i) => {
+    // ------------------------------------------------------------ top: tug-of-war bar
+    const end = (i) => {
       const c = cfg.sides[i];
-      const fill = h('i', { class: 'f' }), ghost = h('i', { class: 'g' });
-      const tier = h('span', { class: 'tn' }, BASE_UPGRADES[0].name);
-      const hpv = h('span', { class: 'hv' }, '');
-      const el = h('div', { class: `bh-side s${i}` },
-        h('div', { class: 'bh-name' },
-          h('span', { class: 'nm' }, c.name ?? (i ? 'Rival' : 'You')),
-          c.trophies !== undefined ? h('span', { class: 'tr' }, icon('trophy'), String(c.trophies)) : null),
-        c.clan || c.ghost ? h('div', { class: 'bh-sub' }, c.clan ?? '', c.ghost ? (c.clan ? ' - ' : '') + 'AI rival' : '') : null,
-        h('div', { class: 'bh-base' }, icon('lab'), h('div', { class: 'bb' }, h('b', { class: 'bhp' }, ghost, fill, hpv), tier)));
-      return { el, fill, ghost, tier, hpv, ghostFrac: 1, lastHp: -1, lastTier: -1 };
+      const nm = h('span', { class: `tw-nm s${i}` },
+        h('b', {}, c.name ?? (i ? 'Rival' : 'You')),
+        c.trophies !== undefined ? h('i', { class: 'tr' }, icon('trophy'), String(c.trophies)) : null);
+      const pc = h('b', { class: 'pc' }, '100');
+      const tier = h('i', { class: 'tn' }, '1');
+      const cap = h('div', { class: `tw-cap s${i}` }, icon('lab'), tier, pc);
+      const fill = h('i', { class: `tw-f s${i}` });
+      return { nm, cap, pc, tier, fill, lastHp: -1, lastTier: -1, frac: 1 };
     };
-    this.sides = [side(0), side(1)];
-    this.tm = h('div', { class: 'tm' }, fmtT(sim.timeLeft));
-    this.tag = h('div', { class: 'tag hidden' }, '2x POWER');
-    this.timer = h('div', { class: 'bh-timer' }, h('div', { class: 'lbl' }, 'Time left'), this.tm, this.tag);
-    root.appendChild(h('div', { class: 'bh-top' }, this.sides[0].el, this.timer, this.sides[1].el));
-
-    // minimap
-    this.mini = h('div', { class: 'bh-mini hit' }, h('i', { class: 'mid' }));
-    this.miniWin = h('i', { class: 'win' });
-    this.mini.appendChild(this.miniWin);
-    this.miniTowers = [];
-    for (const si of [0, 1]) {
-      const b = sim.sides[si].lab;
-      const el = h('i', { class: `twr lab s${si}` });
-      el.style.left = this.mx(b.x) + '%';
-      this.mini.appendChild(el);
-      this.miniTowers.push({ el, b });
-    }
+    this.sides = [end(0), end(1)];
+    this.twGhost = h('i', { class: 'tw-ghost' });
+    this.twSeam = h('i', { class: 'tw-seam' }, h('i', { class: 'sp' }), h('i', { class: 'chev' }));
+    this.twTrack = h('div', { class: 'tw-track' }, this.sides[0].fill, this.sides[1].fill, this.twGhost, h('i', { class: 'tw-mid' }), this.twSeam);
+    this.twLean = h('div', { class: 'tw-lean' }, '');
+    this.twLaneWin = h('i', { class: 'win' });
+    this.twLane = h('div', { class: 'tw-lane' }, this.twLaneWin);
+    this.twBar = h('div', { class: 'tw-bar hit' }, this.sides[0].cap, this.twTrack, this.sides[1].cap);
+    this.tm = h('b', { class: 'tm' }, fmtT(sim.timeLeft));
+    this.tag = h('i', { class: 'tag hidden' }, '2x');
+    this.timer = h('div', { class: 'tw-clock' }, icon('clock'), this.tm, this.tag);
+    this.top = h('div', { class: 'tw' },
+      h('div', { class: 'tw-row' }, this.sides[0].nm, this.timer, this.sides[1].nm),
+      this.twBar, this.twLane, this.twLean);
+    root.appendChild(this.top);
+    this.split = 0.5;
+    this.ghostSplit = 0.5;
     this.dots = [];
-    const miniPick = (e) => {
-      const r = this.mini.getBoundingClientRect();
-      const k = (e.clientX - r.left) / r.width;
+    // tap / drag the bar (or the lane strip under it) to pan the camera
+    const lanePick = (e) => {
+      const r = this.twTrack.getBoundingClientRect();
+      const k = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
       handlers.minimap?.((k * 2 - 1) * FIELD.VIEW_X);
     };
-    this.mini.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.mini.setPointerCapture(e.pointerId); miniPick(e); });
-    this.mini.addEventListener('pointermove', (e) => { if (e.buttons) miniPick(e); });
-    root.appendChild(this.mini);
+    for (const el of [this.twBar, this.twLane]) {
+      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); el.setPointerCapture?.(e.pointerId); lanePick(e); });
+      el.addEventListener('pointermove', (e) => { if (e.buttons) lanePick(e); });
+    }
+    this.twLane.classList.add('hit');
+    this.mini = this.top; // kept for older callers (plate bounds)
     const pause = button('', () => handlers.pause(), 'gray sm icon-only bh-pause', { icon: 'pause' });
     root.appendChild(pause);
 
@@ -145,15 +186,23 @@ export class BattleHUD {
     if (s0.cmd) {
       const sg = s0.cmd.signature;
       this.sigCol = SIG_COL[sg.id] ?? '#ffd84a';
-      this.sigImg = charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 128, eyes: 'determined', mouth: 'grin' });
-      const u = this.makeUlt('sig', this.sigImg, sg.name, this.sigCol, sg.icon ?? 'star');
+      // a LIVE 3D Commander (falls back to a static portrait if WebGL thumbs fail)
+      try { this.live = new LiveChibi(cmd, { size: 224, color: this.sigCol }); } catch (e) { console.warn('live chibi failed', e); this.live = null; }
+      this.sigImg = this.live ? null : charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 128, eyes: 'determined', mouth: 'grin' });
+      const u = this.makeUlt('sig', this.live?.canvas ?? this.sigImg, sg.name, this.sigCol, sg.icon ?? 'star');
       this.sig = u.el;
       this.sigU = u;
-      this.sig.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.signature(); });
+      this.sig.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        audio.unlock();
+        const ready = this.sim.sides[0].sig >= 1 && !this.sim.over;
+        if (!ready) this.live?.poke();
+        handlers.signature();
+      });
       this.skillEls = s0.skills.map((sk, k) => {
         const cdv = h('div', { class: 'cdv' });
         const cdn = h('div', { class: 'cdn' }, '');
-        const el = h('div', { class: 'bh-skill hit', title: sk.name }, icon(sk.icon ?? 'star'), cdv, cdn);
+        const el = pressFx(h('div', { class: 'bh-skill hit', title: sk.name }, icon(sk.icon ?? 'star'), cdv, cdn));
         el.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.skill(k); });
         return { el, cdv, cdn, sk };
       });
@@ -177,10 +226,10 @@ export class BattleHUD {
       });
     } else if (!cfg.sides[0].noMegaTeaser) {
       // no MEGA yet: a locked teaser pointing at the Trophy Road
-      this.megaEl = h('div', { class: 'bh-ult mega none hit', title: 'MEGA' },
+      this.megaEl = pressFx(h('div', { class: 'bh-ult mega none hit', title: 'MEGA' },
         h('div', { class: 'u-core' }, icon('mega')),
         h('div', { class: 'lockt' }, icon('lock'), h('span', {}, icon('trophy'), '300')),
-        h('div', { class: 'u-pct' }, 'MEGA'));
+        h('div', { class: 'u-pct' }, 'MEGA')));
       this.megaEl.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         this.hint('Win a MEGA-TECH figure on the Trophy Road at 300 trophies!');
@@ -194,14 +243,14 @@ export class BattleHUD {
     this.ocV = h('b', { class: 'bb-name' }, '');
     this.ocC = h('b', {}, '');
     this.ocFill = h('i');
-    this.ocBtn = h('div', { class: 'bh-basebtn hit', title: 'Upgrade your base (or tap it!)' },
+    this.ocBtn = pressFx(h('div', { class: 'bh-basebtn hit', title: 'Upgrade your base (or tap it!)' },
       h('div', { class: 'bb-rays' }),
       h('div', { class: 'bb-stage' }, h('i', { class: 'bb-plinth' }), this.ocModel),
       this.ocTier,
       h('div', { class: 'bb-txt' }, h('small', {}, 'UPGRADE'), this.ocV),
       h('div', { class: 'bb-cost' }, icon('power'), this.ocC),
       h('div', { class: 'bb-fill' }, this.ocFill),
-      h('div', { class: 'bb-shine' }));
+      h('div', { class: 'bb-shine' })));
     this.ocBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.overclock(); });
     this.modelTier = 0;
     this.spinFrames = null;
@@ -219,7 +268,7 @@ export class BattleHUD {
 
     // the hand: 4 cards (up to 6 after a DRAW) + the NEXT card
     this.slots = Array.from({ length: HAND_MAX }, (_, i) => {
-      const slot = { el: h('div', { class: 'bh-slot empty gone', 'data-slot': String(i) }), key: undefined, card: null, ready: null };
+      const slot = { el: pressFx(h('div', { class: 'bh-slot empty gone', 'data-slot': String(i) })), key: undefined, card: null, ready: null };
       slot.el.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -238,7 +287,17 @@ export class BattleHUD {
     this.lineup.appendChild(this.echoTag);
 
     // floating controls above the dock: skills + emote (left), MEGA (right)
-    this.emoteBtn = button('', () => this.toggleEmotes(), 'blue sm icon-only bh-emote', { icon: 'emote' });
+    // EMOTE: a Beast emblem button with a cooldown shutter
+    this.emoteCd = h('i', { class: 'cd' });
+    this.emoteBtn = pressFx(h('div', { class: 'bh-emote hit', title: 'Emotes' }, h('img', { class: 'logo', src: iconURL('beastLogo'), alt: '' }), this.emoteCd));
+    this.emoteBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); });
+    this.emoteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.emoteCdT > 0) { bump(this.emoteBtn, 'shake'); audio.play('deny'); return; }
+      audio.play('click');
+      this.toggleEmotes();
+    });
+    this.emoteCdT = 0;
     this.floatL = h('div', { class: 'bh-floatl' }, this.emoteBtn, this.skillEls.map((s) => s.el));
     this.floatR = h('div', { class: 'bh-floatr' });
     this.cmdEl = this.floatL; // kept for older callers (isOverField)
@@ -264,12 +323,12 @@ export class BattleHUD {
   makeUlt(kind, img, name, color, ic) {
     const liq = h('div', { class: 'u-liq' }, h('i', { class: 'bub' }), h('i', { class: 'bub' }), h('i', { class: 'bub' }));
     const pct = h('div', { class: 'u-pct' }, '0%');
-    const el = h('div', { class: `bh-ult ${kind} hit`, title: name, style: { '--uc': color } },
+    const el = pressFx(h('div', { class: `bh-ult ${kind}${img instanceof Node ? ' live' : ''} hit`, title: name, style: { '--uc': color } },
       h('div', { class: 'u-rays' }),
       h('div', { class: 'u-ring' }),
-      h('div', { class: 'u-core' }, liq, h('img', { class: 'u-model', src: img, alt: '' }), h('i', { class: 'u-arc a1' }), h('i', { class: 'u-arc a2' }), h('i', { class: 'u-arc a3' })),
+      h('div', { class: 'u-core' }, liq, img instanceof Node ? (img.classList.add('u-model'), img) : h('img', { class: 'u-model', src: img, alt: '' }), h('i', { class: 'u-arc a1' }), h('i', { class: 'u-arc a2' }), h('i', { class: 'u-arc a3' })),
       h('div', { class: 'u-tag' }, icon(ic), kind === 'mega' ? 'MEGA' : 'ULT'),
-      pct);
+      pct));
     return { el, liq, pct };
   }
 
@@ -300,14 +359,14 @@ export class BattleHUD {
     this.modelTier = show;
     const style = this.cfg.sides[0].labStyle;
     try {
-      const [first] = await baseSpin(show, { style, size: 128 });
+      const [first] = await baseSpin(show, { style, size: 192 });
       if (this.modelTier !== show) return;
       this.ocModel.src = first;
       if (!initial) { this.ocModel.classList.remove('in'); void this.ocModel.offsetWidth; this.ocModel.classList.add('in'); }
       // turntable frames for the "you can afford it" spin, rendered in the background
       this.spinFrames = null;
       setTimeout(async () => {
-        const fr = await baseSpin(show, { style, size: 128, frames: 12 });
+        const fr = await baseSpin(show, { style, size: 192, frames: 12 });
         if (this.modelTier === show) this.spinFrames = fr;
       }, initial ? 1500 : 400);
     } catch (e) { console.warn('base thumb failed', e); }
@@ -379,12 +438,12 @@ export class BattleHUD {
       slot.el.innerHTML = '';
       slot.ready = null;
       if (!c) {
-        slot.el.className = 'bh-slot empty gone';
+        slot.el.className = 'bh-slot empty gone pfx';
         return;
       }
       const def = cardDef(c.id);
       const sp = c.special ? SPELLS[c.unit] : null;
-      slot.el.className = this.slotClass(c, i, s);
+      slot.el.className = this.slotClass(c, i, s) + ' pfx';
       slot.el.style.setProperty('--sc', sp?.color ?? '#3ff2e0');
       slot.el.style.setProperty('--rc', RARITY_COL[def?.rarity] ?? RARITY_COL.common);
       slot.el.appendChild(this.cardFace(c, cost, { key: i + 1 }));
@@ -540,19 +599,12 @@ export class BattleHUD {
     fly.animate(kf, { duration: dur, easing: 'cubic-bezier(.45,.05,.4,1)', fill: 'forwards' }).onfinish = () => {
       fly.remove();
       burstAt(tx, ty, { color: col, count: c.special ? 22 : 14, scale: c.special ? 3 : 2.2, colors: [col, '#ffffff', '#ffd84a'] });
-      if (!c.special) this.dropRing(tx, ty, col);
     };
     // the empty slot pulses while the next card is on its way
     sl.el.classList.remove('played');
     void sl.el.offsetWidth;
     sl.el.classList.add('played');
     setTimeout(() => sl.el.classList.remove('played'), 400);
-  }
-  /** Ground ring where a card lands. */
-  dropRing(x, y, col) {
-    const el = h('div', { class: 'bh-dropring', style: { left: x + 'px', top: y + 'px', '--rc': col } });
-    this.root.appendChild(el);
-    setTimeout(() => el.remove(), 600);
   }
 
   hint(text, y = null) {
@@ -572,27 +624,48 @@ export class BattleHUD {
 
   toggleEmotes() {
     if (this.emotePop) {
-      this.emotePop.remove();
+      const pop = this.emotePop;
       this.emotePop = null;
+      this.emoteBtn.classList.remove('open');
+      pop.classList.add('out');
+      setTimeout(() => pop.remove(), 180);
       return;
     }
     const r = this.emoteBtn.getBoundingClientRect();
-    const pop = h('div', { class: 'bh-emotes' }, EMOTES.map((em, i) => button(em.text, () => { this.toggleEmotes(); this.hd.emote(i); }, 'white sm', { icon: em.icon })));
+    const pop = h('div', { class: 'bh-emotes hit' }, EMOTES.map((em, i) => {
+      const b = pressFx(h('div', { class: 'em-b', style: { '--ec': em.color, '--i': i } }, h('img', { src: iconURL(em.icon), alt: '' }), h('span', {}, em.text)));
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.toggleEmotes(); this.hd.emote(i); });
+      return b;
+    }));
+    pop.addEventListener('pointerdown', (e) => e.stopPropagation());
     pop.style.left = Math.max(4, r.left) + 'px';
-    pop.style.bottom = engine.height - r.top + 8 + 'px';
+    pop.style.bottom = engine.height - r.top + 10 + 'px';
     this.root.appendChild(pop);
     this.emotePop = pop;
+    this.emoteBtn.classList.add('open');
+    // tapping anywhere else closes the tray
+    const off = (e) => {
+      if (this.emotePop !== pop) return document.removeEventListener('pointerdown', off, true);
+      if (pop.contains(e.target) || this.emoteBtn.contains(e.target)) return;
+      document.removeEventListener('pointerdown', off, true);
+      this.toggleEmotes();
+    };
+    setTimeout(() => document.addEventListener('pointerdown', off, true), 0);
+    audio.play('bubblePop', { pitch: 1.2 });
   }
-  /** Show an emote bubble over a side's Commander (or Lab). */
+  /** A side's Commander acts out an emote (wind-up bar, then the big reaction + bubble). */
   showEmote(si, i) {
     const em = EMOTES[i];
     if (!em) return;
-    const ch = this.view.cmds?.[si];
-    const target = ch ?? this.view.labs?.[si]?.seat;
-    if (!target) return;
-    speech(target, em.text, 2.2, { offsetY: 6 });
     audio.play('emote', { pitch: si === 0 ? 1 : 0.85 });
-    if (ch && !ch.busy) { ch.play('sitCheer'); ch.expr(em.icon === 'skull' ? 'angry' : 'happy', em.icon === 'alert' ? 'open' : 'grin', 1.4); ch.reactT = 1.4; }
+    this.view.emoteAct?.(si, em, EMOTE_WIND);
+    if (si === 0) {
+      this.live?.emote(em, EMOTE_WIND);
+      this.emoteCdT = EMOTE_CD;
+      this.emoteBtn.style.setProperty('--ec', em.color);
+      bump(this.emoteBtn, 'sent');
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -627,15 +700,15 @@ export class BattleHUD {
         break;
       case 'labUp': {
         const sd = this.sides[ev.side];
-        bump(sd.el.querySelector('.bh-base'));
-        sparkle(sd.el.querySelector('.bh-base'), { count: 14, colors: ['#ffd84a', '#ffffff', '#8fd4ff'] });
+        bump(sd.cap, 'up');
+        sparkle(sd.cap, { count: 14, colors: ['#ffd84a', '#ffffff', '#8fd4ff'] });
         if (ev.side === 0) this.baseUpFx(ev);
         break;
       }
       case 'megaReady':
         if (ev.side === 0 && this.megaEl) {
-          bump(this.megaEl);
-          burst(this.megaEl, { color: '#ff2e88', count: 20 });
+          bump(this.megaEl, 'pop');
+          burst(this.megaEl, { color: '#ff2e88', count: 20, ring: false });
         }
         break;
       case 'signature':
@@ -656,7 +729,7 @@ export class BattleHUD {
     void b.offsetWidth;
     b.classList.add('upgraded');
     setTimeout(() => b.classList.remove('upgraded'), 1100);
-    burst(b, { color: '#c08aff', count: 24, scale: 1.4, colors: ['#ffd84a', '#ffffff', '#c08aff', '#8fd4ff'] });
+    burst(b, { color: '#c08aff', count: 24, scale: 1.4, ring: false, colors: ['#ffd84a', '#ffffff', '#c08aff', '#8fd4ff'] });
     // spin the model of the tier we just built, then swap to the next one
     this.fastSpin = 0.9;
     setTimeout(() => this.updateBaseModel(), 900);
@@ -675,7 +748,7 @@ export class BattleHUD {
       if (si === 0) this.sigImgFull = img;
     } catch (e) { img = null; }
     ultCutIn({ img, title: sg.name.toUpperCase() + '!', kicker: si === 0 ? `${s.cmd.name ?? 'COMMANDER'} ULTIMATE` : 'RIVAL ULTIMATE', color: si === 0 ? SIG_COL[sg.id] ?? '#ffd84a' : '#ff3d55', side: si, dur: si === 0 ? 1.25 : 0.95 });
-    if (si === 0 && this.sig) burst(this.sig, { color: this.sigCol, count: 22, scale: 2 });
+    if (si === 0 && this.sig) { burst(this.sig, { color: this.sigCol, count: 22, scale: 2, ring: false }); this.live?.action(); }
   }
   megaCutIn(ev) {
     const def = MEGAS[ev.id];
@@ -710,7 +783,7 @@ export class BattleHUD {
     u.el.classList.toggle('ready', state === 'ready');
     u.el.classList.toggle('hot', k >= 0.5 && state !== 'used');
     u.el.classList.toggle('used', state === 'used');
-    if (state === 'ready' && u.wasReady === false) { bump(u.el, 'pop'); burst(u.el, { color: getComputedStyle(u.el).getPropertyValue('--uc') || '#ffd84a', count: 16 }); audio.play('magic', { pitch: 1.3 }); }
+    if (state === 'ready' && u.wasReady === false) { bump(u.el, 'pop'); burst(u.el, { color: getComputedStyle(u.el).getPropertyValue('--uc') || '#ffd84a', count: 16, ring: false }); audio.play('magic', { pitch: 1.3 }); }
     u.wasReady = state === 'ready';
   }
 
@@ -721,7 +794,7 @@ export class BattleHUD {
       this.layoutT = 0.5;
       this.placeMega();
       const hidden = this.root.style.display === 'none';
-      plateBounds.minY = hidden ? 0 : this.mini.getBoundingClientRect().bottom + 4;
+      plateBounds.minY = hidden ? 0 : this.twLane.getBoundingClientRect().bottom + 4;
       plateBounds.maxY = hidden ? engine.height : this.deck.getBoundingClientRect().top;
       plateBounds.clearL = null;
     }
@@ -735,9 +808,25 @@ export class BattleHUD {
     }
     this.timer.classList.toggle('urgent', tl <= 10 && !sim.over);
     this.timer.classList.toggle('ot', sim.overtime);
-    if (sim.overtime) { this.tag.textContent = 'OVERTIME 3x'; this.tag.className = 'tag ot'; }
-    else if (sim.doubleEnergy) { this.tag.textContent = '2x POWER'; this.tag.className = 'tag'; }
-    else this.tag.className = 'tag hidden';
+    const tg = sim.overtime ? 'OT 3x' : sim.doubleEnergy ? '2x' : '';
+    if (tg !== this.lastTag) {
+      this.lastTag = tg;
+      this.tag.textContent = tg || '2x';
+      this.tag.className = `tag${sim.overtime ? ' ot' : ''}${tg ? ' in' : ' hidden'}`;
+    }
+    // emote cooldown shutter + the live Commander in the ULT button
+    if (this.emoteCdT > 0) {
+      this.emoteCdT = Math.max(0, this.emoteCdT - dt);
+      this.emoteCd.style.height = ((this.emoteCdT / EMOTE_CD) * 100).toFixed(1) + '%';
+      if (this.emoteCdT === 0) { this.emoteBtn.classList.remove('cool'); bump(this.emoteBtn, 'back'); }
+      else this.emoteBtn.classList.add('cool');
+    }
+    if (this.live) {
+      const k = Math.min(1, s.sig);
+      this.live.visible = this.root.style.display !== 'none' && !this.root.classList.contains('cine');
+      this.live.setState(sim.over ? 'idle' : k >= 1 ? 'ready' : k >= 0.5 ? 'charged' : 'idle');
+      this.live.update(dt, k);
+    }
     // POWER wallet
     const e = s.energy;
     const max = sim.maxPower(0);
@@ -767,6 +856,7 @@ export class BattleHUD {
     }
     this.energyRow.classList.toggle('x2', sim.doubleEnergy && !sim.overtime);
     this.energyRow.classList.toggle('x3', sim.overtime);
+    this.energyRow.classList.toggle('oc', s.buffs?.overclock > 0);
     // hand: keep in sync (draws, discounts, friend-battle snapshots) + affordability
     if (this.handSig() !== this.lastSig) this.refreshHand();
     this.echoTag.classList.toggle('hidden', !(s.echo > 0));
@@ -824,28 +914,53 @@ export class BattleHUD {
       this.setUlt(this.megaU, m.used ? 0 : k, m.used ? 'used' : ready ? 'ready' : 'charging', m.used ? 'USED' : ready ? 'TAP!' : k >= 1 ? 'READY' : `${Math.floor(k * 100)}%`);
       this.megaEl.classList.toggle('locked', locked && !m.used);
     }
-    // base HP banners (+ a shake / flash when hit)
+    // tug-of-war: each side's HP fraction pushes the seam (who's winning at a glance)
+    let hurt = 0;
     for (let i = 0; i < 2; i++) {
       const sd = this.sides[i], b = sim.sides[i].lab;
       const frac = Math.max(0, b.hp / b.maxHp);
       if (b.hp !== sd.lastHp) {
         if (sd.lastHp > 0 && b.hp < sd.lastHp - 0.5 && !reduced()) {
           const big = sd.lastHp - b.hp > b.maxHp * 0.04;
-          bump(sd.el, big ? 'hurtbig' : 'hurt');
+          hurt = Math.max(hurt, big ? 2 : 1);
+          bump(sd.cap, big ? 'hurtbig' : 'hurt');
+          bump(sd.fill, 'hit');
         }
         sd.lastHp = b.hp;
-        sd.fill.style.width = (frac * 100).toFixed(1) + '%';
-        sd.hpv.textContent = String(Math.max(0, Math.ceil(b.hp)));
-        sd.el.classList.toggle('low', frac < 0.3);
+        sd.frac = frac;
+        const pc = String(Math.max(0, Math.ceil(frac * 100)));
+        if (sd.pc.textContent !== pc) sd.pc.textContent = pc;
+        sd.cap.classList.toggle('low', frac < 0.3);
       }
-      sd.ghostFrac = Math.max(frac, sd.ghostFrac + (frac - sd.ghostFrac) * Math.min(1, dt * 3));
-      sd.ghost.style.width = (sd.ghostFrac * 100).toFixed(1) + '%';
       const t = sim.sides[i].overclock;
       if (t !== sd.lastTier) {
         sd.lastTier = t;
-        sd.tier.textContent = `T${t + 1} ${BASE_UPGRADES[t].name}`;
+        sd.tier.textContent = String(t + 1);
+        sd.cap.title = `T${t + 1} ${BASE_UPGRADES[t].name}`;
       }
     }
+    if (hurt) bump(this.twBar, hurt > 1 ? 'shakebig' : 'shake');
+    const f0 = this.sides[0].frac, f1 = this.sides[1].frac;
+    const target = f0 + f1 > 0 ? f0 / (f0 + f1) : 0.5;
+    this.split += (target - this.split) * Math.min(1, dt * 10);
+    this.ghostSplit += (this.split - this.ghostSplit) * Math.min(1, dt * 2.2);
+    const sp = this.split * 100, gs = this.ghostSplit * 100;
+    this.sides[0].fill.style.width = sp.toFixed(2) + '%';
+    this.sides[1].fill.style.left = sp.toFixed(2) + '%';
+    this.twSeam.style.left = sp.toFixed(2) + '%';
+    this.twGhost.style.left = Math.min(sp, gs).toFixed(2) + '%';
+    this.twGhost.style.width = Math.abs(sp - gs).toFixed(2) + '%';
+    const lead = target - 0.5;
+    const lean = sim.over ? '' : lead > 0.025 ? 'win' : lead < -0.025 ? 'lose' : '';
+    if (lean !== this.lastLean) {
+      this.lastLean = lean;
+      this.twLean.textContent = lean === 'win' ? 'WINNING' : lean === 'lose' ? 'LOSING' : 'EVEN';
+      this.twLean.className = `tw-lean ${lean || 'even'}`;
+      this.top.classList.toggle('lead0', lean === 'win');
+      this.top.classList.toggle('lead1', lean === 'lose');
+      if (lean) bump(this.twLean, 'pop');
+    }
+    this.twLean.style.left = Math.max(14, Math.min(86, sp)).toFixed(2) + '%';
     // commander ultimate + skills
     if (this.sig) {
       const k = Math.min(1, s.sig);
@@ -859,26 +974,26 @@ export class BattleHUD {
         se.cdn.textContent = cd > 0 ? String(Math.ceil(cd)) : '';
       }
     }
-    // minimap
-    const units = sim.units.filter((u) => !u.dead);
-    while (this.dots.length < units.length) {
+    // lane strip: camera window + unit ticks
+    const units = sim.units.filter((u) => !u.dead && u.state !== 'spawn');
+    while (this.dots.length < Math.min(40, units.length)) {
       const d = h('i', { class: 'dot' });
-      this.mini.appendChild(d);
+      this.twLane.appendChild(d);
       this.dots.push(d);
     }
     this.dots.forEach((d, i) => {
       const u = units[i];
-      if (!u) { d.style.display = 'none'; return; }
+      if (!u) { if (d.style.display !== 'none') d.style.display = 'none'; return; }
       d.style.display = '';
-      d.className = `dot s${u.side}${u.size > 1.5 || u.boss ? ' big' : ''}`;
-      d.style.left = this.mx(u.x) + '%';
+      const cls = `dot s${u.side}${u.size > 1.5 || u.boss || u.mega ? ' big' : ''}`;
+      if (d.className !== cls) d.className = cls;
+      d.style.left = this.mx(u.x).toFixed(1) + '%';
     });
-    for (const t of this.miniTowers) t.el.classList.toggle('dead', !t.b.alive);
     const v = this.view;
     if (v.halfW) {
       const l = this.mx(v.camX - v.halfW), r = this.mx(v.camX + v.halfW);
-      this.miniWin.style.left = Math.max(0, l) + '%';
-      this.miniWin.style.width = Math.max(4, Math.min(100, r) - Math.max(0, l)) + '%';
+      this.twLaneWin.style.left = Math.max(0, l).toFixed(1) + '%';
+      this.twLaneWin.style.width = Math.max(4, Math.min(100, r) - Math.max(0, l)).toFixed(1) + '%';
     }
   }
 
@@ -899,48 +1014,18 @@ export class BattleHUD {
   setCinematic(on) {
     this.root.classList.toggle('cine', !!on);
     document.body.classList.toggle('cine', !!on);
-    if (on) { this.dragEnd(); this.emotePop?.remove(); this.emotePop = null; }
+    if (on) { this.dragEnd(); this.emotePop?.remove(); this.emotePop = null; this.emoteBtn.classList.remove('open'); }
   }
   dispose() {
     this.dragEnd();
+    this.live?.dispose();
+    this.live = null;
     document.body.classList.remove('cine');
     this.root.remove();
   }
 }
 
-// ---------------------------------------------------------------------------
-// VS intro: two team bands slam in with Commander portraits, names, trophies
-// and decks, then slide away.
-
-export async function vsIntro(parent, cfg, opts = {}) {
-  const band = (s, i) => {
-    const cmd = s.commander;
-    const por = cmd ? charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 160, eyes: i ? 'angry' : 'determined', mouth: 'grin' }) : opts.portraits?.[i];
-    return h('div', { class: `vs-band s${i}` },
-      por ? h('img', { class: 'por', src: por }) : null,
-      h('div', { class: 'info' },
-        h('div', { class: 'nm' }, s.name ?? (i ? 'Rival' : 'You')),
-        h('div', { class: 'meta' },
-          s.trophies !== undefined ? h('span', { class: 'row', style: { gap: '0.2em' } }, icon('trophy'), String(s.trophies)) : null,
-          s.labLevel ? h('span', { class: 'row', style: { gap: '0.2em' } }, icon('lab'), `Lv ${s.labLevel}`) : null,
-          s.clan ? h('span', { class: 'c-muted' }, s.clan) : null),
-        opts.showDecks !== false ? h('div', { class: 'deck' }, (s.deck || []).slice(0, 8).map((c) => {
-          const el = cardEl(c.id, { owned: { level: c.level }, size: 'mini', noLevel: true, cost: false });
-          el.style.width = 'calc(var(--u) * 7.4)';
-          return el;
-        })) : null));
-  };
-  const wrap = h('div', { class: 'vs-wrap' }, h('div', { class: 'vs-flash' }), band(cfg.sides[1], 1),
-    h('div', { class: 'vs-mid' }, h('div', { class: 'px-rays vs-rays' }), h('div', { class: 'vs-bolt' }), h('div', { class: 'vs-x' }, 'VS')), band(cfg.sides[0], 0));
-  parent.appendChild(wrap);
-  audio.play('whoosh', { pitch: 0.8 });
-  setTimeout(() => { audio.play('thud'); engine.shake(0.2); }, 380);
-  await new Promise((r) => setTimeout(r, opts.hold ?? 1900));
-  wrap.classList.add('out');
-  audio.play('whoosh', { pitch: 1.2 });
-  await new Promise((r) => setTimeout(r, 380));
-  wrap.remove();
-}
+// (the VS intro lives in vsIntro.js)
 
 /** Card definition helper used by the scene. */
 export function cardInfo(c) {

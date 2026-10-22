@@ -11,6 +11,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, px, disc, skyTexture, parallaxWidth, canvasTex,
 } from './kit.js';
+import { hdGlow, hdCloud } from './hdpaint.js';
 import { pixels, ridge, setInst, liveInst, fitSky, scrollPlane, fallSheet, fallsTex, addFlyers, orbitList, addParticles, addFlames, zoneDisc, anchor } from './wildsKit.js';
 import { Billboards } from '../island/sky.js';
 
@@ -313,6 +314,17 @@ function paintBasaltCliffs(ctx, w, h) {
 export function buildBattle(K) {
   const sky = skyTexture('volcano', [[0, 0x12060a], [0.2, 0x2a0c10], [0.38, 0x5a1410], [0.56, 0x9a2a14], [0.72, 0xd8501a], [0.86, 0xff8a3a], [1, 0xffb05a]], (ctx, w, h) => {
     const R = mulberry32(3);
+    if (ctx._hd) {
+      // ash clouds lit from below by the lava glow
+      hdGlow(ctx, w * 0.5, h, w * 0.7, h * 0.35, 0xff7a2a, 0.35, 1.3);
+      for (let k = 0; k < 6; k++) {
+        const cy = 8 + R() * h * 0.36, cx = R() * w, n = 4 + (R() * 4 | 0), discs = [];
+        for (let i = 0; i < n; i++) { const r = 4 + R() * 7; discs.push([cx + (i - n / 2) * r * 0.9, cy + R() * 4, r]); }
+        hdCloud(ctx, discs, cy + 7, { light: 0x5a2a24, color: 0x3a1a18, shade: 0x9a3418, dark: 0xd85a1e, sunX: 1, shadeAt: 0.5 });
+      }
+      for (let i = 0; i < 70; i++) { const x = R() * w, y = R() * h * 0.8; hdGlow(ctx, x, y, 0.9, 0.9, R() < 0.5 ? 0xffb84a : 0xff6a1f, 0.9, 1); }
+      return;
+    }
     // ash clouds
     for (let k = 0; k < 6; k++) {
       const cy = 8 + R() * h * 0.36, cx = R() * w, n = 4 + (R() * 4 | 0);

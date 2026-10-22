@@ -3,6 +3,10 @@ import { engine } from '../core/engine.js';
 import { clearUI } from '../ui/ui.js';
 import { audio } from '../core/audio.js';
 import { state } from './state.js';
+import { showLoading } from '../scenes/loading.js';
+
+// heavy scenes get the cinematic loading screen (scenes/loading.js) instead of the plain fade
+const LOADING_SCREEN = new Set(['battle', 'home', 'lab']);
 
 const loaders = {
   title: () => import('../scenes/title.js').then((m) => m.TitleScene),
@@ -42,23 +46,28 @@ export const game = {
   async go(name, params = {}) {
     if (transitioning) return;
     transitioning = true;
+    const ld = !params.instant && LOADING_SCREEN.has(name) ? showLoading(name, params) : null;
     const f = fader();
     f.style.pointerEvents = 'auto';
     f.style.opacity = '1';
     await new Promise((r) => setTimeout(r, params.instant ? 0 : 260));
+    let sc = null;
     try {
       const Cls = await loaders[name]();
       clearUI();
-      const sc = new Cls();
+      sc = new Cls();
       this.current = sc;
       this.currentName = name;
       await engine.setScene(sc, params);
     } catch (e) {
       console.error('Scene load failed', name, e);
     }
+    if (ld) { f.style.opacity = '0'; await ld.done(); }
     f.style.opacity = '0';
     f.style.pointerEvents = 'none';
     transitioning = false;
+    // scenes may hold their entrance until the screen is actually visible
+    try { if (sc && engine.current === sc) sc.shown?.(); } catch (e) { console.error(e); }
   },
   settings() {
     const s = state.p.settings;

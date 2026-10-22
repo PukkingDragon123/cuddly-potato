@@ -1,10 +1,13 @@
 // PASS tab: FOOD SEASON pass (free + premium tracks, tiers from Calories,
 // claim / claim all, buy premium), daily season challenges and the NPC quest
 // chains (Jimmy's rematch, Nolan, Juan).
-// The pass is a season poster (3D hero renders, pixel food, season clock,
-// a Calorie test tube) above a vertical track: free pods | glowing lab-flask
-// tier markers on a goo-filled spine | premium pods. Every 5th tier is a big
-// milestone row. Claims burst, coins fly into the top bar.
+// The pass is a food-truck season poster (3D hero renders, spinning 3D food,
+// season clock, the CALORIE METER) above a diner-kitchen track: free trays |
+// a spinning 3D dish per tier on a conveyor belt that fills with hot sauce up
+// to your tier | premium trays. Every 5th tier is a golden Feastables feast on
+// a cake stand. Tap a dish: it spins up, hops and shows the tier's menu card.
+// Claims burst, coins fly into the top bar. Unknown reward kinds render as a
+// mystery prize.
 import { h, icon, iconURL, button, bar, sparkle, bump, rich, burst, flyIcons } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import {
@@ -18,6 +21,10 @@ import {
   refreshCtx, flyText, charImg, fmtN, countdown, currencyPill, swarmImg, cmdFullImg,
 } from './common.js';
 import { openBoss } from './boss.js';
+import { foodSpin, spinBurst } from '../foodSpin.js';
+import { FEAST_KINDS, FEAST_NAMES, FEAST_KCAL } from '../../models/props/feast.js';
+import { popIn } from '../tween.js';
+import './pass.css';
 
 const CH_ICON = {
   wins: 'swords', deployFood: 'burger', castfoodThrow: 'burger', martBattles: 'cart', vialsOpened: 'vial', signatures: 'star',
@@ -26,6 +33,12 @@ const CH_ICON = {
 const NPC_NAME = { jimmy: 'Jimmy', nolan: 'Nolan', juan: 'Juan' };
 
 let sub = 'pass';
+
+/** The dish served at each tier: milestones are a golden Feastables feast, the rest cycle the menu. */
+const MENU = ['burger', 'pizza', 'donut', 'fries', 'feast', 'soda', 'hotdog', 'icecream', 'popcorn', 'cupcake', 'feastPink'].filter((k) => FEAST_KINDS.includes(k));
+export function tierFood(i) {
+  return isMilestoneTier(i) ? 'feastGold' : MENU[(i - Math.floor((i + 1) / 5)) % MENU.length];
+}
 
 export function passClaimCount() {
   const t = passTier();
@@ -170,18 +183,28 @@ export function mount(el, ctx, opts = {}) {
   function hero(tier, into, max) {
     const N = PASS_TIERS.length;
     const frac = max ? 1 : into / SEASON.calPerTier;
-    const foods = ['pizza', 'donut', 'soda', 'fries', 'choco', 'burger'].map((n, i) => icon(n, `ps-food f${i}`));
+    // floating 3D food around the poster (no plates), tap them for a spin
+    const foods = [['feast', 'f0'], ['donut', 'f1'], ['burger', 'f2'], ['icecream', 'f3']].map(([k, c]) => {
+      const f = foodSpin(k, { plate: 'none', size: 160, cls: `ps-hfood ${c}` });
+      f.addEventListener('click', (e) => { e.stopPropagation(); audio.play('boing'); spinBurst(f, { hop: 14 }); sparkle(f, { count: 10, colors: ['#ffd84a', '#ff7ac0', '#ffffff', '#ff8a1f'] }); });
+      return f;
+    });
     const art = h('div', { class: 'ps-hero-art' },
       h('div', { class: 'px-rays ps-hero-rays' }),
       swarmImg(SEASON.hero.swarm, 'base', null, 192, 'ps-hero-swarm'),
       cmdFullImg(SEASON.hero.cmd, SEASON.hero.cmdSkin, { w: 120, h: 150, priority: true }, 'ps-hero-cmd'));
-    const flaskBadge = (n, kind, cls) => h('div', { class: 'ps-tierflask ' + cls }, h('img', { src: iconURL(kind), alt: '' }), h('b', { class: 't-d outline' }, String(n)));
-    const xp = h('div', { class: 'ps-xp' },
-      flaskBadge(Math.min(tier, N), tier > 0 ? 'flaskOn' : 'flaskOff', 'cur'),
-      h('div', { class: 'ps-tube' },
-        h('i', { class: 'ps-tube-fill', style: { width: Math.max(0, Math.min(1, frac)) * 100 + '%' } }),
-        h('span', { class: 'ps-tube-lbl t-d outline' }, icon('calorie', 's'), max ? 'PASS COMPLETE!' : `${fmtN(into)} / ${SEASON.calPerTier}`)),
-      flaskBadge(max ? N : tier + 1, max ? 'flaskGold' : 'flaskCur', 'next'));
+    // CALORIE METER: order tickets for this tier / the next, a sizzling hot-sauce gauge between
+    const ticket = (n, cls, lbl) => h('div', { class: 'ps-tk ' + cls }, h('small', { class: 't-d' }, lbl), h('b', { class: 't-d' }, String(n)));
+    const pct = Math.max(0, Math.min(1, frac));
+    const xp = h('div', { class: 'ps-xp ps-meter' },
+      ticket(Math.min(tier, N), 'cur', 'TIER'),
+      h('div', { class: 'ps-meter-body' },
+        h('div', { class: 'ps-meter-cap t-d' }, icon('calorie', 's'), 'CALORIE METER'),
+        h('div', { class: 'ps-tube' },
+          h('i', { class: 'ps-tube-fill', style: { width: pct * 100 + '%' } }, h('span', { class: 'ps-meter-flame' }, icon('fire'))),
+          h('span', { class: 'ps-meter-ticks' }),
+          h('span', { class: 'ps-tube-lbl t-d outline' }, max ? 'PASS COMPLETE!' : `${fmtN(into)} / ${SEASON.calPerTier} CAL`))),
+      ticket(max ? N : tier + 1, 'next', max ? 'DONE' : 'NEXT'));
     return h('div', { class: 'ps-hero sk-plate-hazard' },
       h('div', { class: 'ps-hero-bg' }), ...foods, art,
       h('div', { class: 'ps-hero-txt' },
@@ -212,20 +235,22 @@ export function mount(el, ctx, opts = {}) {
 
   function lanesHead(claimN) {
     return h('div', { class: 'ps-lanes' },
-      h('span', { class: 'ps-lane free t-d outline' }, icon('gift', 's'), 'FREE'),
-      claimN > 1 ? button(`CLAIM ALL (${claimN})`, claimAll, 'green sm pulse', { icon: 'gift' }) : h('span', { class: 'ps-lane mid t-d outline' }, `${PASS_TIERS.length} TIERS`),
-      h('span', { class: `ps-lane prem t-d outline ${state.p.pass.premium ? '' : 'locked'}` }, icon(state.p.pass.premium ? 'crown' : 'lock', 's'), 'PREMIUM'));
+      h('span', { class: 'ps-lane free t-d outline' }, h('span', { class: 'ps-awn' }), h('span', { class: 'ps-lane-t' }, icon('gift', 's'), 'FREE MENU')),
+      claimN > 1 ? button(`CLAIM ALL (${claimN})`, claimAll, 'green sm pulse', { icon: 'gift' }) : h('span', { class: 'ps-lane mid t-d outline' }, `${PASS_TIERS.length} COURSES`),
+      h('span', { class: `ps-lane prem t-d outline ${state.p.pass.premium ? '' : 'locked'}` }, h('span', { class: 'ps-awn' }), h('span', { class: 'ps-lane-t' }, icon(state.p.pass.premium ? 'crown' : 'lock', 's'), 'CHEF\'S SPECIAL')));
   }
 
   function track(tier) {
     const trk = h('div', { class: 'ps-track' }, h('div', { class: 'ps-spine' }), h('div', { class: 'ps-spine-fill' }));
     PASS_TIERS.forEach((t, i) => {
       const reached = i < tier, cur = i === tier, ms = isMilestoneTier(i);
-      const fl = reached ? (ms ? 'flaskGold' : 'flaskOn') : cur ? 'flaskCur' : ms ? 'flaskPrem' : 'flaskOff';
-      const node = h('div', { class: 'ps-node' },
-        h('img', { class: 'ps-flask', src: iconURL(fl), alt: '' }),
+      const kind = tierFood(i);
+      const dish = foodSpin(kind, { plate: ms ? 'gold' : 'plate', gold: ms, size: ms ? 176 : 144, cls: 'ps-dish' });
+      const node = h('div', { class: 'ps-node', role: 'button', 'aria-label': `Tier ${i + 1}: ${FEAST_NAMES[kind] ?? kind}` },
+        dish,
         h('b', { class: 'ps-node-n t-d outline' }, String(i + 1)),
         cur ? h('div', { class: 'ps-you t-d' }, icon('calorie', 's'), 'NEXT') : null);
+      node.addEventListener('click', (e) => { e.stopPropagation(); dishInfo(i, kind, node, dish, t, reached); });
       trk.appendChild(h('div', { class: `ps-row ${reached ? 'reached' : ''} ${cur ? 'cur' : ''} ${ms ? 'ms' : ''}`, 'data-i': i },
         ms ? h('div', { class: 'ps-ms-tag t-d' }, h('span', {}, `TIER ${i + 1}`)) : null,
         passTile(i, 'free', t.free, reached, ms), node, passTile(i, 'premium', t.premium, reached, ms)));
@@ -252,8 +277,8 @@ export function mount(el, ctx, opts = {}) {
     const tile = h('div', { class: `ps-pod ${sk} ${premium ? 'prem' : 'free'} ${claimed ? 'claimed' : ''} ${can ? 'claim' : ''} ${locked ? 'plock' : ''} ${reached ? 'reached' : 'future'} ${ms ? 'ms' : ''}` },
       ms && !claimed ? h('div', { class: 'px-rays w ps-pod-rays' }) : null,
       premium && !claimed && !locked ? h('div', { class: 'px-stars' }) : null,
-      h('div', { class: 'ps-pod-art' }, rewardTile(r)),
-      h('div', { class: 'ps-pod-n' }, rewardLabel(r)),
+      h('div', { class: 'ps-pod-art' }, safeTile(r)),
+      h('div', { class: 'ps-pod-n' }, safeLabel(r)),
       can ? h('div', { class: 'ps-pod-claim t-d outline' }, 'CLAIM!') : null,
       claimed ? h('div', { class: 'ps-pod-ck' }, icon('check')) : null,
       locked ? h('div', { class: 'ps-pod-lk' }, icon('lock')) : null);
@@ -263,9 +288,47 @@ export function mount(el, ctx, opts = {}) {
       audio.play('deny');
       bump(tile, 'shake-x');
       if (locked) ctx.toast?.('Get the *Premium Pass* to unlock this reward!', { icon: 'crown' });
-      else ctx.toast?.(`Reach *Tier ${i + 1}* (${fmtN((i + 1) * SEASON.calPerTier)} Calories) to claim ${rewardLabel(r)}.`, { icon: 'calorie' });
+      else ctx.toast?.(`Reach *Tier ${i + 1}* (${fmtN((i + 1) * SEASON.calPerTier)} Calories) to claim ${safeLabel(r)}.`, { icon: 'calorie' });
     });
     return tile;
+  }
+
+  /** Reward kinds this screen doesn't know yet (new season data) show as a mystery prize instead of breaking the track. */
+  function safeTile(r) {
+    try {
+      const d = rewardDef(r);
+      if (d && d.type && d.type !== 'unknown' && rewardLabel(d) !== '???') return rewardTile(d);
+    } catch (e) { console.warn('pass reward', r, e); }
+    return h('div', { class: 'mn-rw k-mystery' }, h('div', { class: 'mn-ra mystery' }, icon('gift', 'mn-ra-ic big')), h('div', { class: 'mn-rw-amt t-d outline' }, '?'));
+  }
+  function safeLabel(r) {
+    try { const l = rewardLabel(r); if (l && l !== '???') return l; } catch (e) { /* unknown */ }
+    return 'Mystery Prize';
+  }
+
+  /** Tap a dish: it spins up and hops, crumbs fly, and the tier's menu card pops up. */
+  let tipEl = null, tipT = 0;
+  function dishInfo(i, kind, node, dish, t, reached) {
+    audio.play('boing');
+    setTimeout(() => audio.play('chomp', { vol: 0.5 }), 120);
+    spinBurst(dish);
+    sparkle(dish, { count: 14, spread: 70, colors: isMilestoneTier(i) ? ['#ffd84a', '#fff6c0', '#ffffff'] : ['#ffd84a', '#ff7ac0', '#ffffff', '#ff8a1f', '#7aff6a'] });
+    tipEl?.remove();
+    clearTimeout(tipT);
+    const p = state.p;
+    const need = (i + 1) * SEASON.calPerTier - p.calories;
+    const status = reached ? h('span', { class: 'ps-mc-st ok t-d' }, icon('check', 's'), 'SERVED!')
+      : i === passTier() ? h('span', { class: 'ps-mc-st cur t-d' }, icon('calorie', 's'), `${fmtN(Math.max(0, need))} CAL TO GO`)
+        : h('span', { class: 'ps-mc-st t-d' }, icon('lock', 's'), `${fmtN((i + 1) * SEASON.calPerTier)} CAL`);
+    const line = (cls, ic, r) => h('div', { class: 'ps-mc-l ' + cls }, icon(ic, 's'), h('span', {}, safeLabel(r)));
+    tipEl = h('div', { class: 'ps-menucard' + (isMilestoneTier(i) ? ' gold' : '') },
+      h('div', { class: 'ps-mc-h' }, h('b', { class: 't-d' }, FEAST_NAMES[kind] ?? 'Mystery Dish'), h('span', { class: 'ps-mc-k t-d' }, `${FEAST_KCAL[kind] ?? 500} kcal`)),
+      h('div', { class: 'ps-mc-t t-d' }, `COURSE ${i + 1}`, isMilestoneTier(i) ? ' · FEAST!' : ''),
+      line('free', 'gift', t.free), line('prem', 'crown', t.premium), status);
+    node.appendChild(tipEl);
+    popIn(tipEl);
+    const kill = tipEl;
+    tipT = setTimeout(() => { if (kill.isConnected) kill.animate([{ opacity: 1 }, { opacity: 0, transform: 'translate(-50%, -6px) scale(0.9)' }], { duration: 180 }).onfinish = () => kill.remove(); }, 2800);
   }
 
   // ---------------------------------------------------------------- challenges

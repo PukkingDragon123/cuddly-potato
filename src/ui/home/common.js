@@ -19,6 +19,8 @@ import { VIALS } from '../../data/vials.js';
 import { MEGAS } from '../../data/megas.js';
 import { BANNERS, SWARM_SKINS, LAB_SKINS, CMD_SKINS, PASS_TIERS } from '../../data/season.js';
 import { TROPHY_ROAD, SECRETS, BOSSES } from '../../data/arenas.js';
+import { ENTRANCES } from '../../data/entrances.js';
+import { entranceArt } from '../entranceArt.js';
 
 export { fmt, fmtTime };
 
@@ -488,6 +490,7 @@ export function rewardLabel(r) {
     case 'banner': return BANNERS[r.id]?.name ?? 'Banner';
     case 'serum': return `Mega ${SWARMS[r.id]?.name ?? 'Serum'}`;
     case 'mega': return `${r.variant === 'gold' ? 'Golden ' : ''}${MEGAS[r.id]?.name ?? 'MEGA'}`;
+    case 'entrance': return ENTRANCES[r.id]?.name ?? 'Entrance';
     default: return '???';
   }
 }
@@ -496,7 +499,7 @@ export function rewardKind(r) {
   return {
     coins: 'Beast Coins', bucks: 'Beast Bucks', calories: 'Season Calories', vial: 'Vial', card: 'Card', swarm: 'Card', spell: 'Spell Card',
     commander: 'Commander', skin: 'Swarm Skin', labSkin: 'Lab Skin', cmdSkin: 'Commander Outfit', banner: 'Banner', serum: 'Mega Serum',
-    mega: r.variant === 'gold' ? 'Metallic Gold MEGA' : 'MEGA Ultimate',
+    mega: r.variant === 'gold' ? 'Metallic Gold MEGA' : 'MEGA Ultimate', entrance: 'Entrance Animation',
   }[r.type] ?? '';
 }
 /** Short amount label shown on reward tiles. */
@@ -531,6 +534,7 @@ export function rewardArt(r, opts = {}) {
     case 'banner': return wrap('banner', bannerEl(r.id, 'mini'), h('div', { class: 'mn-ra-corner' }, icon('flag')));
     case 'serum': return wrap('serum', swarmImg(r.id, 'base', null, 128), h('div', { class: 'mn-ra-corner' }, icon('mega')));
     case 'mega': return wrap(`mega ${r.variant === 'gold' ? 'gold' : ''}`, swarmImg(r.id, r.variant ?? 'base', null, 160), h('div', { class: 'mn-ra-corner' }, icon('mega')));
+    case 'entrance': return wrap('entrance', entranceArt(r.id), h('div', { class: 'mn-ra-corner' }, icon('play')));
     default: return wrap('', icon('star', 'mn-ra-ic'));
   }
 }
@@ -546,7 +550,7 @@ export function rewardTile(r, opts = {}) {
     d.isNew ? h('div', { class: 'new-tag', style: { right: '-6%', top: '-6%' } }, 'NEW!') : null);
 }
 
-const BIG_KINDS = new Set(['mega', 'cmdSkin', 'labSkin', 'skin', 'commander', 'serum', 'banner']);
+const BIG_KINDS = new Set(['mega', 'cmdSkin', 'labSkin', 'skin', 'commander', 'serum', 'banner', 'entrance']);
 /** Is this reward worth the big celebration (burst + rays)? */
 export function isBigReward(d) {
   d = rewardDef(d);

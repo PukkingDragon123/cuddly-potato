@@ -11,6 +11,7 @@ import {
   pixbuf, skyGlow, paintCumulus, paintCloudBank, paintStreaks, paintStarfield, paintBirdsPx,
   setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, addFall, addFlag, voxTerrain, leafyTreeGrid, addClouds,
 } from './kit.js';
+import { hdPixbuf } from './hdpaint.js';
 import { pantherStatueGrid, ENV_GRIDS } from '../props/environment.js';
 
 const C = {
@@ -29,6 +30,7 @@ const BACKSHORE = (x) => -27 - vnoise(x * 0.05, 3, 1) * 6 + (Math.abs(x) > 44 ? 
 // --------------------------------------------------------------------------- helpers
 
 function pixels(ctx, w, h) {
+  if (ctx._hd) return hdPixbuf(ctx, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   return {
     set(x, y, hex, a = 1) {

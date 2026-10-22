@@ -130,20 +130,8 @@ const hyper = (a, y) => mixHex(0xe4eaf4, HYPER[(Math.floor((a / Math.PI) * 3 + y
 // world-space layout of the tube (y up, y = 0 on the table)
 const TUBE = { puckTop: 0.35, glassR: 0.27, glassTop: 1.95, capY: 1.87, liqBottom: 0.34, liqTop: 1.86, liqR: 0.235 };
 
-function tubeGrids(def) {
-  const cap = def.cap, label = def.label, chrome = !!def.chrome;
-  // ---- puck stand with the LAB logo
-  const puck = G();
-  cyl(puck, 'y', -0.5, -0.5, 0, 6, 8.2, 8.2, (x, y, z) => {
-    if (y === 0) return INK;
-    if (y === 6) return chrome ? hyper(Math.atan2(z + 0.5, x + 0.5), 0) : shade(cap, 0.05);
-    if (y === 1) return BLUE_D;
-    return n3(x, y, z) < 0.05 ? shade(BLUE, -0.06) : BLUE;
-  });
-  cyl(puck, 'y', -0.5, -0.5, 6, 6, 5.6, 5.6, 0x0b1030);
-  stamp(puck, textArt('LAB'), { T: WHITE }, { axis: 'z', x: -6, y: 5 });
-
-  // ---- screw cap with grip ridges and a raised bolt on top
+/** Screw cap with grip ridges and a raised bolt on top (also rebuilt in a new colour when a vial upgrades). */
+function capGrid(cap, chrome = false) {
   const capG = G();
   for (let y = 0; y <= 7; y++) {
     const rBase = y >= 7 ? 5.6 : y >= 6 ? 6.3 : 6.5;
@@ -159,6 +147,23 @@ function tubeGrids(def) {
     }
   }
   stamp(capG, BOLT_SMALL, { M: { c: chrome ? PINK : onColor(cap) === INK ? PINK : WHITE, raise: 1 } }, { axis: 'y', x: -3, z: -4 });
+  return capG;
+}
+
+function tubeGrids(def) {
+  const cap = def.cap, label = def.label, chrome = !!def.chrome;
+  // ---- puck stand with the LAB logo
+  const puck = G();
+  cyl(puck, 'y', -0.5, -0.5, 0, 6, 8.2, 8.2, (x, y, z) => {
+    if (y === 0) return INK;
+    if (y === 6) return chrome ? hyper(Math.atan2(z + 0.5, x + 0.5), 0) : shade(cap, 0.05);
+    if (y === 1) return BLUE_D;
+    return n3(x, y, z) < 0.05 ? shade(BLUE, -0.06) : BLUE;
+  });
+  cyl(puck, 'y', -0.5, -0.5, 6, 6, 5.6, 5.6, 0x0b1030);
+  stamp(puck, textArt('LAB'), { T: WHITE }, { axis: 'z', x: -6, y: 5 });
+
+  const capG = capGrid(cap, chrome);
 
   // ---- wrap label: hazard bands + Lab badge (rows 9..21 => 0.45 .. 1.1)
   const lab = G();
@@ -560,6 +565,23 @@ class VialModel {
     else this.setFill(0, 0);
   }
 
+  /** Tube: rebuild the cap in another colour (shake upgrades). */
+  setCapColor(hex) {
+    if (!this.capMesh) return;
+    const key = 'cap:' + hex;
+    let geo = geoCache.get(key);
+    if (!geo) {
+      geo = capGrid(hex, false).build({ scale: V, pivot: [0, 0, 0], jitter: 0.02, maxSamples: 140 });
+      geoCache.set(key, geo);
+    }
+    this.capMesh.geometry = geo;
+    this.capMesh.material = Mats.toyGlossPair;
+  }
+  /** Tube: change the vial liquid colour (shake upgrades). */
+  setLiquidColor(hex) {
+    this.liquidColor = hex;
+    this.setFill(this.fill, this.fillMix);
+  }
   /** Tube: liquid level 0..1 and colour mix (0 = clear water, 1 = vial liquid). */
   setFill(level, mix = this.fillMix) {
     if (!this.liquid) return;
@@ -568,7 +590,7 @@ class VialModel {
     const h = (TUBE.liqTop - TUBE.liqBottom) * this.fill;
     this.liquid.visible = h > 0.005;
     this.liquid.scale.y = Math.max(0.001, h);
-    const c = new THREE.Color(0xa8dcff).lerp(new THREE.Color(this.def.liquid), mix);
+    const c = new THREE.Color(0xa8dcff).lerp(new THREE.Color(this.liquidColor ?? this.def.liquid), mix);
     this.liqMat.color.copy(c);
     this.liqMat.emissive.copy(c);
     this.liqMat.opacity = 0.45 + 0.35 * mix;

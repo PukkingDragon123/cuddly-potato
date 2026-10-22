@@ -68,3 +68,53 @@ export const vialId = (id) => (VIALS[id] ? id : LEGACY_VIAL[id] ?? 'testTube');
 
 /** Beast Bucks to skip remaining time (about 1 Buck per 6 minutes). */
 export const skipPrice = (secLeft) => (secLeft <= 0 ? 0 : Math.max(1, Math.ceil(secLeft / 60 / 6)));
+
+// ---------------------------------------------------------------------------
+// Shake upgrades (Clash Royale chest-upgrade style). While opening a vial you
+// shake it a limited number of times; every strong shake has a chance to
+// upgrade the vial one rarity tier (max 2 per vial). An upgraded vial rolls
+// more cards / coins and the tier's rarity guarantee (see upgradedVial).
+
+export const VIAL_TIERS = ['common', 'rare', 'epic', 'legendary'];
+/** Look of each tier when a vial upgrades into it (liquid, glow, cap tint) + the ribbon colour. */
+export const VIAL_TIER_LOOK = {
+  common: { name: '', liquid: 0x9ff2ff, glow: 0xb8c6e8, ribbon: 'blue' },
+  rare: { name: 'Rare', liquid: 0xffa43a, glow: 0xff9a2e, cap: 0xff8a2a, ribbon: 'pink' },
+  epic: { name: 'Ultra Rare', liquid: 0xc56bff, glow: 0xc063ff, cap: 0xa04cff, ribbon: 'purple' },
+  legendary: { name: 'Legendary', liquid: 0x3ff2c8, glow: 0x3ff2c8, cap: 0xffd23f, ribbon: 'gold' },
+};
+export const VIAL_MAX_UPGRADES = 2;
+/** Shakes allowed per opening (shown by the shake meter). */
+export const VIAL_SHAKES = { testTube: 5, box: 4 };
+/** Chance per strong shake to upgrade: the 1st upgrade, then the 2nd. */
+export const VIAL_UPGRADE_CHANCE = [0.15, 0.08];
+/** Reward multiplier per upgrade step (cards + coins). */
+export const VIAL_UPGRADE_MUL = 1.5;
+
+export const vialTierIndex = (def) => Math.max(0, VIAL_TIERS.indexOf(def?.rarity ?? 'common'));
+/** How many upgrades this vial can still get (a Legendary Cash Case is already maxed). */
+export const maxVialUpgrades = (def) => Math.max(0, Math.min(VIAL_MAX_UPGRADES, VIAL_TIERS.length - 1 - vialTierIndex(def)));
+/** The rarity tier id of a vial after `up` upgrades. */
+export const vialTier = (def, up = 0) => VIAL_TIERS[Math.min(VIAL_TIERS.length - 1, vialTierIndex(def) + Math.max(0, up | 0))];
+/** Display name of an upgraded vial ("Ultra Rare Test Tube"). */
+export function upgradedName(def, up = 0) {
+  const n = Math.min(up | 0, maxVialUpgrades(def));
+  return n > 0 ? `${VIAL_TIER_LOOK[vialTier(def, n)].name} ${def.name}` : def.name;
+}
+/** A copy of the vial def as rolled after `up` shake upgrades (more cards + coins, the tier's guarantee). */
+export function upgradedVial(def, up = 0) {
+  const n = Math.min(up | 0, maxVialUpgrades(def));
+  if (n <= 0) return def;
+  const tier = vialTier(def, n);
+  const mul = Math.pow(VIAL_UPGRADE_MUL, n);
+  const g = { ...(def.guarantee ?? {}) };
+  if (tier === 'rare' || tier === 'epic' || tier === 'legendary') g.rare = Math.max(g.rare ?? 0, tier === 'rare' ? 3 : 4);
+  if (tier === 'epic' || tier === 'legendary') g.epic = Math.max(g.epic ?? 0, 1);
+  if (tier === 'legendary') g.legendary = Math.max(g.legendary ?? 0, 1);
+  return {
+    ...def, rarity: tier, upgrade: n, guarantee: g,
+    cards: Math.round((def.cards || 4) * mul),
+    coins: def.coins.map((c) => Math.round(c * mul)),
+    bucks: tier === 'legendary' ? Math.max(def.bucks ?? 0, 10) : def.bucks,
+  };
+}

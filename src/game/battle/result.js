@@ -1,132 +1,539 @@
-// Victory / defeat / draw screen (Clash Royale style): the rival's and your
-// banner with each base's HP draining to what was left (or a BASE DESTROYED
-// stamp), a WINNER tag, then the rewards (trophies, coins, the vial you won,
-// XP, calories) popping in with roll-up numbers. Resolves with the button
-// pressed.
-import { h, icon, animIcon, button, panel, bar, rollNumber, sparkle, burst, confetti, bump } from '../../ui/ui.js';
+// Battle end cinematics.
+//
+// finalBlow(parent, { win, view }): the slow-mo base collapse beat (letterbox,
+//   vignette, speed lines, camera push, BASE DESTROYED slam) layered over the
+//   3D collapse that view.labDestroyed plays.
+//
+// showResult(parent, opts): resolves with the id of the button pressed.
+//   1. VERDICT: VICTORY! / DEFEAT / DRAW slams over gold rays (or rain) while
+//      the winning Commander celebrates in live 3D (the loser sulks behind).
+//   2. BREAKING NEWS sting.
+//   3. BEAST NEWS: anchor Nora Newsly (3D chibi) at the news desk presents the
+//      battle report: headline, base HP left, battle time, troops deployed,
+//      damage, Swarms defeated, spells + specials, Commander ults, the MVP
+//      card, trophies and rewards with animated counters, a scrolling ticker,
+//      then the buttons. Tap to fast-forward any phase.
+//
+// opts: { result: 'win'|'loss'|'draw', bases: [{ frac, alive, tier }] x2 (mine, theirs), names: [mine, theirs],
+//         rewards (battleRewards result | null), mode, buttons: [{ id, label, color, icon }], vialThumb?,
+//         summary? (else read from the battle scene: scene.battleSummary()) }
+import './result.css';
+import * as THREE from 'three';
+import { h, icon, animIcon, button, rollNumber, sparkle, burst, confetti, bump } from '../../ui/ui.js';
+import { popWords } from '../../ui/dialogue.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
+import { animate } from '../../core/tween.js';
+import { Chibi } from '../../core/chibi.js';
+import { CHARACTERS } from '../../data/characters.js';
 import { VIALS } from '../../data/vials.js';
 import { BASE_UPGRADES } from '../../data/labs.js';
-import { fx } from '../../core/particles.js';
-import * as THREE from 'three';
+import { cardDef } from '../../data/cards.js';
+import { cardArtImg } from '../../ui/thumbs.js';
+import { Stage3D } from '../../ui/stage3d.js';
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fmtN = (n) => Math.round(n).toLocaleString('en-US');
+const fmtBig = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e5 ? Math.round(n / 1e3) + 'K' : fmtN(n));
+const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
-/**
- * opts: { result: 'win'|'loss'|'draw', bases: [{ frac, alive, tier }] x2 (mine, theirs), names: [mine, theirs], rewards (battleRewards result | null),
- *         mode, buttons: [{ id, label, color }], vialThumb?: (type) => url }
- */
+function sfx(fn) {
+  if (!audio.ctx || audio.muted) return;
+  try { fn(audio); } catch (e) { /* optional */ }
+}
+const SND = {
+  // "da-da-da DUM" news sting
+  news: () => sfx((a) => {
+    const n = [392, 392, 523.3, 784];
+    n.forEach((f, i) => {
+      const d = i * 0.11 + (i === 3 ? 0.08 : 0);
+      a.tone({ type: 'sawtooth', f0: f, dur: i === 3 ? 0.7 : 0.1, vol: 0.05, lp: 2600, hold: i === 3 ? 0.25 : 0.02, delay: d });
+      a.tone({ type: 'square', f0: f / 2, dur: i === 3 ? 0.6 : 0.09, vol: 0.03, lp: 1400, delay: d });
+    });
+    a.thump(140, 45, 0.3, 0.35, 0.41);
+    a.noise({ dur: 0.5, vol: 0.06, type: 'highpass', f0: 5000, attack: 0.002, delay: 0.41 });
+  }),
+  swoosh: () => sfx((a) => a.noise({ dur: 0.35, vol: 0.18, type: 'bandpass', f0: 300, f1: 3400, q: 1.1, attack: 0.12 })),
+  slowmo: () => sfx((a) => {
+    a.tone({ type: 'sawtooth', f0: 220, f1: 55, dur: 1.1, vol: 0.05, lp: 900 });
+    a.noise({ dur: 1.1, vol: 0.07, type: 'lowpass', f0: 1200, f1: 200, attack: 0.05 });
+  }),
+  tickRoll: (p = 1) => audio.play('countTick', { pitch: p, gap: 0.04 }),
+};
+
+/** A pausable sequence clock: wait(ms) resolves early once skip() is called. */
+function clock() {
+  let skipping = false;
+  const pending = new Set();
+  return {
+    get skipping() { return skipping; },
+    wait(ms) {
+      if (skipping) return Promise.resolve();
+      return new Promise((r) => {
+        const e = { r, id: setTimeout(() => { pending.delete(e); r(); }, ms) };
+        pending.add(e);
+      });
+    },
+    skip() {
+      skipping = true;
+      for (const e of pending) { clearTimeout(e.id); e.r(); }
+      pending.clear();
+    },
+  };
+}
+
+function chibiFor(cmd) {
+  if (!cmd) return null;
+  const base = CHARACTERS[cmd.char ?? cmd.id];
+  if (!base) return null;
+  try { return new Chibi({ ...base, ...(cmd.override ?? {}) }, { fidget: false }); } catch (e) { return null; }
+}
+
+// ---------------------------------------------------------------------------
+// 0. Final blow (over the 3D base collapse)
+
+export function finalBlow(parent, { win = true, view = null } = {}) {
+  const el = h('div', { class: `cfb ${win ? 'win' : 'loss'}` },
+    h('i', { class: 'cfb-vig' }), h('i', { class: 'cfb-lines' }),
+    h('i', { class: 'cfb-bar t' }), h('i', { class: 'cfb-bar b' }),
+    h('div', { class: 'cfb-tag' }, h('i'), 'SLOW-MO'),
+    h('div', { class: 'cfb-stamp' }, h('b', {}, win ? 'BASE' : 'YOUR BASE'), h('span', {}, win ? 'DESTROYED!' : 'HAS FALLEN!')),
+    h('i', { class: 'cfb-flash' }));
+  parent.appendChild(el);
+  SND.slowmo();
+  audio.play('heartbeat', { pitch: 0.8 });
+  // camera push toward the collapsing base, eased back by the result screen's own framing
+  if (view) {
+    const z0 = view.zoom;
+    animate(1.4, (e) => { view.zoom = z0 + (Math.max(0.7, z0 * 0.72) - z0) * e; }, { ease: 'outCubic' });
+  }
+  setTimeout(() => {
+    if (!el.isConnected) return;
+    el.classList.add('hit');
+    audio.play('explode', { pitch: 0.55 });
+    audio.play('stamp', { pitch: 0.7 });
+  }, 1000);
+  setTimeout(() => el.classList.add('out'), 2350);
+  setTimeout(() => el.remove(), 2900);
+  return el;
+}
+
+// ---------------------------------------------------------------------------
+
 export async function showResult(parent, opts) {
-  const { result, names } = opts;
+  const { result } = opts;
+  const names = opts.names ?? ['You', 'Rival'];
   const bases = opts.bases ?? [{ frac: 1, alive: true, tier: 0 }, { frac: 1, alive: true, tier: 0 }];
   const r = opts.rewards;
-  const title = result === 'win' ? 'VICTORY!' : result === 'draw' ? 'DRAW' : 'DEFEAT';
-  const team = (i) => {
-    const b = bases[i];
-    const fill = h('i', { class: 'f' });
-    const pct = h('span', { class: 'pc' }, '100%');
-    const winner = (result === 'win' && i === 0) || (result === 'loss' && i === 1);
-    const el = h('div', { class: `res-team s${i}${winner ? ' winner' : ''}` },
-      h('div', { class: 'res-base' },
-        h('div', { class: 'tn' }, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base'),
-        h('b', { class: 'rb' }, fill, pct)),
-      h('div', { class: 'rn' }, names[i]));
-    return { el, fill, pct, b };
-  };
-  const t1 = team(1), t0 = team(0);
-  // the title: each letter slams down in turn over a spinning pixel sunburst and a neon plate
-  const letters = [...title].map((ch, i) => h('span', { class: ch === ' ' ? 'sp' : '', style: { '--i': i } }, ch === ' ' ? '\u00a0' : ch));
-  const titleEl = h('div', { class: `res-titlew ${result}` },
-    h('div', { class: 'px-rays res-rays' + (result === 'win' ? '' : ' w') }),
-    h('div', { class: 'res-plate' }),
-    result === 'win' ? icon('crown', 'res-crown') : result === 'loss' ? icon('skull', 'res-crown') : null,
-    h('div', { class: `res-title ${result}` }, letters),
-    h('div', { class: 'res-sub t-d' }, result === 'win' ? 'YOUR LAB WINS!' : result === 'draw' ? 'NOBODY BLINKED' : 'THE RIVAL LAB WINS'));
-  setTimeout(() => wrap.classList.add('settled'), 2600);
-  const wrap = h('div', { class: `res-wrap r-${result}` }, h('div', { class: 'res-flash' }), titleEl, t1.el, h('div', { class: 'res-vs' }, 'VS'), t0.el);
-  parent.appendChild(wrap);
-  audio.play(result === 'win' ? 'levelUp' : result === 'draw' ? 'bell' : 'error');
-  setTimeout(() => { if (wrap.isConnected) engine.shake?.(result === 'loss' ? 0.25 : 0.18); }, 120 + title.length * 55);
-  if (result === 'win') {
-    audio.play('cheer');
-    fx.confetti(new THREE.Vector3(0, 6, 0), { count: 60, spread: 3 });
-    confetti(wrap, { count: 46, life: 5, spread: 1.4 });
-    setTimeout(() => wrap.isConnected && burst(titleEl.querySelector('.res-title'), { color: '#ffd84a', count: 24, scale: 1.1 }), 140 + title.length * 55);
-  }
-  await wait(450);
-  // each base's HP drains to what was left; a destroyed base gets stamped
-  for (const t of [t1, t0]) {
-    const to = Math.max(0, t.b.frac);
-    const t0ms = performance.now(), dur = 520;
-    await new Promise((res) => {
-      const step = (now) => {
-        const q = Math.min(1, (now - t0ms) / dur);
-        const v = 1 - (1 - to) * (1 - Math.pow(1 - q, 3));
-        t.fill.style.width = (v * 100).toFixed(1) + '%';
-        t.pct.textContent = Math.round(v * 100) + '%';
-        if (q < 1) requestAnimationFrame(step);
-        else res();
-      };
-      requestAnimationFrame(step);
-    });
-    if (!t.b.alive) {
-      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp' }, icon('skull', 's'), 'BASE DESTROYED!'));
-      audio.play('stamp');
-      engine.shake?.(0.12);
-      bump(t.el, 'res-hit');
-    } else if (t.b.frac >= 0.999) {
-      t.el.querySelector('.res-base').appendChild(h('div', { class: 'res-stamp good' }, icon('star', 's'), 'FLAWLESS!'));
-      sparkle(t.el, { count: 14, colors: ['#ffd84a', '#ffffff'] });
-      audio.play('stamp', { pitch: 1.2 });
-    }
-    await wait(200);
-  }
-  await wait(250);
+  let sum = opts.summary;
+  if (sum === undefined) { try { sum = engine.current?.battleSummary?.() ?? null; } catch (e) { sum = null; } }
+  const W = window.innerWidth, H = window.innerHeight;
+  const portrait = H > W;
+  const win = result === 'win', loss = result === 'loss';
+  const title = win ? 'VICTORY!' : loss ? 'DEFEAT' : 'DRAW';
 
-  // rewards
-  if (r) {
-    const items = [];
-    const add = (ic, value, label, o = {}) => {
-      const v = h('div', { class: 'v' }, '0');
-      const el = h('div', { class: `res-rw sk-panel-dark k-${ic}${o.neg ? ' neg' : ''}` }, h('div', { class: 'px-rays w res-rw-rays' }), o.img ?? animIcon(ic), v, h('div', { class: 'l' }, label));
-      items.push({ el, v, value, sign: o.sign, text: o.text, neg: o.neg });
-    };
-    // the 3D vial render, even when the caller didn't pass a thumbnail function
-    let vialThumb = opts.vialThumb;
-    if (r.vial && !vialThumb) {
-      try { vialThumb = (await import('../../ui/vialThumb.js')).vialThumb; } catch (e) { vialThumb = null; }
+  const root = h('div', { class: `cres r-${result} ${portrait ? 'portrait' : 'landscape'}` });
+  parent.appendChild(root);
+  const stageHost = h('div', { class: 'cres-stage' });
+  const stage = new Stage3D({ fov: 26, maxPixels: 1.3e6, rimA: win ? 0xffd84a : 0x6a8cff, rimB: win ? 0xff7ac8 : 0x8a5aff, rimI: 3 });
+  let alive = true;
+  const end = () => { alive = false; stage.dispose(); };
+
+  // ======================= 1. VERDICT =======================
+  const seq = clock();
+  root.addEventListener('pointerdown', () => seq.skip());
+  const letters = [...title].map((ch, i) => h('span', { style: { '--i': i } }, ch));
+  const verdict = h('div', { class: 'cres-verdict' },
+    h('i', { class: 'cv-bg' }), h('i', { class: 'cv-rays' }), win ? h('i', { class: 'cv-spots' }) : null, loss ? h('i', { class: 'cv-rain' }) : null,
+    stageHost,
+    h('div', { class: 'cv-head' },
+      win ? icon('crown', 'cv-crown') : loss ? icon('skull', 'cv-crown') : null,
+      h('div', { class: 'cv-title' }, letters),
+      h('div', { class: 'cv-sub' }, win ? `${names[0]} WINS!` : loss ? `${names[1]} WINS` : 'NOBODY BLINKED')),
+    h('i', { class: 'cv-bar t' }), h('i', { class: 'cv-bar b' }, h('span', { class: 'cv-skip' }, 'TAP TO CONTINUE')),
+    h('i', { class: 'cv-flash' }));
+  root.appendChild(verdict);
+
+  // 3D: the winner celebrates centre stage, the loser sulks behind
+  const sides = sum?.sides ?? [];
+  const winSide = win ? 0 : loss ? 1 : 0;
+  const champ = chibiFor(sides[winSide]?.commander);
+  const other = chibiFor(sides[1 - winSide]?.commander);
+  const cam = stage.camera;
+  cam.position.set(0, 1.25, 10);
+  cam.lookAt(0, 1.25, 0);
+  const visH = () => 2 * cam.position.z * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+  const placeAt = (ch, sx, sy, frac, z = 0) => {
+    const p = stage.screenToWorld(sx, sy, z);
+    ch.root.position.copy(p);
+    ch.root.scale.setScalar((frac * visH() * (cam.position.z - z)) / cam.position.z / ch.height);
+  };
+  const layoutVerdict = () => {
+    cam.updateMatrixWorld();
+    if (champ) placeAt(champ, 0.5, portrait ? 0.9 : 0.97, portrait ? 0.44 : 0.6);
+    if (other) placeAt(other, portrait ? 0.2 : 0.24, portrait ? 0.83 : 0.9, portrait ? 0.24 : 0.34, -2);
+  };
+  if (champ) { stage.add(champ.root); champ.root.rotation.y = 0.12; }
+  if (other) { stage.add(other.root); other.root.rotation.y = 0.5; }
+  let camT = 0;
+  stage.onUpdate((dt) => {
+    camT += dt;
+    if (phase === 'verdict') {
+      cam.position.z = 10 - Math.min(1, camT / 3) * 0.8;
+      cam.position.x = Math.sin(camT * 0.6) * 0.15;
+      cam.lookAt(0, 1.25, 0);
+      layoutVerdict();
     }
-    if (r.trophies) add('trophy', r.trophies, 'Trophies', { neg: r.trophies < 0, sign: true });
-    if (r.coins) add('coin', r.coins, 'Coins');
-    if (r.vial) {
-      const vd = VIALS[r.vial];
-      let src = null;
-      try { src = vialThumb ? vialThumb(r.vial, 160) : null; } catch (e) { src = null; }
-      const img = src ? h('img', { class: 'vial3d', src }) : icon('vial');
-      add('vial', 0, vd?.name ?? 'Vial', { img, text: 'NEW!' });
-    } else if (r.slotsFull && result === 'win') add('vial', 0, 'Vial slots full!', { text: 'FULL', neg: true });
-    if (r.calories) add('calorie', r.calories, 'Pass calories');
-    if (r.cmdXp) add('star', r.cmdXp, 'Commander XP');
-    if (r.labXp) add('lab', r.labXp, 'Lab XP');
-    const row = h('div', { class: 'res-rewards' });
-    wrap.appendChild(row);
-    for (const it of items) {
-      row.appendChild(it.el);
-      if (it.text) it.v.textContent = it.text;
-      else rollNumber(it.v, 0, it.value, 0.6, (n) => (it.sign && n > 0 ? '+' : '') + n);
-      audio.play('coin', { pitch: 1 + items.indexOf(it) * 0.08 });
-      if (!it.neg) setTimeout(() => it.el.isConnected && sparkle(it.el, { count: 8, spread: 40 }), 260);
-      await wait(170);
-    }
-    for (const lu of r.levelUps ?? []) wrap.appendChild(h('div', { class: 't-d outline c-gold' }, `Commander level ${lu.level ?? lu}!`));
-    for (const lu of r.labUps ?? []) wrap.appendChild(h('div', { class: 't-d outline c-blue' }, `Lab Level ${lu.level ?? lu}!`));
+    const n = Math.max(1, Math.ceil(dt * 30));
+    for (const c of [champ, other, anchor]) if (c) for (let i = 0; i < n; i++) c.update(dt / n);
+  });
+  stage.onResize = () => phase === 'verdict' && layoutVerdict();
+  let phase = 'verdict';
+  let anchor = null;
+  stage.mount(stageHost);
+  stage.start();
+  if (import.meta.env.DEV) window.__resStage = stage;
+
+  if (champ) {
+    if (result === 'draw') champ.react('shrug', { dur: 3 });
+    else { champ.play('victory'); champ.mood('excited'); champ.boing(0.5); }
   }
+  if (other) {
+    if (result === 'draw') other.react('shrug', { dur: 3 });
+    else { other.play('sad'); other.mood('cry'); }
+  }
+  audio.play(win ? 'fanfare' : loss ? 'error' : 'bell');
+  setTimeout(() => { if (root.isConnected) { engine.shake?.(loss ? 0.3 : 0.2); audio.play('stamp', { pitch: loss ? 0.7 : 1 }); } }, 140 + title.length * 60);
+  if (win) {
+    audio.play('cheer');
+    confetti(verdict, { count: 50, life: 5, spread: 1.4 });
+    setTimeout(() => root.isConnected && burst(verdict.querySelector('.cv-title'), { color: '#ffd84a', count: 26, scale: 1.2 }), 160 + title.length * 60);
+  }
+  // celebration beats
+  setTimeout(() => { if (alive && champ && result !== 'draw') champ.react(win ? 'celebrate' : 'laugh', { dur: 1.8 }); }, 1100);
+  await seq.wait(2900);
+  // dev: window.__resHold = true keeps the verdict up (screenshots on slow machines)
+  while (import.meta.env.DEV && window.__resHold && root.isConnected) await new Promise((res) => setTimeout(res, 300));
+  if (!root.isConnected) { end(); return 'ok'; }
+
+  // ======================= 2. BREAKING NEWS sting =======================
+  const sting = h('div', { class: 'cres-sting' },
+    h('i', { class: 'cs-band a' }), h('i', { class: 'cs-band b' }),
+    h('div', { class: 'cs-txt' }, h('b', {}, 'BREAKING'), h('span', {}, 'NEWS')));
+  root.appendChild(sting);
+  SND.swoosh();
+  SND.news();
+  await new Promise((res) => setTimeout(res, 420));
+  verdict.remove();
+  phase = 'news';
+  if (champ) stage.remove(champ.root);
+  if (other) stage.remove(other.root);
+
+  // ======================= 3. BEAST NEWS =======================
+  const news = buildNews({ result, names, bases, r, sum, portrait, opts });
+  root.appendChild(news.el);
+  setTimeout(() => sting.remove(), 700);
+  // the anchor at her desk
+  anchor = chibiFor({ char: 'anchor' });
+  if (anchor) {
+    stage.add(anchor.root);
+    anchor.root.rotation.y = 0.28;
+    anchor.play('talk');
+    anchor.expr('happy', 'grin');
+  }
+  const aim = new THREE.Vector3();
+  const frameAnchor = () => {
+    if (!anchor) return;
+    cam.fov = 24;
+    cam.updateProjectionMatrix();
+    const vh = 1.75;
+    const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    // anchor sits left of centre in portrait (the BEAST NEWS screen fills the right)
+    const off = (portrait ? 0.14 : 0.04) * vh * cam.aspect;
+    aim.set(off, 1.22, 0);
+    cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.1, Math.cos(0.12) * dist);
+    cam.lookAt(aim);
+  };
+  stage.onResize = () => frameAnchor();
+  stage.mount(news.cam);
+  frameAnchor();
+
+  const seq2 = clock();
+  root.addEventListener('pointerdown', () => seq2.skip());
+  const anchorSay = (on) => anchor?.talk(on);
+  await seq2.wait(380);
+  // headline, read out by the anchor
+  anchorSay(true);
+  const hl = popWords(news.headline, news.headlineText, {
+    cps: 34,
+    onWord: (wd) => {
+      audio.play('blip', { pitch: wd.emph ? 1.15 : 1.3 + Math.random() * 0.15, gap: 0.05 });
+      if (wd.emph) anchor?.boing(0.12);
+    },
+  });
+  root.addEventListener('pointerdown', () => hl.finish());
+  if (seq2.skipping) hl.finish();
+  await hl.promise;
+  anchorSay(false);
+  anchor?.play('point', { dur: 1.4, then: 'talk' });
+  // reveal the report, item by item
+  for (const step of news.steps) {
+    if (!root.isConnected) break;
+    if (step.say) anchorSay(true);
+    await step.run(seq2);
+    if (step.react && anchor) step.react(anchor);
+    anchorSay(false);
+    await seq2.wait(step.gap ?? 150);
+  }
+  anchor?.play('talk');
+  news.el.classList.add('done');
+
   const buttons = opts.buttons ?? [{ id: 'ok', label: 'OK', color: 'blue' }];
   return new Promise((resolve) => {
-    const foot = h('div', { class: 'res-foot slide-up' }, buttons.map((b) => button(b.label, () => { wrap.remove(); resolve(b.id); }, `${b.color ?? 'blue'} lg`, { icon: b.icon })));
-    wrap.appendChild(foot);
+    const foot = h('div', { class: 'res-foot cres-foot' }, buttons.map((b) => button(b.label, () => {
+      root.remove();
+      end();
+      resolve(b.id);
+    }, `${b.color ?? 'blue'} lg`, { icon: b.icon })));
+    news.footSlot.appendChild(foot);
+    // the screen was torn down from outside (scene change)
+    const watch = setInterval(() => { if (!root.isConnected) { clearInterval(watch); end(); } }, 500);
   });
 }
 
-export { panel, bar };
+// ---------------------------------------------------------------------------
+// BEAST NEWS layout + reveal steps
+
+function buildNews({ result, names, bases, r, sum, portrait, opts }) {
+  const win = result === 'win', loss = result === 'loss';
+  const me = names[0] ?? 'You', riv = names[1] ?? 'Rival';
+  const st = sum?.sides?.[0]?.stats ?? {};
+  const time = sum?.time ?? 0;
+  const smashed = !bases[1].alive, fell = !bases[0].alive;
+  const headlineText = win
+    ? (smashed ? `*${me}* SMASHES *${riv}*'s base${time ? ` in ${fmtTime(time)}` : ''}!` : `*${me}* OUTLASTS *${riv}* on base HP!`)
+    : loss
+      ? (fell ? `*${riv}* FLATTENS *${me}*'s base! Rematch incoming?` : `*${riv}* edges out *${me}* at the buzzer!`)
+      : `STALEMATE! *${me}* and *${riv}* can't be split!`;
+
+  const cam = h('div', { class: 'cn-cam' });
+  const headline = h('div', { class: 'cn-hl' });
+  const footSlot = h('div', { class: 'cn-footslot' });
+  const arenaName = sum?.arena?.name ?? 'Beast Island';
+
+  // studio: wall, big screen, anchor (3D), desk, logo bug, LIVE
+  const studio = h('div', { class: 'cn-studio' },
+    h('i', { class: 'cn-wall' }), h('i', { class: 'cn-lights' }),
+    h('div', { class: 'cn-screen' },
+      h('i', { class: 'cn-screen-glow' }),
+      h('div', { class: 'cn-screen-in' },
+        h('small', {}, 'BATTLE REPORT'),
+        h('b', {}, win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW'),
+        h('span', {}, arenaName))),
+    cam,
+    h('div', { class: 'cn-desk' }, h('i', { class: 'cn-desk-top' }), h('div', { class: 'cn-desk-logo' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS'))),
+    h('div', { class: 'cn-bug' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS')),
+    h('div', { class: 'cn-live' }, h('i'), 'LIVE'));
+  const lower = h('div', { class: 'cn-lower' },
+    h('div', { class: 'cn-tag' }, 'BREAKING'),
+    h('div', { class: 'cn-hlw' }, headline, h('div', { class: 'cn-by' }, 'NORA NEWSLY  /  BEAST NEWS ', h('b', {}, arenaName.toUpperCase()))));
+
+  // ---- the report board
+  const board = h('div', { class: 'cn-board' });
+  const steps = [];
+
+  // bases: HP left
+  const baseRow = (i) => {
+    const b = bases[i];
+    const fill = h('i', { class: 'f' });
+    const pct = h('span', { class: 'pc' }, '100%');
+    const el = h('div', { class: `cn-base s${i}` },
+      h('div', { class: 'nm' }, h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')),
+      h('b', { class: 'bar' }, fill, pct));
+    return { el, fill, pct, b };
+  };
+  const bRows = [baseRow(0), baseRow(1)];
+  const basesEl = h('div', { class: 'cn-card cn-bases' }, h('div', { class: 'cn-cap' }, 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
+  board.appendChild(basesEl);
+  steps.push({
+    say: true,
+    run: async (seq) => {
+      basesEl.classList.add('in');
+      audio.play('whoosh', { pitch: 1.5, vol: 0.5 });
+      await seq.wait(160);
+      await Promise.all(bRows.map((t, k) => new Promise((res) => {
+        const to = Math.max(0, t.b.frac), dur = seq.skipping ? 1 : 650;
+        const t0 = performance.now() + k * 120;
+        const stepF = (now) => {
+          const q = Math.max(0, Math.min(1, (now - t0) / dur));
+          const v = 1 - (1 - to) * (1 - Math.pow(1 - q, 3));
+          t.fill.style.width = (v * 100).toFixed(1) + '%';
+          t.pct.textContent = Math.round(v * 100) + '%';
+          if (q < 1 && !seq.skipping) requestAnimationFrame(stepF);
+          else {
+            t.fill.style.width = (to * 100).toFixed(1) + '%';
+            t.pct.textContent = Math.round(to * 100) + '%';
+            if (!t.b.alive) { t.el.appendChild(h('div', { class: 'cn-stamp' }, 'DESTROYED')); audio.play('stamp'); bump(t.el, 'cn-hit'); }
+            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp good' }, 'FLAWLESS')); audio.play('stamp', { pitch: 1.2 }); }
+            res();
+          }
+        };
+        requestAnimationFrame(stepF);
+      })));
+    },
+    gap: 120,
+  });
+
+  // stat tiles
+  const spells = st.spells ?? 0;
+  const tiles = [
+    { ic: 'clock', label: 'BATTLE TIME', value: time, fmt: fmtTime },
+    { ic: 'swords', label: 'TROOPS DEPLOYED', value: st.deployed ?? 0 },
+    { ic: 'bolt', label: 'DAMAGE DEALT', value: Math.round(st.dmg ?? 0), fmt: fmtBig },
+    { ic: 'skull', label: 'SWARMS DEFEATED', value: st.kills ?? 0 },
+    { ic: 'magic', label: 'SPELLS + SPECIALS', value: spells },
+    { ic: 'star', label: 'COMMANDER ULTS', value: (st.sigs ?? 0) + (sum?.megas ?? 0) },
+  ];
+  const grid = h('div', { class: 'cn-grid' });
+  board.appendChild(grid);
+  tiles.forEach((tl, k) => {
+    const v = h('b', { class: 'v' }, tl.fmt ? tl.fmt(0) : '0');
+    const el = h('div', { class: 'cn-card cn-tile' }, h('div', { class: 'ic' }, icon(tl.ic)), v, h('small', {}, tl.label));
+    grid.appendChild(el);
+    steps.push({
+      say: k % 2 === 0,
+      run: async (seq) => {
+        el.classList.add('in');
+        SND.tickRoll(1 + k * 0.06);
+        if (seq.skipping) v.textContent = tl.fmt ? tl.fmt(tl.value) : fmtN(tl.value);
+        else rollNumber(v, 0, tl.value, 0.55, tl.fmt ?? fmtN);
+        await seq.wait(140);
+      },
+      gap: 40,
+    });
+  });
+
+  // MVP card + trophies
+  const mvp = sum?.mvp;
+  const mvpDef = mvp ? cardDef(mvp.id) : null;
+  const row = h('div', { class: 'cn-row' });
+  board.appendChild(row);
+  if (mvpDef) {
+    let art = null;
+    try { art = cardArtImg(mvp.id, 'base', null, 160, 'cn-mvp-art'); } catch (e) { art = null; }
+    const dmgV = h('b', {}, '0');
+    const el = h('div', { class: 'cn-card cn-mvp' },
+      h('div', { class: 'cn-mvp-tag' }, icon('star'), 'MVP'),
+      h('div', { class: 'cn-mvp-frame' }, h('i', { class: 'px-rays w' }), art),
+      h('div', { class: 'cn-mvp-info' }, h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
+        mvp.dmg ? h('span', { class: 'd' }, dmgV, ' DMG') : null,
+        mvp.count ? h('small', {}, `deployed x${mvp.count}`) : null));
+    row.appendChild(el);
+    steps.push({
+      say: true,
+      run: async (seq) => {
+        el.classList.add('in');
+        audio.play('reveal', { pitch: 1.1 });
+        if (mvp.dmg) { if (seq.skipping) dmgV.textContent = fmtN(mvp.dmg); else rollNumber(dmgV, 0, mvp.dmg, 0.7, fmtN); }
+        setTimeout(() => el.isConnected && sparkle(el, { count: 12, colors: ['#ffd84a', '#ffffff'] }), 200);
+        await seq.wait(420);
+      },
+      react: (a) => a.react('thumbsUp', { dur: 1.3 }),
+      gap: 120,
+    });
+  }
+  const tr = r?.trophies ?? 0;
+  if (r && (tr || opts.mode === 'ranked' || opts.mode === 'online')) {
+    const tv = h('b', { class: 'v' }, '0');
+    const el = h('div', { class: `cn-card cn-trophy ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), tv, h('small', {}, 'TROPHIES'));
+    row.appendChild(el);
+    steps.push({
+      say: false,
+      run: async (seq) => {
+        el.classList.add('in');
+        audio.play(tr >= 0 ? 'crown' : 'error');
+        if (seq.skipping) tv.textContent = (tr > 0 ? '+' : '') + tr;
+        else rollNumber(tv, 0, tr, 0.6, (n) => (tr > 0 && n > 0 ? '+' : '') + n);
+        if (tr > 0) setTimeout(() => el.isConnected && burst(el, { color: '#ffd84a', count: 18 }), 300);
+        await seq.wait(380);
+      },
+      react: (a) => (tr > 0 ? a.react('clap', { dur: 1.4 }) : tr < 0 ? a.react('shrug', { dur: 1.3 }) : null),
+      gap: 120,
+    });
+  }
+  if (!row.children.length) row.remove();
+
+  // rewards chips
+  if (r) {
+    const items = [];
+    const add = (ic, value, label, o = {}) => {
+      const v = h('b', {}, '0');
+      const el = h('div', { class: `cn-chip k-${ic}${o.neg ? ' neg' : ''}` }, o.img ?? animIcon(ic), h('div', {}, v, h('small', {}, label)));
+      items.push({ el, v, value, text: o.text });
+    };
+    if (r.coins) add('coin', r.coins, 'Coins');
+    if (r.vial) {
+      const vd = VIALS[r.vial];
+      let img = null;
+      const vt = opts.vialThumb;
+      try { img = vt ? h('img', { class: 'vial3d', src: vt(r.vial, 96) }) : null; } catch (e) { img = null; }
+      if (!img) {
+        img = icon('vial');
+        import('../../ui/vialThumb.js').then((m) => {
+          try { const src = m.vialThumb(r.vial, 96); if (src && img.isConnected) { img.src = src; img.classList.add('vial3d'); } } catch (e) { /* keep the icon */ }
+        }).catch(() => {});
+      }
+      add('vial', 0, vd?.name ?? 'Vial', { img, text: 'NEW!' });
+    } else if (r.slotsFull && result === 'win') add('vial', 0, 'Slots full!', { text: 'FULL', neg: true });
+    if (r.calories) add('calorie', r.calories, 'Calories');
+    if (r.cmdXp) add('star', r.cmdXp, 'Cmdr XP');
+    if (r.labXp) add('lab', r.labXp, 'Lab XP');
+    if (items.length) {
+      const chips = h('div', { class: 'cn-chips' }, items.map((it) => it.el));
+      board.appendChild(chips);
+      steps.push({
+        say: false,
+        run: async (seq) => {
+          for (const [k, it] of items.entries()) {
+            it.el.classList.add('in');
+            if (it.text) it.v.textContent = it.text;
+            else if (seq.skipping) it.v.textContent = '+' + fmtN(it.value);
+            else rollNumber(it.v, 0, it.value, 0.5, (n) => '+' + fmtN(n));
+            audio.play('coin', { pitch: 1 + k * 0.08 });
+            await seq.wait(130);
+          }
+        },
+        gap: 60,
+      });
+    }
+    const ups = [...(r.levelUps ?? []).map((lu) => `Commander level ${lu.level ?? lu}!`), ...(r.labUps ?? []).map((lu) => `Lab Level ${lu.level ?? lu}!`)];
+    if (ups.length) {
+      const el = h('div', { class: 'cn-ups' }, ups.map((u) => h('span', {}, icon('up'), u)));
+      board.appendChild(el);
+      steps.push({ say: false, run: async () => { el.classList.add('in'); audio.play('levelUp'); }, gap: 100 });
+    }
+  }
+
+  // ticker
+  const bits = [
+    headlineText.replace(/\*/g, ''),
+    mvpDef ? `MVP: ${mvpDef.name}${mvp.dmg ? ` dealt ${fmtN(mvp.dmg)} damage` : ''}` : null,
+    `${fmtN(st.deployed ?? 0)} troops deployed`,
+    `${fmtN(st.kills ?? 0)} Swarms defeated`,
+    r?.trophies ? `TROPHIES ${tr > 0 ? '+' : ''}${tr}` : null,
+    `Live from ${arenaName}`,
+    'Beast Tiger "totally fine", says Jimmy',
+    'Feastables stock up 300%',
+    'Lab Packs flying off the shelves',
+  ].filter(Boolean);
+  const tickTxt = bits.map((b) => h('span', {}, h('i', {}, '◆'), b.toUpperCase()));
+  const ticker = h('div', { class: 'cn-ticker' }, h('b', { class: 'cn-ticker-tag' }, 'BEAST NEWS'), h('div', { class: 'cn-ticker-run' }, h('div', { class: 'cn-ticker-in' }, tickTxt, tickTxt.map((e) => e.cloneNode(true)))));
+
+  const el = h('div', { class: 'cres-news' },
+    h('div', { class: 'cn-left' }, studio, lower),
+    h('div', { class: 'cn-right' }, board, footSlot),
+    ticker);
+  return { el, cam, headline, headlineText, steps, footSlot };
+}
+
+export { button };

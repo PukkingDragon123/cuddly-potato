@@ -16,7 +16,7 @@ src/
     tween.js, util.js  animation helpers, rng, colour + math helpers
   data/                pure data: swarms, spells, cards (unified catalogue), commanders, vials, arenas (+ trophy
                        road, bosses, quests, secrets, ghost opponents), labs (base, POWER, BASE_UPGRADES tiers,
-                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season
+                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season, entrances (NEW CARD cutscene cosmetics)
   game/
     state.js           profile v2 persistence + every economy operation (cards, decks, vials, trophies, pass...)
     game.js            scene router: game.go('title' | 'lab' | 'home' | 'battle' | 'vialopen' | dev scenes, params)
@@ -30,11 +30,15 @@ src/
       loadout.js       the player's battle side config from the profile
       view.js          3D battle presentation (arena, bases + tier swaps, units, plates, projectiles, spells, camera)
       megaCutscene.js  MEGA breakout cutscene (containment vessel, camera shots, overlay) + Mega special fx
-      commandFx.js     Commander electric MEGA charge-up (voxel lightning, halo, label)
-      voxfx.js         voxel effect meshes (laser beam, goo puddle, shield dome)
-      hud.js           battle HUD (base HP banners, timer, minimap; Battle Cats dock: BASE upgrade button
+      commandFx.js     Commander electric MEGA charge-up (voxel lightning, energy helix, label)
+      voxfx.js         voxel effect meshes (laser beam, goo puddle, shield dome) + ring-free impacts
+                       (groundHit / groundImpact: flash, sparks, debris, dust; battles never use fx.shockwave)
+      liveChibi.js     a live 3D Commander rendered into a HUD button canvas (ULT) via the thumb renderer
+      hud.js           battle HUD (top: one tug-of-war base-HP bar with clock, lean chip + lane strip;
+                       Battle Cats dock: BASE upgrade button
                        with a 3D next-tier model, POWER wallet, hand + NEXT card with card-use animations,
-                       Commander + MEGA ultimate buttons with 3D renders and cut-ins, emotes, VS intro); lineup.css
+                       live 3D Commander ULT + MEGA buttons with cut-ins, Beast-emblem emotes the Commander acts out
+                       with a wind-up bar, squash / overshoot press tweens on every button); lineup.css
       result.js        victory / defeat / draw screen with base HP and rewards
   net/p2p.js           WebRTC data channel with copy/paste "battle code" signalling (no server)
   models/
@@ -48,14 +52,20 @@ src/
     props/             base tiers tent -> Mega HQ (base.js), MEGA containment vessel (containment.js), legacy Lab
                        buildings (lab.js), vials (vials.js), lab interior + misc props
   scenes/
-    title.js           title stage (TAP TO PLAY -> the Lab for new players, home for everyone else)
+    title.js           title: movie title sequence over the frozen battle (UI instantly, 3D fades up when built;
+                       TAP TO START -> the Lab for new players, home for everyone else); captures loading stills
+    loading.js         cinematic loading screen for heavy scene changes (game.go: battle / home / lab): Ken Burns
+                       stills of the frozen battle, logo, destination, bar, tips; cinematic.css (shared film look)
     lab.js             the Beast Lab: first-time flow (Jimmy, your name, first pack -> tutorial battle ->
                        MEGA tube -> Beast Island) and later visits
-    home.js            Beast Island home lobby (top bar, vial slots, battle, nav tabs, unlock cinematic)
-    frozenBattle.js    home BATTLE-tab backdrop: a time-stopped cinematic lane fight in the selected arena (real
-                       arena/bases/Commanders/Swarms, suspended fx snapshot, live arcs/glows/ripples), pan + zoom camera
+    home.js            Beast Island home lobby (top bar, vial slots, battle, nav tabs, unlock cinematic); spring
+                       motion (press / release / hover, staggered entrances, tab carousel) in homeMotion.js
+    frozenBattle.js    title / loading cinematic: a time-stopped lane fight in an arena (real arena/bases/
+                       Commanders/Swarms, suspended fx snapshot, live arcs/glows/streaks), scripted camera shots
     battle.js          battle scene: modes (tutorial/ranked/practice/boss/friend), input, tutorial, finish
-    vialOpen.js        vial opening + card reveal
+    vialOpen.js        vial opening: pour (drag / tilt) + shake (DeviceMotion / swipe) with shake upgrades, card reveal
+    vialGestures.js    phone shake + tilt input (iOS permission) with swipe / keyboard fallbacks
+    newCardCutscene.js NEW CARD cutscene: entrance animation (data/entrances.js), bottle pop, pose, stats panel
   ui/
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), panel(), ribbon(), pill(), bar(), modal(), toast(),
                        say() dialogue, speech(), floatText(), pointAt(), sparkle(), rollNumber()
@@ -76,7 +86,7 @@ src/
 * Colours are `0xRRGGBB` ints. Glow voxels (`grid.set(x, y, z, color, true)`) render unlit at 2.6x HDR and are the
   only thing that blooms (bloom selects by brightest channel, threshold 1.75) - keep them to small accents.
 * Scenes: class with `scene`, `camera`, `enter(params)`, `exit()`, `update(dt, gdt)`, `resize(w, h)`, optional
-  `bloom`. `dt` is real time, `gdt` is game time (slowed by hitstop / timeScale).
+  `bloom`, optional `shown()` (called by game.go once the loading screen / fade is gone). `dt` is real time, `gdt` is game time (slowed by hitstop / timeScale).
 * DOM layers: `#ui` (scene UI), `#overlay` (modals, dialogue, toasts), `#world-ui` (world-anchored text and plates).
   `clearUI()` runs on every scene change. Layout unit `--u`, pixel size `--px`; `body.portrait|landscape`.
 * Never touch `localStorage` directly - use `state.p` + `state.save()` / `state.emit()`.

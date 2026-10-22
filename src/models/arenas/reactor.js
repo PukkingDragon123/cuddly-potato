@@ -9,6 +9,7 @@ import {
   pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx,
   setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, voxSkyline, addClouds,
 } from './kit.js';
+import { hdPixbuf } from './hdpaint.js';
 
 const C = {
   plate: 0x7d8590, plate2: 0x6f7782, plateL: 0x9aa2ac, plateD: 0x4e5560, rivet: 0xb8c0ca,
@@ -23,6 +24,7 @@ const LH = FIELD.LANE_HALF;
 // --------------------------------------------------------------------------- helpers
 
 function pixels(ctx, w, h) {
+  if (ctx._hd) return hdPixbuf(ctx, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   return {
     set(x, y, hex, a = 1) {

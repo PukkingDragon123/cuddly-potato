@@ -31,6 +31,7 @@ import { STARTER_CARDS } from '../data/cards.js';
 import { game } from '../game/game.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
+const _head = new THREE.Vector3(), _ndc = new THREE.Vector3(), _look = new THREE.Vector3();
 
 const CSS = `
 .lb-wrap { position: absolute; inset: 0; pointer-events: none; }
@@ -176,7 +177,11 @@ export class LabScene {
   /** Dialogue that goes inert once this scene has exited. */
   say(text, eyes = 'happy', mouth = 'grin', opts) {
     if (this.dead) return new Promise(() => {});
-    return say({ name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes, mouth }), chibi: this.jimmy }, text, opts);
+    return say({ name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes, mouth }), chibi: this.jimmy, char: 'jimmy', eyes, mouth }, text, opts);
+  }
+  /** Dialogue camera: ease the camera in toward Jimmy while he talks (only when he's in shot). */
+  dialogueFocus(who, on) {
+    if (who?.chibi === this.jimmy) this.pushOn = on;
   }
 
   camTo(pos, look, dur = 0.9) {
@@ -423,5 +428,22 @@ export class LabScene {
     c.position.copy(this.camPos);
     c.position.x += Math.sin(this.t * 0.3) * 0.08;
     c.lookAt(this.camLook);
+    // dialogue push-in toward Jimmy's face (fades out when he isn't in the shot)
+    let inShot = false;
+    if (this.pushOn && this.jimmy.root.visible) {
+      c.updateMatrixWorld();
+      const hd = this.jimmy.headTop(_head);
+      hd.y -= 0.6;
+      const q = _ndc.copy(hd).project(c);
+      inShot = Math.abs(q.x) < 0.85 && Math.abs(q.y) < 0.9 && q.z < 1;
+    }
+    this.pushK = (this.pushK ?? 0) + ((inShot ? 1 : 0) - (this.pushK ?? 0)) * (1 - Math.exp(-(inShot ? 1.6 : 3) * dt));
+    if (this.pushK > 0.002) {
+      const hd = this.jimmy.headTop(_head);
+      hd.y -= 0.6;
+      const k = this.pushK * this.pushK * (3 - 2 * this.pushK);
+      c.position.lerp(hd, 0.2 * k);
+      c.lookAt(_look.copy(this.camLook).lerp(hd, 0.32 * k));
+    }
   }
 }

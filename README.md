@@ -29,7 +29,7 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 **The loop (Clash Royale-style)**
 - Battle in real time, earn **trophies**, win **vials** (the game's chests), open them for cards, upgrade your
   Swarms with copies + Beast Coins, build the best **8-card deck**, and climb **Beast Island**.
-- The home screen's backdrop is a **frozen battle**: a time-stopped cinematic frame of a lane fight in the selected arena (your deck vs. that arena's Swarms) with live VFX; drag to pan between the bases, pinch / scroll to zoom. The **MAP** button opens **Beast Island**: a living 3D voxel island. The trophy road winds from the beach up to the
+- The title and loading screens are a movie title sequence over a **frozen battle**: a time-stopped cinematic lane fight in your arena (your deck vs. that arena's Swarms) with live VFX and slow camera moves. The home screen is **Beast Island**: a living 3D voxel island. The trophy road winds from the beach up to the
   summit and on across a huge northern region through fifteen arenas, each a diorama inspired by a MrBeast video:
   *Beast Lab*, *Last To Leave Circle*, *Chocolate Factory*, *Beast Mart*, *Red Light Courtyard*, *Antarctica Outpost*,
   *Atomic Reactor*, *Lost Pyramid*, *Beast Island Paradise*, *Lost Jungle Temple*, *Laser Maze Vault*, *Haunted
@@ -38,12 +38,16 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - Each arena has a **boss challenge**, NPCs with quest chains (Nolan, Juan), hidden secrets, and your own deck's
   Swarms hanging out on it.
 - **Vials** modelled on the real packaging (test tubes, Lab Packs, the Mega Lab, the Cash Case, Hyperchrome tubes)
-  unlock on timers in 4 slots, plus a free vial every 4 hours.
+  unlock on timers in 4 slots, plus a free vial every 4 hours. Opening one is hands-on: pour the water in (drag the jug
+  or tilt your phone), then **shake your phone** (or swipe the vial back and forth): every strong shake has a chance to
+  **upgrade** the vial a rarity tier (more cards, better guarantees). A card you find for the first time gets a cinematic
+  **NEW CARD cutscene** with your equipped **entrance animation** (Superhero Landing, Lab Explosion, Red Carpet, Rocket
+  Drop, Glitch Teleport: bought in the shop or earned on the Food Pass).
 
 **Battles**
 - Each side has one **base** with your Commander sitting on the roof. Smash the rival's base to win (no crowns,
   no guard towers).
-- **Upgrade your base** with the big BASE button (it shows the next tier in 3D), or tap the base itself: it starts as a humble **Camp Tent**, then becomes a **Lab Shack**, **Trailer
+- **Upgrade your base** with the big BASE button (it shows the next tier in 3D), or tap the base itself: it starts as a humble **Camp Lab** (a folding lab table under a pop-up canopy), then becomes a **Lab Shack**, **Trailer
   Lab**, **Field Lab**, **Beast Lab** and finally the **Mega HQ**. Every tier adds HP, a stronger zapper, faster POWER
   and a bigger POWER bar.
 - **Clash Royale card cycle**: an 8-card deck cycles through a hand of 4 with a **NEXT** card. Tap a troop card and

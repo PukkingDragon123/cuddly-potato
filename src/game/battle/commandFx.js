@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { fx } from '../../core/particles.js';
 import { audio } from '../../core/audio.js';
 import { h, icon } from '../../ui/ui.js';
+import { groundHit } from './voxfx.js';
 import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
 
 const CUBE = new THREE.BoxGeometry(1, 1, 1);
@@ -61,7 +62,7 @@ export class ChargeAura {
       view.scene.add(im);
     }
     this.path = [];
-    // electric halo: voxel cubes orbiting the Commander, one more lights up per ~4% of charge
+    // electric helix: voxel cubes spiralling up around the Commander, one more lights up per ~4% of charge
     this.ring = new THREE.InstancedMesh(CUBE, mk(side === 0 ? 0x9ff2ff : 0xffb0cc, 2.4), RING_N);
     this.ring.count = 0;
     this.ring.frustumCulled = false;
@@ -85,14 +86,14 @@ export class ChargeAura {
   /** The big release when the MEGA is unleashed. */
   discharge(pos) {
     fx.burst(pos.clone().setY(pos.y + 0.8), { count: 60, colors: [0xffffff, 0x9ff2ff, 0xffe27a], size: 0.12, speed: 9 });
-    fx.shockwave(new THREE.Vector3(pos.x, 0.05, pos.z), { radius: 5, color: this.side === 0 ? 0x5fe8ff : 0xff5a9a });
+    groundHit(new THREE.Vector3(pos.x, 0.05, pos.z), { radius: 5, color: this.side === 0 ? 0x5fe8ff : 0xff5a9a });
     this.burstT = 0.8;
   }
 
   /** k: MEGA charge 0..1 (null = no MEGA), state: 'locked' | 'charging' | 'ready' | 'used' */
   update(dt, ch, k, state) {
     this.t += dt;
-    const visible = !!ch && k !== null && state !== 'used' && !this.view.sim.over;
+    const visible = !!ch && k !== null && state !== 'used' && !this.view.sim.over && !ch.emoting;
     this.k += ((k ?? 0) - this.k) * Math.min(1, dt * 4);
     if (!visible) {
       this.core.count = this.glow.count = this.ring.count = 0;
@@ -121,7 +122,9 @@ export class ChargeAura {
     for (let i = 0; i < lit; i++) {
       const a = (i / RING_N) * Math.PI * 2 + spin;
       const r = (0.62 + (ready ? Math.sin(this.t * 14 + i) * 0.06 : 0)) * sc;
-      _p.set(center.x + Math.cos(a) * r, center.y - 0.1 * sc + Math.sin(a * 2 + this.t * 3) * 0.08 * sc, center.z + Math.sin(a) * r * 0.55);
+      // a rising helix of energy (not a flat ring): each cube climbs and wraps back to the feet
+      const u = ((i / RING_N) + this.t * (ready ? 0.9 : 0.35)) % 1;
+      _p.set(center.x + Math.cos(a * 2) * r * (1 - u * 0.35), center.y + (u - 0.6) * 1.3 * sc, center.z + Math.sin(a * 2) * r * 0.55 * (1 - u * 0.35));
       _s.setScalar((ready ? 0.1 : 0.07) * sc * (i === lit - 1 && !ready ? 0.6 + Math.sin(this.t * 20) * 0.4 : 1));
       _m.compose(_p, _q, _s);
       this.ring.setMatrixAt(i, _m);

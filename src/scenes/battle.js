@@ -1,5 +1,6 @@
 // Battle scene: wires the simulation, AI / network, 3D view and HUD together.
-// Modes: tutorial (vs Jimmy), ranked (vs a ghost player), practice, boss, friend.
+// Modes: tutorial (vs Jimmy), ranked (vs a ghost player), practice, boss, friend (WebRTC code),
+// online (live 1v1 over the claude.ai room: src/net/lobby.js + roomNet.js; ranked rewards).
 //
 // Controls (Clash Royale card cycle in a Battle Cats lane):
 //   * tap a troop card: it pops out of your base and marches (or drag it onto
@@ -13,13 +14,15 @@
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
+import { animate } from '../core/tween.js';
 import { h, say, modal, bigBanner, pointAt, toast, $ui, $overlay, closeDialogue, button } from '../ui/ui.js';
 import { charPortrait } from '../ui/thumbs.js';
 import { BattleSim } from '../game/battle/sim.js';
 import { BattleAI } from '../game/battle/ai.js';
 import { BattleView } from '../game/battle/view.js';
-import { BattleHUD, vsIntro, EMOTES } from '../game/battle/hud.js';
-import { showResult } from '../game/battle/result.js';
+import { BattleHUD, EMOTES } from '../game/battle/hud.js';
+import { vsIntro } from '../game/battle/vsIntro.js';
+import { showResult, finalBlow } from '../game/battle/result.js';
 import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
@@ -28,6 +31,7 @@ import { STARTER_CARDS } from '../data/cards.js';
 import { game } from '../game/game.js';
 import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
+import { lobby } from '../net/lobby.js';
 import { commanderCfg, playerSide, deckEntry } from '../game/battle/loadout.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -77,7 +81,7 @@ export class BattleScene {
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
       aiOpts = { difficulty: Math.min(0.9, 0.5 + b.level * 0.05) };
-    } else if (mode === 'friend') {
+    } else if (mode === 'friend' || mode === 'online') {
       const ar = arenaById(params.arena) ?? ARENAS[0];
       arenaId = ar.id;
       enemy = { ...params.remote, ghost: false };
@@ -109,7 +113,8 @@ export class BattleScene {
     const cfg = (this.cfg = this.buildConfig(params));
     const mode = this.mode;
     // simulation (+ AI or network)
-    if (mode === 'friend') {
+    this.netMode = mode === 'friend' || mode === 'online';
+    if (this.netMode) {
       const peer = (this.peer = net.peer);
       if (params.role === 'guest') this.sim = new RemoteSim({ sides: cfg.sides }, peer);
       else {
@@ -118,8 +123,14 @@ export class BattleScene {
         if (this.hostSync) this.hostSync.peerEmote = (i) => this.hud?.showEmote(1, i);
       }
       this.ai = null;
-      this.offClose = peer?.onClose(() => this.peerLost());
-      this.offMsg = peer?.on((m) => { if (m.t === 'emote' && params.role === 'guest') this.hud?.showEmote(1, m.e); });
+      this.offClose = peer?.onClose((why) => this.peerLost(why));
+      if (mode === 'online') this.offStatus = peer?.onStatus?.((st) => this.netStatus(st));
+      this.offMsg = peer?.on((m) => {
+        if (m.t === 'emote' && params.role === 'guest') this.hud?.showEmote(1, m.e);
+        if (m.t === 'ready') this.peerReady = true;
+      });
+      // an online link holds what arrived during the hand-off until everyone here listens
+      peer?.release?.();
     } else {
       this.sim = new BattleSim({ sides: cfg.sides, boss: cfg.boss, seed: cfg.seed, timeLimit: mode === 'tutorial' ? 300 : undefined, noOvertime: mode === 'tutorial', baseFloor: mode === 'tutorial' ? 0.3 : 0 });
       this.ai = new BattleAI(this.sim, 1, this.aiOpts);
@@ -160,7 +171,7 @@ export class BattleScene {
     v.autoFollow = false;
     v.focus(20, 99);
     v.updateCamera(0, true);
-    const vs = vsIntro($overlay(), this.cfg, { hold: this.mode === 'tutorial' ? 1500 : 2000, portraits: [null, this.cfg.boss ? null : null] });
+    const vs = vsIntro($overlay(), this.cfg, { hold: this.mode === 'tutorial' ? 1600 : 2000, arena: arenaById(this.arenaId), boss: this.mode === 'boss' });
     await wait(0.6);
     v.focus(-20, 99);
     await vs;
@@ -173,23 +184,26 @@ export class BattleScene {
       this.tutorial();
       return;
     }
-    if (this.mode === 'friend') await this.friendHandshake();
+    if (this.netMode) await this.friendHandshake();
     bigBanner(this.mode === 'boss' ? 'BOSS FIGHT!' : 'BATTLE!', '', { dur: 0.9, color: '#ffd84a' });
     audio.play('go');
-    if (!(this.mode === 'friend' && this.params.role === 'guest')) this.sim.paused = false;
+    if (!(this.netMode && this.params.role === 'guest')) this.sim.paused = false;
     this.ready = true;
     if (this.ai && this.mode === 'ranked' && Math.random() < 0.5) setTimeout(() => !this.ended && this.hud.showEmote(1, 0), 1500);
   }
 
   async friendHandshake() {
     if (this.params.role === 'guest') {
+      // a reliable link (online) delivers it once; WebRTC repeats until the host starts
+      if (this.peer?.reliable) { this.peer.send({ t: 'ready' }); return; }
       const iv = setInterval(() => {
         if (this.ended || this.sim.t > 0 || !this.peer?.open) clearInterval(iv);
         else this.peer.send({ t: 'ready' });
       }, 400);
       return;
     }
-    toast('Waiting for your friend...', { icon: 'clock' });
+    if (this.peerReady) return;
+    toast(this.mode === 'online' ? 'Waiting for your opponent...' : 'Waiting for your friend...', { icon: 'clock' });
     await new Promise((res) => {
       const off = this.peer?.on((m) => { if (m.t === 'ready') { off(); res(); } });
       setTimeout(res, 12000);
@@ -343,7 +357,7 @@ export class BattleScene {
   sendEmote(i) {
     if (this.ended) return;
     this.hud.showEmote(0, i);
-    if (this.mode === 'friend') {
+    if (this.netMode) {
       if (this.params.role === 'guest') this.sim.emote?.(i);
       else this.peer?.send({ t: 'emote', e: i });
     } else if (this.ai && Math.random() < 0.45) {
@@ -353,6 +367,11 @@ export class BattleScene {
   }
 
   onSimEvent(ev) {
+    // per-card damage for the result screen's MVP (BEAST NEWS summary)
+    if ((ev.type === 'hit' || ev.type === 'towerHit') && ev.src?.card && ev.src.side === 0) {
+      const d = (this.cardDmg ??= {});
+      d[ev.src.card] = (d[ev.src.card] ?? 0) + (ev.amount ?? 0);
+    }
     if (ev.type === 'end') this.endReason = ev.reason;
     else if (ev.type === 'labUp' && ev.side === 0) this.baseUps = (this.baseUps ?? 0) + 1;
     else if (ev.type === 'megaStart') {
@@ -374,7 +393,7 @@ export class BattleScene {
 
   pauseMenu() {
     if (this.ended || this.pauseOpen) return;
-    const online = this.mode === 'friend';
+    const online = this.netMode;
     const wasPaused = this.sim.paused;
     if (!online) this.sim.paused = true;
     this.pauseOpen = true;
@@ -540,13 +559,25 @@ export class BattleScene {
     this.offClose && this.offClose();
     this.offMsg && this.offMsg();
     this.offRematch && this.offRematch();
+    this.offStatus && this.offStatus();
+    this.netChip?.remove();
+    // leaving an online battle (result screen OK, or the scene changing mid-battle) leaves the match room
+    if (this.mode === 'online') { if (net.peer === this.peer) net.clear(); lobby.endMatch(); }
     engine.timeScale = 1;
     if (window.__battle === this) window.__battle = null;
   }
 
-  peerLost() {
+  peerLost(why) {
     if (this.ended) return;
-    toast('Your friend disconnected - you win by forfeit!', { icon: 'trophy' });
+    if (this.mode === 'online' && why === 'lost') {
+      // OUR connection died: nobody wins, no trophies change
+      this.noContest = true;
+      toast('Connection lost - the battle was cancelled.', { icon: 'x' });
+      if (this.sim instanceof RemoteSim) { this.sim.over = true; this.sim.draw = true; this.sim.winner = -1; }
+      else { this.sim.over = true; this.sim.draw = true; this.sim.winner = -1; }
+      return;
+    }
+    toast(this.mode === 'online' ? 'Your opponent left - you win by forfeit!' : 'Your friend disconnected - you win by forfeit!', { icon: 'trophy' });
     if (this.sim instanceof RemoteSim) {
       this.sim.over = true;
       this.sim.winner = 0;
@@ -603,7 +634,7 @@ export class BattleScene {
     };
     const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
     if (ch) ch.expr('happy', 'grin', 3);
-    await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Tent*. Mine's on the RIGHT. *Smash my base to win!*");
+    await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Lab* (a folding table under a tarp). Mine's on the RIGHT. *Smash my base to win!*");
     // 1) tap a unit button: it pops out of the base
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
     await talk('These are your *cards*. *Tap* a troop card and that Swarm pops out of your base and marches into battle *on its own*. Send a *Panther*!');
@@ -646,7 +677,9 @@ export class BattleScene {
     if (fslot >= 0 && !sim.over) {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, 4);
       this.view.focus(sim.frontAllyX(0), 5);
+      this.noPush = true;
       await talk('Your Swarms are getting HANGRY! *Food Throw* heals them and makes them *BIGGER*. Tap it, then tap your troops!');
+      this.noPush = false;
       this.lockInput = 'deploy' + fslot;
       remove = pointAt(() => this.hud.slotEl(slotOf('foodThrow')), 'Spell!');
       await until('deploy');
@@ -659,7 +692,9 @@ export class BattleScene {
       sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
       this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 6), 8);
       await wait(0.6);
+      this.noPush = true;
       await talk('Now *UPGRADE YOUR BASE* with the big BASE button: more HP, a stronger zapper and *more POWER*!');
+      this.noPush = false;
       this.lockInput = 'lab';
       remove = pointAt(() => this.hud.ocBtn, 'Upgrade!');
       await until('lab');
@@ -686,6 +721,45 @@ export class BattleScene {
     if (!sim.over) await talk('Almost there! Later you can earn *MEGA-TECH* figures on the *Trophy Road* - giant ultimate monsters. Now FINISH ME!');
   }
 
+  /** Dialogue camera (dialogue.js): while a Commander talks (game paused), push in toward them. */
+  dialogueFocus(who, on) {
+    const v = this.view;
+    const ch = who?.chibi;
+    if (!v || !ch || !v.cmds?.includes(ch)) return;
+    const tweenZoom = (to) => {
+      const from = v.zoom;
+      this.pushTw?.cancel();
+      this.pushTw = animate(0.7, (e) => { v.zoom = from + (to - from) * e; }, { ease: 'inOutCubic' });
+    };
+    if (on && !this.noPush && this.pushZoom === undefined && !this.ended) {
+      this.pushZoom = v.zoom;
+      tweenZoom(Math.max(0.7, v.zoom * 0.74));
+      v.focus(ch.root.position.x + (ch.side === 1 ? -1 : 1) * v.viewWidth() * 0.12, 99);
+    } else if (!on && this.pushZoom !== undefined) {
+      tweenZoom(this.pushZoom);
+      this.pushZoom = undefined;
+      v.manualT = Math.min(v.manualT, 0.8);
+    }
+  }
+
+  /** Battle report for the result screen's BEAST NEWS summary (result.js reads it). */
+  battleSummary() {
+    const sim = this.sim;
+    const sides = [0, 1].map((i) => {
+      const s = sim.sides?.[i] ?? {};
+      const c = this.cfg.sides[i] ?? {};
+      return { name: c.name, commander: c.commander ?? null, trophies: c.trophies, stats: { ...(s.stats ?? {}) }, tier: s.overclock ?? 0 };
+    });
+    // MVP: the card that dealt the most damage (else the most deployed)
+    let mvp = null;
+    const dmg = this.cardDmg ?? {};
+    for (const id in dmg) if (!mvp || dmg[id] > mvp.dmg) mvp = { id, dmg: Math.round(dmg[id]) };
+    const by = sides[0].stats.deployById ?? {};
+    if (!mvp) for (const id in by) if (!mvp || by[id] > mvp.count) mvp = { id, count: by[id] };
+    if (mvp) mvp.count = by[mvp.id] ?? mvp.count ?? 0;
+    return { time: sim.t ?? 0, sides, mvp, arena: arenaById(this.arenaId), mode: this.mode, megas: this.megasUsed ?? 0, baseUps: this.baseUps ?? 0 };
+  }
+
   // -------------------------------------------------------------------------
   // End of battle
 
@@ -700,7 +774,12 @@ export class BattleScene {
     this.tutCleanup && this.tutCleanup();
     this.lockInput = null;
     const labFell = !sim.sides[0].lab.alive || !sim.sides[1].lab.alive;
-    if (labFell) await wait(2.4);
+    if (labFell) {
+      // slow-mo final blow: the HUD clears, letterbox + BASE DESTROYED slam over the collapse
+      this.hud.setVisible(false);
+      finalBlow($overlay(), { win: !sim.sides[1].lab.alive, view: this.view });
+      await wait(2.6);
+    }
     else {
       const why = {
         tiebreak: ['TIEBREAKER!', 'The most damaged base loses'],
@@ -735,6 +814,7 @@ export class BattleScene {
     const names = [this.cfg.sides[0].name, this.cfg.sides[1].name];
     if (this.mode === 'tutorial') return this.tutorialEnd(win, bases, names);
     if (this.mode === 'friend') return this.friendEnd(res, bases, names);
+    if (this.mode === 'online') return this.onlineEnd(res, bases, names);
     const rewards = battleRewards({ result: res, margin: bases[0].frac, arenaId: this.arenaId, mode: this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
     state.save();
     const again = this.mode === 'boss' ? 'RETRY' : this.mode === 'practice' ? 'AGAIN' : null;
@@ -758,6 +838,34 @@ export class BattleScene {
     game.go('lab', { step: 'won' });
   }
 
+  /** Online 1v1 over: normal ranked rewards (none for a cancelled or near-instant forfeit). */
+  async onlineEnd(res, bases, names) {
+    const sim = this.sim;
+    const quickForfeit = this.endReason === 'forfeit' && sim.t < 20;
+    const fair = !this.noContest && !quickForfeit;
+    const rewards = fair ? battleRewards({ result: res, margin: bases[0].frac, arenaId: this.arenaId, mode: 'ranked', opponentTrophies: this.opponentTrophies ?? state.p.trophies }) : null;
+    state.save();
+    if (!fair) toast(this.noContest ? 'No contest: trophies unchanged.' : 'Your opponent left early: no trophies this time.', { icon: 'info' });
+    // keep streaming the final state until the guest has it, then leave the match room
+    setTimeout(() => { if (!this.dead && net.peer === this.peer) { net.clear(); lobby.endMatch(); } }, 6000);
+    const btns = [{ id: 'again', label: 'PLAY AGAIN', color: 'yellow', icon: 'swords' }, { id: 'ok', label: 'OK', color: 'blue' }];
+    const choice = await showResult($overlay(), { result: this.noContest ? 'draw' : res, bases, names, rewards, mode: rewards ? 'ranked' : 'friend', buttons: btns });
+    if (choice === 'again') (await import('../ui/home/online.js')).onlineIntent.next = 'search';
+    game.go('home', { from: 'battle', rewards });
+  }
+
+  /** Online link health: a small chip while the opponent (or we) lag. */
+  netStatus(st) {
+    if (this.ended) return;
+    if (!this.netChip) {
+      this.netChip = h('div', { style: { position: 'absolute', zIndex: '45', left: '50%', top: 'calc(var(--u) * 17)', translate: '-50% 0', padding: '0.15em 0.7em', fontWeight: '700', fontSize: '0.85em', color: '#ffe9a0', background: 'rgba(10,6,30,0.85)', boxShadow: '0 0 0 var(--px) #120c24', pointerEvents: 'none' } });
+      $overlay().appendChild(this.netChip);
+    }
+    const text = { lagging: 'Opponent connection unstable...', reconnecting: 'Reconnecting...' }[st];
+    this.netChip.textContent = text ?? '';
+    this.netChip.style.display = text ? '' : 'none';
+  }
+
   async friendEnd(res, bases, names) {
     const host = this.params.role !== 'guest';
     const peer = this.peer;
@@ -766,7 +874,7 @@ export class BattleScene {
     if (!host && peer) {
       this.offRematch = peer.on((msg) => {
         if (msg.t !== 'start') return;
-        document.querySelector('.res-wrap')?.remove();
+        document.querySelector('.res-wrap, .cres')?.remove();
         game.go('battle', { mode: 'friend', role: 'guest', remote: msg.host, arena: msg.arena });
       });
     }

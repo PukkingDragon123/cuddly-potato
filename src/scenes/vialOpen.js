@@ -1,17 +1,27 @@
 // Vial opening (the game's chest opening), themed as a MrBeast Lab experiment.
 //
 // A dark lab bench under a spotlight. The vial drops in and glows in the
-// colour of the best rarity inside. Test tubes: tap to pour water in (the bag
-// dissolves, it fizzes), tap to shake (foam rises), the cap pops. Boxes and
-// cases: tap to pop the latches, tap to swing the lid open. Then, Clash
-// Royale style, every card stack flies out as its 3D toy onto a pedestal next
-// to the pixel card (count, NEW!, level, copies bar filling) with rarity
-// fanfares, and a summary of everything gained.
+// colour of the best rarity inside. Test tubes: POUR the water in yourself
+// (drag the jug over the tube, or tilt your phone), the bag dissolves and it
+// fizzes; then SHAKE it (real phone shake via DeviceMotion, or swipe it back
+// and forth / Space): every strong shake has a chance to UPGRADE the vial a
+// rarity tier (Clash Royale chest upgrades: more cards + the tier's guarantee),
+// the last shake pops the cap. Boxes and cases: shake the latches loose. Then,
+// Clash Royale style, every card stack flies out as its 3D toy onto a pedestal
+// next to the pixel card (count, NEW!, level, copies bar filling) with rarity
+// fanfares, and a summary of everything gained. A card found for the first
+// time gets the NEW CARD cutscene (newCardCutscene.js) with the player's
+// equipped entrance animation.
 //
-// game.go('vialopen', { type, slot?, source?: 'slot'|'free'|'crown'|'shop'|'reward', result?, back = 'home', backParams })
-// The caller removes/claims the vial (takeVial / claimFreeVial / claimCrownVial);
-// this scene rolls (when no `result` is given) and applies the rewards exactly
-// once, the moment it starts, then saves.
+// game.go('vialopen', { type, slot?, source?: 'slot'|'free'|'crown'|'shop'|'reward', result?, back = 'home', backParams,
+//                       preview?: { entrance, card } })
+// The caller removes/claims the vial (takeVial / claimFreeVial / claimCrownVial).
+// This scene pre-rolls the contents (re-rolled at the higher tier on each upgrade),
+// remembers the pending vial in the save (state.setOpeningVial, recovered on the
+// next load if the tab dies) and applies the rewards exactly once when the vial
+// pops (or on SKIP / leaving), then saves. `preview` only plays the cutscene
+// (shop entrance previews). Dev URL params: &forceUpgrade=1 (every shake upgrades),
+// &newcut=1 (cutscene for every card), &entrance=<id>, &preview=<entrance>&card=<id>.
 import * as THREE from 'three';
 import './vialOpen.css';
 import { engine } from '../core/engine.js';
@@ -28,11 +38,14 @@ import { voxelDome } from '../game/battle/voxfx.js';
 import { h, icon, button, pill, bar, ribbon, bigBanner, pointAt, rollNumber, bump, sparkle, $ui } from '../ui/ui.js';
 import { cardEl } from '../ui/cards.js';
 import { vialThumb } from '../ui/vialThumb.js';
-import { VIALS, vialId } from '../data/vials.js';
+import { VIALS, vialId, VIAL_SHAKES, VIAL_UPGRADE_CHANCE, VIAL_TIER_LOOK, maxVialUpgrades, vialTier, upgradedName } from '../data/vials.js';
 import { cardDef, isSpell, RARITIES } from '../data/cards.js';
 import { VARIANTS, SERIES } from '../data/swarms.js';
-import { state, rollVial, applyVial, owned, upgradeInfo } from '../game/state.js';
+import { state, rollVial, applyVial, owned, upgradeInfo, setOpeningVial, equippedEntrance, stat } from '../game/state.js';
 import { game } from '../game/game.js';
+import { spellThumbAsync } from '../ui/thumbs.js';
+import { ShakeInput, TiltInput, requestMotion, motionNeedsPermission, isTouchDevice } from './vialGestures.js';
+import { NewCardCutscene } from './newCardCutscene.js';
 
 const INK = 0x15121f, WHITE = 0xf6f8ff, BLUE = 0x1d7cf2, BLUE_D = 0x1050b4, BLUE_L = 0x8fd4ff, PINK = 0xff1f9e, YEL = 0xffd23f;
 const PED_Z = 0.9, PED_TOP = 0.25;
@@ -44,7 +57,9 @@ const SHINY_COLORS = {
 };
 const RIBBON = { common: 'blue', rare: 'pink', epic: 'purple', legendary: 'gold', mythic: 'pink' };
 const css = (hex) => '#' + hex.toString(16).padStart(6, '0');
-const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+// pouring: where the jug tips over the tube, how far it tips, how full the tube gets
+const POUR_POS = new THREE.Vector3(0.76, 2.24, 0.05), POUR_TILT = 1.2, FILL_TARGET = 0.64;
 
 // ---------------------------------------------------------------------------
 // Textures & stage pieces (built once)
@@ -392,6 +407,13 @@ export class VialOpenScene {
 
   // ===================================================================== enter
   enter(params = {}) {
+    let q = null;
+    try { q = new URLSearchParams(location.search); } catch (e) { /* no location */ }
+    this.devOpts = {
+      forceUpgrade: q?.get('forceUpgrade') === '1', noUpgrade: q?.get('forceUpgrade') === '0',
+      newCut: q?.get('newcut') === '1', entrance: q?.get('entrance') || null,
+    };
+    if (!params.preview && q?.get('preview') && q.getAll('dev').includes('vial')) params = { ...params, preview: { entrance: q.get('preview'), card: q.get('card') || 'panther' } };
     this.params = params;
     const type = vialId(params.type ?? params.vial ?? 'testTube');
     this.type = type;
@@ -400,24 +422,92 @@ export class VialOpenScene {
     this.back = params.back ?? 'home';
     this.backParams = params.backParams ?? {};
     this.source = params.source ?? null;
+    this.preview = params.preview ?? null;
+    this.touch = isTouchDevice();
 
-    // ---- rewards: roll + apply exactly once, right now, then save
-    const res = params.result ?? rollVial(type);
+    // ---- rewards: pre-rolled now (re-rolled on each shake upgrade), applied once when the vial pops
+    this.up = 0;
+    this.maxUp = params.result || this.preview || this.devOpts.noUpgrade ? 0 : maxVialUpgrades(this.def);
+    this.shakesMax = this.product === 'testTube' ? VIAL_SHAKES.testTube : VIAL_SHAKES.box;
+    this.shakesDone = 0;
+    this.committed = false;
+    this.liq = this.def.liquid;
+    const res = this.preview ? { type, coins: 0, bucks: 0, cards: [], _applied: true } : params.result ?? rollVial(type, { upgrade: 0 });
     this.result = res;
+    const applied0 = !!res._applied || (res.cards ?? []).some((c) => c.after);
+    this.coinsShown = state.p.coins - (applied0 ? res.coins ?? 0 : 0);
+    this.bucksShown = state.p.bucks - (applied0 ? res.bucks ?? 0 : 0);
+    this.coinsAfter = this.coinsShown + (res.coins ?? 0);
+    this.bucksAfter = this.bucksShown + (res.bucks ?? 0);
+    if (!this.preview && !applied0) setOpeningVial({ type, source: this.source, result: res });
+    this.preRoll();
+    this.stacks = [];
+    this.items = [];
+
+    // ---- vial
+    this.vial = makeVial(type, { glowColor: this.def.liquid });
+    this.vial.root.position.set(0, 6, 0);
+    this.scene.add(this.vial.root);
+    this.hint = new THREE.Object3D();
+    this.hint.position.set(0, Math.min(1.1, this.vial.height * 0.55), 0.2);
+    this.vial.body.add(this.hint);
+    this.ghost = new THREE.Object3D(); // the tutorial hand follows this (pour / shake demos)
+    this.scene.add(this.ghost);
+    this.jug.visible = this.product === 'testTube';
+    this.placeJug();
+    this.framing('vial', true);
+
+    this.buildUI();
+    this.onKey = (e) => {
+      if (this.summaryShown) {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); this.finish(); }
+        return;
+      }
+      if (e.key === 'Escape') { this.skip(); return; }
+      if (this.mode === 'shake') return; // ShakeInput handles Space / arrows
+      if (this.mode === 'pour') {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (this.pourS) this.pourS.auto = true; }
+        return;
+      }
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.onTap(); }
+    };
+    window.addEventListener('keydown', this.onKey);
+    audio.music && audio.trackName == null && audio.music('lab');
+    this.flow = (this.preview ? this.runPreview() : this.run()).catch((e) => {
+      console.error('vial open flow failed', e);
+      if (!this.dead) this.preview ? this.finish() : this.showSummary();
+    });
+    if (typeof window !== 'undefined') window.__vialOpen = this;
+  }
+
+  /** Card / rarity info of the current (not yet applied) roll: drives the glow hints + the title. */
+  preRoll() {
+    const res = this.result;
+    const raw = [...(res.cards ?? [])];
+    for (const sp of res.spells ?? []) raw.push({ id: sp, copies: 1 });
+    const ok = raw.filter((c) => cardDef(c.id));
+    this.totalCards = ok.reduce((a, c) => a + c.copies, 0);
+    this.best = ok.reduce((a, c) => Math.max(a, RARITIES[cardDef(c.id).rarity ?? 'common']?.order ?? 0), -1);
+    this.bestRarity = this.best >= 0 ? Object.values(RARITIES).find((r) => r.order === this.best).id : null;
+    this.rareColor = this.best >= 0 ? RARITIES[this.bestRarity].hex : 0xffd23f;
+  }
+
+  /** Apply the rolled rewards (exactly once) and build the reveal stacks. */
+  commit() {
+    if (this.committed) return;
+    this.committed = true;
+    const res = this.result;
     const raw = [...(res.cards ?? [])];
     for (const sp of res.spells ?? []) raw.push({ id: sp, copies: 1, variant: 'base' });
     const before = {};
     for (const c of raw) { const o = owned(c.id); before[c.id] = o ? { level: o.level, copies: o.copies } : null; }
     const applied = !!res._applied || (res.cards ?? []).some((c) => c.after);
-    this.coinsAfter = state.p.coins + (applied ? 0 : res.coins ?? 0);
-    this.bucksAfter = state.p.bucks + (applied ? 0 : res.bucks ?? 0);
     if (!applied) {
       applyVial(res);
       res._applied = true;
     }
+    if (!this.preview) setOpeningVial(null);
     state.save();
-    this.coinsShown = this.coinsAfter - (res.coins ?? 0);
-    this.bucksShown = this.bucksAfter - (res.bucks ?? 0);
     this.stacks = raw.filter((c) => cardDef(c.id)).map((c) => {
       const d = cardDef(c.id);
       const o = owned(c.id);
@@ -432,100 +522,165 @@ export class VialOpenScene {
         isNew, variant: c.variant ?? 'base', beforeCopies, after, canUpgrade: !!(up && !up.max && up.enoughCopies),
       };
     });
-    this.totalCards = this.stacks.reduce((a, s) => a + s.copies, 0);
-    this.best = this.stacks.reduce((a, s) => Math.max(a, s.order), -1);
-    this.bestRarity = this.best >= 0 ? Object.values(RARITIES).find((r) => r.order === this.best).id : null;
-    this.rareColor = this.best >= 0 ? RARITIES[this.bestRarity].hex : 0xffd23f;
+    this.totalCards = this.stacks.reduce((a, st) => a + st.copies, 0);
     this.items = [];
     if (res.coins) this.items.push({ kind: 'coins', amount: res.coins });
     if (res.bucks) this.items.push({ kind: 'bucks', amount: res.bucks });
-    for (const s of this.stacks) this.items.push({ kind: 'card', st: s });
+    for (const st of this.stacks) this.items.push({ kind: 'card', st });
+    this.counterNum.textContent = String(this.totalCards);
+  }
 
-    // ---- vial
-    this.vial = makeVial(type, { glowColor: this.def.liquid });
-    this.vial.root.position.set(0, 6, 0);
-    this.scene.add(this.vial.root);
-    this.hint = new THREE.Object3D();
-    this.hint.position.set(0, Math.min(1.1, this.vial.height * 0.55), 0.2);
-    this.vial.body.add(this.hint);
-    this.jug.visible = this.product === 'testTube';
-    this.framing('vial', true);
+  /** The water jug's resting spot (closer to the tube on narrow portrait screens so it stays in shot). */
+  placeJug() {
+    const portrait = engine.height > engine.width;
+    this.jugRest.set(portrait ? 0.92 : 1.35, 0, portrait ? 0.62 : 0.45);
+    if (this.mode !== 'pour' && this.phase === 'drop') this.jug.position.copy(this.jugRest);
+  }
 
-    this.buildUI();
-    this.onKey = (e) => {
-      if (this.summaryShown) {
-        if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); this.finish(); }
-        return;
-      }
-      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.onTap(); }
-      if (e.key === 'Escape') this.skip();
-    };
-    window.addEventListener('keydown', this.onKey);
-    audio.music && audio.trackName == null && audio.music('lab');
-    this.flow = this.run().catch((e) => {
-      console.error('vial open flow failed', e);
-      if (!this.dead) this.showSummary();
-    });
-    if (typeof window !== 'undefined') window.__vialOpen = this;
+  /** Dev/test helper: screen positions of the jug, the pour spot and the vial. */
+  dbgPos() {
+    const sc = (v) => { const p = engine.toScreen(v, this.camera); return [Math.round(p.x), Math.round(p.y)]; };
+    return { jug: sc(this.jug.position.clone().setY(0.45)), pour: sc(POUR_POS.clone().setY(POUR_POS.y + 0.2)), vial: sc(this.vial.root.position.clone().setY(this.vial.height * 0.5)), mode: this.mode, up: this.up, shakes: this.shakesDone, fill: this.pourS?.fill, grab: !!this.pourS?.grab, rz: +this.jug.rotation.z.toFixed(2), jp: this.jug.position.toArray().map((x) => +x.toFixed(2)), sp: this.spout.getWorldPosition(new THREE.Vector3()).toArray().map((x) => +x.toFixed(2)), stream: this.stream.visible, fps: Math.round(engine.fps) };
+  }
+
+  /** The vial's current rarity tier (after shake upgrades). */
+  tier() {
+    return vialTier(this.def, this.up);
+  }
+  vialName() {
+    return upgradedName(this.def, this.up);
+  }
+  ribbonColor() {
+    return this.up > 0 ? VIAL_TIER_LOOK[this.tier()].ribbon : RIBBON[this.def.rarity] ?? 'blue';
   }
 
   exit() {
     this.dead = true;
+    // never lose a vial: anything rolled but not yet applied is applied now
+    if (!this.committed) { try { this.commit(); } catch (e) { console.warn(e); } }
+    this.shakeIn?.stop();
+    this.tilt?.stop();
+    this.cut?.dispose();
+    engine.timeScale = 1;
+    this.camera.clearViewOffset?.();
     this.spot.dispose(); // frees the shadow map
     window.removeEventListener('keydown', this.onKey);
     if (this.unpoint) { this.unpoint(); this.unpoint = null; }
     this.hurry();
     if (this.tapResolve) { const r = this.tapResolve; this.tapResolve = null; r(); }
+    for (const k of ['pourDone', 'shakeDone']) if (this[k]) { const r = this[k]; this[k] = null; r(); }
     this.vial?.dispose();
     if (window.__vialOpen === this) window.__vialOpen = null;
   }
 
   // ===================================================================== UI
   buildUI() {
-    const d = this.def;
     const root = (this.ui = h('div', { class: `vo-root p-${this.product}` }));
     root.addEventListener('pointerdown', (e) => {
       if (e.target.closest('button, .btn, .vo-sum-box')) return;
       audio.unlock();
+      if (this.mode === 'pour') { this.pourDown(e); return; }
+      if (this.mode === 'shake') return; // ShakeInput listens on this element
+      if (this.cut) { this.cut.tap(); return; }
       this.onTap();
     });
+    // iOS only grants motion / orientation access from a click or touchend
+    const askMotion = () => {
+      if (!this.touch || this.motionAsked || !motionNeedsPermission()) return;
+      this.motionAsked = true;
+      requestMotion().then((r) => {
+        this.motionDenied = r !== 'granted';
+        if (this.mode === 'shake' || this.mode === 'pour') this.refreshPrompt();
+      });
+    };
+    root.addEventListener('click', askMotion);
+    root.addEventListener('touchend', askMotion);
     this.coinPill = pill('coin', fmt(this.coinsShown));
     this.bucksPill = pill('bucks', fmt(this.bucksShown));
-    this.skipBtn = button('SKIP', () => this.skip(), 'gray sm vo-skip vo-hide', { icon: 'arrowR', sound: 'tap' });
+    this.skipBtn = button(this.preview ? 'BACK' : 'SKIP', () => (this.preview ? this.finish() : this.skip()), 'gray sm vo-skip vo-hide', { icon: 'arrowR', sound: 'tap' });
     const top = h('div', { class: 'vo-top' }, h('div', { class: 'vo-pills' }, this.coinPill, this.bucksPill), this.skipBtn);
-    const srcTag = { free: 'FREE!', crown: 'CROWN REWARD', shop: 'FROM THE SHOP', reward: 'REWARD!' }[this.source];
-    this.titleEl = h('div', { class: 'vo-title' },
-      ribbon(d.name.toUpperCase(), RIBBON[d.rarity] ?? 'blue'),
-      h('div', { class: 'vo-title-sub row center' },
-        srcTag ? h('span', { class: 'vo-src' }, srcTag) : null,
-        this.totalCards ? h('span', { class: 'row', style: { gap: '0.25em' } }, icon('cards'), `x${this.totalCards}`) : null,
-        h('span', { class: 'row', style: { gap: '0.25em' } }, icon('coin'), fmt(this.result.coins ?? 0)),
-        this.result.bucks ? h('span', { class: 'row', style: { gap: '0.25em' } }, icon('bucks'), fmt(this.result.bucks)) : null));
+    this.titleEl = h('div', { class: 'vo-title' });
+    this.renderTitle();
     this.promptEl = h('div', { class: 'vo-prompt vo-hide' });
-    this.pipsEl = h('div', { class: 'vo-pips vo-hide' });
+    this.subEl = h('div', { class: 'vo-sub vo-hide' });
+    // shake meter: one charge cell per allowed shake + the upgrade odds
+    this.cells = Array.from({ length: this.shakesMax }, () => h('i'));
+    this.shakeN = h('b', {}, `0/${this.shakesMax}`);
+    this.oddsEl = h('div', { class: 'vo-odds' });
+    this.shakeEl = h('div', { class: 'vo-shake vo-hide' },
+      h('div', { class: 'vo-shake-head' }, icon('vial', 'vo-shake-ic'), h('span', {}, 'SHAKES'), this.shakeN),
+      h('div', { class: 'vo-shake-cells' }, ...this.cells),
+      this.oddsEl);
     this.tapEl = h('div', { class: 'vo-tap vo-hide' }, 'TAP TO CONTINUE');
     this.counterNum = h('b', {}, String(this.totalCards));
     this.counterEl = h('div', { class: 'vo-counter vo-hide' }, h('img', { class: 'vo-counter-img', src: vialThumb(this.type, 96), draggable: 'false' }), h('div', { class: 'vo-counter-n' }, this.counterNum, h('span', {}, 'cards left')));
     this.flashEl = h('div', { class: 'vo-flash' });
-    root.append(top, this.titleEl, this.promptEl, this.pipsEl, this.tapEl, this.counterEl, this.flashEl);
+    root.append(top, this.titleEl, this.promptEl, this.subEl, this.shakeEl, this.tapEl, this.counterEl, this.flashEl);
+    if (this.preview) { top.querySelector('.vo-pills').style.visibility = 'hidden'; this.titleEl.classList.add('vo-hide'); }
     $ui().appendChild(root);
   }
 
-  setPrompt(text, step = -1, steps = 0) {
+  /** Vial name ribbon + contents line (re-rendered when the vial upgrades). */
+  renderTitle(bumped = false) {
+    const srcTag = { free: 'FREE!', crown: 'CROWN REWARD', shop: 'FROM THE SHOP', reward: 'REWARD!' }[this.source];
+    const res = this.result;
+    this.titleEl.replaceChildren(
+      ribbon(this.vialName().toUpperCase(), this.ribbonColor()),
+      h('div', { class: 'vo-title-sub row center' },
+        this.up ? h('span', { class: `vo-uptag t-${this.tier()}` }, icon('up'), this.up > 1 ? `UPGRADED x${this.up}` : 'UPGRADED!') : srcTag ? h('span', { class: 'vo-src' }, srcTag) : null,
+        this.totalCards ? h('span', { class: 'row', style: { gap: '0.25em' } }, icon('cards'), `x${this.totalCards}`) : null,
+        h('span', { class: 'row', style: { gap: '0.25em' } }, icon('coin'), fmt(res.coins ?? 0)),
+        res.bucks ? h('span', { class: 'row', style: { gap: '0.25em' } }, icon('bucks'), fmt(res.bucks)) : null));
+    if (bumped) bump(this.titleEl, 'vo-titlebump');
+  }
+
+  setPrompt(text, sub = null) {
     if (!text) {
       this.promptEl.classList.add('vo-hide');
-      this.pipsEl.classList.add('vo-hide');
+      this.subEl.classList.add('vo-hide');
       if (this.unpoint) { this.unpoint(); this.unpoint = null; }
       return;
     }
-    this.promptEl.textContent = text;
-    this.promptEl.classList.remove('vo-hide');
-    bump(this.promptEl, 'vo-pop');
-    if (steps > 1) {
-      this.pipsEl.replaceChildren(...Array.from({ length: steps }, (_, i) => h('i', { class: i < step ? 'on' : i === step ? 'cur' : '' })));
-      this.pipsEl.classList.remove('vo-hide');
-    } else this.pipsEl.classList.add('vo-hide');
-    if (!this.unpoint && !this.hinted) this.unpoint = pointAt(this.hint, '', {});
+    if (this.promptEl.textContent !== text || this.promptEl.classList.contains('vo-hide')) {
+      this.promptEl.textContent = text;
+      this.promptEl.classList.remove('vo-hide');
+      bump(this.promptEl, 'vo-pop');
+    }
+    this.subEl.textContent = sub ?? '';
+    this.subEl.classList.toggle('vo-hide', !sub);
+  }
+  /** Prompt for the current interactive step (depends on touch + motion permission). */
+  refreshPrompt() {
+    if (this.mode === 'pour') {
+      this.setPrompt('POUR IN THE WATER!', this.touch ? (this.motionDenied ? 'Drag the jug over the tube' : 'Drag the jug over the tube, or tilt your phone') : 'Drag the jug over the tube (or hold SPACE)');
+    } else if (this.mode === 'shake') {
+      const last = this.shakesDone >= this.shakesMax - 1;
+      const big = this.touch && !this.motionDenied ? (last ? 'ONE MORE SHAKE!' : 'SHAKE YOUR PHONE!') : last ? 'ONE MORE SHAKE!' : 'SHAKE IT!';
+      const sub = this.touch
+        ? this.motionDenied ? 'Motion is off: swipe the vial left & right!' : 'or swipe the vial left & right'
+        : 'Swipe the vial left & right (or press SPACE)';
+      this.setPrompt(big, sub);
+    }
+  }
+  /** Shake meter cells + upgrade odds. */
+  updateShakeMeter(pop = -1) {
+    this.cells.forEach((c, i) => {
+      c.className = i < this.shakesDone ? 'on' : i === this.shakesDone ? 'cur' : '';
+      if (i === pop) bump(c, 'vo-cellpop');
+    });
+    this.shakeN.textContent = `${this.shakesDone}/${this.shakesMax}`;
+    const o = this.oddsEl;
+    if (this.maxUp <= 0 && this.up === 0) { o.classList.add('vo-hide'); return; }
+    o.classList.remove('vo-hide');
+    if (this.up >= this.maxUp) {
+      o.className = `vo-odds max t-${this.tier()}`;
+      o.replaceChildren(icon('star', 'vo-odds-ic'), h('span', {}, 'MAX UPGRADE!'));
+      return;
+    }
+    const next = vialTier(this.def, this.up + 1);
+    const pct = Math.round((this.devOpts.forceUpgrade ? 1 : VIAL_UPGRADE_CHANCE[this.up] ?? 0) * 100);
+    o.className = `vo-odds t-${next}`;
+    o.replaceChildren(icon('up', 'vo-odds-ic'), h('span', {}, `${pct}% per shake to upgrade to `), h('b', {}, VIAL_TIER_LOOK[next].name.toUpperCase()));
   }
 
   flash(a = 0.6, dur = 0.35) {
@@ -625,9 +780,11 @@ export class VialOpenScene {
     await this.dropIn();
     if (this.halt()) return;
     this.skipBtn.classList.remove('vo-hide');
-    if (this.product === 'testTube') await this.tubeInteract();
-    else await this.boxInteract();
+    if (this.product === 'testTube') await this.pourPhase();
     if (this.halt()) return;
+    await this.shakePhase();
+    if (this.halt()) return;
+    this.commit();
     await this.burst();
     if (this.halt()) return;
     await this.toReveal();
@@ -639,6 +796,31 @@ export class VialOpenScene {
     }
     if (this.halt()) return;
     this.showSummary();
+  }
+
+  /** Shop preview of an entrance: straight into the NEW CARD cutscene, then back. */
+  async runPreview() {
+    const pv = this.preview;
+    const id = cardDef(pv.card) ? pv.card : 'panther';
+    const d = cardDef(id);
+    const st = { id, def: d, copies: 1, rarity: d.rarity ?? 'common', order: RARITIES[d.rarity ?? 'common']?.order ?? 0, spell: isSpell(id), isNew: true, variant: 'base' };
+    this.committed = true;
+    this.phase = 'reveal';
+    const v = this.vial;
+    v.root.position.copy(this.vialRevealPos());
+    v.root.scale.setScalar(this.vialRevealScale());
+    if (this.product === 'testTube') { v.setFill(0.6, 1); v.capAside(1, 0.01); }
+    v.setGlowColor(RARITIES[st.rarity].hex);
+    v.setGlow(0.5);
+    this.jug.position.set(this.jugRest.x + 1.5, 0, this.jugRest.z - 0.9);
+    this.skipBtn.classList.add('vo-hide');
+    await this.beat(0.2);
+    if (this.dead) return;
+    const cut = new NewCardCutscene(this, st, { entrance: pv.entrance, preview: true });
+    await cut.play();
+    if (this.dead) return;
+    cut.dispose();
+    this.finish();
   }
 
   async dropIn() {
@@ -666,40 +848,45 @@ export class VialOpenScene {
     v.squash(0.5);
     audio.play('thud', { pitch: 1.6 });
     // the glow hints at what's inside
-    v.setGlowColor(this.best >= 1 ? this.rareColor : this.def.liquid);
+    v.setGlowColor(this.best >= 1 ? this.rareColor : this.liq);
     v.setGlow(0.22 + Math.max(0, this.best) * 0.06);
     this.idleSparkle = true;
     await this.beat(0.2);
   }
 
-  /** One escalating tap on the vial (shake / latch). */
-  shakeHit(i, n) {
+  /** One escalating shake of the vial (k = progress 0..1, strength 0..1). */
+  shakeHit(i, n, strength = 0.8) {
     const v = this.vial;
     const k = (i + 1) / n;
     const best = Math.max(0, this.best);
-    v.shake(0.75 + i * 0.4);
-    engine.shake(0.12 + i * 0.07 + best * 0.025);
-    this.flareK = Math.max(this.flareK, 0.25 + i * 0.2 + best * 0.08);
-    const c = new THREE.Color(this.def.liquid).lerp(new THREE.Color(this.rareColor), Math.min(1, k * 1.4));
+    const sMul = 0.6 + strength * 0.6;
+    v.shake((0.7 + k * 1.1) * sMul);
+    v.squash(-0.5 * sMul);
+    engine.shake((0.1 + k * 0.22 + best * 0.02) * sMul);
+    this.flareK = Math.max(this.flareK, 0.2 + k * 0.6 + best * 0.06);
+    const c = new THREE.Color(this.liq).lerp(new THREE.Color(this.rareColor), Math.min(1, k * 1.2));
     v.setGlowColor(c.getHex());
-    v.setGlow(0.3 + k * 0.55 + best * 0.05);
+    v.setGlow(0.3 + k * 0.6 + best * 0.05);
     const m = v.mouth();
-    fx.sparkle(m.clone().setY(v.height * 0.6), { count: 6 + i * 6 + best * 4, colors: [0xffffff, this.rareColor], speed: 2.5 + i, radius: 1.2 });
+    fx.sparkle(m.clone().setY(v.height * 0.6), { count: 6 + i * 4 + best * 4, colors: [0xffffff, this.rareColor], speed: 2.5 + i * 0.6, radius: 1.2 });
     if (this.product === 'testTube') {
-      audio.play('rattle', { pitch: 0.9 + i * 0.15 });
-      audio.play('slosh', { pitch: 0.8 + i * 0.25 });
+      audio.play('rattle', { pitch: 0.9 + k * 0.5 });
+      audio.play('slosh', { pitch: 0.8 + k * 0.7 });
       const f0 = v.foamK;
-      animate(0.45, (e) => v.setFoam(f0 + (k * 0.9 - f0) * e), { ease: 'outBack' });
-      fx.bubbles(new THREE.Vector3(0, v.surfaceY() + 0.05, 0), { count: 6 + i * 4, color: this.def.liquid, radius: 0.14, size: 0.045, speed: 0.8 });
-      this.fizzT = Math.max(this.fizzT, 1.2);
+      animate(0.45, (e) => v.setFoam(f0 + (Math.min(0.95, k * 0.95) - f0) * e), { ease: 'outBack' });
+      fx.bubbles(new THREE.Vector3(v.root.position.x, v.surfaceY() + 0.05, 0), { count: 6 + i * 3, color: this.liq, radius: 0.14, size: 0.045, speed: 0.8 });
+      this.fizzT = Math.max(this.fizzT, 1.4);
       for (let b = 0; b < 3; b++) setTimeout(() => !this.dead && audio.play('bubble', { pitch: 0.9 + Math.random() * 0.6 }), b * 70);
     } else {
-      audio.play('latch', { pitch: 1 - i * 0.08 });
-      audio.play('rattle', { pitch: 0.7 });
-      v.unlatch(i);
-      const l = v.latches[i];
-      if (l) {
-        const p = l.getWorldPosition(new THREE.Vector3());
+      audio.play('rattle', { pitch: 0.7 + k * 0.3 });
+      audio.play('latch', { pitch: 1.2 - k * 0.3, vol: 0.5 });
+      // the latches rattle loose on the shakes just before the last one
+      const L = v.latchCount ?? 0;
+      const li = i - (n - 1 - L);
+      if (li >= 0 && li < L && v.latches[li]) {
+        audio.play('latch', { pitch: 1 - li * 0.08 });
+        v.unlatch(li);
+        const p = v.latches[li].getWorldPosition(new THREE.Vector3());
         p.y += 0.25;
         fx.sparkle(p, { count: 10, colors: [0xffffff, this.rareColor, 0xffd23f], speed: 3, radius: 0.4 });
         fx.burst(p, { count: 5, colors: [0xd2d9e8, 0x7a849c], size: 0.04, speed: 2.5, life: 0.6 });
@@ -707,89 +894,262 @@ export class VialOpenScene {
     }
   }
 
-  async tubeInteract() {
+  // ===================================================================== POUR (test tubes)
+  async pourPhase() {
     const v = this.vial;
-    this.setPrompt('TAP TO ADD WATER!');
-    await this.waitTap(0.15);
-    if (this.halt()) return;
+    audio.play('squeak', { pitch: 0.8 });
+    v.capAside(1, 0.5);
+    this.buildFillLine();
+    this.tilt = new TiltInput();
+    this.tilt.start();
+    this.pourS = { grab: null, fill: 0, auto: false, sndT: 0, r0: this.jug.rotation.y, tilt: 0, pt: new THREE.Vector3(), target: this.jugRest.clone() };
+    this.mode = 'pour';
+    this.refreshPrompt();
+    await new Promise((res) => (this.pourDone = res));
+    this.pourDone = null;
+    this.mode = null;
+    this.tilt?.stop();
     this.setPrompt(null);
     this.hinted = true;
-    await this.pourWater();
     if (this.halt()) return;
     // the fizz tablet kicks in: the bag dissolves, the water changes colour
+    this.stream.visible = false;
+    audio.play('latch', { pitch: 1.3 });
+    const jug = this.jug, p0 = jug.position.clone(), rz = jug.rotation.z, ry = jug.rotation.y;
+    animate(0.45, (e) => {
+      jug.position.lerpVectors(p0, this.jugRest, e);
+      jug.rotation.z = rz * (1 - e);
+      jug.rotation.y = ry + (this.pourS.r0 - ry) * e;
+    }, { ease: 'inOutCubic' });
+    animate(0.4, (e) => (this.fillLine.scale.setScalar(1 + e * 0.6), this.fillLineMat.opacity = 0.9 * (1 - e)), { onComplete: () => (this.fillLine.visible = false) });
+    await v.capAside(0, 0.45);
+    if (this.halt()) return;
+    v.shake(0.25);
     audio.play('fizz');
     v.dissolve(1.0);
     animate(1.1, (e) => v.setFill(v.fill, e));
     v.setGlow(0.35 + Math.max(0, this.best) * 0.05);
     this.fizzT = 2.2;
-    animate(0.9, (e) => v.setFoam(e * 0.25), { ease: 'outCubic' });
-    await this.beat(0.7);
-    const N = 3;
-    for (let i = 0; i < N; i++) {
-      if (this.halt()) return;
-      this.setPrompt(i === 0 ? 'TAP TO SHAKE IT!' : i === N - 1 ? 'TAP TO POP IT!' : 'SHAKE IT MORE!', i, N);
-      await this.waitTap(0.12);
-      if (this.halt()) return;
-      this.setPrompt(null);
-      if (i < N - 1) this.shakeHit(i, N);
-    }
+    animate(0.9, (e) => v.setFoam(e * 0.2), { ease: 'outCubic' });
+    await this.beat(0.6);
   }
 
-  async pourWater() {
-    const v = this.vial;
-    const jug = this.jug;
-    const rest = this.jugRest.clone();
-    const pourPos = new THREE.Vector3(0.76, 2.24, 0.05);
-    const TILT = 1.2;
-    // unscrew the cap and hold it aside while the jug swings over
-    audio.play('squeak', { pitch: 0.8 });
-    v.capAside(1, 0.5);
-    audio.play('whoosh', { pitch: 1.2 });
-    const r0 = jug.rotation.y;
-    await animate(0.42, (e) => {
-      jug.position.lerpVectors(rest, pourPos, e);
-      jug.position.y += Math.sin(e * Math.PI) * 0.3;
-      jug.rotation.y = r0 * (1 - e);
-      jug.rotation.z = e * 0.5;
-    }, { ease: 'outCubic' }).promise;
-    if (this.dead) return;
-    await animate(0.2, (e) => (jug.rotation.z = 0.5 + e * (TILT - 0.5)), { ease: 'inOutQuad' }).promise;
-    if (this.dead) return;
-    this.stream.visible = true;
-    audio.play('pour');
-    await animate(1.05, (e) => {
-      v.setFill(e * 0.64, 0);
-      this.jugWater.scale.y = Math.max(0.05, 1 - e * 0.85);
+  /** Glowing "fill to here" ring around the tube. */
+  buildFillLine() {
+    if (!this.fillLine) {
+      this.fillLineMat = new THREE.MeshBasicMaterial({ color: 0x7fe6ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+      this.fillLine = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.014, 6, 40), this.fillLineMat);
+      this.fillLine.rotation.x = Math.PI / 2;
+      this.scene.add(this.fillLine);
+    }
+    this.fillLine.position.set(0, 0.34 + 1.52 * FILL_TARGET, 0);
+    this.fillLine.scale.setScalar(1);
+    this.fillLine.visible = true;
+  }
+
+  pourDown(e) {
+    const P = this.pourS;
+    if (!P || P.grab) return;
+    const pt = engine.rayToZPlane(e.clientX, e.clientY, this.jugRest.z);
+    if (!pt) return;
+    P.grab = { id: e.pointerId, off: this.jug.position.clone().sub(pt) };
+    P.target.copy(this.jug.position);
+    audio.play('tap', { pitch: 0.8 });
+    if (this.unpoint) { this.unpoint(); this.unpoint = null; }
+    const move = (ev) => {
+      if (ev.pointerId !== P.grab?.id) return;
+      const q = engine.rayToZPlane(ev.clientX, ev.clientY, this.jugRest.z);
+      if (q) P.target.copy(q).add(P.grab.off);
+    };
+    const up = (ev) => {
+      if (ev.pointerId !== P.grab?.id) return;
+      P.grab = null;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  /** Per frame while pouring: the jug follows the drag / phone tilt, tips over the tube and fills it. */
+  updatePour(dt) {
+    const P = this.pourS, jug = this.jug, v = this.vial;
+    if (!P) return;
+    const rest = this.jugRest;
+    const want = _v3;
+    let tiltT = 0, yawT = P.r0;
+    const tk = this.tilt?.available ? Math.max(0, Math.min(1, (Math.abs(this.tilt.deg) - 10) / 28)) : 0;
+    if (P.grab) {
+      want.copy(P.target);
+      want.x = Math.max(0.35, Math.min(2.3, want.x));
+      want.y = Math.max(0, Math.min(2.7, want.y));
+      // magnet: near the pour spot the jug snaps over the tube and tips
+      const d = Math.hypot(want.x - POUR_POS.x, (want.y - POUR_POS.y) * 0.8);
+      const over = Math.max(0, Math.min(1, 1 - (d - 0.12) / 0.6));
+      want.lerp(POUR_POS, over * 0.65);
+      want.z = rest.z + (POUR_POS.z - rest.z) * Math.min(1, over * 1.4);
+      tiltT = 0.1 + over * (POUR_TILT - 0.1);
+      yawT = P.r0 * (1 - over);
+    } else if (P.auto || tk > 0.03) {
+      const k = P.auto ? 1 : tk;
+      want.copy(rest).lerp(POUR_POS, Math.min(1, k * 1.5));
+      want.y += Math.sin(Math.min(1, k * 1.5) * Math.PI) * 0.25;
+      tiltT = Math.min(1, k * 1.15) * POUR_TILT;
+      yawT = P.r0 * (1 - Math.min(1, k * 1.5));
+    } else want.copy(rest);
+    const kp = 1 - Math.exp(-dt * 12);
+    jug.position.lerp(want, kp);
+    jug.rotation.z += (tiltT - jug.rotation.z) * (1 - Math.exp(-dt * 9));
+    jug.rotation.y += (yawT - jug.rotation.y) * kp;
+    // water only goes in when the spout is over the open tube and the jug is tipped
+    jug.updateMatrixWorld(true);
+    const sp = this.spout.getWorldPosition(_v2);
+    const pouring = jug.rotation.z > 0.85 && Math.abs(sp.x - v.root.position.x) < 0.24 && Math.abs(sp.z - v.root.position.z) < 0.22 && sp.y > 1.9 && sp.y < 2.9;
+    this.stream.visible = pouring;
+    if (pouring) {
+      P.fill = Math.min(FILL_TARGET, P.fill + dt * 0.6);
+      v.setFill(P.fill, 0);
+      this.jugWater.scale.y = Math.max(0.05, 1 - (P.fill / FILL_TARGET) * 0.85);
       this.jugWater.position.y = 0.08 + 0.18 * this.jugWater.scale.y;
-    }).promise;
-    if (this.dead) return;
-    this.stream.visible = false;
-    fx.bubbles(new THREE.Vector3(0, v.surfaceY(), 0), { count: 10, color: 0xbfefff, radius: 0.14, size: 0.045 });
-    // jug goes home, cap screws back on
-    animate(0.42, (e) => {
-      jug.rotation.z = TILT * (1 - e);
-      jug.position.lerpVectors(pourPos, rest, e);
-      jug.rotation.y = r0 * e;
-    }, { ease: 'inOutCubic' });
-    await v.capAside(0, 0.45);
-    if (this.dead) return;
-    audio.play('latch', { pitch: 1.3 });
-    v.shake(0.25);
+      P.sndT -= dt;
+      if (P.sndT <= 0) { P.sndT = 0.42; audio.play('pour', { vol: 0.8 }); }
+      if (Math.random() < dt * 10) fx.bubbles(new THREE.Vector3(rand(-0.1, 0.1), v.surfaceY(), rand(-0.1, 0.1)), { count: 1, color: 0xbfefff, radius: 0.06, size: 0.04 });
+    }
+    this.fillLineMat.opacity = 0.55 + Math.sin(this.t * 6) * 0.35;
+    // demo hand: drag from the jug to the tube while nothing has happened yet
+    if (!P.grab && P.fill < 0.02 && tk < 0.03 && !P.auto) {
+      const c = (this.t % 2.2) / 2.2;
+      const a = Math.min(1, Math.max(0, (c - 0.15) / 0.55));
+      const e = a * a * (3 - 2 * a);
+      this.ghost.position.set(rest.x + (POUR_POS.x + 0.15 - rest.x) * e, 0.62 + (POUR_POS.y + 0.1 - 0.62) * e, rest.z);
+      if (!this.unpoint) this.unpoint = pointAt(this.ghost, '', {});
+    } else if (this.unpoint) { this.unpoint(); this.unpoint = null; }
+    if (P.fill >= FILL_TARGET - 1e-4 && this.pourDone) {
+      fx.bubbles(new THREE.Vector3(0, v.surfaceY(), 0), { count: 10, color: 0xbfefff, radius: 0.14, size: 0.045 });
+      audio.play('reveal', { pitch: 1.3 });
+      fx.sparkle(this.fillLine.position, { count: 14, colors: [0xffffff, 0x7fe6ff], speed: 2, radius: 0.5 });
+      if (this.unpoint) { this.unpoint(); this.unpoint = null; }
+      const r = this.pourDone;
+      this.pourDone = null;
+      r();
+    }
   }
 
-  async boxInteract() {
-    const v = this.vial;
-    const N = v.latchCount + 1;
-    for (let i = 0; i < N; i++) {
-      if (this.halt()) return;
-      const txt = i === N - 1 ? 'TAP TO OPEN!' : i === 0 ? (this.product === 'cashCase' ? 'TAP TO UNLOCK!' : 'TAP TO UNLATCH!') : 'TAP AGAIN!';
-      this.setPrompt(txt, i, N);
-      await this.waitTap(0.12);
-      if (this.halt()) return;
-      this.setPrompt(null);
-      this.hinted = true;
-      if (i < N - 1) this.shakeHit(i, N);
+  // ===================================================================== SHAKE (+ upgrades)
+  async shakePhase() {
+    this.mode = 'shake';
+    this.updateShakeMeter();
+    this.shakeEl.classList.remove('vo-hide');
+    bump(this.shakeEl, 'vo-pop');
+    this.refreshPrompt();
+    this.idleT = 0;
+    this.dragK = 0;
+    this.shakeIn = new ShakeInput({
+      el: this.ui,
+      onShake: (s, src) => this.onShake(s, src),
+      onDrag: (k) => (this.dragK = k),
+      onJiggle: (k) => { if (!this.busy) { this.vial.shake(k * 0.18); audio.play('slosh', { pitch: 1.4, vol: 0.4, gap: 0.12 }); } },
+    });
+    this.shakeIn.start();
+    await new Promise((res) => (this.shakeDone = res));
+    this.shakeDone = null;
+    this.shakeIn?.stop();
+    this.shakeIn = null;
+    this.mode = null;
+    this.dragK = 0;
+    this.setPrompt(null);
+    this.hinted = true;
+    if (this.halt()) return;
+    this.shakeEl.classList.add('vo-out');
+    setTimeout(() => this.shakeEl?.classList.add('vo-hide'), 300);
+  }
+
+  async onShake(strength) {
+    if (this.mode !== 'shake' || this.busy || this.halt()) return;
+    const i = this.shakesDone++;
+    const N = this.shakesMax;
+    const last = this.shakesDone >= N;
+    this.idleT = 0;
+    if (this.unpoint) { this.unpoint(); this.unpoint = null; }
+    this.updateShakeMeter(i);
+    this.shakeHit(i, N, strength);
+    navigator.vibrate?.(last ? 60 : 25);
+    if (this.up < this.maxUp) {
+      const chance = this.devOpts.forceUpgrade ? 1 : VIAL_UPGRADE_CHANCE[this.up] ?? 0;
+      if (Math.random() < chance) {
+        this.busy = true;
+        await this.upgradeFx();
+        this.busy = false;
+        if (this.halt()) return;
+      }
     }
+    if (last) {
+      const r = this.shakeDone;
+      this.shakeDone = null;
+      r?.();
+    } else this.refreshPrompt();
+  }
+
+  /** UPGRADE! The vial transforms one rarity tier up and the contents are re-rolled at that tier. */
+  async upgradeFx() {
+    const v = this.vial;
+    this.up++;
+    const tier = this.tier();
+    const look = VIAL_TIER_LOOK[tier];
+    const rcol = RARITIES[tier];
+    this.result = rollVial(this.type, { upgrade: this.up });
+    setOpeningVial({ type: this.type, source: this.source, result: this.result });
+    this.preRoll();
+    stat('vialUpgrades');
+    // 1. charge: lights down, rumble, rays in the new tier's colour
+    this.shakeIn && (this.shakeIn.last = performance.now() + 900);
+    audio.play('heartbeat');
+    audio.play('flare', { pitch: 0.9 + this.up * 0.15 });
+    this.setLights(0.3);
+    this.ui.classList.add('vo-dark');
+    v.setRumble(0.9);
+    v.setGlowColor(look.glow);
+    v.setGlow(1.3);
+    this.rays.position.set(v.root.position.x, v.height * 0.55, v.root.position.z - 0.45);
+    this.rayMat.color.set(look.glow);
+    this.rayTarget = 0.85;
+    this.raySpin = 1.4;
+    fx.rise(new THREE.Vector3(v.root.position.x, 0, 0), { count: 30, colors: [look.glow, 0xffffff], radius: 0.6 });
+    await animate(0.6, null).promise;
+    if (this.dead) return;
+    // 2. transform: flash, new colours, burst
+    v.setRumble(0);
+    engine.hitstop(0.08);
+    engine.shake(0.55);
+    this.flash(0.85, 0.5);
+    audio.play('bigPop');
+    audio.play('upgrade');
+    audio.play('shimmer');
+    audio.jingle(tier === 'legendary' ? 'rare' : 'unlock');
+    if (this.product === 'testTube') {
+      this.liq = look.liquid;
+      v.setLiquidColor(look.liquid);
+      if (look.cap) v.setCapColor(look.cap);
+    }
+    v.squash(1.3);
+    v.shake(0.9);
+    const mid = new THREE.Vector3(v.root.position.x, v.height * 0.6, 0.1);
+    fx.sparkle(mid, { count: 50, colors: [0xffffff, look.glow, 0xffd23f], speed: 5, radius: 1.2 });
+    fx.shockwave(new THREE.Vector3(v.root.position.x, 0.02, 0), { radius: 2.8, color: look.glow });
+    fx.burst(mid, { count: 24, layer: 'glow', colors: [0xffffff, look.glow], size: 0.06, speed: 5, grav: -3, life: 0.8 });
+    if (tier === 'legendary' || tier === 'epic') fx.confetti(mid.clone().setY(v.height + 0.6), { count: 60, ground: 0, colors: [look.glow, 0xffffff, 0xffd23f, 0xff2e88] });
+    bigBanner('UPGRADE!', this.vialName().toUpperCase(), { color: rcol?.color ?? '#fff', cls: 'vo-banner vo-upbanner', dur: 1.5 });
+    this.renderTitle(true);
+    this.updateShakeMeter();
+    this.rareColor = Math.max(0, this.best) >= 1 ? this.rareColor : look.glow;
+    this.setLights(1);
+    this.ui.classList.remove('vo-dark');
+    await animate(0.9, null).promise;
+    this.rayTarget = 0;
+    this.raySpin = 0.35;
+    v.setGlow(0.6);
   }
 
   async burst() {
@@ -828,8 +1188,8 @@ export class VialOpenScene {
     fx.shockwave(new THREE.Vector3(0, 0.02, 0), { radius: 2.6, color: rc });
     this.beamBurst(rc, 1.2);
     if (this.product === 'testTube') {
-      fx.foam(m, { count: 70, colors: [0xffffff, 0xf2fbff, this.def.liquid, this.def.liquid], speed: 2.2, power: 0.9, ground: 0 });
-      fx.bubbles(m, { count: 18, color: this.def.liquid, radius: 0.35, speed: 1.6 });
+      fx.foam(m, { count: 70, colors: [0xffffff, 0xf2fbff, this.liq, this.liq], speed: 2.2, power: 0.9, ground: 0 });
+      fx.bubbles(m, { count: 18, color: this.liq, radius: 0.35, speed: 1.6 });
       animate(0.4, (e) => v.overflow(e), { ease: 'outBack' });
       v.setFoam(1);
       audio.play('slime', { pitch: 0.9 });
@@ -860,6 +1220,7 @@ export class VialOpenScene {
 
   async toReveal() {
     this.phase = 'reveal';
+    this.rays.position.set(0, PED_TOP + 0.62, PED_Z - 0.55);
     this.titleEl.classList.add('vo-out');
     this.framing('reveal');
     const v = this.vial;
@@ -958,6 +1319,12 @@ export class VialOpenScene {
     this.rayTarget = 0;
     // remaining counter
     const left = this.stacks.slice(this.stacks.indexOf(st) + 1).reduce((a, s) => a + s.copies, 0);
+    // a card found for the first time: the NEW CARD cutscene, then it hops onto the pedestal
+    if ((st.isNew || this.devOpts.newCut) && !this.skipped) {
+      rollNumber(this.counterNum, left + st.copies, left, 0.35);
+      await this.newCardCutscene(st);
+      return;
+    }
     // pre-launch build-up per rarity
     if (st.order >= 3) await this.legendaryBuild(st);
     else if (st.order === 2) await this.epicBuild(st);
@@ -978,7 +1345,7 @@ export class VialOpenScene {
     v.shake(0.55);
     audio.play('pop', { pitch: 0.75 + Math.random() * 0.2 });
     audio.play('whoosh', { pitch: 1.4 });
-    if (this.product === 'testTube') fx.foam(from, { count: 14, colors: [0xffffff, this.def.liquid], speed: 1.4, power: 0.6, ground: 0 });
+    if (this.product === 'testTube') fx.foam(from, { count: 14, colors: [0xffffff, this.liq], speed: 1.4, power: 0.6, ground: 0 });
     else fx.sparkle(from, { count: 12, colors: [0xffffff, rc], speed: 3 });
     const yaw = 0.42;
     const flight = animate(0.52, (e, k) => {
@@ -1012,8 +1379,54 @@ export class VialOpenScene {
     void idx;
   }
 
+  /** NEW CARD cutscene (entrance + bottle + pose + stats), then the hero hops onto the pedestal. */
+  async newCardCutscene(st) {
+    const v = this.vial;
+    v.shake(0.8);
+    v.setGlowColor(RARITIES[st.rarity].hex);
+    v.setGlow(1);
+    audio.play('magic', { pitch: 0.7 });
+    fx.sparkle(v.mouth(), { count: 24, colors: [0xffffff, RARITIES[st.rarity].hex], speed: 3.5, radius: 0.6 });
+    const ped0 = this.ped.scale.x;
+    animate(0.3, (e) => this.ped.scale.setScalar(Math.max(0.001, ped0 * (1 - e))), { ease: 'inBack' });
+    await this.beat(0.3);
+    if (this.halt()) return;
+    const cut = new NewCardCutscene(this, st, { entrance: this.devOpts.entrance ?? equippedEntrance() });
+    await cut.play();
+    if (this.dead) { cut.dispose(); return; }
+    const toy = cut.release();
+    // back to the reveal stage: the hero lands on the pedestal next to its card
+    this.ped.visible = true;
+    this.ped.scale.setScalar(1);
+    this.framing('reveal', true);
+    v.setGlow(0.15);
+    if (!toy) return;
+    this.toy = toy;
+    this.ringMat.color.set(RARITIES[st.rarity].hex).multiplyScalar(st.order >= 2 ? 1.8 : 1.1);
+    toy.root.position.set(0, PED_TOP + 0.9, PED_Z);
+    toy.root.rotation.set(0, 0.42, 0);
+    toy.root.scale.setScalar(toy.fit);
+    this.scene.add(toy.root);
+    await animate(0.28, (e) => (toy.root.position.y = PED_TOP + 0.9 * (1 - e)), { ease: 'inQuad' }).promise;
+    if (this.dead) return;
+    toy.boing(0.8);
+    this.pedBounce = 1;
+    audio.play('thud', { pitch: 1.5 });
+    fx.dust(new THREE.Vector3(0, PED_TOP, PED_Z), { count: 8, scale: 1.2, color: 0xdfe6f4 });
+    this.rayMat.color.set(RARITIES[st.rarity].hex);
+    this.rayTarget = st.order >= 2 ? 0.6 : 0.3;
+    this.showCardPanel(st);
+    if (st.variant && st.variant !== 'base') await this.shinyReveal(st, toy);
+    await this.beat(0.5);
+    if (this.halt()) return;
+    this.showTapHint();
+    await this.waitTap(0.25);
+    this.hideTapHint();
+  }
+
   makeToy(st) {
     let toy;
+    if (st.def?.special || cardDef(st.id)?.special) return this.makeHoloCard(st);
     if (st.spell) {
       const root = spellModel(st.id);
       const inner = new THREE.Group();
@@ -1048,6 +1461,83 @@ export class VialOpenScene {
       };
     }
     toy.fit = TOY_H / Math.max(toy.height, toy.width * 0.8, 0.45);
+    toy.idleT = 2.4;
+    return toy;
+  }
+
+  /** SPECIAL cards: a floating holo trading card with the card's art. */
+  makeHoloCard(st) {
+    const d = st.def ?? cardDef(st.id);
+    const rc = RARITIES[st.rarity ?? d.rarity ?? 'common']?.color ?? '#b8c6e8';
+    const W = 256, H = 352;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d');
+    const draw = (img) => {
+      g.clearRect(0, 0, W, H);
+      g.fillStyle = '#15121f';
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = rc;
+      g.fillRect(6, 6, W - 12, H - 12);
+      const grd = g.createLinearGradient(0, 0, 0, H);
+      grd.addColorStop(0, '#1b2a6a');
+      grd.addColorStop(1, '#0b0f30');
+      g.fillStyle = grd;
+      g.fillRect(18, 18, W - 36, H - 36);
+      g.fillStyle = d.color ?? '#3ff2e0';
+      g.globalAlpha = 0.25;
+      for (let i = 0; i < 12; i++) g.fillRect(18, 18 + i * 26, W - 36, 10);
+      g.globalAlpha = 1;
+      if (img) g.drawImage(img, 28, 34, W - 56, (W - 56) * 1.25);
+      g.fillStyle = '#15121f';
+      g.fillRect(18, H - 74, W - 36, 56);
+      g.fillStyle = '#fff';
+      g.font = 'bold 26px sans-serif';
+      g.textAlign = 'center';
+      g.fillText((d.name ?? '').toUpperCase().slice(0, 18), W / 2, H - 38);
+      // cost gem
+      g.fillStyle = '#ff2e88';
+      g.beginPath();
+      g.arc(42, 42, 24, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#fff';
+      g.font = 'bold 30px sans-serif';
+      g.fillText(String(d.elixir ?? 0), 42, 53);
+    };
+    draw(null);
+    const tx = new THREE.CanvasTexture(c);
+    tx.colorSpace = THREE.SRGBColorSpace;
+    spellThumbAsync(st.id, 256).then((url) => {
+      const img = new Image();
+      img.onload = () => { draw(img); tx.needsUpdate = true; };
+      img.src = url;
+    }).catch(() => {});
+    const front = new THREE.MeshStandardMaterial({ map: tx, roughness: 0.35, metalness: 0.1, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.35 });
+    const edge = new THREE.MeshStandardMaterial({ color: new THREE.Color(rc), roughness: 0.3, metalness: 0.6 });
+    const back = new THREE.MeshStandardMaterial({ color: 0x1d7cf2, roughness: 0.4, metalness: 0.3 });
+    const card = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.99, 0.035), [edge, edge, edge, edge, front, back]);
+    const inner = new THREE.Group();
+    card.position.y = 0.62;
+    inner.add(card);
+    const holder = new THREE.Group();
+    holder.add(inner);
+    let sq = 0, sqV = 0, atk = -1, t = 0;
+    const toy = {
+      root: holder, height: 1.15, width: 0.72,
+      update(dt) {
+        t += dt;
+        sqV += (-sq * 160 - sqV * 10) * dt;
+        sq += sqV * dt;
+        if (atk >= 0) { atk += dt; if (atk > 0.6) atk = -1; }
+        inner.rotation.y = Math.sin(t * 1.1) * 0.35 + (atk >= 0 ? Math.sin(atk * Math.PI / 0.6) * Math.PI * 2 : 0);
+        inner.position.y = Math.sin(t * 2) * 0.04;
+        inner.scale.set(1 - sq * 0.05, 1 + sq * 0.1, 1 - sq * 0.05);
+      },
+      boing(a) { sqV += a * 10; },
+      attack() { atk = 0; },
+    };
+    toy.fit = TOY_H / 1.15;
     toy.idleT = 2.4;
     return toy;
   }
@@ -1292,9 +1782,19 @@ export class VialOpenScene {
   // ===================================================================== skip & summary
   skip() {
     if (this.skipped || this.summaryShown || this.dead) return;
+    if (this.preview) { this.finish(); return; }
     this.skipped = true;
     this.hurry();
     if (this.tapResolve) { const r = this.tapResolve; this.tapResolve = null; r(); }
+    for (const k of ['pourDone', 'shakeDone']) if (this[k]) { const r = this[k]; this[k] = null; r(); }
+    this.shakeIn?.stop();
+    this.tilt?.stop();
+    this.mode = null;
+    this.stream.visible = false;
+    if (this.fillLine) this.fillLine.visible = false;
+    this.shakeEl.classList.add('vo-hide');
+    if (this.cut) { const t = this.cut.release(); if (t) this.scene.remove(t.root); }
+    this.commit();
     this.setPrompt(null);
     this.setLights(1);
     this.ui.classList.remove('vo-dark');
@@ -1352,7 +1852,8 @@ export class VialOpenScene {
     const grid = this.stacks.length ? h('div', { class: 'vo-sum-grid scroll-y' }, cells) : h('div', { class: 'vo-sum-empty' }, 'Coins for your Lab!');
     const ok = button('OK', () => this.finish(), 'green lg vo-sum-ok', { sound: 'click' });
     const box = h('div', { class: 'vo-sum-box panel sk-panel' },
-      h('div', { class: 'vo-sum-head' }, ribbon(this.def.name.toUpperCase(), RIBBON[this.def.rarity] ?? 'blue')),
+      h('div', { class: 'vo-sum-head' }, ribbon(this.vialName().toUpperCase(), this.ribbonColor())),
+      this.up ? h('div', { class: `vo-sum-upg t-${this.tier()}` }, icon('up'), this.up > 1 ? `SHAKE UPGRADED x${this.up}!` : 'SHAKE UPGRADED!') : null,
       h('div', { class: 'vo-sum-title' }, this.totalCards ? `${this.totalCards} CARDS FOUND` : 'VIAL OPENED!'),
       cur, grid, h('div', { class: 'vo-sum-foot' }, ok));
     const wrapEl = h('div', { class: 'vo-sum' }, box);
@@ -1372,6 +1873,7 @@ export class VialOpenScene {
     this.camera.aspect = w / hh;
     this.camera.updateProjectionMatrix();
     this.framing(this.frameKind ?? 'vial', true);
+    if (this.vial) this.placeJug();
     if (this.phase === 'reveal' && this.vial && this.vialHome) {
       this.vialHome = this.vialRevealPos();
       this.vial.root.position.copy(this.vialHome);
@@ -1382,9 +1884,43 @@ export class VialOpenScene {
     this.t += dt;
     const t = this.t;
     this.vial?.update(gdt);
-    // camera: damped look/height/anchor, framed through a view offset
-    const v = this.view, vt = this.viewT;
+    if (this.mode === 'pour') this.updatePour(dt);
+    if (this.vial && !this.vial.opened && this.phase === 'drop') {
+      // the vial follows a shake-drag left / right
+      const tx = this.mode === 'shake' ? (this.dragK ?? 0) * 0.32 : 0;
+      const vr = this.vial.root;
+      vr.position.x += (tx - vr.position.x) * (1 - Math.exp(-dt * 14));
+      vr.rotation.z += (-tx * 0.6 - vr.rotation.z) * (1 - Math.exp(-dt * 12));
+    }
+    if (this.mode === 'shake') this.updateShakeHint(dt);
     const k = 1 - Math.exp(-dt * 4.5);
+    if (this.cut) this.cut.update(dt, gdt);
+    else this.updateCamera(dt, k);
+    this.updateWorld(dt, gdt, k);
+  }
+
+  /** Waiting for shakes: a hop now and then + a demo hand swiping the vial left and right. */
+  updateShakeHint(dt) {
+    if (this.busy) return;
+    this.idleT = (this.idleT ?? 0) + dt;
+    if (this.idleT > 2.2) {
+      const c = (this.t % 1.1) / 1.1;
+      const s = Math.sin(c * Math.PI * 2);
+      this.ghost.position.set(this.vial.root.position.x + s * 0.55, this.vial.height * 0.55, 0.35);
+      if (!this.unpoint) this.unpoint = pointAt(this.ghost, '', {});
+      this.jiggleT = (this.jiggleT ?? 1.5) - dt;
+      if (this.jiggleT <= 0) {
+        this.jiggleT = 2.2 + Math.random() * 1.2;
+        this.vial.shake(0.22);
+        this.vial.squash(-0.6);
+        audio.play('rattle', { pitch: 1.4, vol: 0.5 });
+      }
+    }
+  }
+
+  updateCamera(dt, k) {
+    const t = this.t;
+    const v = this.view, vt = this.viewT;
     v.look.lerp(vt.look, k);
     v.hv += (vt.hv - v.hv) * k;
     v.ax += (vt.ax - v.ax) * k;
@@ -1398,6 +1934,10 @@ export class VialOpenScene {
     cam.lookAt(v.look);
     const W = engine.width, H = engine.height;
     cam.setViewOffset(W, H, (0.5 - v.ax) * W, (0.5 - v.ay) * H, W, H);
+  }
+
+  updateWorld(dt, gdt, k) {
+    const t = this.t;
     // lights (dimming for drama, spotlight flare)
     this.lightK = damp(this.lightK, this.lightTarget, this.lightTarget < this.lightK ? 3.5 : 5, dt);
     this.flareK = Math.max(0, this.flareK - dt * 1.6);
@@ -1447,7 +1987,7 @@ export class VialOpenScene {
       this.fizzT -= dt;
       if (Math.random() < dt * 22) {
         const p = this.vial.body.localToWorld(new THREE.Vector3(rand(-0.2, 0.2), 0.4 + Math.random() * 0.8 * this.vial.fill, rand(-0.2, 0.2)));
-        fx.bubbles(p, { count: 1, color: this.def.liquid, radius: 0.05, size: 0.035, life: 0.6, speed: 0.6 });
+        fx.bubbles(p, { count: 1, color: this.liq, radius: 0.05, size: 0.035, life: 0.6, speed: 0.6 });
       }
       if (Math.random() < dt * 4) audio.play('bubble', { pitch: 0.9 + Math.random() * 0.8, gap: 0.06 });
     }
@@ -1460,16 +2000,6 @@ export class VialOpenScene {
     if (Math.random() < dt * 2.2) fx.bubbles(this.flaskTop, { count: 2, color: 0x9dff6a, radius: 0.08, size: 0.05, speed: 0.6 });
     if (Math.random() < dt * 3) fx.bubbles(new THREE.Vector3(this.tankPos.x + rand(-0.35, 0.35), 0.4 + Math.random() * 1.6, this.tankPos.z + rand(-0.3, 0.3)), { count: 1, color: 0xa8ffc0, radius: 0.05, size: 0.06, speed: 0.8, life: 1.4 });
     if (this.tankSil) this.tankSil.position.y = 0.55 + Math.sin(t * 0.7) * 0.06;
-    // waiting for a tap: a little hop every few seconds (like a chest begging to be opened)
-    if (this.tapResolve && this.vial && !this.vial.opened && this.phase === 'drop') {
-      this.jiggleT = (this.jiggleT ?? 2.5) - dt;
-      if (this.jiggleT <= 0) {
-        this.jiggleT = 2.2 + Math.random() * 1.2;
-        this.vial.shake(0.22);
-        this.vial.squash(-0.6);
-        audio.play('rattle', { pitch: 1.4, vol: 0.5 });
-      }
-    }
     if (this.idleSparkle && this.vial && Math.random() < dt * (2 + Math.max(0, this.best) * 2.5)) {
       const vp = this.vial.root.position;
       const a = Math.random() * Math.PI * 2, r = Math.max(this.vial.width, this.vial.depth) * 0.6;

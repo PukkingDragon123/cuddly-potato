@@ -8,6 +8,7 @@ import { audio } from '../core/audio.js';
 import { iconURL as pixIconURL, iconAnim, animKindOf } from './icons.js';
 import { injectSkins } from './skin.js';
 import { fmt } from '../core/util.js';
+import { tapBtn, denyBtn, affordBtn } from './btnFx.js';
 
 export const $ui = () => document.getElementById('ui');
 export const $overlay = () => document.getElementById('overlay');
@@ -76,7 +77,7 @@ export function clearUI() {
   floaters.length = 0;
   speechBubbles.length = 0;
   pointers.length = 0;
-  activeDialogue = null;
+  resetDialogue();
 }
 
 /** Light markup: *bold* and _emphasis_. */
@@ -145,22 +146,31 @@ export function button(label, onClick, cls = '', opts = {}) {
       b.classList.remove('shake-x');
       void b.offsetWidth;
       b.classList.add('shake-x');
+      denyBtn(b);
       opts.onDisabled && opts.onDisabled();
       return;
     }
-    // jelly release bounce (uses the `scale` property, so it never fights the press transform)
-    b.classList.remove('btn-pop');
-    void b.offsetWidth;
-    b.classList.add('btn-pop');
+    // press / release springs run from the delegated pointer listeners (btnFx.js);
+    // keyboard or programmatic clicks never got a press, so play a whole tap here
+    if (!(performance.now() - (b._relT ?? -1e9) < 400)) tapBtn(b);
+    // btn-tapped: runs the hover-only animated icons (coin spin...) for a moment
+    b.classList.add('btn-tapped');
+    clearTimeout(b._tapT);
+    b._tapT = setTimeout(() => b.classList.remove('btn-tapped'), 700);
     audio.play(opts.sound ?? 'click');
     onClick && onClick(e);
   });
-  b.addEventListener('animationend', (e) => { if (e.animationName === 'btnPop') b.classList.remove('btn-pop'); });
   if (opts.tip) b.dataset.tip = opts.tip;
   return b;
 }
+// generic DOM tweens (springs, eases, ready-made juice) for every screen - see tween.js
+export { spring, springFrom, tween as tweenEl, seq as tweenSeq, pop as springPop, hop, nudge, wobble, popIn, stopTweens, EASE, SPRING } from './tween.js';
+export { pressBtn, releaseBtn, tapBtn } from './btnFx.js';
+
 export function setDisabled(btn, on) {
+  const was = btn.classList.contains('disabled');
   btn.classList.toggle('disabled', !!on);
+  if (was && !on) affordBtn(btn);
   return btn;
 }
 
@@ -322,167 +332,10 @@ export function hudBands() {
 }
 
 // ---------------------------------------------------------------------------
-// Dialogue (visual-novel panel with typewriter)
+// Dialogue: cinematic face close-up + word-pop text (see dialogue.js)
 
-let activeDialogue = null;
-let lastDlgClose = 0, lastDlgName = '';
-const PAUSE = { '.': 7, '!': 7, '?': 7, ',': 3, ';': 4, ':': 4, '-': 2 };
-
-/** Split rich() HTML into per-character spans (words kept unbreakable) so the layout never reflows while typing. */
-function typeSpans(container, html) {
-  container.innerHTML = html;
-  const chars = [];
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  for (const node of nodes) {
-    const frag = document.createDocumentFragment();
-    for (const part of node.nodeValue.split(/(\s+)/)) {
-      if (!part) continue;
-      if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
-      const w = document.createElement('span');
-      w.className = 'w';
-      for (const chr of part) {
-        const c = document.createElement('span');
-        c.className = 'c';
-        c.textContent = chr;
-        w.appendChild(c);
-        chars.push(c);
-      }
-      frag.appendChild(w);
-    }
-    node.parentNode.replaceChild(frag, node);
-  }
-  return chars;
-}
-
-/**
- * Show a dialogue line. Resolves when the player taps (after typing).
- * who: { name, portrait?, color?, chibi?, voice? (blip pitch) }
- * opts: { choices:[label|{label,cls}], wait:false (non-blocking, returns {close, promise, el}), speed (chars/s),
- *         place: 'auto'|'top'|'bottom' (auto keeps clear of a tall bottom HUD such as the battle hand) }
- */
-export function say(who, text, opts = {}) {
-  const now = performance.now();
-  if (activeDialogue) { activeDialogue.remove(); activeDialogue = null; }
-  for (const old of $overlay().querySelectorAll('.dialogue')) old.remove();
-  const name = who?.name ?? '';
-  const color = who?.color ?? '#2b8cf2';
-  const blocking = opts.wait !== false;
-  // same speaker straight after the previous line: keep the panel steady (no re-entrance)
-  const cont = name && name === lastDlgName && now - lastDlgClose < 450;
-
-  const textEl = h('div', { class: 'dlg-txt' });
-  const next = h('div', { class: 'dlg-next' }, h('span', {}, 'TAP'), h('i'));
-  const box = h('div', { class: 'dlg-box' }, name ? h('div', { class: 'dlg-name' }, h('span', {}, name)) : null, textEl, next);
-  const portImg = who?.portrait ? h('img', { src: who.portrait, alt: '', draggable: 'false' }) : null;
-  const port = portImg ? h('div', { class: 'dlg-port' }, h('i', { class: 'dlg-port-bg' }), portImg) : null;
-  const panel = h('div', { class: 'dlg-panel' }, port, box);
-  const dlg = h('div', { class: `dialogue ${port ? 'has-port' : ''} ${cont ? 'cont' : ''} ${blocking ? '' : 'passive'}`, style: { '--spk': color } },
-    blocking ? h('div', { class: 'dlg-catch' }) : null, panel);
-
-  // placement: above the bottom HUD, or below the top HUD when the bottom one is tall (battle hand)
-  const bands = hudBands();
-  let place = opts.place ?? 'auto';
-  if (place === 'auto') place = bands.bottom > bands.H * 0.15 ? 'top' : 'bottom';
-  dlg.classList.add('at-' + place);
-  if (place === 'top') panel.style.top = `calc(var(--safe-t) + ${Math.round(bands.top + 10)}px + var(--u) * 3)`;
-  else panel.style.bottom = `calc(var(--safe-b) + ${Math.round(bands.bottom + 6)}px + var(--u) * 2)`;
-
-  $overlay().appendChild(dlg);
-  activeDialogue = dlg;
-  lastDlgName = name;
-
-  const chars = typeSpans(textEl, rich(text));
-  let shown = 0;
-  let typing = true;
-  let finished = false;
-  const speed = opts.speed ?? 52;
-  const chibi = who?.chibi;
-  const voice = who?.voice ?? 1;
-  if (chibi) chibi.talk(true);
-  if (port) port.classList.add('talking');
-  let budget = -2; // short beat before the first letter
-  let lastTick = performance.now();
-  let raf = 0;
-  const tick = (t) => {
-    budget += Math.max(0, Math.min(0.25, (t - lastTick) / 1000)) * speed;
-    lastTick = t;
-    let blip = false;
-    while (budget >= 1 && shown < chars.length) {
-      const c = chars[shown++];
-      c.classList.add('on');
-      budget -= 1 + (PAUSE[c.textContent] && shown < chars.length ? PAUSE[c.textContent] : 0);
-      if (/[A-Za-z0-9]/.test(c.textContent) && shown % 2 === 1) blip = true;
-    }
-    if (blip) audio.play('blip', { pitch: voice * (0.94 + Math.random() * 0.14), gap: 0.055 });
-    if (shown >= chars.length) finishTyping();
-    else raf = requestAnimationFrame(tick);
-  };
-  const finishTyping = () => {
-    if (!typing) return;
-    typing = false;
-    cancelAnimationFrame(raf);
-    for (const c of chars) c.classList.add('on', 'now');
-    if (chibi) chibi.talk(false);
-    if (port) port.classList.remove('talking');
-    if (opts.choices) {
-      const ch = h('div', { class: 'dlg-choices' });
-      opts.choices.forEach((c, i) => {
-        const lbl = typeof c === 'string' ? c : c.label;
-        ch.appendChild(button(lbl, () => done(i), (typeof c === 'object' && c.cls) || (i === 0 ? 'pink sm' : 'blue sm')));
-      });
-      box.appendChild(ch);
-    } else if (blocking) dlg.classList.add('ready');
-  };
-  raf = requestAnimationFrame(tick);
-
-  let resolveFn;
-  const promise = new Promise((r) => (resolveFn = r));
-  const onKey = (e) => {
-    if (!dlg.isConnected) { window.removeEventListener('keydown', onKey, true); return; }
-    if (e.key !== ' ' && e.key !== 'Enter') return;
-    e.preventDefault();
-    e.stopPropagation();
-    advance();
-  };
-  const done = (val) => {
-    if (finished) return;
-    finished = true;
-    if (chibi) chibi.talk(false);
-    cancelAnimationFrame(raf);
-    window.removeEventListener('keydown', onKey, true);
-    dlg.classList.add('closing');
-    lastDlgClose = performance.now();
-    if (activeDialogue === dlg) activeDialogue = null;
-    // keep the tap catcher alive for a moment so the release doesn't click whatever is underneath
-    setTimeout(() => dlg.remove(), 170);
-    resolveFn(val);
-  };
-  const advance = () => {
-    if (finished) return;
-    audio.unlock();
-    if (typing) { finishTyping(); return; }
-    if (opts.choices || !blocking) return;
-    audio.play('tap');
-    done();
-  };
-  dlg.addEventListener('pointerdown', (e) => {
-    e.stopPropagation();
-    if (e.target instanceof Element && e.target.closest('.dlg-choices')) return;
-    advance();
-  });
-  if (blocking) window.addEventListener('keydown', onKey, true);
-  if (!blocking) return { close: () => done(), promise, el: dlg };
-  return promise;
-}
-export function closeDialogue() {
-  if (activeDialogue) {
-    activeDialogue.remove();
-    activeDialogue = null;
-  }
-  for (const old of $overlay()?.querySelectorAll('.dialogue') ?? []) old.remove();
-}
+import { say, closeDialogue, resetDialogue } from './dialogue.js';
+export { say, closeDialogue };
 
 // ---------------------------------------------------------------------------
 // World-anchored elements: speech bubbles, floating text, pointers

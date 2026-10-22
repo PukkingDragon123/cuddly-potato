@@ -1,7 +1,7 @@
 // In-battle Base upgrade tiers. Every battle each side's Base starts as a
-// scrappy Camp Tent and is upgraded mid-battle (costs POWER) through six tiers,
+// scrappy Camp Lab and is upgraded mid-battle (costs POWER) through six tiers,
 // each bigger and more high-tech than the last:
-//   1 Camp Tent -> 2 Lab Shack -> 3 Trailer Lab -> 4 Field Lab -> 5 Beast Lab -> 6 Mega HQ
+//   1 Camp Lab -> 2 Lab Shack -> 3 Trailer Lab -> 4 Field Lab -> 5 Beast Lab -> 6 Mega HQ
 //
 // makeBase() returns the same shape as makeLabBuilding() (lab.js) so the battle
 // view can swap one for the other: { root, seat, core, meshes, height, width,
@@ -27,10 +27,10 @@ export const BASE_VOXEL = V;
 export const BASE_FRONT = FRONT * V;
 
 export const BASE_TIERS = [
-  { tier: 1, name: 'Camp Tent', desc: 'A scrappy tent, a tarp, a cooler and one tiny battery. Everyone starts somewhere!' },
-  { tier: 2, name: 'Lab Shack', desc: 'Plywood walls, a tin roof, a frying-pan satellite dish and a noisy generator.' },
-  { tier: 3, name: 'Trailer Lab', desc: 'A camper trailer turned mobile lab: solar panel, antenna and bubbling glassware.' },
-  { tier: 4, name: 'Field Lab', desc: 'A prefab modular lab with a bubbling energy tank, vent fans and spinning beacons.' },
+  { tier: 1, name: 'Camp Lab', desc: 'A folding lab table under a pop-up canopy: a bunsen burner, bubbling flasks and one jug of energy. Everyone starts somewhere!' },
+  { tier: 2, name: 'Lab Shack', desc: 'A clapboard cabin with a rusty tin roof, a porch lab bench, a stovepipe and a frying-pan satellite dish.' },
+  { tier: 3, name: 'Trailer Lab', desc: 'A camper trailer turned mobile lab: fold-out lab bench, solar panel, dish and bubbling glassware.' },
+  { tier: 4, name: 'Field Lab', desc: 'A prefab modular lab with a distillation tower, a Tesla coil and a bubbling energy tank.' },
   { tier: 5, name: 'Beast Lab', desc: 'The full MrBeast Lab: glowing energy core, control tower and a giant satellite dish.' },
   { tier: 6, name: 'Mega HQ', desc: 'A towering fortress-lab with twin reactors, force-field pylons and a giant bolt spire.' },
 ];
@@ -314,107 +314,270 @@ function rubbleGrid(cols, bb, hMax, seed = 3) {
 }
 
 // ---------------------------------------------------------------------------
-// TIER 1: Camp Tent
+// Lab-gear brushes: glassware, burners, microscopes, Tesla coils. Glass is
+// opaque voxels, so liquid shows on the shell below the fill line (as if seen
+// through the glass), with a few glow voxels on the camera side.
+
+const GLASS = 0xd8f4ff, GLASS_L = 0xffffff, GLASS_D = 0xa8d6ee;
+const LIQ = { green: 0x7dff5a, pink: 0xff5fb8, blue: 0x3fd6ff, yellow: 0xffd23f, purple: 0xb873ff, orange: 0xff8a2a };
+const COPPER = 0xd8803a, COPPER_D = 0xa85a24;
+const MAT = 0x4a5266, MAT_D = 0x3a4154;
+
+/** Round-bottom flask, (x, y, z) = bottom centre; r = bulb radius. o: { fill (-1..1 of r), neck } */
+function flask(g, x, y, z, r, liq, o = {}) {
+  const cy = y + r, fill = cy + (o.fill ?? 0.15) * r;
+  const R = Math.ceil(r + 1);
+  for (let dx = -R; dx <= R; dx++) for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) {
+    const d = Math.hypot(dx, dy, dz);
+    if (d > r + 0.45) continue;
+    const yy = cy + dy;
+    if (yy < y) continue;
+    let c, glow = false;
+    if (yy <= fill) {
+      c = dy < -r * 0.55 ? shade(liq, -0.12) : liq;
+      glow = yy === Math.floor(fill) && dz >= r - 1 && dx % 2 === 0;
+      if (yy === Math.floor(fill) && dz > 0) c = mixHex(liq, 0xffffff, 0.45);
+    } else {
+      c = dx < 0 && dy > r * 0.2 && dz > 0 ? GLASS_L : d > r - 0.6 && dx > r * 0.5 ? GLASS_D : GLASS;
+    }
+    g.set(x + dx, yy, z + dz, c, glow);
+  }
+  const n = o.neck ?? 3;
+  g.box(x, cy + r, z, x, cy + r + n, z, GLASS);
+  g.set(x - 1, cy + r, z, GLASS).set(x + 1, cy + r, z, GLASS).set(x, cy + r, z - 1, GLASS).set(x, cy + r, z + 1, GLASS);
+  g.box(x - 1, cy + r + n, z - 1, x + 1, cy + r + n, z + 1, GLASS_D).set(x, cy + r + n, z, INK);
+  return cy + r + n;
+}
+
+/** Erlenmeyer (conical) flask, (x, y, z) = bottom centre. */
+function erlen(g, x, y, z, h, rb, liq, fill = 0.5) {
+  for (let dy = 0; dy < h; dy++) {
+    const r = rb * (1 - (dy / h) * 0.78);
+    const R = Math.ceil(r);
+    for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+      const d = Math.hypot(dx, dz);
+      if (d > r + 0.4) continue;
+      const wet = dy < h * fill;
+      const c = wet ? (dy === 0 ? shade(liq, -0.15) : liq) : dx < 0 && dz > 0 ? GLASS_L : GLASS;
+      g.set(x + dx, y + dy, z + dz, c, wet && dy === 1 && dz >= R - 0.5 && dx === 0);
+    }
+  }
+  g.box(x, y + h, z, x, y + h + 1, z, GLASS).set(x, y + h + 2, z, GLASS_D);
+}
+
+/** Beaker (open cylinder), liquid surface visible from above. */
+function beaker(g, x, y, z, r, h, liq, fill = 0.6) {
+  const R = Math.ceil(r);
+  const top = y + Math.max(1, Math.round(h * fill));
+  for (let dy = 0; dy < h; dy++) for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+    const d = Math.hypot(dx, dz);
+    if (d > r + 0.4) continue;
+    const yy = y + dy, rim = d > r - 0.6;
+    if (yy > top && !rim) continue;
+    const wet = yy <= top;
+    const c = wet ? (yy === top ? mixHex(liq, 0xffffff, 0.35) : liq) : (dx < 0 ? GLASS_L : GLASS);
+    g.set(x + dx, yy, z + dz, c, yy === top && rim && dz > 0 && dx % 2 === 0);
+  }
+  // measuring ticks + spout
+  for (let dy = 1; dy < h - 1; dy += 2) g.set(x - 1, y + dy, z + R, wetTick(y + dy, top));
+  g.set(x + R, y + h - 1, z, GLASS_L);
+}
+const wetTick = (yy, top) => (yy <= top ? 0xffffff : GLASS_D);
+
+/** Wooden rack of test tubes (cols = liquid colours), (x, y, z) = left bottom. Returns x after the rack. */
+function tubeRack(g, x, y, z, cols) {
+  const n = cols.length, w = n * 2 + 1;
+  g.box(x, y, z - 1, x + w - 1, y, z + 1, WOOD);
+  g.box(x, y + 1, z - 1, x, y + 3, z + 1, WOOD_D).box(x + w - 1, y + 1, z - 1, x + w - 1, y + 3, z + 1, WOOD_D);
+  g.box(x, y + 3, z - 1, x + w - 1, y + 3, z + 1, WOOD_L);
+  cols.forEach((c, i) => {
+    const tx = x + 1 + i * 2, top = y + 5 + (i % 2);
+    g.box(tx, y + 1, z, tx, top, z, GLASS);
+    g.box(tx, y + 1, z, tx, y + 3, z, c);
+    g.set(tx, y + 3, z, c, true);
+    if (i % 2 === 0) g.set(tx, top + 1, z, PAL.red);
+  });
+  return x + w;
+}
+
+/** Bunsen burner (flame is an anim part). */
+function burner(g, x, y, z) {
+  g.box(x - 1, y, z - 1, x + 1, y, z + 1, METAL_D);
+  g.box(x, y + 1, z, x, y + 3, z, METAL);
+  g.set(x + 1, y + 1, z, METAL_D);
+  g.set(x, y + 2, z + 1, METAL_L);
+  return y + 4;
+}
+/** Small blue-orange flame for burners (pivot at its base). */
+function flameGrid() {
+  const g = new VoxGrid();
+  g.set(0, 0, 0, 0x3a8cff, true).set(0, 1, 0, 0x6ab8ff, true).set(0, 2, 0, 0xffc04a, true).set(0, 3, 0, 0xfff2a0, true);
+  g.set(1, 1, 0, 0x3a8cff, true).set(-1, 1, 0, 0x3a8cff, true).set(0, 1, 1, 0x3a8cff, true).set(0, 1, -1, 0x3a8cff, true);
+  return g;
+}
+
+/** Microscope facing +x (eyepiece toward -x). (x, y, z) = base centre. */
+function microscope(g, x, y, z, P) {
+  g.box(x - 2, y, z - 2, x + 2, y, z + 2, P.w2);
+  g.box(x - 2, y + 1, z - 1, x - 1, y + 7, z + 1, P.w);
+  g.box(x - 1, y + 7, z - 1, x + 1, y + 8, z + 1, P.w);
+  g.box(x, y + 4, z - 2, x + 2, y + 4, z + 2, INK);
+  g.box(x + 1, y + 5, z, x + 1, y + 7, z, METAL);
+  g.set(x + 1, y + 5, z, METAL_DD);
+  g.line(x - 1, y + 9, z, x - 3, y + 11, z, P.md);
+  g.set(x - 3, y + 12, z, INK);
+  g.set(x - 2, y + 3, z + 2, P.m).set(x - 2, y + 3, z - 2, P.m);
+}
+
+/** Tesla coil (copper winding, toroid top + glowing orb), (x, y, z) = base centre. Returns the top y. */
+function teslaCoil(g, x, y, z, h, P) {
+  g.box(x - 2, y, z - 2, x + 2, y + 1, z + 2, (xx, yy) => (yy === y + 1 ? METAL : METAL_DD));
+  cyl(g, 'y', x, z, y + 2, y + h, 1.1, 1.1, (xx, yy) => (yy % 2 ? COPPER : COPPER_D));
+  ring(g, x, z, y + h + 1, y + h + 1, 2.6, METAL_L, false, 2);
+  g.box(x - 1, y + h + 1, z - 1, x + 1, y + h + 2, z + 1, METAL_L);
+  g.set(x, y + h + 3, z, P.glow, true);
+  return y + h + 3;
+}
+
+/** Crackling arcs for a Tesla coil top (spun fast as an anim): zigzag glow bolts radiating out. */
+function arcGrid(r = 5, col = 0xbfe8ff) {
+  const g = new VoxGrid();
+  const R = mulberry32(5);
+  for (let k = 0; k < 3; k++) {
+    const a0 = (k / 3) * Math.PI * 2;
+    let x = 0, y = 0, z = 0;
+    for (let i = 1; i <= r; i++) {
+      const a = a0 + (R() - 0.5) * 0.9;
+      x = Math.round(Math.cos(a) * i); z = Math.round(Math.sin(a) * i); y += Math.round((R() - 0.5) * 2);
+      g.set(x, y, z, i === r ? 0xffffff : col, true);
+    }
+  }
+  return g;
+}
+
+/** Glass condenser tube from a to b with a liquid trickle inside. */
+function condenser(g, a, b, liq) {
+  const n = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) * 1.5));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = Math.round(a[0] + (b[0] - a[0]) * t), y = Math.round(a[1] + (b[1] - a[1]) * t), z = Math.round(a[2] + (b[2] - a[2]) * t);
+    g.set(x, y, z, i % 3 === 1 ? liq : GLASS, i % 3 === 1);
+  }
+}
+
+/** Whiteboard scribbles (formulas + a graph) on a +Z face, mirror-aware. */
+function scribbles(g, x0, y0, x1, y1, z, m) {
+  const put = (x, y, c) => g.set(m ? x1 - (x - x0) : x, y, z, c);
+  const R = mulberry32(17);
+  // E=MC2 in blue marker
+  const art = ['###.....#.#.###.###', '#...###.###.#.....#', '##.......#.#.#...##', '#...###.#.#.#...#..', '###.....#.#.###.###'];
+  art.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#' && x0 + 1 + c <= x1 - 1) put(x0 + 1 + c, y1 - 1 - r, 0x2a4ac8); }));
+  // red graph line + axes
+  for (let x = x0 + 1; x <= x0 + 9 && x < x1; x++) put(x, y0 + 1, INK);
+  for (let y = y0 + 1; y <= y0 + 5 && y < y1 - 6; y++) put(x0 + 1, y, INK);
+  let gy = y0 + 2;
+  for (let x = x0 + 2; x <= x0 + 9 && x < x1; x++) { gy = Math.min(y1 - 7, gy + (R() < 0.6 ? 1 : 0)); put(x, gy, PAL.red); }
+  for (let i = 0; i < 6; i++) put(x0 + 12 + (i % 3) * 2, y0 + 1 + Math.floor(i / 3) * 2, i % 2 ? 0x2a8a3a : 0x2a4ac8);
+}
+
+// ---------------------------------------------------------------------------
+// TIER 1: Camp Lab (pop-up canopy over a folding lab table)
 function tier1(P, m) {
   const b = new VoxGrid();
-  const CANV = 0xf0913a, CANV_D = 0xc4621f, CANV_S = 0xd7782a, CANV_L = 0xffb466, IN = 0x6a3216, DEEP = 0x2e1c22;
-  const cx = 8, HW = 11, H = 15, z0 = -12, z1 = 7;
-  const hw = (y) => (HW + 0.5) * (1 - y / (H + 0.7)) - 0.6 * Math.sin((Math.PI * y) / H);
-  // --- tent prism (ridge along z, triangular door end faces the camera)
-  for (let y = 0; y <= H; y++) {
-    const w = hw(y);
-    for (let x = Math.floor(cx - w - 1); x <= Math.ceil(cx + w + 1); x++) {
-      if (Math.abs(x - cx) > w) continue;
-      for (let z = z0; z <= z1; z++) {
-        const edge = Math.abs(x - cx) > w - 1.3;
-        let c = CANV;
-        if (y <= 1) c = CANV_D;
-        else if (edge && (z - z0) % 6 === 3) c = CANV_S;
-        else if (n3(x, y, z, 3) < 0.07) c = shade(CANV, -0.07);
-        if ((z === z1 || z === z0) && edge && y > 1) c = CANV_L;
-        b.set(x, y, z, c);
-      }
-    }
-  }
-  // ridge pole poking out front + back
-  cyl(b, 'z', cx, H + 1, z0 - 2, z1 + 3, 0.6, 0.6, WOOD);
-  // duct-tape patches
-  b.box(cx + 5, 4, z1, cx + 6, 5, z1, 0xb8bec8).set(cx + 7, 5, z1, 0xb8bec8);
-  b.box(cx - 3, 12, z1, cx - 2, 12, z1, 0xb8bec8).set(cx - 2, 13, z1, 0xb8bec8);
-  // --- open door: recess with a dark interior, sleeping bag and a glowing phone
-  const dh = 9;
-  const dw = (y) => 5.2 * (1 - y / (dh + 0.8));
-  const recess = (x, y, z) => y <= dh && Math.abs(x - cx) <= dw(y) && z > z1 - 8;
-  b.carve((x, y, z) => recess(x, y, z) && y >= 1);
-  b.paint((x, y, z) => {
-    if (y < 1 || y > dh + 1 || z < z1 - 8 || z >= z1) return undefined;
-    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, -1, 0], [0, 0, 1]]) {
-      const nx = x + dx, ny = y + dy, nz = z + dz;
-      if (recess(nx, ny, nz) && ny >= 1 && !b.has(nx, ny, nz)) return z <= z1 - 8 ? DEEP : IN;
-    }
-    return undefined;
+  const cx = -3, cz = -1, CX0 = -18, CX1 = 12, CZ0 = -11, CZ1 = 9, EY = 26, PY = 32;
+  const hx = (CX1 - CX0) / 2 + 1, hz = (CZ1 - CZ0) / 2 + 1;
+  const HZ = hazardC(PAL.yellow, INK, 2);
+  // --- rubber lab mat with hazard-taped front edge
+  b.box(CX0 - 1, 0, CZ0 - 1, CX1 + 1, 0, CZ1 + 1, (x, y, z) => {
+    if (z === CZ1 + 1) return HZ(x, y, z);
+    if (x === CX0 - 1 || x === CX1 + 1 || z === CZ0 - 1) return MAT_D;
+    return (x + z) % 2 ? MAT : shade(MAT, -0.04);
   });
-  b.box(cx - 4, 1, z1 - 7, cx + 3, 2, z1 - 1, (x, y, z) => ((z - z1) % 2 === 0 ? P.md : P.m));
-  b.box(cx - 4, 2, z1 - 7, cx - 1, 3, z1 - 6, 0xf4f0e6);
-  b.set(cx + 1, 3, z1 - 5, 0x7ae86a, true);
-  // tied-back door flaps + zipper teeth
-  for (let y = 1; y <= dh; y++) {
-    const w = Math.round(dw(y));
-    for (const s of [-1, 1]) {
-      b.set(cx + s * (w + 1), y, z1 + 1, y % 3 === 0 ? CANV_S : CANV_L);
-      if (y < dh - 2) b.set(cx + s * (w + 2), y, z1 + 1, CANV);
-    }
+  // --- canopy legs (stay standing when the canopy blows away)
+  for (const [lx, lz] of [[CX0, CZ0], [CX1, CZ0], [CX0, CZ1], [CX1, CZ1]]) {
+    b.box(lx, 1, lz, lx, EY - 1, lz, METAL_L);
+    b.set(lx, 8, lz, METAL_D).set(lx, 9, lz, METAL_D);
+    b.box(lx - 1, 0, lz - 1, lx + 1, 0, lz + 1, METAL_D);
   }
-  for (const s of [-1, 1]) b.set(cx + s * 5, 4, z1 + 2, ROPE).set(cx + s * 6, 4, z1 + 2, ROPE);
-  // --- cooler = the Commander's seat
-  const CX0 = -10, CX1 = -4, CZ0 = -5, CZ1 = 3;
-  rbox(b, CX0, 0, CZ0, CX1, 5, CZ1, 1, (x, y, z) => (y === 3 && (z === CZ1 || x === CX1 || x === CX0) ? 0xf4f6fa : y === 0 ? P.md : P.m));
-  rbox(b, CX0, 6, CZ0, CX1, 7, CZ1, 1, (x, y) => (y === 6 ? 0xdfe6ef : 0xf4f6fa));
-  b.box(CX0 + 2, 4, CZ1 + 1, CX1 - 2, 4, CZ1 + 1, METAL_DD);
-  b.box(CX0 - 1, 4, CZ0 + 3, CX0 - 1, 4, CZ1 - 3, METAL_DD);
-  b.set(CX0 + 1, 1, CZ1 + 1, METAL_L);
-  cyl(b, 'y', CX1 - 1, CZ0 + 1, 8, 10, 0.8, 0.8, (x, y) => (y === 10 ? METAL_L : y === 9 ? 0xffffff : PAL.red));
-  // --- the tiny battery (energy core) with a wire into the tent
-  const BX = 18, BZ = 12;
-  cyl(b, 'y', BX, BZ, 0, 7, 1.6, 1.6, (x, y) => (y >= 5 ? 0xe0902e : y === 0 ? METAL_D : 0x1c1c24));
-  b.set(BX, 8, BZ, METAL_L);
-  b.set(BX, 6, BZ + 2, 0xffffff).set(BX - 1, 6, BZ + 2, 0xffffff).set(BX, 7, BZ + 2, 0xffffff).set(BX, 5, BZ + 2, 0xffffff);
-  artZ(b, ['.#', '#.', '##', '.#', '#.'], BX - 1, 4, BZ + 2, P.bolt, { mirror: m, glow: true });
-  sagLine(b, [BX, 9, BZ], [cx + 4, 1, z1 + 1], PAL.red, -1.2);
-  sagLine(b, [BX - 1, 1, BZ], [cx + 3, 0, z1 + 1], INK, 0);
-  // --- tarp thrown over the left slope (stage 3) with a flapping loose corner (anim)
-  const tarp = new VoxGrid();
-  for (let z = z0 - 1; z <= z1 + 1; z++) {
-    const bottom = 3 + Math.round(2 * vnoise(z * 0.35, 1, 4) + (z > z1 - 4 ? 3 : 0));
-    for (let y = bottom; y <= H + 2; y++) {
-      const w = hw(y - 1) + 1;
-      const xl = Math.round(cx - w);
-      let c = (z - z0) % 4 === 0 ? P.tarpL : P.tarp;
-      if (y === bottom) c = (z - z0) % 3 === 0 ? METAL_L : P.tarpD;
-      if (n3(xl, y, z, 8) < 0.06) c = shade(P.tarp, -0.14);
-      tarp.set(xl, y, z, c).set(xl - 1, y, z, c);
-      if (y >= H) for (let x = xl; x <= cx + 2; x++) tarp.set(x, Math.min(y, H + 2), z, c);
-    }
+  // --- folding lab table
+  const TX0 = -14, TX1 = 8, TZ0 = -4, TZ1 = 4, TY = 10;
+  b.box(TX0, TY, TZ0, TX1, TY, TZ1, (x, y, z) => (x === TX0 || x === TX1 || z === TZ0 || z === TZ1 ? 0xd4dce8 : 0xf6f8fb));
+  b.box(TX0, TY - 1, TZ1, TX1, TY - 1, TZ1, METAL_L).box(TX0, TY - 1, TZ0, TX1, TY - 1, TZ0, METAL_L);
+  for (const [l0, l1] of [[TX0 + 1, TX0 + 5], [TX1 - 1, TX1 - 5]]) for (const lz of [TZ0 + 1, TZ1 - 1]) {
+    b.line(l0, 0, lz, l1, TY - 2, lz, METAL_D);
+    b.line(l1, 0, lz, l0, TY - 2, lz, METAL_D);
   }
-  tarp.box(cx - 1, H + 2, z0 - 1, cx + 3, H + 2, z1 + 1, P.tarpD);
-  for (let y = H - 2; y <= H + 1; y++) tarp.set(cx + 3 + (H + 1 - y), y, z1 + 1, P.tarpD); // over the right ridge edge
-  tarp.box(cx - 6, 0, z1 + 2, cx - 4, 1, z1 + 4, 0x8a8f9a).set(cx - 5, 2, z1 + 3, 0x9aa2b4); // rock holding the rope
-  sagLine(tarp, [Math.round(cx - hw(6) - 2), 6, z1 + 1], [cx - 5, 2, z1 + 3], ROPE, 0);
-  const flap = new VoxGrid();
-  for (let y = -6; y <= -1; y++) for (let z = -4; z <= 0; z++) if (z - y < 4) flap.set(0, y, z, y === -6 || z === -4 ? P.tarpD : P.tarp).set(-1, y, z, P.tarp);
-  // --- hand-painted cardboard "LAB" sign on a stick above the ridge (stage 2)
-  const sign = new VoxGrid();
-  const SY0 = H + 2, SY1 = SY0 + 6, SX0 = cx - 6, SX1 = cx + 6, SZ = z1 + 2;
-  sign.box(cx, H + 1, SZ - 1, cx, SY0 + 1, SZ - 1, WOOD_D);
-  for (let y = SY0; y <= SY1; y++) for (let x = SX0; x <= SX1; x++) {
-    if (y === SY1 && x >= SX1 - 1) continue; // torn corner
-    if (y === SY0 && x === SX0) continue;
-    const edge = y === SY0 || y === SY1 || x === SX0 || x === SX1;
-    sign.set(x, y, SZ, edge ? 0xa87a46 : n3(x, y, 9) < 0.12 ? 0xb88a52 : 0xd2a86c);
+  b.box(TX0 + 3, 4, TZ0 + 1, TX0 + 3, 4, TZ1 - 1, METAL).box(TX1 - 3, 4, TZ0 + 1, TX1 - 3, 4, TZ1 - 1, METAL);
+  // under the table: a supply crate with a stencilled bolt + a red jerrycan
+  crate(b, -9, 1, -3, 5, WOOD);
+  artZ(b, BOLT_MINI, -8, 4, 2, P.m, { mirror: m });
+  b.box(1, 1, -1, 3, 5, 1, PAL.red).box(2, 6, 0, 2, 6, 0, INK).set(1, 6, 0, PAL.redD);
+  // --- glassware on the table: burner + ring stand + flask -> condenser -> Erlenmeyer, tube rack, microscope
+  const ty = TY + 1;
+  const bTop = burner(b, -11, ty, 0);
+  b.box(-13, ty, -2, -13, ty + 12, -2, METAL_D).box(-14, ty, -3, -12, ty, -1, METAL_DD);
+  ring(b, -11, 0, ty + 4, ty + 4, 2.6, METAL_D);
+  b.box(-13, ty + 4, -1, -13, ty + 4, 0, METAL_D);
+  const neck = flask(b, -11, bTop + 1, 0, 2.6, LIQ.green, { fill: 0.1, neck: 2 });
+  condenser(b, [-11, neck, 0], [-5, neck - 1, 0], LIQ.green);
+  condenser(b, [-5, neck - 1, 0], [-4, ty + 7, 1], LIQ.green);
+  b.box(-6, neck - 2, 0, -4, neck - 2, 0, METAL_DD);
+  b.box(-6, ty, -1, -6, neck - 2, -1, METAL_D).box(-7, ty, -2, -5, ty, 0, METAL_DD);
+  erlen(b, -3, ty, 1, 6, 3, LIQ.pink, 0.55);
+  tubeRack(b, 0, ty, -3, [LIQ.blue, LIQ.yellow, LIQ.purple, LIQ.green]);
+  microscope(b, 6, ty, 1, P);
+  // --- the Commander's seat: a team-colour cooler on a supply crate (back side)
+  crate(b, -30, 0, -4, 7, WOOD);
+  crate(b, -29, 0, 3, 5, WOOD_L);
+  const CX0c = -30, CX1c = -24, CZ0c = -4, CZ1c = 2;
+  rbox(b, CX0c, 7, CZ0c, CX1c, 11, CZ1c, 1, (x, y, z) => (y === 9 && (z === CZ1c || x === CX1c) ? 0xf4f6fa : y === 7 ? P.md : P.m));
+  rbox(b, CX0c, 12, CZ0c, CX1c, 12, CZ1c, 0, (x, y, z) => ((x + z) % 2 ? 0xf4f6fa : 0xe6ebf2));
+  b.box(CX0c + 2, 10, CZ1c + 1, CX1c - 2, 10, CZ1c + 1, METAL_DD);
+  // --- energy jug (core) on a crate at the front, wired to the table
+  crate(b, 12, 0, 2, 7, WOOD);
+  artZ(b, BOLT_MINI, 14, 5, 9, PAL.yellow, { mirror: m });
+  const JX = 15, JZ = 5, JY = 7;
+  cyl(b, 'y', JX, JZ, JY, JY, 2.6, 2.6, METAL_D);
+  cyl(b, 'y', JX, JZ, JY + 9, JY + 10, 2.6, 2.6, (x, y) => (y === JY + 10 ? METAL : P.m));
+  b.box(JX, JY + 11, JZ, JX, JY + 12, JZ, METAL_DD).set(JX, JY + 13, JZ, PAL.red);
+  sagLine(b, [JX - 1, JY + 11, JZ], [TX1, TY + 1, 2], PAL.red, 1.2);
+  sagLine(b, [JX + 1, JY + 11, JZ], [TX1 - 1, TY + 1, -2], INK, 1);
+  // --- pop-up canopy (stripes run down each slope, scalloped LAB valance) (stage 3)
+  const can = new VoxGrid();
+  const roofY = (x, z) => EY + Math.round((1 - Math.max(Math.abs(x - cx) / hx, Math.abs(z - cz) / hz)) * (PY - EY));
+  for (let x = CX0 - 1; x <= CX1 + 1; x++) for (let z = CZ0 - 1; z <= CZ1 + 1; z++) {
+    const y = roofY(x, z);
+    const ax = Math.abs(x - cx) / hx, az = Math.abs(z - cz) / hz;
+    const u = az >= ax ? x - cx : z - cz;
+    const stripe = (((Math.floor((u + 100) / 3)) & 1) === 0);
+    let c = stripe ? P.m : 0xf4f6fa;
+    if (Math.abs(ax - az) < 0.05) c = METAL_L;
+    can.set(x, y, z, c).set(x, y - 1, z, stripe ? P.md : 0xc8d0dc);
   }
-  paint(sign, 'LAB', cx + 1, SY0 + 1, SZ + 1, '+z', P.bolt, { center: true, wobble: 1, seed: 5, mirror: m });
-  sign.set(SX0 + 1, SY1 - 1, SZ + 1, 0xb8bec8).set(SX1 - 2, SY0 + 1, SZ + 1, 0xb8bec8);
-  // --- lantern hanging from the ridge pole tip (anim)
+  const vY0 = EY - 6, vY1 = EY - 1;
+  const valance = (x, z, u) => {
+    for (let y = vY0 + 1; y <= vY1; y++) can.set(x, y, z, P.m);
+    can.set(x, vY1 + 1, z, 0xf4f6fa);
+    if (((u % 4) + 4) % 4 < 2) can.set(x, vY0, z, P.m);
+  };
+  for (let x = CX0 - 1; x <= CX1 + 1; x++) { valance(x, CZ1 + 1, x); valance(x, CZ0 - 1, x); }
+  for (let z = CZ0; z <= CZ1; z++) { valance(CX0 - 1, z, z); valance(CX1 + 1, z, z); }
+  paint(can, 'LAB', cx + 1, vY0 + 1, CZ1 + 2, '+z', 0xffffff, { center: true, mirror: m });
+  artZ(can, BOLT_MINI, cx - 12, vY0 + 5, CZ1 + 2, 0xffffff, { mirror: m });
+  artZ(can, BOLT_MINI, cx + 10, vY0 + 5, CZ1 + 2, 0xffffff, { mirror: m });
+  can.box(cx, PY, cz, cx, PY + 6, cz, METAL_L);
+  // sandbag weights on the legs
+  for (const [lx, lz] of [[CX0, CZ0], [CX1, CZ0], [CX0, CZ1], [CX1, CZ1]]) can.box(lx - 1, 1, lz - 1, lx + 1, 2, lz + 1, (x, y) => (y === 2 ? 0xc8b48a : 0xa8946a));
+  // --- whiteboard on an easel behind the table (stage 2)
+  const wb = new VoxGrid();
+  const WX0 = -9, WX1 = 7, WY0 = 13, WY1 = 21, WZ = -9;
+  wb.box(WX0 - 1, WY0 - 1, WZ, WX1 + 1, WY1 + 1, WZ, METAL_L);
+  wb.box(WX0, WY0, WZ + 1, WX1, WY1, WZ + 1, 0xffffff);
+  scribbles(wb, WX0, WY0, WX1, WY1, WZ + 2, m);
+  for (const lx of [WX0 + 1, WX1 - 1]) wb.line(lx, 0, WZ + 2, lx, WY0 - 1, WZ, METAL_D);
+  wb.box(WX0, WY0 - 1, WZ + 1, WX1, WY0 - 1, WZ + 2, METAL);
+  wb.set(WX0 + 2, WY0 - 1, WZ + 3, PAL.red).set(WX0 + 4, WY0 - 1, WZ + 3, 0x2a4ac8);
+  // --- lantern hanging under the canopy (anim)
   const lan = new VoxGrid();
   lan.set(0, -1, 0, METAL_D).set(0, -2, 0, METAL_D);
   lan.box(-1, -3, -1, 1, -3, 1, 0x2f6a4a);
@@ -423,163 +586,193 @@ function tier1(P, m) {
   lan.set(0, -5, 1, WARM, true);
   for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) lan.box(x, -6, z, x, -4, z, METAL_D);
   lan.box(-1, -7, -1, 1, -7, 1, 0x2f6a4a);
-  // --- pennant on top of the sign stick (anim)
+  // --- pennant on the canopy peak (anim)
   const flag = new VoxGrid();
-  for (let x = 0; x <= 5; x++) for (let y = 0; y <= 3; y++) if (Math.abs(y - 1.5) <= 2 * (1 - x / 6.5)) flag.set(x, y, 0, P.m);
-  sign.box(SX1, SY1 + 1, SZ, SX1, SY1 + 4, SZ, WOOD_D);
-
+  for (let x = 0; x <= 6; x++) for (let y = 0; y <= 3; y++) if (Math.abs(y - 1.5) <= 2 * (1 - x / 7.5)) flag.set(x, y, 0, x < 2 ? 0xf4f6fa : P.m);
   return {
     body: b,
     chunks: [
-      { name: 'sign', grid: sign, stage: 2 },
-      { name: 'tarp', grid: tarp, stage: 3 },
+      { name: 'whiteboard', grid: wb, stage: 2 },
+      { name: 'canopy', grid: can, stage: 3 },
     ],
     anims: [
-      { name: 'flap', type: 'flap', axis: 'z', amp: -0.5, freq: 2.4, grid: flap, at: [Math.round(cx - hw(6) - 2) + 0.5, 6, z1 + 0.5], stage: 2 },
-      { name: 'lantern', type: 'sway', axis: 'z', amp: 0.16, freq: 1.7, grid: lan, at: [cx + 0.5, H + 1, z1 + 2.5], stage: 2 },
-      { name: 'pennant', type: 'flag', amp: 0.35, freq: 3, grid: flag, at: [SX1 + 0.5, SY1 + 1, SZ + 0.5], stage: 1, dx: 1 },
+      { name: 'flame', type: 'pump', amp: 0.28, freq: 11, grid: flameGrid(), at: [-11 + 0.5, bTop, 0.5], stage: 4 },
+      { name: 'lantern', type: 'sway', axis: 'z', amp: 0.14, freq: 1.6, grid: lan, at: [4.5, roofY(4, 4) - 1, 4.5], stage: 3 },
+      { name: 'pennant', type: 'flag', amp: 0.35, freq: 3, grid: flag, at: [cx + 0.5, PY + 3, cz + 0.5], stage: 3, dx: 1 },
     ],
-    core: [BX + 0.5, 4, BZ + 0.5],
-    seat: [(CX0 + CX1 + 1) / 2, 8, (CZ0 + CZ1 + 1) / 2 - 0.5],
-    fires: [[cx - 3, 9, z1 + 1], [cx + 5, 7, z1 - 6], [cx - 6, 5, z0 + 4]],
-    sparks: [[BX + 0.5, 9, BZ + 1], [cx + 0.5, 12, z1 + 2], [CX1, 8, CZ1]],
-    smoke: [[cx + 0.5, H + 2, -2], [cx - 4, 8, z1]],
-    rubble: { cols: [CANV, CANV_D, P.tarp, P.tarpD, 0xf4f6fa, WOOD, P.m], h: 4 },
+    lights: [
+      ...Array.from({ length: 6 }, (_, i) => ({ at: [CX0 + 2.5 + i * 5.4, vY0 - 0.6, CZ1 + 1.5], color: [WARM, P.glow, 0x9dff7a][i % 3], mode: 'blink', rate: 0.8, duty: 0.75, phase: i * 0.23, size: 1.2, stage: 3 })),
+      { at: [6.5, ty + 1.5, 2.5], color: 0x5fff7a, mode: 'blink', rate: 1.4, size: 0.9, stage: 2 },
+    ],
+    tanks: [{ at: [JX + 0.5, JY + 1, JZ + 0.5], r: 2.2, h: 8, bubbles: 5, fill: 0.8 }],
+    core: [JX + 0.5, JY + 5, JZ + 0.5],
+    seat: [(CX0c + CX1c + 1) / 2, 13, (CZ0c + CZ1c + 1) / 2 - 0.5],
+    fires: [[cx, EY + 3, cz + 6], [-11, ty + 3, 3], [-27, 8, 3]],
+    sparks: [[JX + 0.5, JY + 12, JZ + 1], [6, ty + 9, 2], [-13, ty + 12, 1]],
+    smoke: [[cx + 0.5, PY + 1, cz], [-6, ty + 4, 2]],
+    rubble: { cols: [P.m, 0xf4f6fa, METAL_L, WOOD, MAT, GLASS, P.md], h: 4 },
   };
 }
 
 // ---------------------------------------------------------------------------
-// TIER 2: Lab Shack
+// TIER 2: Lab Shack (clapboard cabin with a gable tin roof, porch lab bench, stovepipe)
 function tier2(P, m) {
   const b = new VoxGrid();
-  const PLY = 0xdcb47c, PLY_D = 0xb98d58, PLY_S = 0x8e6238, OSB = 0xc99c5c;
+  const BRD = 0xb27a46, BRD_L = 0xc68c54, BRD_D = 0x8e5a30, BRD_G = 0x9a8c7c, SEAMC = 0x5e3a1e, TRIM = 0xe8dcc4;
+  const TIN = 0xb4bcc8, TIN_D = 0x8a94a6, TIN_L = 0xdce2ea, RUST = 0xb06a36, RUST_D = 0x84481f;
   const ORANGE = 0xff7a1a;
-  const X0 = -11, X1 = 13, Z0 = -11, Z1 = 9, Y0 = 3, Y1 = 17;
-  const RX0 = X0 - 2, RX1 = X1 + 2, RZ0 = Z0 - 2, RZ1 = Z1 + 2;
-  const yr = (x) => Y1 + 1 + Math.round(((RX1 - x) * 3) / (RX1 - RX0));
-  // cinder-block footings + joists
-  for (const x of [X0, -2, X1 - 3]) for (const z of [Z0, Z1 - 3]) b.box(x, 0, z, x + 3, 1, z + 3, (xx, yy, zz) => ((xx + zz + yy) % 4 === 0 ? 0x7c8496 : 0xa4acbc));
-  b.box(X0 - 1, 2, Z0 - 1, X1 + 1, 2, Z1 + 1, WOOD_D);
-  // plywood walls (gables follow the shed roof)
-  const ply = (x, y, z) => {
+  // cabin footprint (gable end faces the camera, ridge runs along z)
+  const X0 = -24, X1 = 2, Z0 = -13, Z1 = 7, Y0 = 4, EAVE = 20;
+  const RCX = (X0 + X1) / 2, RISE = 12, HALF = (X1 - X0) / 2 + 2;
+  const roofY = (x) => EAVE + Math.round(RISE * (1 - Math.abs(x - RCX) / HALF));
+  // cinder-block footings + floor deck
+  for (const x of [X0, RCX - 2, X1 - 3]) for (const z of [Z0, Z1 - 3]) b.box(Math.round(x), 0, z, Math.round(x) + 3, Y0 - 2, z + 3, (xx, yy, zz) => ((xx + zz + yy) % 4 === 0 ? 0x7c8496 : 0xa4acbc));
+  b.box(X0 - 1, Y0 - 1, Z0 - 1, X1 + 1, Y0 - 1, Z1 + 1, WOOD_D);
+  // clapboard walls (2-voxel boards with dark lap lines, weathered boards, corner trim)
+  const board = (x, y, z) => {
     const onZ = z === Z0 || z === Z1;
-    const u = onZ ? x - X0 : z - Z0;
-    if (u % 9 === 0) return PLY_S;
-    const sheet = Math.floor(u / 9) + (onZ ? 0 : 7) + (z === Z0 || x === X0 ? 13 : 0);
-    if (hash3(sheet, 3, 5) < 0.3) return n3(x, y, z, 2) < 0.3 ? shade(OSB, -0.14) : OSB;
-    if (n3(x >> 1, y, z >> 1, 4) < 0.12) return PLY_D;
-    return PLY;
+    const u = onZ ? x : z;
+    const row = Math.floor((y - Y0) / 2);
+    if ((y - Y0) % 2 === 0) return SEAMC;
+    const h = hash3(row, Math.floor((u + row * 5) / 9), onZ ? 3 : 4);
+    let c = h < 0.18 ? BRD_D : h < 0.32 ? BRD_G : h > 0.8 ? BRD_L : BRD;
+    if (n3(x, y, z, 6) < 0.1) c = shade(c, -0.08);
+    return c;
   };
-  for (let x = X0; x <= X1; x++) b.box(x, Y0, Z0, x, yr(x) - 1, Z1, ply);
-  for (let x = X0; x <= X1; x += 9) for (let y = Y0 + 2; y < Y1; y += 4) b.set(x, y, Z1, 0x6a6e78);
-  // door with Z-brace + padlock
-  const DX0 = -10, DX1 = -4, DY1 = 16;
-  b.box(DX0 - 1, Y0, Z1 + 1, DX1 + 1, DY1 + 1, Z1 + 1, WOOD_D);
-  b.box(DX0, Y0, Z1 + 1, DX1, DY1, Z1 + 1, null);
-  b.box(DX0, Y0, Z1, DX1, DY1, Z1, (x) => ((x - DX0) % 2 ? 0xc8945a : 0xd6a468));
-  for (const y of [Y0 + 2, DY1 - 2]) b.box(DX0, y, Z1 + 1, DX1, y, Z1 + 1, WOOD);
-  b.line(DX0, Y0 + 3, Z1 + 1, DX1, DY1 - 3, Z1 + 1, WOOD);
-  b.set(DX1 - 1, 10, Z1 + 2, PAL.yellow).set(DX1 - 1, 9, Z1 + 2, PAL.goldD);
-  b.set(DX0, Y0 + 2, Z1 + 2, METAL_D).set(DX0, DY1 - 2, Z1 + 2, METAL_D);
-  // window with a cracked pane and glowing flask inside
-  const WX0 = 0, WX1 = 6, WY0 = 8, WY1 = 14;
-  b.box(WX0 - 1, WY0 - 1, Z1 + 1, WX1 + 1, WY1 + 1, Z1 + 1, WOOD_D);
+  for (let x = X0; x <= X1; x++) b.box(x, Y0, Z0, x, roofY(x) - 1, Z1, board);
+  for (const x of [X0, X1]) for (const z of [Z0, Z1]) b.box(x, Y0, z, x, EAVE - 1, z, TRIM);
+  b.box(X0, Y0, Z1 + 1, X1, Y0, Z1 + 1, TRIM);
+  // front door (gable end) with Z-brace, porch light, knob, hazard sticker
+  const DX0 = -21, DX1 = -15, DY1 = 15;
+  b.box(DX0 - 1, Y0, Z1 + 1, DX1 + 1, DY1 + 1, Z1 + 1, TRIM);
+  b.box(DX0, Y0 + 1, Z1 + 1, DX1, DY1, Z1 + 1, null);
+  b.box(DX0, Y0 + 1, Z1, DX1, DY1, Z1, (x) => ((x - DX0) % 2 ? 0x5a8a9a : 0x6a9aaa));
+  for (const y of [Y0 + 3, DY1 - 2]) b.box(DX0, y, Z1 + 1, DX1, y, Z1 + 1, 0x4a7a8a);
+  b.line(DX0, Y0 + 4, Z1 + 1, DX1, DY1 - 3, Z1 + 1, 0x4a7a8a);
+  b.set(DX1 - 1, 10, Z1 + 2, PAL.gold);
+  b.box(DX0 + 2, 12, Z1 + 1, DX0 + 4, 13, Z1 + 1, PAL.yellow).set(DX0 + 3, 12, Z1 + 2, INK);
+  b.box(DX0 - 2, Y0, Z1 + 2, DX1 + 2, Y0, Z1 + 3, WOOD_L);
+  // window with open shutters + glowing flasks on the sill
+  const WX0 = -8, WX1 = -3, WY0 = 9, WY1 = 15;
+  b.box(WX0 - 1, WY0 - 1, Z1 + 1, WX1 + 1, WY1 + 1, Z1 + 1, TRIM);
   b.box(WX0, WY0, Z1 + 1, WX1, WY1, Z1 + 1, null);
-  b.box(WX0, WY0, Z1, WX1, WY1, Z1, (x, y) => ((x + y) % 6 === 0 ? 0xd8f2ff : 0x8ec4e6));
-  b.box(WX0 + 4, WY0, Z1 + 1, WX0 + 4, WY1, Z1 + 1, WOOD_D).box(WX0, WY0 + 3, Z1 + 1, WX1, WY0 + 3, Z1 + 1, WOOD_D);
-  artZ(b, ['..g.', '.gGg', 'gGGG'], WX0 + 1, WY0 + 2, Z1, { g: 0x3a4a6a, G: 0x7dff5a }, { mirror: m });
-  b.set(WX0 + 2, WY0 + 1, Z1, 0x7dff5a, true);
-  b.set(WX1 - 1, WY1 - 1, Z1 + 1, 0xb8bec8).set(WX1 - 2, WY1 - 2, Z1 + 1, 0xb8bec8).set(WX1 - 1, WY1 - 2, Z1 + 1, 0xb8bec8);
-  // spray-painted bolt on the wall
-  boltZ(b, 8, 16, Z1, P.bolt, { mirror: m });
-  b.set(9, 8, Z1, P.boltD).set(8, 7, Z1, P.boltD); // drips
-  // corrugated tin roof (rusty)
-  for (let x = RX0; x <= RX1; x++) for (let z = RZ0; z <= RZ1; z++) {
-    const y = yr(x);
-    const ridge = (z & 1) === 0;
-    const rust = vnoise(x * 0.22, 3, z * 0.22) < 0.3;
-    b.set(x, y, z, rust ? (ridge ? 0xb8703a : 0x8a4a28) : (ridge ? 0xc2cad6 : 0x8f98aa));
-    if (ridge) b.set(x, y + 1, z, rust ? 0xc8804a : 0xd7dde6);
+  b.box(WX0, WY0, Z1, WX1, WY1, Z1, (x, y) => ((x + y) % 5 === 0 ? 0xd8f2ff : 0x2a3a5a));
+  b.box(WX0 + 3, WY0, Z1 + 1, WX0 + 3, WY1, Z1 + 1, TRIM).box(WX0, WY0 + 3, Z1 + 1, WX1, WY0 + 3, Z1 + 1, TRIM);
+  for (const sx2 of [WX0 - 4, WX1 + 2]) b.box(sx2, WY0 - 1, Z1 + 1, sx2 + 2, WY1 + 1, Z1 + 1, (x, y) => (y % 2 ? P.m : P.md));
+  b.box(WX0 - 1, WY0 - 2, Z1 + 1, WX1 + 1, WY0 - 2, Z1 + 3, WOOD_L);
+  flask(b, WX0, WY0 - 1, Z1 + 2, 1, LIQ.green, { neck: 1, fill: 0.4 });
+  erlen(b, WX0 + 3, WY0 - 1, Z1 + 2, 3, 1.6, LIQ.pink, 0.6);
+  // round attic vent in the gable with a glowing bolt
+  const AY = EAVE + 8;
+  cyl(b, 'z', Math.round(RCX), AY, Z1, Z1 + 1, 2.6, 2.6, (x, y, z) => (z === Z1 + 1 ? (Math.hypot(x - RCX, y - AY) > 2 ? TRIM : null) : 0x2a3a5a));
+  artZ(b, ['.#', '##', '#.'], Math.round(RCX) - 1, AY + 1, Z1, P.bolt, { mirror: m, glow: true });
+  // gable tin roof (corrugated along the slope, rust patches, ridge cap, dark underside)
+  for (let x = X0 - 2; x <= X1 + 2; x++) for (let z = Z0 - 2; z <= Z1 + 2; z++) {
+    const y = roofY(x);
+    const rib = (z & 1) === 0;
+    const rust = vnoise(x * 0.25, 3, z * 0.25) < 0.28;
+    b.set(x, y, z, rust ? (rib ? RUST : RUST_D) : rib ? TIN_L : TIN);
+    b.set(x, y - 1, z, z === Z0 - 2 || z === Z1 + 2 ? TIN_D : WOOD_D);
   }
-  for (let x = RX0; x <= RX1; x += 6) b.set(x, yr(x) + 2, RZ1, METAL_DD);
-  // seat cushion (old couch cushion) on the roof
-  b.box(8, yr(11) + 2, -3, 14, yr(11) + 2, 2, P.md);
-  b.box(8, yr(11) + 3, -3, 14, yr(11) + 3, 2, (x, y, z) => ((x + z) % 3 === 0 ? P.md : P.m));
-  // extension cords from the generator
-  sagLine(b, [16, 1, 10], [5, 0, 13], ORANGE, 0);
-  sagLine(b, [5, 0, 13], [-3, 0, 11], ORANGE, 0);
-  b.box(-3, 1, 10, -3, 5, 10, ORANGE).box(-2, 5, 10, -1, 5, 10, ORANGE);
-  b.box(15, 3, 10, 15, yr(15) - 1, 10, ORANGE);
-  b.box(4, 0, 12, 6, 0, 14, 0xf4f6fa).set(5, 1, 13, PAL.red, true); // power strip
-  for (let x = X0; x <= X1; x++) b.set(x, yr(x) - 1, RZ1, INK); // fairy-light wire
+  for (let z = Z0 - 2; z <= Z1 + 2; z++) b.set(Math.round(RCX), roofY(RCX) + 1, z, TIN_D).set(Math.round(RCX) - 1, roofY(RCX), z, TIN_D);
+  for (let x = X0 - 2; x <= X1 + 2; x++) if (x % 3 === 0) b.set(x, roofY(x) - 1, Z1 + 3, WOOD_D);
+  // stovepipe chimney on the back slope
+  const CHX = X0 + 5, CHZ = Z0 + 4;
+  b.box(CHX, roofY(CHX) - 1, CHZ, CHX + 1, roofY(CHX) + 12, CHZ + 1, (x, y) => (y % 5 === 0 ? METAL_DD : METAL_D));
+  b.box(CHX - 1, roofY(CHX) + 13, CHZ - 1, CHX + 2, roofY(CHX) + 13, CHZ + 2, METAL_DD);
+  // --- porch lean-to on the +x side: posts, sloped tin, lab bench under it
+  const PX0 = X1 + 1, PX1 = 19, PZ0 = -11, PZ1 = 9;
+  const lean = (x) => EAVE - Math.round(((x - PX0) * 5) / (PX1 - PX0));
+  for (let x = PX0; x <= PX1 + 1; x++) for (let z = PZ0 - 1; z <= PZ1 + 1; z++) {
+    const rust = vnoise(x * 0.3, 7, z * 0.3) < 0.25;
+    b.set(x, lean(x), z, rust ? RUST : (z & 1) ? TIN : TIN_L);
+  }
+  for (const z of [PZ0, PZ1]) { b.box(PX1, 0, z, PX1, lean(PX1) - 1, z, WOOD); b.set(PX1, 0, z, WOOD_D); }
+  b.box(PX1, lean(PX1) - 1, PZ0, PX1, lean(PX1) - 1, PZ1, WOOD_D);
+  // lab bench (planks on sawhorses) with burner, retort, beakers and a battery (core)
+  const BX0 = 4, BX1 = 17, BY = 8, BZ0 = -4, BZ1 = 3;
+  b.box(BX0, BY, BZ0, BX1, BY, BZ1, (x, y, z) => ((z - BZ0) % 3 === 0 ? WOOD_D : WOOD_L));
+  for (const sx2 of [BX0 + 2, BX1 - 2]) { b.line(sx2 - 2, 0, BZ0 + 1, sx2, BY - 1, BZ0 + 1, WOOD); b.line(sx2 + 2, 0, BZ0 + 1, sx2, BY - 1, BZ0 + 1, WOOD); b.line(sx2 - 2, 0, BZ1 - 1, sx2, BY - 1, BZ1 - 1, WOOD); b.line(sx2 + 2, 0, BZ1 - 1, sx2, BY - 1, BZ1 - 1, WOOD); }
+  const by = BY + 1;
+  const bt = burner(b, 7, by, 0);
+  const nk = flask(b, 7, bt + 1, 0, 1.6, LIQ.purple, { neck: 1, fill: 0.2 });
+  condenser(b, [7, nk, 0], [12, nk - 2, 1], LIQ.purple);
+  condenser(b, [12, nk - 2, 1], [13, by + 5, 1], LIQ.purple);
+  beaker(b, 13, by, 1, 2, 5, LIQ.purple, 0.5);
+  tubeRack(b, 9, by, -3, [LIQ.green, LIQ.blue, LIQ.pink]);
+  beaker(b, 5, by, -3, 1.4, 4, LIQ.yellow, 0.7);
+  // car battery under the bench = energy core, cables up to the gear
+  const KX = 11, KZ = 0;
+  b.box(KX - 2, 0, KZ - 1, KX + 2, 5, KZ + 1, (x, y) => (y === 5 ? 0x2a2a34 : 0x1c1c24));
+  b.box(KX - 2, 6, KZ, KX - 2, 6, KZ, PAL.red).box(KX + 2, 6, KZ, KX + 2, 6, KZ, INK);
+  artZ(b, BOLT_MINI, KX - 1, 4, KZ + 2, P.bolt, { mirror: m });
+  b.set(KX + 2, 4, KZ + 2, 0x5fff7a, true);
+  sagLine(b, [KX - 2, 7, KZ], [7, by, 1], PAL.red, -2);
+  // rain barrel + firewood at the back corner
+  barrel(b, X0 - 3, 0, 5, 0x5a7a9a, { h: 9, r: 3 });
+  for (const [lx, ly] of [[X0 - 5, 1], [X0 - 2, 1], [X0 - 3.5, 3]]) cyl(b, 'z', lx, ly, -13, -8, 1.1, 1.1, (x, y, z) => (z === -13 || z === -8 ? 0xe0b070 : 0x7a4a24));
+  // extension cord + fairy-light wire along the porch eave
+  for (let x = PX0; x <= PX1; x++) b.set(x, lean(x) - 1, PZ1 + 1, INK);
+  sagLine(b, [PX1, 2, PZ1], [X1 + 4, 0, Z1 + 4], ORANGE, 0);
 
-  // hand-painted plywood "LAB" sign propped up on the roof, with marquee bulbs (stage 2)
+  // --- lookout deck on the porch roof: the Commander's seat (old armchair cushion)
+  const deck = new VoxGrid();
+  const SX0 = 7, SX1 = 15, SZ0 = -4, SZ1 = 3, SY = lean(SX0) + 1;
+  deck.box(SX0, SY, SZ0, SX1, SY, SZ1, (x, y, z) => ((x - SX0) % 3 === 0 ? WOOD_D : WOOD));
+  for (let x = SX0; x <= SX1; x++) for (let y = lean(x) + 1; y < SY; y++) deck.set(x, y, SZ0, WOOD_D).set(x, y, SZ1, WOOD_D);
+  deck.box(SX0 + 1, SY + 1, SZ0 + 1, SX1 - 1, SY + 1, SZ1 - 1, P.md);
+  deck.box(SX0 + 1, SY + 2, SZ0 + 1, SX1 - 1, SY + 2, SZ1 - 1, (x, y, z) => ((x + z) % 3 ? P.m : P.ml));
+  deck.box(SX0, SY + 1, SZ0 - 1, SX0, SY + 5, SZ1 + 1, P.md);
+  // hand-painted LAB sign board over the porch (stage 2) with marquee bulbs
   const sign = new VoxGrid();
-  const SX0 = -10, SX1 = 2, SZ = -1, SY0 = yr(SX0) + 3, SY1 = SY0 + 6;
-  for (const lx of [SX0 + 1, SX1 - 1]) sign.box(lx, yr(lx) + 1, SZ - 1, lx, SY0, SZ - 1, WOOD_D);
-  sign.box(SX0, SY0, SZ, SX1, SY1, SZ, (x, y) => (y === SY0 || y === SY1 || x === SX0 || x === SX1 ? WOOD_D : (x + y) % 5 === 0 ? WOOD : WOOD_L));
-  paint(sign, 'LAB', (SX0 + SX1 + 1) >> 1, SY0 + 1, SZ + 1, '+z', P.bolt, { center: true, mirror: m, wobble: 1, seed: 9 });
-  // ladder leaning on the left wall (stage 1)
-  const lad = new VoxGrid();
-  for (const z of [3, 7]) lad.line(X0 - 7, 0, z, X0 - 1, yr(X0) + 1, z, WOOD_L);
-  for (let i = 1; i < 8; i++) {
-    const t = i / 8;
-    lad.box(Math.round(X0 - 7 + 6 * t), Math.round((yr(X0) + 1) * t), 4, Math.round(X0 - 7 + 6 * t), Math.round((yr(X0) + 1) * t), 6, WOOD);
-  }
-  // chemical drum (stage 2)
-  const drum = new VoxGrid();
-  barrel(drum, X0 - 3, 0, 13, P.m, { hazard: true, h: 8, r: 2 });
-  drum.set(X0 - 3, 8, 13, METAL_L);
-  // frying-pan satellite dish (anim)
-  const R = 3.5, tilt = 0.7, ct = Math.cos(tilt), st = Math.sin(tilt);
+  const GX0 = -17, GX1 = -5, GZ = Z1 + 1, GY0 = EAVE - 3, GY1 = GY0 + 6;
+  sign.box(GX0, GY0, GZ, GX1, GY1, GZ, (x, y) => (y === GY0 || y === GY1 || x === GX0 || x === GX1 ? WOOD_D : (x * 3 + y) % 7 === 0 ? 0xf0e6d0 : 0xfaf4e6));
+  paint(sign, 'LAB', ((GX0 + GX1 + 1) >> 1), GY0 + 1, GZ + 1, '+z', P.bolt, { center: true, mirror: m, wobble: 1, seed: 9 });
+  // TV antenna on the roof (stage 1)
+  const lad = new VoxGrid().merge(antennaGrid(10, { tipCol: P.bolt }), Math.round(RCX) + 4, roofY(RCX + 4) + 1, -5);
+  // frying-pan satellite dish on the roof ridge (anim)
+  const R = 3.2, tilt = 0.7, ct = Math.cos(tilt), st = Math.sin(tilt);
   const pan = dishGrid({ r: R, col: 0xc4ccd8, back: 0x3a3a46, rim: 0x2a2a34, post: WOOD_L, tip: P.glow, tilt });
-  for (let i = 1; i <= 5; i++) {
-    const dx = -(R + i), dy = R / 1.6;
-    pan.set(Math.round(dx * ct + dy * st), Math.round(6 - dx * st + dy * ct), 0, i > 2 ? 0x1a1a22 : 0x2a2a34);
-  }
-  // generator (anim: rattles)
+  for (let i = 1; i <= 4; i++) { const dx = -(R + i), dy = R / 1.6; pan.set(Math.round(dx * ct + dy * st), Math.round(6 - dx * st + dy * ct), 0, i > 2 ? 0x1a1a22 : 0x2a2a34); }
+  // generator behind the cabin (anim: rattles)
   const gen = new VoxGrid();
   const GY = 0xffc21a, GYD = 0xd99a10, CAGE = 0x2a2a32;
   gen.box(-1, 1, -3, 2, 5, 3, (x, y) => (y === 3 ? GYD : GY));
   gen.box(-1, 1, -3, 2, 2, -1, METAL_D);
   gen.box(-1, 6, -2, 2, 6, 2, PAL.red).set(0, 7, 1, INK);
   for (const x of [-2, 3]) for (const z of [-4, 4]) gen.box(x, 0, z, x, 7, z, CAGE);
-  for (const y of [0, 7]) {
-    gen.box(-2, y, -4, 3, y, -4, CAGE).box(-2, y, 4, 3, y, 4, CAGE);
-    gen.box(-2, y, -4, -2, y, 4, CAGE).box(3, y, -4, 3, y, 4, CAGE);
-  }
-  gen.box(-1, 2, 3, 2, 4, 3, 0x4a4e5a);
-  gen.set(-1, 2, 4, ORANGE).set(0, 2, 4, ORANGE);
+  for (const y of [0, 7]) { gen.box(-2, y, -4, 3, y, -4, CAGE).box(-2, y, 4, 3, y, 4, CAGE); gen.box(-2, y, -4, -2, y, 4, CAGE).box(3, y, -4, 3, y, 4, CAGE); }
   gen.set(1, 4, 4, P.glow, true).set(2, 3, 4, PAL.red);
   gen.box(-1, 7, -3, 0, 8, -2, METAL_D).set(-1, 9, -3, METAL_DD);
   return {
     body: b,
     chunks: [
-      { name: 'ladder', grid: lad, stage: 1 },
+      { name: 'antenna', grid: lad, stage: 1 },
       { name: 'sign', grid: sign, stage: 2 },
-      { name: 'drum', grid: drum, stage: 2 },
+      { name: 'deck', grid: deck, stage: 4 },
     ],
     anims: [
-      { name: 'pan', type: 'spin', axis: 'y', speed: 0.9, grid: pan, at: [-12.5, yr(-12) + 2, -6.5], stage: 2 },
-      { name: 'generator', type: 'jitter', amp: 0.35, grid: gen, at: [17.5, 0, 5.5], stage: 9 },
+      { name: 'flame', type: 'pump', amp: 0.28, freq: 11, grid: flameGrid(), at: [7.5, bt, 0.5], stage: 4 },
+      { name: 'pan', type: 'spin', axis: 'y', speed: 0.9, grid: pan, at: [Math.round(RCX) + 0.5, roofY(RCX) + 1, Z0 + 1.5], stage: 2 },
+      { name: 'generator', type: 'jitter', amp: 0.35, grid: gen, at: [X0 - 4.5, 0, -2.5], stage: 9 },
     ],
     lights: [
-      ...Array.from({ length: 6 }, (_, i) => {
-        const x = X0 + 1 + i * 4;
-        return { at: [x + 0.5, yr(x) - 1.6, RZ1 + 0.5], color: [WARM, P.boltL, P.glow, 0x9dff7a][i % 4], mode: 'blink', rate: 0.9, duty: 0.7, phase: i * 0.21, size: 1.3, stage: 1 };
-      }),
-      ...Array.from({ length: 5 }, (_, i) => ({ at: [SX0 + 1.5 + i * 2.5, SY1 + 1.2, SZ + 0.5], color: WARM, mode: 'blink', rate: 1.6, duty: 0.6, phase: i * 0.2, size: 1.1, stage: 2 })),
+      ...Array.from({ length: 5 }, (_, i) => { const x = PX0 + 1 + i * 4; return { at: [x + 0.5, lean(x) - 1.6, PZ1 + 1.5], color: [WARM, P.boltL, P.glow, 0x9dff7a][i % 4], mode: 'blink', rate: 0.9, duty: 0.7, phase: i * 0.21, size: 1.3, stage: 1 }; }),
+      ...Array.from({ length: 5 }, (_, i) => ({ at: [GX0 + 1.5 + i * 2.5, GY1 + 1.2, GZ + 0.5], color: WARM, mode: 'blink', rate: 1.6, duty: 0.6, phase: i * 0.2, size: 1.1, stage: 2 })),
+      { at: [DX0 - 1.5, DY1 + 1.5, Z1 + 2], color: WARM, mode: 'steady', size: 1.4, stage: 3 },
     ],
-    puffs: [{ at: [16.5, 9.5, 2.5], color: 0x8a8a96, rate: 2.2, rise: 0.55, s0: 0.06, s1: 0.22, life: 1.1, op: 0.5, vx: -0.15, until: 4 }],
-    core: [18, 3.5, 5.5],
-    seat: [11.5, yr(11) + 4, -0.5],
-    fires: [[-6, yr(-6) + 1, 5], [4, yr(4) + 1, -4], [10, 10, Z1 + 1]],
-    sparks: [[16, 6, 10], [3, 14, Z1 + 1], [-7, Y1, Z1 + 2]],
-    smoke: [[-2, yr(-2) + 1, 0], [16.5, 9, 3]],
-    rubble: { cols: [PLY, PLY_D, OSB, 0xc2cad6, 0x8f98aa, 0xb8703a, P.m], h: 6 },
+    puffs: [
+      { at: [CHX + 1, roofY(CHX) + 14.5, CHZ + 1], color: 0x9a9aa6, rate: 1.6, rise: 0.6, s0: 0.08, s1: 0.32, life: 1.6, op: 0.5, vx: -0.2, until: 3 },
+      { at: [X0 - 4.5, 9.5, -2.5], color: 0x8a8a96, rate: 2.2, rise: 0.55, s0: 0.06, s1: 0.22, life: 1.1, op: 0.45, vx: -0.15, until: 4 },
+    ],
+    core: [KX + 0.5, 3.5, KZ + 0.5],
+    seat: [(SX0 + SX1 + 1) / 2 + 1, SY + 3, (SZ0 + SZ1 + 1) / 2 - 0.5],
+    fires: [[-14, roofY(-14) + 1, 0], [-4, roofY(-4) + 1, -6], [12, 10, PZ1 + 1]],
+    sparks: [[KX, 7, KZ + 2], [-3, 14, Z1 + 1], [-15, EAVE, Z1 + 2]],
+    smoke: [[Math.round(RCX), roofY(RCX) + 1, 0], [CHX + 1, roofY(CHX) + 13, CHZ + 1]],
+    rubble: { cols: [BRD, BRD_D, BRD_L, TIN, TIN_D, RUST, P.m], h: 6 },
   };
 }
-
 // ---------------------------------------------------------------------------
 // TIER 3: Trailer Lab
 function tier3(P, m) {
@@ -681,6 +874,15 @@ function tier3(P, m) {
   b.box(TX, 16, TZ, TX, 17, TZ, METAL_D).set(TX, 18, TZ, P.bolt);
   for (const [dx, dz] of [[-3, 0], [0, -3]]) b.box(TX + dx, 4, TZ + dz, TX + dx, 13, TZ + dz, METAL_D);
   pipe(b, 'x', TX + 3, X0 + 1, 12, TZ - 2, METAL, P.m, 0, 4);
+  // fold-out lab bench under the windows (hinged shelf on struts) with glassware
+  const FB0 = -11, FB1 = -1, FY = 13;
+  b.box(FB0, FY, Z1 + 1, FB1, FY, Z1 + 4, (x, y, z) => (z === Z1 + 4 ? P.md : (x + z) % 4 === 0 ? P.w2 : P.w));
+  b.line(FB0, FY - 4, Z1 + 1, FB0, FY - 1, Z1 + 3, METAL_D).line(FB1, FY - 2, Z1 + 1, FB1, FY - 1, Z1 + 2, METAL_D);
+  const fy = FY + 1;
+  const ft = burner(b, -9, fy, Z1 + 2);
+  flask(b, -9, ft + 1, Z1 + 2, 1.6, LIQ.green, { neck: 1, fill: 0.25 });
+  tubeRack(b, -6, fy, Z1 + 2, [LIQ.pink, LIQ.blue, LIQ.yellow]);
+  beaker(b, -2, fy, Z1 + 3, 1.2, 4, LIQ.purple, 0.6);
   // seat cushion on the roof
   b.box(5, Y1 + 1, -3, 11, Y1 + 1, 2, P.md).box(5, Y1 + 2, -3, 11, Y1 + 2, 2, (x, y, z) => ((x + z) % 3 ? P.m : P.ml));
 
@@ -728,6 +930,8 @@ function tier3(P, m) {
     ],
     anims: [
       { name: 'valance', type: 'flap', axis: 'x', amp: 0.45, freq: 2.6, grid: val, at: [AX0 + 0.5, AY - 3, AZ1 + 0.5], stage: 2 },
+      { name: 'flame', type: 'pump', amp: 0.28, freq: 11, grid: flameGrid(), at: [-8.5, ft, Z1 + 2.5], stage: 4 },
+      { name: 'dish', type: 'spin', axis: 'y', speed: 0.8, grid: dishGrid({ r: 3.5, col: P.w, back: METAL, rim: P.bolt, tip: P.bolt }), at: [19.5, 14, -3.5], stage: 2 },
     ],
     lights: [
       { at: [13.5, Y1 + 16.2, -6.5], color: 0xff3040, mode: 'blink', rate: 1.1, stage: 1, size: 1.6 },
@@ -782,6 +986,17 @@ function tier4(P, m) {
   for (const dx of [-5, 5]) b.box(TKX + dx, TY0, TKZ, TKX + dx, TY1, TKZ, METAL_D);
   for (let a = 0; a < 10; a++) b.set(Math.round(TKX + Math.cos(a * 0.628) * 4), TY1 + 4, Math.round(TKZ + Math.sin(a * 0.628) * 4), METAL_D);
   pipe(b, 'z', GZ1 - 1, TKZ, TKX, TY1 + 5, METAL, P.m, 1, 3);
+  // distillation column (lab tower) at the back corner, piped into both modules
+  const DCX = -30, DCZ = -9;
+  cyl(b, 'y', DCX, DCZ, 2, 50, 2.2, 2.2, (x, y) => (y % 8 === 0 ? P.m : y % 8 === 1 ? P.md : (x + y) % 5 === 0 ? METAL : METAL_L));
+  cyl(b, 'y', DCX, DCZ, 51, 53, 1.3, 1.3, METAL_D);
+  cyl(b, 'y', DCX, DCZ, 54, 54, 2.3, 2.3, METAL_DD);
+  for (const y of [12, 30]) { b.box(DCX - 1, y, DCZ + 2, DCX + 1, y + 4, DCZ + 2, (x, yy) => (yy > y + 2 ? GLASS : LIQ.green)); b.set(DCX, y + 2, DCZ + 3, LIQ.green, true); }
+  for (let y = 3; y <= 48; y++) { b.set(DCX - 2, y, DCZ + 2, METAL_D).set(DCX + 2, y, DCZ + 2, METAL_D); if (y % 3 === 0) b.box(DCX - 1, y, DCZ + 3, DCX + 1, y, DCZ + 3, METAL); }
+  pipe(b, 'x', DCX + 2, -24, 20, DCZ, METAL, P.m, 1, 4);
+  pipe(b, 'x', DCX + 2, -24, 37, DCZ + 3, METAL, P.m, 1, 4);
+  // Tesla coil on the deck
+  const tc = teslaCoil(b, 5, GY1 + 2, 6, 8, P);
   // control panel with LEDs
   b.box(15, 6, GZ1 + 1, 17, 15, GZ1 + 1, METAL_DD);
   b.set(16, 8, GZ1 + 1, 0x5fff7a, true).set(16, 10, GZ1 + 1, 0xff3040, true).box(15, 12, GZ1 + 1, 17, 13, GZ1 + 1, P.glow, true);
@@ -836,6 +1051,7 @@ function tier4(P, m) {
     anims: [
       { name: 'dish', type: 'spin', axis: 'y', speed: 0.7, grid: dishGrid({ r: 5, col: P.w, back: METAL, rim: P.bolt, tip: P.bolt }), at: [-6.5, UY1 + 1, -4.5], stage: 2 },
       { name: 'fan', type: 'spin', axis: 'z', speed: 7, grid: fanGrid(3, P.w2), piv: [0.5, 0.5, 0.5], at: [FX + 0.5, FY + 0.5, GZ1 + 1.5], stage: 3 },
+      { name: 'arcs', type: 'spin', axis: 'y', speed: 9, grid: arcGrid(4, P.ml), piv: [0.5, 0.5, 0.5], at: [5.5, tc + 0.5, 6.5], stage: 2 },
     ],
     lights: [
       { at: [-23.5, UY1 + 1.8, 4.5], color: 0xffa62a, mode: 'blink', rate: 1.6, phase: 0, stage: 2 },
@@ -844,7 +1060,10 @@ function tier4(P, m) {
       { at: [19.5, 20.6, -2], color: 0x5fff7a, mode: 'steady', stage: 3, size: 1.2 },
     ],
     tanks: [{ at: [TKX + 0.5, TY0, TKZ + 0.5], r: 4.3, h: TY1 - TY0 + 1, bubbles: 9 }],
-    puffs: [{ at: [-12.5, UY1 + 6.5, -9.5], color: 0xf0f4fa, rate: 1.2, rise: 0.5, s0: 0.08, s1: 0.3, life: 1.6, op: 0.45, until: 3 }],
+    puffs: [
+      { at: [-12.5, UY1 + 6.5, -9.5], color: 0xf0f4fa, rate: 1.2, rise: 0.5, s0: 0.08, s1: 0.3, life: 1.6, op: 0.45, until: 3 },
+      { at: [DCX + 0.5, 55.5, DCZ + 0.5], color: 0xe8f0f4, rate: 1.4, rise: 0.6, s0: 0.08, s1: 0.34, life: 1.6, op: 0.45, vx: -0.15, until: 3 },
+    ],
     core: [TKX + 0.5, 13, TKZ + 0.5],
     seat: [12.5, GY1 + 4, -0.5],
     fires: [[-14, UY1 + 1, 2], [6, GY1 + 2, 8], [-20, 18, GZ1 + 1]],
@@ -910,6 +1129,8 @@ function tier5(P, m) {
   b.box(X1 + 1, 12, -3, X1 + 1, 13, 0, PAL.yellow);
   b.box(X1 + 2, 27, -6, X1 + 2, 27, 2, P.boltL, true);
   windowX(b, -14, 21, -11, 26, X1, { frame: P.w2, glass: 0x8ec4e6, glow: false });
+  // Tesla coil on the roof between the tower and the seat
+  const tc5 = teslaCoil(b, 2, Y1 + 2, 6, 11, P);
   // seat cushion on the roof (front right)
   b.box(9, Y1 + 2, -4, 16, Y1 + 2, 3, P.boltD).box(9, Y1 + 3, -4, 16, Y1 + 3, 3, (x, y, z) => ((x + z) % 3 ? P.bolt : P.boltL));
 
@@ -953,6 +1174,7 @@ function tier5(P, m) {
     anims: [
       { name: 'dish', type: 'spin', axis: 'y', speed: 0.6, grid: dishGrid({ r: 6, col: P.w, back: METAL, rim: P.bolt, tip: P.bolt }), at: [-17.5, TTY1 + 2, -5.5], stage: 2 },
       ...[-2, 2].map((vx) => ({ name: 'roofFan', type: 'spin', axis: 'y', speed: 6, grid: flatFan(1.6, METAL_L), at: [vx + 0.5, Y1 + 6, -9.5], stage: 2 })),
+      { name: 'arcs', type: 'spin', axis: 'y', speed: 9, grid: arcGrid(5, P.ml), piv: [0.5, 0.5, 0.5], at: [2.5, tc5 + 0.5, 6.5], stage: 2 },
     ],
     lights: [
       { at: [-9.5, TTY1 + 16.6, 0.5], color: 0xff3040, mode: 'blink', rate: 1, stage: 1 },
@@ -1232,7 +1454,7 @@ export function prewarmBase(tier, { side = 0, flip = false } = {}) {
 
 /**
  * In-battle Base at an upgrade tier (1..6).
- * @param {number} tier 1 Camp Tent .. 6 Mega HQ
+ * @param {number} tier 1 Camp Lab .. 6 Mega HQ
  * @param {{side?: 0|1, flip?: boolean, style?: string}} o side 1 = rival colours; flip mirrors it
  *   for the right-hand side; style = an equipped Lab skin (mansion, goldVault, ...) used at tier 5.
  * @returns {{root, seat, core, meshes, height, width, tier, name, front, bounds, centerX, plateY, setDamage(f), update(dt), onChunk, setLevel(n)}}

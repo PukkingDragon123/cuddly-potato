@@ -20,10 +20,10 @@ import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
 import { ChargeAura } from './commandFx.js';
-import { voxelPuddle, voxelDome } from './voxfx.js';
+import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
-import { h, $world, floatText, speech } from '../../ui/ui.js';
+import { h, $world, floatText, speech, iconURL } from '../../ui/ui.js';
 import { FIELD } from './field.js';
 import { LAB_X, LAB_HALF } from './sim.js';
 import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
@@ -354,7 +354,9 @@ class UnitActor {
       if (this.view.sim.sides[u.side].buffs.dance > 0) fx.sparkle(tp, { count: 1, colors: [0xff4fa3, 0xffd23f, 0x5fdc4a, 0x29b6f6], speed: 1, life: 0.6 });
       if (this.view.sim.sides[u.side].buffs.immortal > 0) fx.sparkle(tp, { count: 1, color: 0xffe27a, speed: 0.8 });
       if (u.buffs.growT > 0) fx.sparkle(tp, { count: 1, colors: [0x5fdc4a, 0xd4ff9a], speed: 0.8 });
+      this.buffFx(p);
     }
+    this.updateShield(dt, p);
     // frozen ice block
     if (u.state === 'frozen' && !this.iceMesh) {
       this.iceMesh = new THREE.Mesh(this.view.iceGeo, this.view.iceMat);
@@ -373,7 +375,70 @@ class UnitActor {
       }
     }
   }
+  /** Special-card side buffs on this troop: SURGE embers, FRENZY speed sparks, HASTE wind streaks. */
+  buffFx(p) {
+    const u = this.u, sb = this.view.sim.sides[u.side].buffs, H = Math.max(0.5, this.rig.height);
+    const dir = u.side === 0 ? -1 : 1; // "behind" the troop
+    if (sb.surge > 0) {
+      // rage: red-hot embers boiling off the body + a hot core flicker
+      for (let i = 0; i < 2; i++) particles.spawn('glow', { x: p.x + rand(-0.25, 0.25) * u.size, y: p.y + rand(0.1, 0.9) * H, z: p.z + rand(-0.2, 0.2), vx: rand(-0.3, 0.3), vy: rand(1.2, 2.4), vz: 0, size: rand(0.04, 0.08), life: rand(0.35, 0.6), grav: 1.5, drag: 1, color: pick([0xff2a1a, 0xff5a1f, 0xffa31a]) });
+      if (Math.random() < 0.3) this.rig.flash?.(0.03);
+    }
+    if (sb.frenzy > 0) {
+      // frenzy: fast yellow sparks zipping off the arms
+      for (let i = 0; i < 2; i++) particles.spawn('glow', { x: p.x + rand(-0.2, 0.2), y: p.y + rand(0.3, 0.8) * H, z: p.z + 0.2, vx: dir * rand(3, 6), vy: rand(-0.5, 1.5), vz: rand(-0.5, 0.5), sx: 0.12, sy: 0.025, sz: 0.025, rx: 0, ry: 0, rz: 0, life: rand(0.15, 0.25), grav: 0, drag: 2, color: pick([0xffe14a, 0xfff6a0, 0xffffff]) });
+    }
+    if (sb.haste > 0 && u.state === 'walk') {
+      // haste: white wind streaks trailing behind
+      particles.spawn('glow', { x: p.x + dir * 0.3 * u.size, y: p.y + rand(0.15, 0.85) * H, z: p.z + rand(-0.1, 0.3), vx: dir * rand(4, 7), vy: 0, vz: 0, sx: rand(0.3, 0.55), sy: 0.02, sz: 0.02, rx: 0, ry: 0, rz: 0, life: rand(0.14, 0.24), grav: 0, drag: 3, color: pick([0xdff4ff, 0xffffff, 0x9fe6ff]) });
+    }
+  }
+  /** ARMOR: a translucent voxel hex shield bubble while u.shieldHp > 0. */
+  updateShield(dt, p) {
+    const u = this.u, on = (u.shieldHp ?? 0) > 0 && !this.hidden;
+    if (on && !this.shield) {
+      const m = voxelDome(1, 0x8fd8ff);
+      m.scale.setScalar(0.01);
+      this.view.scene.add(m);
+      this.shield = { m, t: 0, hitT: 0 };
+    }
+    if (!this.shield) return;
+    const sh = this.shield;
+    if (!on) { this.dropShield(); return; }
+    sh.t += dt;
+    sh.hitT = Math.max(0, sh.hitT - dt);
+    const H = Math.max(0.55, this.h0 * this.rig.baseScale);
+    const r = Math.max(H * 0.95, 0.55 * u.size);
+    const pop = sh.t < 0.35 ? (sh.t / 0.35 < 0.7 ? (sh.t / 0.35 / 0.7) * 1.18 : 1.18 - ((sh.t / 0.35 - 0.7) / 0.3) * 0.18) : 1;
+    const wob = 1 + Math.sin(sh.t * 5) * 0.02 + sh.hitT * 0.25;
+    sh.m.scale.set(r * 0.72 * pop * wob, H * 1.08 * pop / wob, r * 0.55 * pop * wob);
+    sh.m.position.set(p.x, Math.max(0, p.y - 0.05), p.z);
+    const frac = Math.min(1, u.shieldHp / Math.max(1, u.maxHp * 0.3));
+    const [mat, glow] = sh.m.userData.mats;
+    mat.opacity = 0.08 + frac * 0.1 + sh.hitT * 0.9;
+    glow.opacity = 0.12 + frac * 0.14 + sh.hitT * 1.2 + Math.sin(sh.t * 7) * 0.04;
+  }
+  shieldPing() {
+    if (this.shield) this.shield.hitT = 0.22;
+  }
+  dropShield(shatter = false) {
+    const sh = this.shield;
+    if (!sh) return;
+    this.shield = null;
+    if (shatter) {
+      const p = sh.m.position, s = sh.m.scale;
+      // the bubble cracks into glassy hex shards
+      for (let i = 0; i < 26; i++) {
+        const a = rand(0, Math.PI * 2), e = rand(0, 1.3);
+        const dx = Math.cos(a) * Math.cos(e), dz = Math.sin(a) * Math.cos(e), dy = Math.sin(e);
+        particles.spawn(i % 3 ? 'cube' : 'glow', { x: p.x + dx * s.x, y: p.y + dy * s.y, z: p.z + dz * s.z, vx: dx * rand(2, 4.5), vy: dy * rand(2, 4) + 2, vz: dz * rand(1, 3), rvx: rand(-9, 9), rvy: rand(-9, 9), rvz: rand(-9, 9), sx: rand(0.08, 0.15), sy: 0.02, sz: rand(0.06, 0.12), life: rand(0.5, 0.9), grav: -14, drag: 0.6, ground: 0, bounce: 0.3, color: pick([0xcff2ff, 0x8fd8ff, 0xffffff]) });
+      }
+    }
+    this.view.scene.remove(sh.m);
+    for (const m of sh.m.userData.mats) m.dispose();
+  }
   dispose() {
+    this.dropShield();
     this.view.scene.remove(this.rig.root, this.shadow, this.ring);
     this.plate.remove();
     if (this.iceMesh) this.view.scene.remove(this.iceMesh);
@@ -618,7 +683,7 @@ export class BattleView {
       tween(nb.root.scale, { x: 1, y: 1, z: 1 }, 0.7, { ease: 'outElastic' });
       fx.dust(new THREE.Vector3(x, 0, 0.5), { count: 26, scale: 2.4 });
       fx.confetti(new THREE.Vector3(x, Math.min(6, nb.height ?? 3) + 1, 0), { count: 50, spread: 1.6 });
-      fx.shockwave(new THREE.Vector3(x, 0.05, 0), { radius: 3.6, color: TEAM_COLORS[i] });
+      groundHit(new THREE.Vector3(x, 0.05, 0), { radius: 3.6, color: TEAM_COLORS[i] });
       engine.shake(0.35);
       audio.play('levelUp');
       if (ch && !ch.busy) {
@@ -863,6 +928,7 @@ export class BattleView {
     }
     this.updateCommanders(dt);
     this.updateCommandFx(dt);
+    this.updateSideBuffs(gdt);
     for (const z of this.zones) z.update(gdt);
     this.zones = this.zones.filter((z) => !z.done);
     if (this.aimRing) this.aimRing.children[0].material.opacity = 0.16 + Math.sin(this.t * 6) * 0.06;
@@ -893,6 +959,30 @@ export class BattleView {
       // a fully charged Commander can't sit still
       const ch = this.cmds[i];
       if (ch && state === 'ready' && !ch.busy && Math.random() < dt * 0.6) { ch.play('sitCheer'); ch.expr('star', 'grin', 1); ch.reactT = 1.2; }
+    }
+  }
+
+  /** Base-level special buffs: OVERCLOCK (cyan crackle arcs over the base), ARMOR window (steel glints). */
+  updateSideBuffs(dt) {
+    if (!this.labs || this.sim.over) return;
+    this.buffT = (this.buffT ?? 0) - dt;
+    if (this.buffT > 0) return;
+    this.buffT = 0.12;
+    for (let i = 0; i < 2; i++) {
+      const b = this.sim.sides[i].buffs, lab = this.labs[i];
+      if (!lab || !this.sim.sides[i].lab.alive) continue;
+      const x = lab.root.position.x, H = Math.min(6, lab.height ?? 3);
+      if (b.overclock > 0) {
+        const a = new THREE.Vector3(x + rand(-1.2, 1.2), rand(0.4, H * 0.9), rand(-0.4, 0.9));
+        const c = a.clone().add(new THREE.Vector3(rand(-1, 1), rand(-0.6, 0.9), rand(-0.3, 0.3)));
+        if (Math.random() < 0.55) voxelBeam(this.scene, a, c, 0x3ff2ff, 0.18, 0.07);
+        fx.sparkle(a, { count: 2, colors: [0x9ff2ff, 0xffffff, 0x3ff2ff], speed: 2.4, life: 0.3 });
+        if (i === 0 && Math.random() < 0.15) audio.play('zap', { pitch: 1.8 + Math.random() * 0.4, vol: 0.18, gap: 0.3 });
+      }
+      if (b.armorWin > 0) {
+        const dir = i === 0 ? 1 : -1;
+        fx.sparkle(new THREE.Vector3(x + dir * rand(1.4, 2.6), rand(0.2, 1.4), rand(0, 0.8)), { count: 2, colors: [0xffffff, 0xcfe8ff, 0x8fd8ff], speed: 1.2, life: 0.5 });
+      }
     }
   }
 
@@ -934,9 +1024,11 @@ export class BattleView {
   }
 
   updateCommanders(dt) {
+    // sub-step long frames: the chibi's squash spring is explicit-Euler and blows up past ~1/25 s
+    const n = Math.min(4, Math.ceil(dt / (1 / 40)));
     for (const ch of this.cmds) {
       if (!ch) continue;
-      ch.update(dt);
+      for (let i = 0; i < n; i++) ch.update(dt / n);
       if (ch.busy) continue;
       ch.reactT -= dt;
       const s = this.sim.sides[ch.side];
@@ -975,6 +1067,112 @@ export class BattleView {
     if (line) speech(ch, line, Math.min(2.2, dur + 0.6));
   }
 
+  /**
+   * EMOTE: the Commander jumps up off the roof and acts it out. Wind-up (a
+   * charge bar fills over its head while it squats, vibrates and makes a
+   * face), then the big moment: a hop, a scale punch, the full-body reaction
+   * with its mood + voxel emote, themed particles and the speech bubble.
+   * em: { text, icon, wind, windMood, act, mood, vox, dur, color, fx }
+   * Resolves when the Commander is seated again.
+   */
+  async emoteAct(side, em, wind = 0.75) {
+    const ch = this.cmds?.[side];
+    if (!ch) { const seat = this.labs?.[side]?.seat; if (seat) speech(seat, em.text, 2.2, { offsetY: 6 }); return; }
+    if (ch.busy || ch.emoting) { speech(ch, em.text, 2, { offsetY: 6 }); return; }
+    ch.busy = ch.emoting = true;
+    const col = hexOf(em.color ?? '#ffd84a');
+    // wind-up: stand, squat into the anticipation pose, buzz with energy
+    ch.play(em.wind ?? 'think', { restart: true, dur: wind + 0.05, then: 'idle', face: false });
+    ch.mood(em.windMood ?? 'focus', wind);
+    ch.boing(-0.35);
+    const bar = this.emoteBar(side, em);
+    // the Commander steps forward and grows so the act reads on a phone
+    const home = ch.home ? ch.home.clone() : ch.root.position.clone();
+    const s0 = ch.root.scale.x, big = s0 * 1.4;
+    const fwd = new THREE.Vector3(side === 0 ? 0.35 : -0.35, 0, 0.7);
+    animate(0.3, (e) => { if (!ch.emoting) return; ch.root.scale.setScalar(lerp(s0, s0 * 1.22, e)); ch.root.position.copy(home).addScaledVector(fwd, e); }, { ease: 'outBack' });
+    const w0 = performance.now();
+    await new Promise((res) => {
+      const step = () => {
+        if (!ch.emoting || this.disposed) return res();
+        const k = Math.min(1, (performance.now() - w0) / (wind * 1000));
+        bar.fill.style.width = (k * 100).toFixed(1) + '%';
+        if (Math.random() < 0.35) fx.sparkle(ch.headTop(new THREE.Vector3()).add(new THREE.Vector3(rand(-0.4, 0.4), rand(-0.6, 0.1), 0.2)), { count: 1, colors: [col, 0xffffff], speed: 1.2, life: 0.3 });
+        if (k >= 1) return res();
+        requestAnimationFrame(step);
+      };
+      step();
+    });
+    bar.el.classList.add('done');
+    setTimeout(() => bar.el.remove(), 260);
+    if (this.disposed) return;
+    // the big moment
+    const dur = em.dur ?? 1.6;
+    ch.react(em.act, { dur, seated: false, then: 'idle' });
+    if (em.mood) ch.mood(em.mood, dur);
+    if (em.vox) ch.emote(em.vox, dur);
+    ch.boing(0.7);
+    ch.flash(0.06);
+    animate(0.6, (e, k) => {
+      if (!ch.emoting) return;
+      ch.root.position.copy(home).addScaledVector(fwd, 1);
+      ch.root.position.y = home.y + Math.sin(k * Math.PI) * 0.9;
+      ch.root.scale.setScalar(lerp(s0 * 1.22, big, Math.min(1, k * 3)) * (1 + Math.sin(Math.min(1, k * 1.6) * Math.PI) * 0.18));
+    });
+    const top = ch.headTop(new THREE.Vector3());
+    this.emoteFx(em.fx, top, col);
+    speech(ch, em.text, Math.max(1.8, dur + 0.4), { offsetY: 6 });
+    if (side === 0) engine.shake(0.08);
+    await new Promise((r) => setTimeout(r, dur * 1000 - 250));
+    if (this.disposed) return;
+    // hop back onto the seat
+    const from = ch.root.position.clone(), sNow = ch.root.scale.x, to = ch.home ?? home, sEnd = cmdScale(this.labs?.[side]?.tier ?? 1);
+    ch.play('jump', { restart: true, dur: 0.3, then: 'sit', face: false });
+    await animate(0.3, (e, k) => {
+      ch.root.position.lerpVectors(from, to, e);
+      ch.root.position.y += Math.sin(k * Math.PI) * 0.4;
+      ch.root.scale.setScalar(lerp(sNow, sEnd, e));
+    }, { ease: 'inOutQuad' }).promise;
+    ch.emoting = false;
+    if (this.disposed) return;
+    ch.root.scale.setScalar(sEnd);
+    ch.root.position.copy(ch.home ?? home);
+    ch.play('sit');
+    ch.busy = false;
+    ch.reactT = 0.3;
+  }
+  /** The wind-up bar floating over the Commander's head. */
+  emoteBar(side, em) {
+    const fill = h('i', { class: 'f' });
+    const el = h('div', { class: `emo-wind s${side}`, style: { '--ec': em.color ?? '#ffd84a' } }, h('img', { src: iconURL(em.icon), alt: '' }), h('b', { class: 'bar' }, fill));
+    this.plateLayer.appendChild(el);
+    const ch = this.cmds[side];
+    const track = () => {
+      if (!el.isConnected || !ch) return;
+      const p = ch.headTop(_v);
+      p.y += 0.45 * (ch.root.scale.x || 1);
+      const s = engine.toScreen(p, this.camera);
+      el.style.transform = `translate3d(${Math.round(s.x)}px, ${Math.round(s.y)}px, 0)`;
+      requestAnimationFrame(track);
+    };
+    track();
+    return { el, fill };
+  }
+  /** Themed props for an emote's big moment. */
+  emoteFx(kind, p, col) {
+    const at = p.clone().add(new THREE.Vector3(0, 0.2, 0.3));
+    switch (kind) {
+      case 'hearts': fx.sparkle(at, { count: 22, colors: [0xff5aa8, 0xff8ac4, 0xffffff], speed: 3.2, life: 0.9, grav: 1.5 }); break;
+      case 'confetti': fx.confetti(at, { count: 40, spread: 1.1, speed: 6 }); break;
+      case 'fire': fx.fire(at.clone().setY(at.y - 0.6), { count: 18, radius: 2 }); fx.burst(at, { count: 16, colors: [0xffd84a, 0xff8a2a, 0xffffff], speed: 6, size: 0.07, grav: -6 }); break;
+      case 'steam': fx.smoke(at, { count: 8, scale: 0.7, color: 0xffffff }); fx.burst(at, { count: 10, colors: [0xff3d55, 0xff8a2a], speed: 4, size: 0.06 }); break;
+      case 'sweat': fx.bubbles(at, { count: 10, color: 0x8fd4ff, radius: 0.4, speed: 1.6 }); break;
+      case 'bolt': fx.sparkle(at, { count: 24, colors: [0x7cff3a, 0xffffff, 0xffd84a], speed: 5, life: 0.5 }); break;
+      case 'cash': fx.cash(at, 18, { speed: 4 }); break;
+      default: fx.sparkle(at, { count: 18, colors: [col, 0xffffff, 0xffd84a], speed: 3.5, life: 0.6 });
+    }
+  }
+
   /** Commander stands up, performs an animation, then sits back down. */
   async perform(side, anim, dur, eyes = 'determined', mouth = 'grin') {
     const ch = this.cmds[side];
@@ -997,7 +1195,7 @@ export class BattleView {
     mesh.position.set(x, 7, 0.1);
     mesh.rotation.set(0, 0, (side === 0 ? -1 : 1) * 0.3);
     this.scene.add(mesh);
-    const tele = new THREE.Mesh(PLANE, decalMat(ringTex(), TEAM_COLORS[side], 0.9));
+    const tele = new THREE.Mesh(PLANE, decalMat(shadowTex(), 0xffffff, 0.25)); // the falling vial's shadow
     tele.position.set(x - (count > 1 ? (side === 0 ? 0.21 : -0.21) * (count - 1) : 0), 0.04, 0);
     this.scene.add(tele);
     this.vials.push({ mesh, tele, side, x, col, t: 0, dur: Math.max(0.3, delay - 0.05), count });
@@ -1010,9 +1208,9 @@ export class BattleView {
       v.mesh.position.y = 7 * (1 - k * k) + 0.05;
       v.mesh.rotation.z += dt * (v.side === 0 ? -9 : 9);
       v.mesh.rotation.y += dt * 4;
-      const r = 1.6 - k * 0.6;
+      const r = 0.35 + k * k * 0.45;
       v.tele.scale.set(r * 1.6, 1, r * 1.1);
-      v.tele.material.opacity = 0.35 + k * 0.6;
+      v.tele.material.opacity = 0.25 + k * 0.7;
       if (k >= 1 && !v.done) {
         v.done = true;
         const p = new THREE.Vector3(v.x, 0.35, 0);
@@ -1021,7 +1219,7 @@ export class BattleView {
         fx.burst(p, { count: 14, colors: [0xffffff, 0xcff2ff, 0x9fe6ff], size: 0.06, speed: 4.5, life: 0.5 });
         fx.slime(p, { count: 10 + v.count * 2, color: v.col, speed: 3.4 });
         fx.bubbles(p, { count: 5, color: v.col });
-        fx.shockwave(new THREE.Vector3(v.tele.position.x, 0.02, 0), { radius: 1.3 + v.count * 0.25, color: TEAM_COLORS[v.side] });
+        groundHit(new THREE.Vector3(v.tele.position.x, 0.02, 0), { radius: 1.3 + v.count * 0.25, color: TEAM_COLORS[v.side] });
         fx.dust(new THREE.Vector3(v.x, 0, 0.2), { count: 5, scale: 1.1 });
         if (v.side === 0) engine.shake(0.07);
         audio.play('shatter', { pitch: 1.5 + Math.random() * 0.3, vol: 0.55, gap: 0.03 });
@@ -1090,6 +1288,16 @@ export class BattleView {
       case 'hit': {
         const a = this.actors.get(ev.unit.id);
         if (!a || a.hidden) break;
+        if (ev.kind === 'shield') {
+          // blocked by ARMOR: the bubble flares, a steel ping instead of a number
+          a.shieldPing();
+          const p = a.rig.root.position;
+          const at = new THREE.Vector3(p.x + (ev.unit.side === 0 ? 0.3 : -0.3), p.y + a.rig.height * 0.6, p.z + 0.3);
+          fx.sparkle(at, { count: 4, colors: [0xffffff, 0x8fd8ff], speed: 3, life: 0.25 });
+          if (!(a.lastPing > this.t - 0.5)) { a.lastPing = this.t; floatText(at, 'ARMOR', 'armor', { life: 0.6, rise: 28 }); }
+          audio.play('latch', { pitch: 1.8, vol: 0.45, gap: 0.08 });
+          break;
+        }
         a.rig.flash(0.07);
         a.rig.boing(-0.15);
         const p = a.rig.root.position;
@@ -1109,6 +1317,41 @@ export class BattleView {
           engine.shake(0.18);
           engine.hitstop(0.045);
         }
+        break;
+      }
+      case 'giant': {
+        // Titan Serum: the troop gulps green serum and balloons to 1.5x
+        const a = this.actors.get(ev.unit.id);
+        const p = a ? a.rig.root.position : new THREE.Vector3(ev.unit.x, 0, ev.unit.z);
+        const H = a ? Math.max(0.6, a.rig.height) : 1;
+        const at = new THREE.Vector3(p.x, p.y + H * 0.7, p.z + 0.2);
+        fx.bubbles(at, { count: 10, color: 0x7cff3a, radius: 0.4, speed: 1.4 });
+        fx.slime(at, { count: 10, color: 0x7cff3a, speed: 3.2 });
+        fx.rise(new THREE.Vector3(p.x, 0.1, p.z), { count: 22, colors: [0x7cff3a, 0xd4ff9a, 0xffffff], radius: 0.7 });
+        groundHit(new THREE.Vector3(p.x, 0, p.z), { radius: 1.6, color: 0x7cff3a, colors: [0x7cff3a, 0xd4ff9a] });
+        if (a) { a.rig.boing?.(0.7); a.rig.flash?.(0.12); }
+        floatText(new THREE.Vector3(p.x, p.y + H * 1.5 + 0.4, p.z), 'GIANT!', 'heal', { life: 1.1, rise: 40 });
+        audio.play('slosh', { pitch: 0.8, gap: 0.1 });
+        audio.play('magic', { pitch: 0.6, vol: 0.6, gap: 0.1 });
+        audio.play('boing', { pitch: 0.55, gap: 0.1 });
+        break;
+      }
+      case 'shield': {
+        const a = this.actors.get(ev.unit.id);
+        if (!a || a.hidden) break;
+        const p = a.rig.root.position;
+        fx.sparkle(new THREE.Vector3(p.x, p.y + a.rig.height * 0.6, p.z), { count: 10, colors: [0xffffff, 0x8fd8ff, 0xcff2ff], speed: 2.2, life: 0.45 });
+        if (a.shield) a.shield.t = 0; // re-pop
+        audio.play('upgrade', { pitch: 1.6, vol: 0.4, gap: 0.12 });
+        break;
+      }
+      case 'shieldBreak': {
+        const a = this.actors.get(ev.unit.id);
+        if (!a) break;
+        a.dropShield(true);
+        const p = a.rig.root.position;
+        floatText(new THREE.Vector3(p.x, p.y + a.rig.height + 0.5, p.z), 'ARMOR BROKEN', 'tower', { life: 0.9, rise: 36 });
+        audio.play('shatter', { pitch: 1.2, vol: 0.6, gap: 0.05 });
         break;
       }
       case 'kb': {
@@ -1170,7 +1413,7 @@ export class BattleView {
         const p = new THREE.Vector3(ev.x, 0.5, ev.unit.z);
         fx.burst(p, { count: 30, colors: [0xffd23f, 0xfff4e0, 0xff8a2a], size: 0.12, speed: 7 });
         fx.fire(p, { count: 16, radius: 3 });
-        fx.shockwave(p.clone().setY(0), { radius: 3, color: 0xffd23f });
+        groundHit(p.clone().setY(0), { radius: 3, color: 0xffd23f });
         fx.smoke(p, { count: 10, scale: 1.4 });
         audio.play('explode');
         engine.shake(0.45);
@@ -1192,7 +1435,7 @@ export class BattleView {
         lab.core.updateWorldMatrix(true, false);
         const p = new THREE.Vector3().setFromMatrixPosition(lab.core.matrixWorld);
         fx.sparkle(p, { count: 26, colors: [TEAM_COLORS[ev.side], 0xffffff, 0xffd23f], speed: 4, radius: 1.6 });
-        fx.shockwave(new THREE.Vector3(lab.root.position.x, 0.05, 0), { radius: 3.2, color: TEAM_COLORS[ev.side] });
+        groundHit(new THREE.Vector3(lab.root.position.x, 0.05, 0), { radius: 3.2, color: TEAM_COLORS[ev.side] });
         floatText(p.clone().setY(lab.height + 1.2), ev.side === 0 ? 'LAB ONLINE!' : 'RIVAL LAB ONLINE!', 'big', { life: 1.5, rise: 30 });
         audio.play('alarm', { vol: 0.6 });
         audio.play('upgrade', { pitch: 0.8 });
@@ -1319,7 +1562,7 @@ export class BattleView {
           setTimeout(() => {
             if (!a.rig.root.parent) return;
             const p = a.rig.root.position;
-            fx.impact(new THREE.Vector3(p.x - 1.5, 0, p.z), { radius: 4, colors: [0x8fb23a, 0x7a6a2a, 0xd8c4a0] });
+            groundImpact(new THREE.Vector3(p.x - 1.5, 0, p.z), { radius: 4, colors: [0x8fb23a, 0x7a6a2a, 0xd8c4a0] });
             engine.shake(0.6);
             audio.play('thud', { pitch: 0.6 });
             this.smashNear(p.x, 3.5, 1);
@@ -1429,13 +1672,13 @@ export class BattleView {
         break;
       case 'labCannon':
         fx.burst(pos, { count: 16, colors: [TEAM_COLORS[p.side], TEAM_LIGHT[p.side], 0xffffff], size: 0.1, speed: 5, layer: 'glow' });
-        fx.shockwave(pos.clone().setY(0.03), { radius: 1.2, color: TEAM_COLORS[p.side] });
+        groundHit(pos.clone().setY(0.03), { radius: 1.2, color: TEAM_COLORS[p.side] });
         audio.play('explode', { pitch: 1.6, vol: 0.5, gap: 0.05 });
         engine.shake(0.1);
         break;
       case 'nuke':
         fx.burst(pos, { count: 18, colors: [0x7cff3a, 0xd4ff9a, 0xffffff], size: 0.1, speed: 5, layer: 'glow' });
-        fx.shockwave(pos.clone().setY(0), { radius: 1.6, color: 0x7cff3a });
+        groundHit(pos.clone().setY(0), { radius: 1.6, color: 0x7cff3a });
         audio.play('explode', { pitch: 1.5, gap: 0.05 });
         engine.shake(0.15);
         break;
@@ -1479,7 +1722,7 @@ export class BattleView {
     const p = new THREE.Vector3(x, 0.4, rand(-0.4, 0.4));
     if (kind === 'melee') {
       fx.burst(p, { count: 10, colors: [0xffffff, 0xffe27a, 0xd8c4a0], size: 0.08, speed: 5 });
-      fx.shockwave(p.clone().setY(0), { radius: r * 1.4, color: 0xffffff });
+      groundHit(p.clone().setY(0), { radius: r * 1.4, color: 0xffffff });
     } else if (kind === 'nuke') {
       // handled by projectile impact
     } else if (kind === 'letters') {
@@ -1586,7 +1829,7 @@ export class BattleView {
         }
         setTimeout(() => {
           fx.rise(ground, { count: 40, colors: [0x5fdc4a, 0xd4ff9a, 0xffffff], radius: ev.radius });
-          fx.shockwave(ground, { radius: ev.radius, color: 0x5fdc4a });
+          groundHit(ground, { radius: ev.radius, color: 0x5fdc4a });
           audio.play('chomp');
           audio.play('heal');
         }, ev.delay * 1000);
@@ -1598,8 +1841,11 @@ export class BattleView {
         bag.position.set(x, 14, 0);
         bag.scale.setScalar(1.15);
         this.scene.add(bag);
-        // shadow ring telegraph
-        fx.shockwave(ground, { radius: ev.radius, color: 0xffd23f, dur: ev.delay });
+        // falling-shadow telegraph (a dark blob that grows as the bag drops)
+        const shade = new THREE.Mesh(PLANE, decalMat(shadowTex(), 0xffffff, 0.2));
+        shade.position.set(x, 0.035, 0);
+        this.scene.add(shade);
+        animate(ev.delay, (e) => { const r = ev.radius * (0.35 + e * 0.75); shade.scale.set(r * 1.6, 1, r * 0.9); shade.material.opacity = 0.2 + e * 0.75; }, { ease: 'inQuad', onComplete: () => { this.scene.remove(shade); shade.material.dispose(); } });
         audio.play('whoosh', { pitch: 0.6 });
         animate(ev.delay, (e) => {
           bag.position.y = 14 * (1 - e);
@@ -1648,7 +1894,7 @@ export class BattleView {
         audio.play('laser', { pitch: 0.7 });
         setTimeout(() => {
           fx.burst(new THREE.Vector3(x, 0.5, 0), { count: 30, colors: [0x9ff2ff, 0xffffff, 0xc8f8ff], size: 0.1, speed: 5 });
-          fx.shockwave(ground, { radius: ev.radius, color: 0x9ff2ff });
+          groundHit(ground, { radius: ev.radius, color: 0x9ff2ff });
           audio.play('freeze');
         }, ev.delay * 1000);
         break;
@@ -1712,7 +1958,7 @@ export class BattleView {
     switch (ev.kind) {
       case 'money':
         fx.cash(p.clone().setY(0.6), 70, { speed: 9 });
-        fx.impact(p, { radius: ev.radius * 1.3, colors: [0xd8c4a0, 0xc8a060] });
+        groundImpact(p, { radius: ev.radius * 1.3, colors: [0xd8c4a0, 0xc8a060] });
         audio.play('thud');
         audio.play('chaching');
         engine.shake(0.7);
@@ -1722,7 +1968,7 @@ export class BattleView {
       case 'soda':
         fx.burst(p.clone().setY(0.5), { count: 40, colors: [0x8a3a1a, 0xffe0c0, 0x5fbf4f, 0xffffff], speed: 8, size: 0.1 });
         fx.bubbles(p.clone().setY(0.3), { count: 30, color: 0xffe0c0, radius: 1.5, speed: 2 });
-        fx.shockwave(p, { radius: ev.radius * 1.4, color: 0xffe0c0 });
+        groundHit(p, { radius: ev.radius * 1.4, color: 0xffe0c0 });
         audio.play('explode');
         audio.play('fizz');
         engine.shake(0.6);
@@ -1732,13 +1978,13 @@ export class BattleView {
       case 'acid':
         fx.slime(p.clone().setY(0.4), { count: 18, color: 0x7cff3a, speed: 4 });
         fx.burst(p.clone().setY(0.4), { count: 8, colors: [0xffffff, 0x9ff2ff], size: 0.06, speed: 4, layer: 'glow' });
-        fx.shockwave(p, { radius: ev.radius, color: 0x7cff3a });
+        groundHit(p, { radius: ev.radius, color: 0x7cff3a });
         audio.play('shatter', { gap: 0.05 });
         audio.play('splat', { gap: 0.05 });
         engine.shake(0.15);
         break;
       case 'flop':
-        fx.impact(p, { radius: ev.radius * 1.6, colors: [0xd8c4a0, 0xb89a70] });
+        groundImpact(p, { radius: ev.radius * 1.6, colors: [0xd8c4a0, 0xb89a70] });
         fx.burst(p.clone().setY(0.3), { count: 20, colors: [0x6fe3ff, 0xffffff], speed: 6, size: 0.1 });
         audio.play('thud', { pitch: 0.7 });
         audio.play('splat');
@@ -1747,7 +1993,7 @@ export class BattleView {
         this.smashNear(ev.x, ev.radius, ev.side);
         break;
       case 'button':
-        fx.impact(p, { radius: ev.radius * 1.6, colors: [0xff4a4a, 0xffffff] });
+        groundImpact(p, { radius: ev.radius * 1.6, colors: [0xff4a4a, 0xffffff] });
         fx.confetti(p.clone().setY(1), { count: 40 });
         audio.play('thud');
         audio.play('bell');
@@ -1756,8 +2002,7 @@ export class BattleView {
         this.smashNear(ev.x, ev.radius, ev.side);
         break;
       case 'megaSlam':
-        fx.impact(p, { radius: ev.radius * 1.6, colors: [0xd8c4a0, 0xffffff, 0xffd84a] });
-        fx.shockwave(p, { radius: ev.radius * 1.8, color: 0xffd84a });
+        groundImpact(p, { radius: ev.radius * 1.6, colors: [0xd8c4a0, 0xffffff, 0xffd84a] });
         fx.burst(p.clone().setY(0.5), { count: 30, colors: [0xffd84a, 0xffffff, 0xff7a1a], speed: 9, size: 0.12 });
         audio.play('thud', { pitch: 0.55 });
         audio.play('explode', { pitch: 0.7 });
@@ -1767,14 +2012,14 @@ export class BattleView {
         break;
       case 'glitch':
         fx.burst(p.clone().setY(1.2), { count: 50, colors: [0xff2ea8, 0x29e0ff, 0xffffff], speed: 8, size: 0.14 });
-        fx.shockwave(p, { radius: ev.radius * 1.4, color: 0x29e0ff });
+        groundHit(p, { radius: ev.radius * 1.4, color: 0x29e0ff });
         audio.play('zap', { pitch: 0.5 });
         audio.play('laser', { pitch: 1.4 });
         engine.shake(0.6);
         engine.hitstop(0.08);
         break;
       default:
-        fx.impact(p, { radius: ev.radius });
+        groundImpact(p, { radius: ev.radius });
     }
   }
 
@@ -1788,8 +2033,8 @@ export class BattleView {
     if (ch) {
       const p = ch.root.position;
       const col = TEAM_LIGHT[side];
-      fx.shockwave(new THREE.Vector3(p.x, Math.max(0.05, p.y - 0.1), p.z), { radius: 3.4, color: col });
-      fx.shockwave(new THREE.Vector3(this.sim.sides[side].labX, 0.05, 0.4), { radius: 5, color: 0xffd84a });
+      groundHit(new THREE.Vector3(p.x, Math.max(0.05, p.y - 0.1), p.z), { radius: 3.4, color: col });
+      groundHit(new THREE.Vector3(this.sim.sides[side].labX, 0.05, 0.4), { radius: 5, color: 0xffd84a });
       fx.burst(new THREE.Vector3(p.x, p.y + 0.8, p.z + 0.2), { count: 40, colors: [0xffffff, col, 0xffd84a], size: 0.1, speed: 8 });
       fx.rise(new THREE.Vector3(p.x, p.y, p.z), { count: 22, colors: [col, 0xffffff], radius: 0.9 });
       engine.shake(0.3);
@@ -2060,7 +2305,7 @@ export class BattleView {
       fx.burst(p, { count: 40, colors: [0xff8a2a, 0xffd23f, 0x555555, 0xffffff], speed: 9, size: 0.14 });
       fx.fire(p, { count: 20, radius: 3, scale: 1.5 });
       fx.smoke(p, { count: 14, scale: 1.8 });
-      fx.shockwave(p.clone().setY(0), { radius: 4, color: 0xff8a2a });
+      groundHit(p.clone().setY(0), { radius: 4, color: 0xff8a2a });
       audio.play('explode', { pitch: 0.8 });
       engine.shake(0.8);
       engine.hitstop(0.1);
@@ -2099,7 +2344,7 @@ export class BattleView {
       lab.setDamage(1);
       for (const m of lab.meshes || []) if (m.visible) fx.shatter(m, { force: 9, life: 3, fraction: 0.6 });
       fx.smoke(p, { count: 30, scale: 2.5, life: 2 });
-      fx.shockwave(p.clone().setY(0), { radius: 7, color: 0xffffff });
+      groundHit(p.clone().setY(0), { radius: 7, color: 0xffffff });
       if (this.theme === 'mart') fx.groceries(p, { count: 40, speed: 10 });
       if (lab.style === 'mansion' || lab.style === 'goldVault') fx.cash(p, 120, { speed: 10 });
       engine.shake(1);
@@ -2143,6 +2388,7 @@ export class BattleView {
   }
 
   dispose() {
+    this.disposed = true;
     for (const a of this.actors.values()) a.dispose();
     this.actors.clear();
     for (const tp of this.towerPlates ?? []) tp.lab.dispose();

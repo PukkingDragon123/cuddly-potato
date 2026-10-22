@@ -1,8 +1,10 @@
-// Friend Battle: serverless WebRTC battles by swapping battle codes.
+// Friend Battle by CODE: serverless WebRTC battles by swapping battle codes.
 // HOST picks an arena and shares a host code, JOIN pastes it and sends back
 // a reply code. Once connected both sides swap loadouts and the host starts
 // the battle via ctx.battle({ mode: 'friend', role, remote, arena }).
-import { h, icon, button, modal, clear } from '../ui.js';
+// This is the fallback tab of the ONLINE hub (src/ui/home/online.js), which
+// does live matchmaking + challenges over the claude.ai room.
+import { h, icon, button, clear } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import { Peer, net, p2pSupported } from '../../net/p2p.js';
 import { state } from '../../game/state.js';
@@ -16,19 +18,21 @@ function stepHead(n, text) {
   return h('div', { class: 'mn-fr-step' }, h('span', { class: 'mn-fr-num t-d outline' }, String(n)), h('span', { class: 't-d outline' }, text));
 }
 
+/** The FRIENDS button: opens the online hub on its friends list. */
 export function openFriendBattle(ctx) {
+  return import('./online.js').then((m) => m.openOnline(ctx, 'friends'));
+}
+
+/** The old copy/paste battle-code flow, rendered into a host panel `m` ({ close(), closed }). */
+export function friendCodePanel(ctx, m) {
   if (!p2pSupported()) {
-    notify(ctx, 'Your browser does not support device-to-device battles.', { icon: 'x' });
-    return null;
+    return h('div', { class: 'mn-fr-intro' }, icon('x', 'l'), h('span', {}, 'Your browser does not support device-to-device battles.'));
   }
   const area = h('div', { class: 'col mn-fr-area' });
   const status = h('div', { class: 'mn-fr-status' });
   const body = h('div', { class: 'col mn-fr' }, area, status);
   let started = false;
-  const m = modal({
-    title: 'FRIEND BATTLE', color: 'pink', size: 'narrow', cls: 'mn-frm', body,
-    onClose: () => { if (!started && !net.peer?.open) net.clear(); },
-  });
+  m.onCloseExtra = () => { if (!started && !net.peer?.open) net.clear(); };
   const setStatus = (t, cls = '') => {
     clear(status);
     status.className = 'mn-fr-status ' + cls;
@@ -176,5 +180,5 @@ export function openFriendBattle(ctx) {
   }
 
   choose();
-  return m;
+  return body;
 }

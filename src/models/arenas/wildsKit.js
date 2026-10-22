@@ -6,11 +6,13 @@
 import {
   THREE, VoxGrid, Mats, makeMesh, mulberry32, hash3, shade, mixHex, clamp, vnoise, glowMat, canvasTex, px, disc, bayer,
 } from './kit.js';
+import { hdPixbuf } from './hdpaint.js';
 
 // --------------------------------------------------------------------------- pixels
 
 /** Direct pixel buffer for fast per-pixel painting (flush() writes it back). */
 export function pixels(ctx, w, h) {
+  if (ctx._hd) return hdPixbuf(ctx, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   const api = {
     w, h,

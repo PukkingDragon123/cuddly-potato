@@ -10,6 +10,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, paintStars, px, disc, skyTexture, parallaxWidth, canvasTex,
 } from './kit.js';
+import { hdMoon, rgba } from './hdpaint.js';
 import { pixels, ridge, setInst, liveInst, fitSky, rippleTex, scrollPlane, addParticles, addGlints, zoneDisc, anchor } from './wildsKit.js';
 
 const C = {
@@ -320,6 +321,20 @@ function paintFence(ctx, w, h) {
 export function buildBattle(K) {
   const sky = skyTexture('laser', [[0, 0x05061a], [0.2, 0x0e1238], [0.38, 0x1e1a52], [0.5, 0x3a1e66], [0.6, 0x7a2a72], [0.7, 0xb03a6a], [1, 0x3a1a4a]], (ctx, w, h) => {
     paintStars(ctx, w, h, { n: 55, ymax: h * 0.42, seed: 11, tint: 0xffc8e0 });
+    if (ctx._hd) {
+      hdMoon(ctx, w * 0.2, h * 0.14, 6, { color: 0xf4f0ff, dark: 0x0e1238, phase: -0.35, halo: 0xb8a8ff, haloA: 0.3, seed: 2 });
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const [bx, ang] of [[0.66, -0.25], [0.74, 0.18], [0.9, -0.1]]) {
+        const x0 = w * bx, y0 = h * 0.7, L = h * 0.75, a = -Math.PI / 2 + ang;
+        const g = ctx.createLinearGradient(x0, y0, x0 + Math.cos(a) * L, y0 + Math.sin(a) * L);
+        g.addColorStop(0, rgba(0xd8d0ff, 0.28)); g.addColorStop(1, rgba(0xd8d0ff, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.moveTo(x0 - 1, y0); ctx.lineTo(x0 + Math.cos(a - 0.06) * L, y0 + Math.sin(a - 0.06) * L); ctx.lineTo(x0 + Math.cos(a + 0.06) * L, y0 + Math.sin(a + 0.06) * L); ctx.lineTo(x0 + 1, y0); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
     // crescent moon
     disc(ctx, w * 0.2, h * 0.14, 6, 0xf4f0ff);
     disc(ctx, w * 0.2 + 3, h * 0.14 - 2, 6, 0x0e1238);

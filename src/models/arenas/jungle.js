@@ -9,6 +9,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, paintClouds, px, disc, skyTexture, parallaxWidth, canvasTex, rockGrid,
 } from './kit.js';
+import { hdSun, hdBirds, hdRange, hdGlow, rgba } from './hdpaint.js';
 import {
   pixels, ridge, setInst, liveInst, fitSky, rippleTex, scrollPlane, fallSheet, fallsTex, addFlyers, orbitList, addParticles, addFlames, zoneDisc, anchor,
 } from './wildsKit.js';
@@ -401,6 +402,14 @@ const monkeyGrid = () => {
 // --------------------------------------------------------------------------- painted backdrops
 
 function paintJungleSky(ctx, w, h) {
+  if (ctx._hd) {
+    const sx = w * 0.78, sy = h * 0.1;
+    hdSun(ctx, sx, sy, 8, { color: 0xfffbe0, core: 0xffffff, halo: 0xfff4c0, haloR: 5, haloA: 0.55, rays: 14, rayLen: 9, rayColor: 0xfff6c8 });
+    paintClouds(ctx, w, h, { n: 4, y0: 8, y1: h * 0.3, size: 6, seed: 41, color: 0xf6f8e0, shade: 0xb8d8b0, light: 0xffffff });
+    const R = mulberry32(5);
+    hdBirds(ctx, Array.from({ length: 9 }, () => [R() * w, 10 + R() * h * 0.3, 0]), 0x2a4a3a, 0.8);
+    return;
+  }
   const P = pixels(ctx, w, h);
   // god rays from the upper right
   const sx = w * 0.78, sy = h * 0.1;
@@ -420,6 +429,15 @@ function paintJungleSky(ctx, w, h) {
 }
 
 function paintFarMountains(ctx, w, h) {
+  if (ctx._hd) {
+    hdRange(ctx, w, h, { base: 0.42, amp: h * 0.24, freq: 0.012, seed: 3, ridged: true, lit: 0x9ad4bc, mid: 0x8ac8b0, dark: 0x6aa898, rim: 0xc8f0d8, gullies: false, haze: [0xd8f0e0, 0.5, 0.5] });
+    hdRange(ctx, w, h, { base: 0.6, amp: h * 0.16, freq: 0.02, seed: 7, round: true, lit: 0x6ab898, mid: 0x5aa888, dark: 0x4a9878, rim: 0x8ad0a8, gullies: false, haze: [0xd8f0e0, 0.7, 0.6] });
+    const fx = w * 0.22, fg = ctx.createLinearGradient(0, h * 0.35, 0, h);
+    fg.addColorStop(0, rgba(0xffffff, 0.9)); fg.addColorStop(1, rgba(0xd8f8f0, 0.4));
+    ctx.fillStyle = fg; ctx.fillRect(fx, h * 0.38, 2.4, h * 0.62);
+    hdGlow(ctx, fx + 1.2, h * 0.92, 8, 3, 0xffffff, 0.6, 1.5);
+    return;
+  }
   const P = pixels(ctx, w, h);
   ridge(P, { base: h * 0.42, amp: h * 0.24, freq: 0.012, seed: 3, peaks: 1.3, color: 0x8ac8b0, rim: 0xc8f0d8 });
   const t2 = ridge(P, { base: h * 0.58, amp: h * 0.18, freq: 0.02, seed: 7, color: 0x5aa888, rim: 0x8ad0a8, dark: 0x4a9878 });
@@ -439,7 +457,46 @@ function paintFarMountains(ctx, w, h) {
   P.flush();
 }
 
+/** Painted (HD) rainforest canopy band: shaded round crowns, emergent trees, palms. */
+function paintCanopyHD(ctx, w, h, o) {
+  const R = mulberry32(o.seed);
+  const base = h * o.base;
+  const crowns = [];
+  for (let x = -10; x < w + 10; x += 5 + (R() * 6 | 0)) crowns.push([x, base - R() * h * o.var, 6 + R() * 8]);
+  for (let k = 0; k < o.emergent; k++) { const x = R() * w; crowns.push([x, base - h * (o.var + 0.25) - R() * h * 0.1, 10 + R() * 6, true]); }
+  crowns.sort((a, b) => a[1] - b[1]);
+  const bg = ctx.createLinearGradient(0, base - 4, 0, h);
+  bg.addColorStop(0, rgba(o.color)); bg.addColorStop(1, rgba(o.dark));
+  for (const [cx, cy, r, em] of crowns) {
+    if (em) { ctx.fillStyle = rgba(o.trunk); ctx.fillRect(cx - 0.9, cy, 1.8, h - cy); }
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.2, r, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = rgba(o.color); ctx.fillRect(cx - r * 1.3, cy - r, r * 2.6, r * 2);
+    const dg = ctx.createLinearGradient(0, cy, 0, cy + r);
+    dg.addColorStop(0, rgba(o.dark, 0)); dg.addColorStop(1, rgba(o.dark, 0.9));
+    ctx.fillStyle = dg; ctx.fillRect(cx - r * 1.3, cy, r * 2.6, r);
+    const lg = ctx.createRadialGradient(cx - r * 0.45, cy - r * 0.5, 0, cx - r * 0.45, cy - r * 0.5, r * 0.9);
+    lg.addColorStop(0, rgba(o.light, 0.95)); lg.addColorStop(1, rgba(o.light, 0));
+    ctx.fillStyle = lg; ctx.fillRect(cx - r * 1.3, cy - r, r * 2.6, r * 2);
+    ctx.restore();
+  }
+  ctx.fillStyle = bg; ctx.fillRect(0, base, w, h - base);
+  ctx.lineCap = 'round';
+  for (let k = 0; k < (o.palms ?? 0); k++) {
+    const x = R() * w, hh = 14 + R() * 10, bx = base;
+    const tx = x + Math.sin(hh * 0.15) * 2, ty = bx - hh;
+    ctx.strokeStyle = rgba(o.trunk); ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(x, bx); ctx.quadraticCurveTo(x - 2, bx - hh * 0.5, tx, ty); ctx.stroke();
+    ctx.lineWidth = 1.6;
+    for (const [dx, dy] of [[-1, 0.2], [1, 0.2], [-1, 0.8], [1, 0.8], [0.3, -0.5]]) {
+      ctx.strokeStyle = rgba(dy > 0.5 ? o.dark : o.color);
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + dx * 4, ty - 2.5 + dy, tx + dx * 7.5, ty + dy * 5.5); ctx.stroke();
+    }
+  }
+}
+
 function paintCanopy(ctx, w, h, o) {
+  if (ctx._hd) return paintCanopyHD(ctx, w, h, o);
   const P = pixels(ctx, w, h);
   const R = mulberry32(o.seed);
   const base = h * o.base;

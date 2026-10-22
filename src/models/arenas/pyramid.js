@@ -10,6 +10,7 @@ import {
   pixbuf, skyGlow, paintSunPx, paintCumulus, paintStreaks, paintBirdsPx, paintRange,
   setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addBirds, addFlag, voxRange,
 } from './kit.js';
+import { hdPixbuf } from './hdpaint.js';
 
 const C = {
   sand: 0xf2cc84, sandL: 0xfadc9e, sandD: 0xdcae66, sandDD: 0xc08e4e, ripple: 0xe6bc74,
@@ -23,6 +24,7 @@ const LH = FIELD.LANE_HALF;
 // --------------------------------------------------------------------------- helpers
 
 function pixels(ctx, w, h) {
+  if (ctx._hd) return hdPixbuf(ctx, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   return {
     set(x, y, hex, a = 1) {
