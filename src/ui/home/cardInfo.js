@@ -32,6 +32,15 @@ export function cardStats(id, level = 1, variant = 'base') {
     if (d.gain) rows.push({ key: 'gain', icon: 'power', label: 'POWER Gain', v: '+' + d.gain });
     if (d.discount) rows.push({ key: 'disc', icon: 'ticket', label: 'Hand Discount', v: '-' + d.discount });
     if (d.echo) rows.push({ key: 'echo', icon: 'swords', label: 'Echo', v: 'Next troop x2' });
+    if (d.haste) rows.push({ key: 'haste', icon: 'speed', label: 'Haste', v: `+25% speed ${d.haste}s` });
+    if (d.frenzy) rows.push({ key: 'frenzy', icon: 'fire', label: 'Frenzy', v: `+30% atk speed ${d.frenzy}s` });
+    if (d.surge) rows.push({ key: 'surge', icon: 'sword', label: 'Surge', v: `+${Math.round(d.amt * 100)}% damage ${d.surge}s` });
+    if (d.armor) rows.push({ key: 'armor', icon: 'shield', label: 'Armor', v: `${Math.round(d.armor * 100)}% HP shield` });
+    if (d.giant) rows.push({ key: 'giant', icon: 'dna', label: 'Giant', v: `x${d.giant.scale} size, +${Math.round((d.giant.hp - 1) * 100)}% HP` });
+    if (d.overclock) rows.push({ key: 'oc', icon: 'bolt', label: 'Overclock', v: `${d.overclock}s` });
+    if (d.freezeAll) rows.push({ key: 'freeze', icon: 'snow', label: 'Freeze All', v: `${d.freezeAll}s` });
+    if (d.blast) rows.push({ key: 'blast', icon: 'bomb', label: 'Blast / card', v: String(d.blast) });
+    if (d.boost) rows.push({ key: 'boost', icon: 'up', label: 'Stat Boost', v: `+${Math.round(d.boost * 100)}%` });
     rows.push({ key: 'kw', icon: 'magic', label: 'Keywords', v: (d.keywords ?? []).join(' / ') || 'SPECIAL' });
     rows.push({ key: 'once', icon: 'clock', label: 'Uses', v: d.exhaust ? 'Once per battle' : 'Cycles' });
     rows.push({ key: 'cost', icon: 'energy', label: 'Energy Cost', v: String(d.elixir) });
