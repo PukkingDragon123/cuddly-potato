@@ -32,6 +32,7 @@ import {
   equipMega, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
 } from '../game/state.js';
 import { game } from '../game/game.js';
+import { ONLINE_ENABLED } from '../ui/home/friend.js';
 
 const TABS = [
   { id: 'shop', label: 'SHOP', icon: 'shop' },
@@ -385,7 +386,8 @@ export class HomeScene {
     const bwrap = (this.bwrap = h('div', { class: 'hm-bwrap' }, this.battleBtn));
     const play = h('div', { class: 'hm-play' }, this.practiceBtn, bwrap, this.bossBtn);
     // ONLINE BATTLE (engineer A): the LIVE 1v1 sticker on the BATTLE button + live-match lobby
-    loadOpt('../ui/home/online.js').then((m) => m.mountOnlineEntry(bwrap, this.ctx())).catch((e) => console.warn('online unavailable', e));
+    // (parked: live online play is not offered yet)
+    if (ONLINE_ENABLED) loadOpt('../ui/home/online.js').then((m) => m.mountOnlineEntry(bwrap, this.ctx())).catch((e) => console.warn('online unavailable', e));
     this.slotEls = [0, 1, 2, 3].map((i) => {
       const el = h('div', { class: 'hm-slot sk-slot', onclick: () => this.tapSlot(i) });
       return { el, key: null };

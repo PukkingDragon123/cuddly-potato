@@ -4,7 +4,7 @@
 // the battle via ctx.battle({ mode: 'friend', role, remote, arena }).
 // This is the fallback tab of the ONLINE hub (src/ui/home/online.js), which
 // does live matchmaking + challenges over the claude.ai room.
-import { h, icon, button, clear } from '../ui.js';
+import { h, icon, button, clear, modal } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import { Peer, net, p2pSupported } from '../../net/p2p.js';
 import { state } from '../../game/state.js';
@@ -18,9 +18,19 @@ function stepHead(n, text) {
   return h('div', { class: 'mn-fr-step' }, h('span', { class: 'mn-fr-num t-d outline' }, String(n)), h('span', { class: 't-d outline' }, text));
 }
 
-/** The FRIENDS button: opens the online hub on its friends list. */
+// Live online play (src/ui/home/online.js) is parked for now: the FRIENDS
+// button opens the battle-code flow directly.
+export const ONLINE_ENABLED = false;
+
+/** The FRIENDS button: battle by code (or the online hub when it is enabled). */
 export function openFriendBattle(ctx) {
-  return import('./online.js').then((m) => m.openOnline(ctx, 'friends'));
+  if (ONLINE_ENABLED) return import('./online.js').then((m) => m.openOnline(ctx, 'friends'));
+  const host = {};
+  const m = modal({ title: 'FRIEND BATTLE', color: 'pink', size: 'narrow', cls: 'mn-frm', body: h('div'), onClose: () => host.onCloseExtra?.() });
+  host.close = () => m.close();
+  Object.defineProperty(host, 'closed', { get: () => m.closed });
+  m.setBody(friendCodePanel(ctx, host));
+  return m;
 }
 
 /** The old copy/paste battle-code flow, rendered into a host panel `m` ({ close(), closed }). */
