@@ -7,9 +7,9 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintSkyline, paintRidge, paintSun, px, disc, skyTexture, parallaxWidth, canvasTex,
   pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx,
-  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, voxSkyline, addClouds,
+  setInstance, liveInstances, blinkInst, addPuffs, addSparkles, addBirds, voxSkyline, addClouds, puffTex,
 } from './kit.js';
-import { hdPixbuf } from './hdpaint.js';
+import { hdPixbuf, hdCloud, hdGlow, rgba } from './hdpaint.js';
 
 const C = {
   plate: 0x7d8590, plate2: 0x6f7782, plateL: 0x9aa2ac, plateD: 0x4e5560, rivet: 0xb8c0ca,
@@ -324,9 +324,10 @@ const fenceGrid = () => {
 
 /** Rising puff clouds (steam / smoke) as instanced voxel cubes that swell and fade out. */
 function addPlumes(K, sources, n, o) {
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: (o.opacity ?? 1) < 1, opacity: o.opacity ?? 1, depthWrite: (o.opacity ?? 1) >= 1 });
+  // soft painted puff sprites tinted per instance (not cubes)
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, map: puffTex({ light: 0xffffff, color: 0xf2f2f2, shade: 0xb8b8b8 }), transparent: true, opacity: o.opacity ?? 1, depthWrite: false });
   const total = sources.length * n;
-  const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, total);
+  const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.5, 1.5), mat, total);
   im.frustumCulled = false;
   im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const col = new THREE.Color();
@@ -343,7 +344,7 @@ function addPlumes(K, sources, n, o) {
       const x = s.x + p.ox * s.r + q * s.drift + Math.sin(q * 4 + p.rot) * 0.4;
       const y = s.y + q * s.rise + p.oz * 0.4;
       const z = s.z + p.oz * s.r;
-      setInst(im, i, x, y, z, p.rot, 0, 0, Math.max(0.001, size));
+      setInst(im, i, x, y, z, 0, 0, p.rot, Math.max(0.001, size));
       im.setColorAt(i, col.setHex(mixHex(s.c0, s.c1, q)));
     });
     im.instanceMatrix.needsUpdate = true;
@@ -482,6 +483,35 @@ export function buildBattle(K) {
   K.parallax('skyline', {
     z: -160, y: -4, w: parallaxWidth(-160), h: 36, tw: 384, th: 84,
     paint: (ctx, w, h) => {
+      if (ctx._hd) {
+        // painted: smooth hyperbolic cooling towers with lit/shaded halves and soft steam clouds
+        const R = mulberry32(4);
+        for (let i = 0; i < 5; i++) {
+          const cx = (i + 0.3 + R() * 0.4) * (w / 5), th = 30 + R() * 14, base = h;
+          const rAt = (y) => { const t = (y / th - 0.7) / 0.7; return 7 + t * t * 7; };
+          ctx.beginPath();
+          for (let y = 0; y <= th; y += 0.5) ctx.lineTo(cx - rAt(y), base - y);
+          for (let y = th; y >= 0; y -= 0.5) ctx.lineTo(cx + rAt(y), base - y);
+          ctx.closePath();
+          const g = ctx.createLinearGradient(cx - 14, 0, cx + 14, 0);
+          g.addColorStop(0, rgba(0x6a7a50)); g.addColorStop(0.4, rgba(0x5a6a44)); g.addColorStop(0.55, rgba(0x4a5838)); g.addColorStop(1, rgba(0x3e4a30));
+          ctx.fillStyle = g; ctx.fill();
+          ctx.fillStyle = rgba(0x8a3a2a, 0.8); ctx.fillRect(cx - rAt(th * 0.88), base - th * 0.92, rAt(th * 0.88) * 2, 1.4);
+          const discs = [];
+          for (let k = 0; k < 6; k++) discs.push([cx + k * 3, base - th - 4 - k * 5, 6 + k * 2.2]);
+          hdCloud(ctx, discs, base - th - 1, { light: 0xf4f8e0, color: 0xdfe8c0, shade: 0xb8c49a, dark: 0xa8b48a, sunX: -1, alpha: 0.85 });
+        }
+        paintSkyline(ctx, w, h, { color: 0x3e4a30, rim: 0x6a7a48, window: [0xd8ff6a, 0xffe07a], minH: 8, maxH: 26, minW: 6, maxW: 18, seed: 22, gap: 5, lit: 0.35, antenna: true });
+        ctx._P?.sync();
+        for (const fx of [0.12, 0.33, 0.47, 0.71, 0.9]) {
+          const x = fx * w, sh = 34 + R() * 18;
+          for (let y = 0; y < sh; y += 5) { ctx.fillStyle = rgba(Math.floor(y / 5) % 2 ? 0x8a3a2a : 0x9a9a84); ctx.fillRect(x, h - y - 5, 3, 5); }
+          hdGlow(ctx, x + 1.5, h - sh, 2.5, 2.5, 0xff4a2a, 0.9, 1.2);
+          hdCloud(ctx, Array.from({ length: 6 }, (_, k) => [x + 1 + k * 3.2, h - sh - 3 - k * 3, 2 + k * 0.7]), h - sh, { light: 0x9a9a88, color: 0x7a7a6a, shade: 0x5a5a4e, sunX: -1, alpha: 0.9 });
+        }
+        paintGradient(ctx, 0, h - 6, w, 6, [[0, 0x4a5838], [1, 0x3a4630]], { bands: 3 });
+        return;
+      }
       const P = pixels(ctx, w, h);
       // distant cooling towers (hyperbolic silhouettes) with steam
       const R = mulberry32(4);

@@ -152,8 +152,8 @@ body.landscape .ol-entry { width: calc(var(--u) * 15.5); height: calc(var(--u) *
 .ol-vs-tag .pi { width: 1.1em; height: 1.1em; }
 body.portrait .ol-vs { grid-template-columns: 1fr; grid-template-rows: 1fr auto 1fr; padding: calc(var(--u) * 6) 0; }
 body.portrait .ol-vs-band { left: -10%; right: -10%; width: auto; height: 58%; top: auto; bottom: auto; }
-body.portrait .ol-vs-band.b0 { top: -6%; clip-path: polygon(0 0, 100% 0, 100% 72%, 0 100%); animation-name: olBandT; }
-body.portrait .ol-vs-band.b1 { bottom: -6%; clip-path: polygon(0 28%, 100% 0, 100% 100%, 0 100%); animation-name: olBandB; }
+body.portrait .ol-vs-band.b1 { top: -6%; clip-path: polygon(0 0, 100% 0, 100% 72%, 0 100%); animation-name: olBandT; }
+body.portrait .ol-vs-band.b0 { bottom: -6%; clip-path: polygon(0 28%, 100% 0, 100% 100%, 0 100%); animation-name: olBandB; }
 body.portrait .ol-vs-side.me { order: 3; } body.portrait .ol-vs-side.them { order: 1; } body.portrait .ol-vs-mid { order: 2; }
 @keyframes olBandT { from { translate: 0 -100%; } }
 @keyframes olBandB { from { translate: 0 100%; } }

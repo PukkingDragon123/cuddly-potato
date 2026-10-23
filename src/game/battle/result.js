@@ -347,11 +347,15 @@ export async function showResult(parent, opts) {
     if (!anchor) return;
     cam.fov = 24;
     cam.updateProjectionMatrix();
-    const vh = 2.0;
+    // frame from the hair tip down to just below the desk top (whatever the model's proportions)
+    anchor.root.updateMatrixWorld(true);
+    const top = new THREE.Box3().setFromObject(anchor.root).max.y + 0.1;
+    const bottom = 0.2;
+    const vh = top - bottom;
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     // anchor sits left of centre (the BEAST NEWS screen fills the right)
     const off = (portrait ? 0.15 : 0.1) * vh * cam.aspect;
-    aim.set(off, 1.12, 0);
+    aim.set(off, (top + bottom) / 2, 0);
     cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.12, Math.cos(0.12) * dist);
     cam.lookAt(aim);
   };

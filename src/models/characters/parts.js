@@ -91,38 +91,48 @@ const DOME_Y = 27, FC = 1.5;
 /** Head volume test (voxel coords), inflated by t voxels for hair / hat shells. */
 function makeHeadTest(def) {
   const P = headProfile(def);
-  return (x, y, z, t = 0) => {
-    const xc = x + 0.5, yc = y + 0.5, zc = z + 0.5;
-    if (yc < -t - 0.01) return false;
+  const rows = new Map(); // cached cross-section per (y, t)
+  const row = (y, t) => {
+    const key = y * 4096 + Math.round(t * 16);
+    let r = rows.get(key);
+    if (r) return r;
+    const yc = y + 0.5;
     const top = HEAD.top + t;
-    if (yc > top) return false;
     let W = P.W(yc) + t, fw = P.fw(yc), F = (yc < 1.2 ? FRONT - 0.8 : FRONT) + t;
     let B = (yc >= 14 ? -17 + Math.max(0, 3 - Math.abs(yc - 22) * 0.25) * -0.3 : -17 + (14 - yc) * 0.85) - t;
     if (yc > DOME_Y) {
       const s = (yc - DOME_Y) / (top - DOME_Y);
-      const kk = Math.pow(Math.max(0, 1 - Math.pow(s, 2.3)), 1 / 2.3);
+      const kk = Math.pow(Math.max(0, 1 - Math.pow(Math.min(1, s), 2.3)), 1 / 2.3);
       W *= kk; fw *= kk * kk * kk;
       F = FC + (F - FC) * kk;
       B = FC + (B - FC) * kk;
     }
-    if (zc > F || zc < B) return false;
+    const depth = F - B;
+    const rf = Math.max(0.5, W - fw), rfz = Math.max(0.01, Math.min(rf * 1.25, depth * 0.5));
+    const rb = Math.max(0.01, Math.min(W * 0.8, depth * 0.5));
+    r = { ok: yc >= -t - 0.01 && yc <= top && W > 0, W, F, B, rf, rfz, rb };
+    rows.set(key, r);
+    return r;
+  };
+  return (x, y, z, t = 0) => {
+    const r = row(y, t);
+    if (!r.ok) return false;
+    const zc = z + 0.5;
+    if (zc > r.F || zc < r.B) return false;
     // jawline: the underside rises from the chin back to the neck
     const jawY = clamp((12.5 - zc) * 0.6, 0, 10.5) - t;
-    if (yc < jawY) return false;
-    const ax = Math.abs(xc);
+    if (y + 0.5 < jawY) return false;
+    const ax = Math.abs(x + 0.5), W = r.W;
     if (ax > W) return false;
-    const depth = F - B;
     // front corners: the cheek wrap from the flat face round to the sides
-    const rf = Math.max(0.5, W - fw), rfz = Math.min(rf * 1.25, depth * 0.5);
-    if (zc > F - rfz) {
-      const u = (zc - (F - rfz)) / rfz;
-      if (ax > W - rf + rf * Math.sqrt(Math.max(0, 1 - u * u))) return false;
+    if (zc > r.F - r.rfz) {
+      const u = (zc - (r.F - r.rfz)) / r.rfz;
+      if (ax > W - r.rf + r.rf * Math.sqrt(Math.max(0, 1 - u * u))) return false;
     }
     // back corners: a round skull
-    const rb = Math.min(W * 0.8, depth * 0.5);
-    if (zc < B + rb) {
-      const u = (B + rb - zc) / rb;
-      if (ax > W - rb + rb * Math.sqrt(Math.max(0, 1 - u * u))) return false;
+    if (zc < r.B + r.rb) {
+      const u = (r.B + r.rb - zc) / r.rb;
+      if (ax > W - r.rb + r.rb * Math.sqrt(Math.max(0, 1 - u * u))) return false;
     }
     return true;
   };
@@ -133,6 +143,7 @@ const DEFAULT_HEAD = makeHeadTest({});
 let curHead = DEFAULT_HEAD;
 /** Inside the current character's head (inflated by t). */
 export const inHead = (x, y, z, t = 0) => curHead(x, y, z, t);
+const inHeadAt = (x, y, z) => curHead(x, y, z, 0);
 
 /** Hair / hat layer of thickness t around the skull where mask(x,y,z) holds. */
 export function shell(g, t, mask, col, t0 = 0) {
@@ -140,8 +151,8 @@ export function shell(g, t, mask, col, t0 = 0) {
   for (let x = HEAD.x0 - T; x <= HEAD.x1 + T; x++)
     for (let y = HEAD.y0 - T; y <= HEAD.top + T; y++)
       for (let z = HEAD.z0 - T; z <= HEAD.z1 + T; z++) {
-        if (!curHead(x, y, z, t) || curHead(x, y, z, t0)) continue;
         if (mask && !mask(x, y, z)) continue;
+        if (!curHead(x, y, z, t) || curHead(x, y, z, t0)) continue;
         if (t0 > 0 && g.has(x, y, z) && !mask) continue;
         g.set(x, y, z, typeof col === 'function' ? col(x, y, z) : col);
       }
@@ -149,7 +160,10 @@ export function shell(g, t, mask, col, t0 = 0) {
 
 /** Strand-textured hair colour: streaks run along `dir` ('y' hangs down, 'z' swept back). */
 export function hairCol(base, seed = 0, dir = 'y') {
-  const dk = shade(base, -0.15), dk2 = shade(base, -0.3), lt = shade(base, 0.11), hi = shade(base, 0.24);
+  const lum = (((base >> 16) & 255) * 0.3 + ((base >> 8) & 255) * 0.59 + (base & 255) * 0.11) / 255;
+  const dk = shade(base, -0.15), dk2 = shade(base, -0.3);
+  // dark hair gets visible sheen from a warm grey, light hair from white
+  const lt = lum < 0.2 ? mixHex(base, 0x8a7a72, 0.22) : shade(base, 0.11), hi = lum < 0.2 ? mixHex(base, 0xa8988c, 0.38) : shade(base, 0.24);
   return (x, y, z) => {
     const s = dir === 'z' ? hash3(x * 3 + seed, y * 2 - seed, (z >> 2) + seed) : hash3(x * 3 + seed, (y >> 2) + seed, z * 5 - seed);
     let c = s < 0.14 ? dk : s > 0.84 ? lt : base;
@@ -297,7 +311,7 @@ function buildHair(g, def) {
     }
     case 'undercut': {
       // skin fade on the sides/back (painted onto the skull) + a thick slicked top
-      const fade = mixHex(base, skin, 0.5), fade2 = mixHex(base, skin, 0.7);
+      const fade = mixHex(base, skin, 0.62), fade2 = mixHex(base, skin, 0.8);
       g.paint((x, y, z, c) => {
         if (y < 14 || y > 31) return undefined;
         const ax = Math.abs(x + 0.5);
@@ -306,11 +320,12 @@ function buildHair(g, def) {
         if (y >= 18 && y <= 23 && z > -6 && z < 4) return undefined; // around the ears
         return hash3(x, y, z) < (y > 24 ? 0.7 : 0.45) ? fade : fade2;
       });
-      shell(g, 5.5, (x, y, z) => y >= 30 && Math.abs(x + 0.5) <= 16, colZ);
-      blob(g, -1, 40, 15, 14, 5, 6, colZ, { p: 2.6 });
+      shell(g, 4.6, (x, y, z) => y >= 30 && Math.abs(x + 0.5) <= 15.5, colZ);
+      blob(g, -1, 41, 13, 13.5, 5, 7.5, colZ, { p: 3 }); // pompadour lift
+      blob(g, -1, 42, 2, 13, 4, 12, colZ, { p: 3 });
       for (let x = -15; x <= 13; x++) for (let z = 17; z <= 21; z++) if (!g.has(x, 33, z) && z <= 20) g.set(x, 33, z, colZ(x, 33, z));
       // comb grooves running back + the shaved part line
-      g.paint((x, y, z, c) => (y >= 36 && (x + 40) % 4 === 0 && z < 18 ? shade(c, -0.18) : undefined));
+      g.paint((x, y, z, c) => (y >= 36 && z < 19 && !g.has(x, y + 1, z) ? ((x + 40) % 4 === 0 ? shade(c, -0.25) : (x + 40) % 4 === 2 ? mixHex(c, 0xa8988c, 0.3) : undefined) : undefined));
       for (let z = -22; z <= 22; z++) for (let y = 30; y <= 48; y++) if (g.has(9, y, z) && !g.has(9, y + 1, z)) { g.del(9, y, z); }
       break;
     }
@@ -331,11 +346,13 @@ function buildHair(g, def) {
         if (y === 30 && (x + 40) % 4 === 0) continue; // choppy fringe edge
         if (curHead(x, y, z, 3.4)) g.set(x, y, z, col(x, y, z));
       }
-      // curled-under ends
-      for (const s of [-1, 1]) for (let z = -18; z <= 10; z++) for (let y = 7; y <= 9; y++) {
-        const x = s < 0 ? -23 + (y === 9 ? 0 : 1) : 22 - (y === 9 ? 0 : 1);
-        if (Math.abs(z) < 20) g.set(x, y, z, y === 7 ? shade(base, -0.12) : col(x, y, z));
-      }
+      // flicked-out ends + vertical strand grooves
+      shell(g, 4.6, (x, y, z) => y >= 7 && y <= 10 && (Math.abs(x + 0.5) >= 13.5 || z <= 4), (x, y, z) => (y === 7 ? shade(base, -0.14) : col(x, y, z)), 3.2);
+      g.paint((x, y, z, c) => {
+        if (y > 31 || inHeadAt(x, y, z)) return undefined;
+        const k = Math.abs(x + 0.5) >= 13.5 ? z : x;
+        return (k + 40) % 4 === 0 ? shade(c, -0.16) : (k + 40) % 4 === 2 ? shade(c, 0.06) : undefined;
+      });
       break;
     }
     case 'ponytail': {
@@ -380,7 +397,7 @@ function buildBeard(g, def) {
   const col = hairCol(b, 7);
   const skin = def.skin ?? SKIN;
   const style = def.beardStyle ?? 'full';
-  const mouthZone = (x, y) => Math.abs(x + 0.5) <= 7 && y >= 5 && y <= 13;
+  const mouthZone = (x, y) => ((x + 0.5) / 6.6) ** 2 + ((y + 0.5 - 9) / 4.4) ** 2 <= 1;
   if (style === 'stubble') {
     g.paint((x, y, z, c) => (y <= 13 && z >= -2 && y >= 0 && hash3(x, y, z) < 0.55 && !(z >= 19 && mouthZone(x, y)) ? mixHex(c, b, 0.38) : undefined));
     return;
@@ -394,7 +411,8 @@ function buildBeard(g, def) {
       if (y <= 4 && z >= 4 && ax > 7) return col(x, y, z);
       return undefined;
     });
-    for (let y = 0; y <= 4; y++) for (let x = -5; x <= 4; x++) if (!(y === 0 && Math.abs(x + 0.5) > 3)) g.set(x, y - 1, FRONT + (y <= 2 ? 1 : 0), col(x, y, FRONT));
+    for (let y = 0; y <= 3; y++) for (let x = -5; x <= 4; x++) if (Math.abs(x + 0.5) <= 4.6 - (y === 0 ? 1.5 : 0) - (y === 3 ? 1 : 0)) { g.set(x, y, FRONT, col(x, y, FRONT)); g.set(x, y, FRONT - 1, col(x, y, FRONT)); }
+    for (let y = 4; y <= 5; y++) for (let x = -1; x <= 0; x++) g.set(x, y, FRONT - 1, col(x, y, FRONT)); // soul patch
     for (let x = -5; x <= 4; x++) g.set(x, 13, FRONT - 1, col(x, 13, FRONT)); // pencil moustache
     return;
   }
@@ -415,7 +433,7 @@ function buildBeard(g, def) {
   for (let x = -7; x <= 6; x++) if (Math.abs(x + 0.5) > 3) g.set(x, 12, FRONT - 1, col(x, 12, FRONT));
   for (const x of [-8, -7, 6, 7]) for (let y = 7; y <= 12; y++) g.set(x, y, FRONT - 1, col(x, y, FRONT));
   // keep the mouth clear (the face texture draws the mouth there)
-  for (let x = -7; x <= 6; x++) for (let y = 5; y <= 11; y++) { g.del(x, y, FRONT); if (Math.abs(x + 0.5) < 6 && g.has(x, y, FRONT - 1)) g.set(x, y, FRONT - 1, skin); }
+  for (let x = -7; x <= 6; x++) for (let y = 4; y <= 11; y++) if (mouthZone(x, y)) { g.del(x, y, FRONT); if (g.has(x, y, FRONT - 1)) g.set(x, y, FRONT - 1, skin); }
 }
 
 // ---------------------------------------------------------------------------
@@ -704,7 +722,7 @@ export function buildTail(def) {
           let c = y <= -12 ? ce : coat;
           if (ax > 11.5 + flare && Math.abs(z + 0.5) < 1.5) c = cd; // side seams
           if (z < -4 && Math.abs(x + 0.5) < 1 && y < -2) c = ce; // back vent
-          if (y <= -3 && hash3(x, 0, z) < 0.16) c = shade(c, -0.05); // folds
+          if (y <= -3 && (x + 40) % 7 === 0 && z > -6) c = shade(c, -0.05); // long folds
           g.set(x, y, z, c);
         }
     }
@@ -794,8 +812,8 @@ export function buildForearm(def, side) {
   const sl = sleeveInfo(def);
   const skin = def.skin ?? SKIN;
   const c = sl.long ? sl.color : skin;
-  capsule(g, [-0.5, 0, -0.5], [-0.5, -4, -0.5], 3.3, 3.2, c);
-  capsule(g, [-0.5, -4, -0.5], [-0.5, -7.2, -0.5], 3.2, 2.7, c);
+  capsule(g, [-0.5, 0, -0.5], [-0.5, -4, -0.5], 3.5, 3.5, c);
+  capsule(g, [-0.5, -4, -0.5], [-0.5, -7.2, -0.5], 3.5, 3, c);
   if (sl.long) {
     // cuff: a slightly flared band at the wrist
     for (let x = -5; x <= 4; x++) for (let z = -5; z <= 4; z++) for (let y = -8; y <= -6; y++) {
@@ -831,29 +849,33 @@ export function buildHand(def, shape, side, item) {
   // wrist
   capsule(g, [-0.5, 0.5, -0.5], [-0.5, -1, -0.5], 2.5, 2.6, c);
   if (shape === 'open') {
-    // palm: flat-ish slab, slightly cupped
-    for (let x = -2; x <= 1; x++) for (let y = -6; y <= -1; y++) for (let z = -3; z <= 2; z++) {
-      if ((y === -1 || y === -6) && (z === -3 || z === 2)) continue;
-      if ((x === -2 || x === 1) && (z === -3 || z === 2) && (y === -1 || y === -6)) continue;
-      g.set(x, y, z, x === (side < 0 ? 1 : -2) && y < -2 ? d : c);
+    // relaxed open hand: a chunky palm, fingers held together (grooves between them,
+    // the middle finger longest, rounded tips with lighter nails) and a thumb angled forward
+    const outer = side < 0 ? -3 : 2; // back of the hand
+    const tips = [-9, -10, -10, -9]; // pinky .. index (z -3 .. 2 in pairs)
+    for (let x = -3; x <= 2; x++) for (let y = -10; y <= -1; y++) for (let z = -3; z <= 2; z++) {
+      const f = Math.min(3, Math.max(0, Math.floor((z + 3) / 1.5)));
+      if (y < tips[f]) continue;
+      const ex = x === -3 || x === 2, ez = z === -3 || z === 2;
+      if (ex && ez) continue;
+      if (y <= -7 && ex) continue; // fingers thinner than the palm
+      if (y === tips[f] && (ex || ez || x === (side < 0 ? 1 : -2))) continue; // round the tips
+      if (y === -1 && (ex || ez)) continue;
+      let col = c;
+      if (y <= -7 && (z === -2 || z === 0) && x === outer + (side < 0 ? 1 : -1)) col = dd; // finger grooves
+      if (y <= -7 && (z === -2 || z === 0) && x !== outer + (side < 0 ? 1 : -1)) col = d;
+      if (y === tips[f] + (y === tips[f] ? 0 : 0) && y <= -9) col = lt;
+      if (y === -6 && x === outer + (side < 0 ? 1 : -1)) col = d; // knuckle line
+      if (x === -outer - 1 && y <= -3 && y >= -6) col = d; // palm crease side
+      g.set(x, y, z, col);
     }
-    // four fingers with knuckle line and lighter nails
-    const lens = [3, 4, 5, 4]; // pinky .. index (z -2 .. 1)
-    for (let f = 0; f < 4; f++) {
-      const z0 = f - 2;
-      for (let y = -7; y >= -6 - lens[f]; y--) for (let x = -2; x <= 0; x++) {
-        if (x === (side < 0 ? -2 : 0) && y < -8) continue; // fingers taper towards the tips
-        g.set(x, y, z0, y === -6 - lens[f] ? lt : f % 2 ? c : d);
-      }
-    }
-    for (let z = -3; z <= 2; z++) g.set(side < 0 ? -2 : 1, -6, z, dd); // knuckles
-    // thumb, angled forward
-    capsule(g, [-0.5, -2, 2.5], [-0.5 + inward * 0.6, -5, 5], 1.3, 1, c);
-    g.set(-1, -5, 5, lt);
+    capsule(g, [-0.5, -2.5, 2.6], [-0.5 + inward * 0.8, -6, 5], 1.5, 1.2, c);
+    g.set(-1, -6, 5, lt); g.set(0, -6, 5, lt);
   } else {
     // fist: rounded block, finger rolls on the front, knuckle ridge
     for (let x = -3; x <= 2; x++) for (let y = -7; y <= -1; y++) for (let z = -3; z <= 3; z++) {
       const ex = x === -3 || x === 2, ey = y === -7 || y === -1, ez = z === -3 || z === 3;
+      if (y === -1 && (ex || ez)) continue;
       if ((ex && ey) || (ex && ez) || (ey && ez)) continue;
       let col = c;
       if (x === (side < 0 ? 2 : -3) && y <= -3) col = (z + 10) % 2 ? d : c; // curled fingers (palm side)
@@ -880,7 +902,7 @@ export function buildThigh(def) {
   const pants = def.pants ?? 0x2b3448;
   const skin = def.skin ?? SKIN;
   const pd = shade(pants, -0.1);
-  capsule(g, [-0.5, 0, -0.5], [-0.5, -8, -0.5], 4.7, 4.1, (x, y, z) => {
+  capsule(g, [-0.5, 0, -0.5], [-0.5, -9, -0.5], 4.7, 4.1, (x, y, z) => {
     if (def.shorts && y <= -5) return y === -5 ? pd : skin;
     if (z >= 3 && (x === -2 || x === 1) && y <= -3 && y >= -6) return pd; // front crease
     if (Math.abs(x + 0.5) >= 4 && Math.abs(z + 0.5) < 1) return pd; // side seam
@@ -891,6 +913,14 @@ export function buildThigh(def) {
 }
 
 export function buildShin(def) {
+  // built with the sole at y = -8, then dropped 1 voxel (the shin is 9 voxels long) with the top refilled
+  const r = buildShin8(def);
+  const g = new VoxGrid().merge(r.g, 0, -1, 0);
+  const top = def.outfit === 'mech' ? def.pants ?? 0x2b3448 : def.shorts ? def.skin ?? SKIN : def.pants ?? 0x2b3448;
+  capsule(g, [-0.5, 0, -0.5], [-0.5, -1, -0.5], 3.9, 3.9, top);
+  return { g };
+}
+function buildShin8(def) {
   const g = new VoxGrid();
   const pants = def.pants ?? 0x2b3448;
   const skin = def.skin ?? SKIN;

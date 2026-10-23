@@ -534,7 +534,7 @@ export function rewardArt(r, opts = {}) {
     case 'banner': return wrap('banner', bannerEl(r.id, 'mini'), h('div', { class: 'mn-ra-corner' }, icon('flag')));
     case 'serum': return wrap('serum', swarmImg(r.id, 'base', null, 128), h('div', { class: 'mn-ra-corner' }, icon('mega')));
     case 'mega': return wrap(`mega ${r.variant === 'gold' ? 'gold' : ''}`, swarmImg(r.id, r.variant ?? 'base', null, 160), h('div', { class: 'mn-ra-corner' }, icon('mega')));
-    case 'entrance': return wrap('entrance', entranceArt(r.id), h('div', { class: 'mn-ra-corner' }, icon('play')));
+    case 'entrance': return wrap('entrance', entranceArt(r.id));
     default: return wrap('', icon('star', 'mn-ra-ic'));
   }
 }

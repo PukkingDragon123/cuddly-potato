@@ -141,7 +141,7 @@ function capImpl(g, def, a, back) {
       const reach = 12 - (ax / 15) ** 2 * 8;
       if (k > reach) continue;
       const z = back ? -17 - k : 21 + k;
-      const y = Y0 - Math.round((ax / 15) ** 2 * 2) + (k > reach - 1 ? 0 : 0);
+      const y = Y0 - Math.round((ax / 15) ** 2 * 2.5) - Math.floor(k * 0.28);
       g.set(x, y, z, k >= reach - 1 ? ce : cd);
       g.set(x, y + 1, z, k >= reach - 1 ? cd : c);
       if (!back && k <= 2) g.set(x, y - 1, z, ce);

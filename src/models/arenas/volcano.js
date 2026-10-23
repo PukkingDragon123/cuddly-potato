@@ -11,7 +11,7 @@ import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, mulberry32, bayer,
   paintGradient, px, disc, skyTexture, parallaxWidth, canvasTex,
 } from './kit.js';
-import { hdGlow, hdCloud } from './hdpaint.js';
+import { hdGlow, hdCloud, hdRange, rgba } from './hdpaint.js';
 import { pixels, ridge, setInst, liveInst, fitSky, scrollPlane, fallSheet, fallsTex, addFlyers, orbitList, addParticles, addFlames, zoneDisc, anchor } from './wildsKit.js';
 import { Billboards } from '../island/sky.js';
 
@@ -277,6 +277,31 @@ const lavaBatWing = () => { const g = new VoxGrid(); for (let x = 0; x <= 6; x++
 // --------------------------------------------------------------------------- painted backdrops
 
 function paintRange(ctx, w, h) {
+  if (ctx._hd) {
+    // painted: dark volcanic range lit from below, glowing lava rivers, an erupting cone with a smoke column
+    const tops = hdRange(ctx, w, h, { base: 0.5, amp: h * 0.28, freq: 0.013, seed: 4, ridged: true, lit: 0x4a2224, mid: 0x2a1418, dark: 0x1e0e12, rim: 0x7a3024, gullies: false, haze: [0xc83a14, 0.6, 0.55] });
+    const R = mulberry32(7);
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 14; k++) {
+      let x = R() * w, y = tops[Math.floor(x)] + 1;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      for (let s = 0; s < 6; s++) { x += (R() - 0.5) * 4; y += 5; ctx.lineTo(x, y); }
+      ctx.strokeStyle = rgba(0xff6a1f, 0.9); ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.strokeStyle = rgba(0xffc04a, 0.9); ctx.lineWidth = 0.5; ctx.stroke();
+    }
+    const cx = w * 0.3, top = h * 0.12 + 4;
+    hdCloud(ctx, Array.from({ length: 7 }, (_, k) => [cx + k * 2.5 + (R() - 0.5) * 3, top - 3 - k * 2.6, 5 + k * 1.4]), top - 1, { light: 0x6a4a4a, color: 0x4a3a3a, shade: 0xa8401c, dark: 0xd8601e, sunX: 1, alpha: 0.9 });
+    ctx.beginPath(); ctx.moveTo(cx - 4, top); ctx.lineTo(cx + 4, top); ctx.lineTo(cx + (h - top) * 0.9 + 4, h); ctx.lineTo(cx - (h - top) * 0.9 - 4, h); ctx.closePath();
+    const cg = ctx.createLinearGradient(cx - 30, 0, cx + 30, 0);
+    cg.addColorStop(0, rgba(0x3a1a1a)); cg.addColorStop(0.5, rgba(0x321618)); cg.addColorStop(1, rgba(0x241012));
+    ctx.fillStyle = cg; ctx.fill();
+    hdGlow(ctx, cx, top, 9, 4, 0xffc04a, 0.95, 1.2);
+    for (let k = 0; k < 4; k++) { const x0 = cx + (R() - 0.5) * 6; ctx.strokeStyle = rgba(0xff7a22, 0.9); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, top); ctx.quadraticCurveTo(x0 + (R() - 0.5) * 10, top + 12, x0 + (R() - 0.5) * 24, top + 26); ctx.stroke(); }
+    const lg = ctx.createLinearGradient(0, h * 0.84, 0, h);
+    lg.addColorStop(0, rgba(0xc83a14, 0)); lg.addColorStop(0.3, rgba(0xc83a14)); lg.addColorStop(1, rgba(0xff8a2a));
+    ctx.fillStyle = lg; ctx.fillRect(0, h * 0.84, w, h * 0.16);
+    return;
+  }
   const P = pixels(ctx, w, h);
   const t1 = ridge(P, { base: h * 0.5, amp: h * 0.28, freq: 0.013, seed: 4, peaks: 1.4, color: 0x2a1418, rim: 0x5a2420 });
   // glowing lava streaks down the slopes + a distant erupting cone
@@ -295,6 +320,32 @@ function paintRange(ctx, w, h) {
   P.flush();
 }
 function paintBasaltCliffs(ctx, w, h) {
+  if (ctx._hd) {
+    // painted basalt columns: hexagonal-ish prisms with lit faces and glowing lava falls
+    const R = mulberry32(19);
+    const base = h * 0.9;
+    let x = 0;
+    while (x < w) {
+      const cw = 3 + R() * 3, ch = 10 + R() * h * 0.6, top = base - ch;
+      const g = ctx.createLinearGradient(x, 0, x + cw, 0);
+      g.addColorStop(0, rgba(0x1a1418)); g.addColorStop(0.25, rgba(0x3a2c32)); g.addColorStop(0.7, rgba(0x2a2228)); g.addColorStop(1, rgba(0x1e181e));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(x, top + 1); ctx.lineTo(x + cw * 0.5, top); ctx.lineTo(x + cw, top + 1); ctx.lineTo(x + cw, base); ctx.lineTo(x, base); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = rgba(0x5a4048); ctx.fillRect(x + 0.3, top + 0.4, cw - 0.6, 0.7);
+      x += cw;
+    }
+    for (let k = 0; k < 4; k++) {
+      const fx = R() * w, top = base - 30 - R() * 20;
+      const fg = ctx.createLinearGradient(0, top, 0, base);
+      fg.addColorStop(0, rgba(0xffe07a)); fg.addColorStop(1, rgba(0xff6a1f));
+      ctx.fillStyle = fg; ctx.fillRect(fx, top, 2, base - top);
+      hdGlow(ctx, fx + 1, base, 6, 2.5, 0xffa040, 0.8, 1.2);
+    }
+    const lg = ctx.createLinearGradient(0, base, 0, h);
+    lg.addColorStop(0, rgba(0xff6a1f)); lg.addColorStop(1, rgba(0xa82a10));
+    ctx.fillStyle = lg; ctx.fillRect(0, base, w, h - base);
+    return;
+  }
   const P = pixels(ctx, w, h);
   const R = mulberry32(19);
   let x = 0;

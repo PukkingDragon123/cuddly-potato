@@ -8,7 +8,7 @@ import {
   THREE, VoxGrid, FIELD, shade, mixHex, hash3, vnoise, mulberry32, text, textW, glowMat, canvasTex,
   paintGradient, paintClouds, paintRidge, paintSkyline, paintStars, paintSun, px, disc, skyTexture, parallaxWidth,
   pixbuf, skyGlow, paintSunPx, paintCumulus, paintCloudBank, paintStreaks, paintBirdsPx, paintRange, paintStarfield, fitSkyAuto,
-  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, addFall, addFlag,
+  setInstance, liveInstances, swayInst, blinkInst, addPuffs, addSparkles, addClouds, addBirds, voxRange, voxSkyline, addFall, addFlag,
   leafyTreeGrid, bushGrid, tuftGrid,
 } from './kit.js';
 
@@ -416,45 +416,15 @@ export function buildBattle(K) {
     col: (xv, y, zv, h) => {
       const j = hash3(xv, y, zv);
       const icing = 2 + 9 * 0.6 - hash3(xv, 3, zv) * 1.5;
-      if (y >= icing) return j < 0.12 ? CANDY[Math.floor(hash3(zv, xv, y) * 7)] : y === h - 1 ? 0xfff4fa : 0xffd8ec;
+      if (y >= icing) return j < 0.035 ? CANDY[Math.floor(hash3(zv, xv, y) * 7)] : y === h - 1 ? 0xfff4fa : 0xffd8ec;
       if (y >= icing - 1 && hash3(xv, 7, zv) < 0.5) return 0xffd8ec; // drips
       const layer = Math.floor(y / 2) % 3;
       return [0x6a3c24, 0x5a3220, 0x7d4a2d][layer] + (j < 0.1 ? 0x0a0806 : 0);
     },
   });
   addClouds(K, { id: 'cottonCloud', n: 8, kinds: 3, x0: -130, x1: 130, y0: 12, y1: 18, z0: -95, z1: -130, s0: 0.9, s1: 1.3, scale: 0.8, speed: 0.55, seed: 6, len: 20, height: 8, color: 0xffe2f2, shade: 0xf4b0d8, dark: 0xe49ccc, light: 0xffffff });
-  const w2 = parallaxWidth(-110);
-  K.parallax('factorySkyline', {
-    z: -110, y: -4, w: w2, h: 24, tw: Math.round(w2 * 2.4), th: 58,
-    paint: (ctx, w, h) => {
-      const ground = Math.round(h * (16 / 24));
-      const R = mulberry32(3);
-      // smokestacks with painted pink plumes behind the buildings
-      for (let x = 20; x < w; x += 40 + R() * 50) {
-        const sh = 18 + Math.floor(R() * 14), top = ground - sh - 8;
-        paintSmoke(ctx, x + 1, top, Math.floor(R() * 99));
-        px(ctx, x, top, 3, sh + 8, 0x7a3a5a);
-        for (let y = top; y < top + 6; y += 2) px(ctx, x, y, 3, 1, 0xff9ad0);
-      }
-      // factory blocks with sawtooth roofs and glowing windows
-      let x = -4;
-      while (x < w) {
-        const bw = 14 + Math.floor(R() * 20), bh = 8 + Math.floor(R() * 12);
-        const top = ground - bh, col = [0x7a4a7a, 0x6a3a6a, 0x8a4a6a][Math.floor(R() * 3)];
-        px(ctx, x, top, bw, bh + 2, col);
-        for (let k = 0; k < bw; k += 5) for (let i = 0; i < 3; i++) px(ctx, x + k + i, top - i - 1, 5 - i, 1, shade(col, i === 2 ? 0.25 : 0.1));
-        for (let wy = top + 3; wy < ground - 2; wy += 4) for (let wx = x + 2; wx < x + bw - 2; wx += 4) if (R() < 0.6) px(ctx, wx, wy, 2, 2, R() < 0.5 ? 0xffd890 : 0xff9ad0);
-        x += bw + 1 + Math.floor(R() * 4);
-      }
-      // a giant chocolate silo + candy-striped water tower
-      for (const cx of [w * 0.3, w * 0.74]) {
-        px(ctx, cx - 6, ground - 26, 12, 26, 0x6a3a28);
-        disc(ctx, cx, ground - 26, 6, 0x7a4a30);
-        px(ctx, cx - 6, ground - 20, 12, 2, 0xff9ad0);
-      }
-      paintGradient(ctx, 0, ground, w, h - ground, [[0, 0x6ac08a], [1, 0x5ab07a]], { bands: 2 });
-    },
-  });
+  // 3D voxel candy-factory skyline (sawtooth halls, lit windows, chimneys) behind the town
+  voxSkyline(K, 'factoryBlocks', { x0: -150, x1: 150, z: -92, y: -1, depth: 6, scale: 0.8, minH: 7, maxH: 16, minW: 6, maxW: 14, gap: 4, seed: 3, walls: [0x7a4a7a, 0x6a3a6a, 0x8a4a6a, 0x9a5a7a], window: 0x3a1a3a, lit: [0xffd890, 0xff9ad0], litP: 0.22, roof: 0xff9ad0, chimney: 0.45, antenna: 0.1 });
   const w3 = parallaxWidth(-70);
   K.parallax('candyHills', {
     z: -70, y: -3, w: w3, h: 13, tw: Math.round(w3 * 3.4), th: 44,

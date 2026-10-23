@@ -26,7 +26,7 @@ import { makeVial } from '../models/props/vials.js';
 import { makeBeaker, makeSodaRocket } from '../models/props/abilities.js';
 import { h, icon, button } from '../ui/ui.js';
 import { entranceDef } from '../data/entrances.js';
-import { pixelRing, pixelShock, pixelBeam, voxCarpet, voxPost, voxRope, voxCracks } from './vialProps.js';
+import { pixelReticle, pixelShock, pixelBeam, voxCarpet, voxPost, voxRope, voxCracks } from './vialProps.js';
 import { RARITIES, cardDef, isSpell, ALL_CARDS } from '../data/cards.js';
 import { SWARMS, SERIES, ROLE_INFO, swarmStats, speedName } from '../data/swarms.js';
 import { spellPower } from '../data/spells.js';
@@ -420,11 +420,12 @@ export class NewCardCutscene {
     const C = this.C, H = hero.H;
     hero.root.position.set(C.x, 5, C.z);
     hero.root.rotation.y = 0.3;
-    // a pixel target ring locks on where it will land
-    const sh = pixelRing(Math.max(0.35, hero.W * 0.65), 0xff3a5a, { rVox: 16, dash: 2, gap: 2, thick: 2, opacity: 0 });
+    // a pixel targeting reticle locks on where it will land
+    const tsz = Math.max(0.7, hero.W * 1.3);
+    const sh = pixelReticle(tsz, 0xff3a5a);
+    sh.material.opacity = 0;
     sh.position.set(C.x, 0.012, C.z);
     this.addTemp(sh);
-    this.extra.push((dt) => { sh.rotation.y += dt * 2.5; });
     this.setCam((t) => [_a.set(C.x + 0.55, 0.09, C.z + 2.0 + t * 0.05), _b.set(C.x, Math.max(H * 0.5, Math.min(2.4, hero.root.position.y + H * 0.5)), C.z)]);
     this.camT.fov = 40;
     audio.play('whoosh', { pitch: 0.5 });
@@ -432,7 +433,8 @@ export class NewCardCutscene {
     audio.play('whoosh', { pitch: 0.8 });
     await this.tween(0.42, (e) => {
       hero.root.position.y = 5 * (1 - e);
-      sh.scale.setScalar((Math.max(0.35, hero.W * 0.65) / 16) * (1.6 - e * 0.6));
+      sh.scale.setScalar(1.6 - e * 0.6);
+      sh.rotation.y = (1 - e) * 0.8;
     }, 'inQuad');
     hero.root.position.y = 0;
     // IMPACT

@@ -370,7 +370,7 @@ const bleacherGrid = (L, fans = false) => () => {
   // bunting skirt along the front
   for (let x = 0; x < L; x++) g.set(x, 0, 1, skirt[Math.floor(x / 2) % 4]);
   if (fans) {
-    // chunky voxel fans for the diorama (the battle view uses the pixel crowd)
+    // chunky voxel fans for the diorama
     for (let r = 0; r < BL_ROWS; r++) for (let x = 1; x < L - 2; x += 3) {
       if (hash3(x, r, 5) < 0.2) continue;
       const y = 2 + r * 2, z = -r * 3 - 2;
@@ -384,85 +384,67 @@ const bleacherGrid = (L, fans = false) => () => {
   return g;
 };
 
-// --------------------------------------------------------------------------- pixel crowd (bleachers)
+// --------------------------------------------------------------------------- crowd (bleachers): chibi voxel fans
 
 const SKIN = [0xffd8b8, 0xf2c09a, 0xd8a070, 0xb07a50, 0x8a5a3a, 0x6a4028];
 const HAIR = [0x2a1a10, 0x5a3a20, 0xc89040, 0x1a1a1a, 0xe8c070, 0x8a3a20, 0xff8ac0, 0x29b6f6];
 const SHIRT = [0x29b6f6, 0xff2e88, 0xffd23f, 0xe8343c, 0xffffff, 0x5fdc4a, 0x8a4ad0, 0xff8a2a, 0x1d9bf0, 0x2a2a36, 0x29b6f6, 0xff2e88];
-function crowdPeople(seed, w) {
-  const R = mulberry32(seed);
+/** Chibi-style voxel fan (big round head, small body, arms up or down) in the game's character style. */
+function fanChibiGrid(v) {
+  const g = new VoxGrid();
+  const R = mulberry32(v * 97 + 5);
   const pick = (a) => a[Math.floor(R() * a.length)];
-  const out = [];
-  let x = 1;
-  while (x < w - 6) {
-    out.push({ x, skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), phase: R() < 0.5 ? 0 : 1, eager: R() < 0.8, cap: R() < 0.25 ? pick([C.red, 0x1d9bf0, 0x2a2a36, 0xffffff]) : 0, sign: R() < 0.07, finger: R() < 0.06, dy: R() < 0.3 ? 1 : 0 });
-    x += 5 + (R() < 0.25 ? 1 : 0) + (R() < 0.05 ? 4 : 0);
+  const shirt = pick(SHIRT), skin = pick(SKIN), hair = pick(HAIR), cheer = v % 2 === 0;
+  // torso (seated) + shirt trim
+  g.box(-2, 0, -1, 2, 4, 1, (x, y) => (y === 4 ? shade(shirt, 0.15) : y === 0 ? shade(shirt, -0.2) : shirt));
+  if (v % 3 === 0) g.box(-1, 2, 2, 1, 3, 2, 0xffffff); // shirt print
+  // arms: raised and cheering, or clapping in front
+  if (cheer) for (const sx of [-3, 3]) { g.box(sx, 3, 0, sx, 8, 0, shirt); g.set(sx, 9, 0, skin).set(sx + Math.sign(sx), 9, 0, skin); }
+  else for (const sx of [-3, 3]) { g.box(sx, 1, 0, sx, 3, 1, shirt); g.set(sx - Math.sign(sx), 3, 2, skin); }
+  // big round head (7x7x7 with bevelled corners)
+  for (let x = -3; x <= 3; x++) for (let y = 5; y <= 11; y++) for (let z = -3; z <= 3; z++) {
+    const e = (Math.abs(x) === 3) + (y === 5 || y === 11) + (Math.abs(z) === 3);
+    if (e >= 2) continue;
+    g.set(x, y, z, skin);
   }
-  return out;
-}
-function paintCrowd(ctx, w, h, people, frame) {
-  for (const p of people) {
-    const up = p.eager && (p.phase + frame) % 2 === 0;
-    const top = 6 + p.dy - (up ? 1 : 0);
-    const x = p.x;
-    // torso
-    px(ctx, x, top + 4, 5, h - top - 4, p.shirt);
-    px(ctx, x, top + 4, 5, 1, shade(p.shirt, 0.18));
-    px(ctx, x + 4, top + 5, 1, h - top - 5, shade(p.shirt, -0.2));
-    // head
-    px(ctx, x + 1, top, 3, 4, p.skin);
-    px(ctx, x + 1, top, 3, 1, p.hair);
-    px(ctx, x + 3, top + 1, 1, 1, p.hair);
-    px(ctx, x + 1, top + 2, 1, 1, 0x2a1a10);
-    px(ctx, x + 3, top + 2, 1, 1, 0x2a1a10);
-    if (p.cap) { px(ctx, x + 1, top - 1, 3, 1, p.cap); px(ctx, x, top, 2, 1, p.cap); }
-    if (up) {
-      px(ctx, x - 1, top - 1, 1, 6, p.shirt);
-      px(ctx, x + 5, top - 1, 1, 6, p.shirt);
-      px(ctx, x - 1, top - 2, 1, 1, p.skin);
-      px(ctx, x + 5, top - 2, 1, 1, p.skin);
-      if (p.sign) {
-        px(ctx, x - 2, top - 6, 9, 4, 0xffffff);
-        px(ctx, x - 1, top - 5, 3, 1, C.red);
-        px(ctx, x + 3, top - 4, 3, 1, 0x1d9bf0);
-      }
-      if (p.finger) { px(ctx, x + 5, top - 5, 2, 3, 0x1d9bf0); px(ctx, x + 6, top - 7, 1, 2, 0x1d9bf0); }
-    } else {
-      px(ctx, x - 1, top + 5, 1, 3, p.shirt);
-      px(ctx, x + 5, top + 5, 1, 3, p.shirt);
-      if (p.sign) px(ctx, x - 1, top + 5, 7, 3, 0xffffff);
-    }
-  }
+  // hair cap (top + back + sides), optional cap or bun
+  g.paint((x, y, z) => (g.has(x, y, z) && y >= 5 && (y >= 10 || z <= -2 || (Math.abs(x) === 3 && y >= 8)) ? hair : undefined));
+  if (R() < 0.3) { const cap = pick([0xe8343c, 0x1d9bf0, 0x2a2a36, 0xffffff, 0xffd23f]); g.box(-3, 11, -3, 3, 12, 2, cap).box(-2, 11, 3, 2, 11, 5, cap); }
+  // face: eyes with a highlight, blush, smile
+  for (const ex of [-2, 1]) { g.box(ex, 7, 3, ex + 1, 8, 3, 0x1a1420); g.set(ex, 8, 3, 0xffffff); }
+  g.set(-3, 6, 3, 0xff9a9a).set(3, 6, 3, 0xff9a9a);
+  g.box(-1, 6, 3, 1, 6, 3, 0x8a2a2a);
+  return g;
 }
 
 function addCrowd(K, cx, z0, L, seed) {
-  // one plane per bleacher row, two animation frames, rows bob out of phase
-  const TW = 256, TH = 16, people = crowdPeople(seed, TW);
-  const tex = [0, 1].map((f) => canvasTex(`circle_crowd_${seed}_${f}`, TW, TH, (ctx, w, h) => paintCrowd(ctx, w, h, people, f), { repeatX: true }));
-  const wUnits = L * 0.25 - 0.5, hUnits = TH / 9;
-  const rows = [];
+  // seated chibi voxel fans on every bleacher row (6 instanced variants), bouncing as they cheer
+  const VARIANTS = 6, V = 0.055;
+  const seats = [];
+  const R = mulberry32(seed * 13 + 1);
+  const wUnits = L * 0.25 - 0.8;
   for (let r = 0; r < BL_ROWS; r++) {
-    const maps = tex.map((t) => {
-      const c = t.clone();
-      c.repeat.set((wUnits * 9) / TW, 1);
-      c.offset.set(((seed * 0.37 + r * 0.29) % 1), 0);
-      c.needsUpdate = true;
-      return c;
-    });
-    const mat = new THREE.MeshLambertMaterial({ map: maps[0], alphaTest: 0.5 });
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(wUnits, hUnits), mat);
-    const seatTop = (2 + r * 2) * 0.25;
-    m.position.set(cx, seatTop + hUnits / 2 - 0.42, z0 + (-r * 3 - 1.2) * 0.25);
-    m.userData = { maps, base: m.position.y, ph: r * 0.7 + seed };
-    m.name = 'crowd';
-    K.add(m);
-    rows.push(m);
+    for (let x = -wUnits / 2 + 0.3; x < wUnits / 2 - 0.2; x += 0.5 + R() * 0.12) {
+      if (R() < 0.12) continue;
+      seats.push({ v: Math.floor(R() * VARIANTS), x: cx + x, y: (2 + r * 2) * 0.25 - 0.02, z: z0 + (-r * 3 - 1.5) * 0.25, ph: R() * 6.28, sp: 2.2 + R() * 1.6, ry: (R() - 0.5) * 0.5 });
+    }
+  }
+  const sets = [];
+  for (let v = 0; v < VARIANTS; v++) {
+    const list = seats.filter((p) => p.v === v);
+    if (!list.length) continue;
+    const im = liveInstances(K, 'chibiFan' + v, () => fanChibiGrid(v + seed * 0), { scale: V, pivot: [0.5, 0, 0.5], jitter: 0.02 }, list.length, { receive: false });
+    im.name = 'crowd';
+    sets.push([im, list]);
   }
   K.onUpdate((dt, t) => {
-    for (const m of rows) {
-      const k = t * 2.6 + m.userData.ph;
-      m.material.map = m.userData.maps[Math.floor(k) & 1];
-      m.position.y = m.userData.base + Math.abs(Math.sin(k * Math.PI)) * 0.05;
+    for (const [im, list] of sets) {
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        const hop = Math.max(0, Math.sin(t * p.sp + p.ph)) * 0.08;
+        setInstance(im, i, p.x, p.y + hop, p.z, p.ry + Math.sin(t * 1.3 + p.ph) * 0.12, 0, 0, 1);
+      }
+      im.instanceMatrix.needsUpdate = true;
     }
   });
 }

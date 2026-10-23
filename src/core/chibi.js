@@ -20,7 +20,10 @@ import { normalizeAcc, handItem } from '../models/characters/accessories.js';
 import { Emote } from '../models/characters/emotes.js';
 import { meshAO } from '../models/characters/mesh.js';
 
-const HEAD_H = 10, BODY_H = 5, LEG_H = 4; // in legacy 0.1 voxels (world sizes kept identical)
+const SPRING_STEP = 1 / 120; // max integration step for the secondary-motion springs
+const HEAD_H = 10, BODY_H = 5, LEG_H = 4.5; // in legacy 0.1 voxels
+const HEAD_S = 0.9; // head scale: a slightly smaller head on longer legs (less toddler, more action figure)
+const SIT_Y = -(LEG_H * VOX - 0.02); // drops the hips onto the seat
 const GEO_CACHE = new Map();
 const PLANE_GEO = new THREE.PlaneGeometry(1.0, HEAD_H * VOX); // face plane over the 20x20 voxel head front
 
@@ -182,7 +185,7 @@ const POSES = {
     p.headRX = -0.2;
   },
   sit(t, p) {
-    p.y = -0.38;
+    p.y = SIT_Y;
     p.legLX = p.legRX = -1.45;
     p.legLZ = sin(t * 2) * 0.05; p.legRZ = -sin(t * 2 + 1) * 0.05;
     p.kneeL = 0.08 + max(0, sin(t * 2)) * 0.06; p.kneeR = 0.08 + max(0, sin(t * 2 + 1.5)) * 0.06;
@@ -199,7 +202,7 @@ const POSES = {
     p.armLX = p.armRX = -0.3;
     p.elbowL = p.elbowR = -0.2;
     p.hl = p.hr = 'fist';
-    p.y = -0.38 + abs(sin(t * 7)) * 0.13;
+    p.y = SIT_Y + abs(sin(t * 7)) * 0.13;
     p.headRX = -0.12;
   },
   sitWorried(t, p) {
@@ -683,7 +686,7 @@ export class Chibi {
     const leg = (x) => {
       const L = new THREE.Group(); L.position.set(x, 0, 0);
       add(L, thigh);
-      const knee = new THREE.Group(); knee.position.y = -8 * FV; L.add(knee);
+      const knee = new THREE.Group(); knee.position.y = -9 * FV; L.add(knee);
       add(knee, shin);
       this.hips.add(L);
       return [L, knee];
@@ -735,6 +738,7 @@ export class Chibi {
     // head
     this.head = new THREE.Group();
     this.head.position.y = BODY_H * V;
+    this.head.scale.setScalar(HEAD_S);
     this.torso.add(this.head);
     const headPart = cached('head|' + ck, () => buildHead(d));
     this.headMesh = add(this.head, headPart);
@@ -775,7 +779,7 @@ export class Chibi {
     this.flashT = 0;
     this.squash = 0; // impulse for squash/stretch
     this.squashV = 0;
-    this.height = (LEG_H + BODY_H + HEAD_H) * V * s;
+    this.height = (LEG_H + BODY_H + HEAD_H * HEAD_S) * V * s;
     // secondary motion state
     this.fidgets = opts.fidget !== false;
     this.fidgetT = rand(3.5, 8);
@@ -937,14 +941,13 @@ export class Chibi {
     if (target.lookOn) this.face.look(target.lookX, target.lookY, 0.3);
 
     // spring for squash/stretch
-    if (dt > 0) {
-      // sub-stepped: this stiff spring blows up at slow-frame steps (dt 0.1)
-      const n = Math.ceil(dt / (1 / 40)), h = dt / n;
-      for (let i = 0; i < n; i++) {
-        this.squashV += (-this.squash * 180 - this.squashV * 12) * h;
-        this.squash += this.squashV * h;
-      }
+    // (sub-stepped semi-implicit Euler: stable at any frame rate, even with long hitches)
+    const nSub = dt > 0 ? Math.min(30, Math.ceil(Math.min(dt, 0.25) / SPRING_STEP)) : 0, hSub = nSub ? Math.min(dt, 0.25) / nSub : 0;
+    for (let i = 0; i < nSub; i++) {
+      this.squashV += (-this.squash * 180 - this.squashV * 12) * hSub;
+      this.squash += this.squashV * hSub;
     }
+    if (!Number.isFinite(this.squash) || Math.abs(this.squash) > 0.6) { this.squash = Number.isFinite(this.squash) ? Math.sign(this.squash) * 0.6 : 0; this.squashV = 0; }
     const sq = this.squash;
 
     // vertical velocity -> landing squash + head jiggle
@@ -952,9 +955,12 @@ export class Chibi {
       const vy = (p.y - this.prevY) / dt;
       if (p.y > 0.06) this.air = true;
       if (this.air && p.y < 0.03 && this.prevVY < -0.6) { this.boing(-0.12); this.air = false; }
-      const acc = (vy - this.prevVY) / dt;
-      this.headJV += (-this.headJ * 260 - this.headJV * 14 - Math.max(-40, Math.min(40, acc)) * 0.06) * dt;
-      this.headJ += this.headJV * dt;
+      const acc = Math.max(-40, Math.min(40, (vy - this.prevVY) / dt));
+      for (let i = 0; i < nSub; i++) {
+        this.headJV += (-this.headJ * 260 - this.headJV * 14 - acc * 0.06) * hSub;
+        this.headJ += this.headJV * hSub;
+      }
+      if (!Number.isFinite(this.headJ)) { this.headJ = 0; this.headJV = 0; }
       this.headJ = Math.max(-0.08, Math.min(0.08, this.headJ));
       this.prevY = p.y; this.prevVY = vy;
       // horizontal speed (for tails / capes)
@@ -974,7 +980,7 @@ export class Chibi {
     this.torso.rotation.set(p.torsoRX, p.torsoRY, p.torsoRZ);
     this.head.rotation.set(p.headRX, p.headRY, p.headRZ);
     const hj = this.headJ;
-    this.head.scale.set(1 - hj * 0.5, 1 + hj, 1 - hj * 0.5);
+    this.head.scale.set(HEAD_S * (1 - hj * 0.5), HEAD_S * (1 + hj), HEAD_S * (1 - hj * 0.5));
     this.armL.rotation.set(p.armLX, p.armLY, p.armLZ);
     this.armR.rotation.set(p.armRX, p.armRY, p.armRZ);
     this.elbowL.rotation.set(p.elbowL, 0, p.elbowLZ);
@@ -991,14 +997,12 @@ export class Chibi {
       const lift = this.speedXZ * 0.08 + legSwing * 0.25 + Math.max(0, -this.prevVY) * 0.25;
       if (this.tail) {
         const tt = (sitting ? 1.25 : 0.06 + lift) - p.torsoRX * 0.8;
-        this.tailV += ((tt - this.tailA) * 120 - this.tailV * 11) * Math.min(dt, 0.05);
-        this.tailA += this.tailV * Math.min(dt, 0.05);
+        for (let i = 0; i < nSub; i++) { this.tailV += ((tt - this.tailA) * 120 - this.tailV * 11) * hSub; this.tailA += this.tailV * hSub; }
         this.tail.rotation.x = this.tailA;
       }
       if (this.cape) {
         const ct = (sitting ? 0.55 : 0.12 + lift * 1.6 + sin(this.t * 6) * 0.04 * (0.3 + lift)) - p.torsoRX * 0.9;
-        this.capeV += ((ct - this.capeA) * 80 - this.capeV * 8) * Math.min(dt, 0.05);
-        this.capeA += this.capeV * Math.min(dt, 0.05);
+        for (let i = 0; i < nSub; i++) { this.capeV += ((ct - this.capeA) * 80 - this.capeV * 8) * hSub; this.capeA += this.capeV * hSub; }
         this.cape.rotation.x = Math.max(-0.2, this.capeA);
       }
     }
@@ -1061,4 +1065,4 @@ export class Chibi {
   }
 }
 
-export const CHIBI_HEIGHT = (LEG_H + BODY_H + HEAD_H) * VOX;
+export const CHIBI_HEIGHT = (LEG_H + BODY_H + HEAD_H * HEAD_S) * VOX;

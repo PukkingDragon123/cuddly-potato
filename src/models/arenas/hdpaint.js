@@ -80,9 +80,9 @@ export function hdSun(ctx, cx, cy, r, o = {}) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let k = 0; k < n; k++) {
-      const a = (k / n) * TAU + (o.rayRot ?? 0.2), wd = (k % 2 ? 0.05 : 0.09);
+      const a = (k / n) * TAU + (o.rayRot ?? 0.2), wd = (k % 2 ? 0.05 : 0.09) * (o.rays ? 1 : 0.6);
       const g = ctx.createRadialGradient(cx, cy, r, cx, cy, len);
-      g.addColorStop(0, rgba(o.rayColor ?? halo, 0.32));
+      g.addColorStop(0, rgba(o.rayColor ?? halo, o.rays ? 0.32 : 0.12));
       g.addColorStop(1, rgba(o.rayColor ?? halo, 0));
       ctx.fillStyle = g;
       ctx.beginPath();

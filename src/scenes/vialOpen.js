@@ -46,7 +46,7 @@ import { game } from '../game/game.js';
 import { spellThumbAsync } from '../ui/thumbs.js';
 import { ShakeInput, TiltInput, requestMotion, motionNeedsPermission, isTouchDevice } from './vialGestures.js';
 import { NewCardCutscene } from './newCardCutscene.js';
-import { pixelRing, pixelShock, voxCardFrame } from './vialProps.js';
+import { pixelStuds, fillMarks, pixelShock, voxCardFrame } from './vialProps.js';
 
 const INK = 0x15121f, WHITE = 0xf6f8ff, BLUE = 0x1d7cf2, BLUE_D = 0x1050b4, BLUE_L = 0x8fd4ff, PINK = 0xff1f9e, YEL = 0xffd23f;
 const PED_Z = 0.9, PED_TOP = 0.25;
@@ -393,8 +393,8 @@ export class VialOpenScene {
     const pm = makeMesh(gs.ped, Mats.toyGlossPair);
     pm.receiveShadow = true;
     this.ped.add(pm);
-    // dashed pixel ring of light around the pedestal top (tinted per rarity)
-    const ring = pixelRing(0.66, 0xffffff, { rVox: 22, dash: 3, gap: 1 });
+    // glowing voxel chevrons round the pedestal top (tinted per rarity)
+    const ring = pixelStuds(0.6, 0xffffff, 8);
     this.ringMat = ring.material;
     this.pedRing = ring;
     ring.position.y = PED_TOP + 0.005;
@@ -997,7 +997,7 @@ export class VialOpenScene {
   /** Glowing "fill to here" ring around the tube. */
   buildFillLine() {
     if (!this.fillLine) {
-      this.fillLine = pixelRing(0.31, 0x7fe6ff, { rVox: 11, dash: 2, gap: 1 });
+      this.fillLine = fillMarks(0.27, 0x7fe6ff);
       this.fillLineMat = this.fillLine.material;
       this.scene.add(this.fillLine);
     }
@@ -2033,7 +2033,7 @@ export class VialOpenScene {
     }
     this.ringMat.opacity = 0.6 + Math.sin(t * 4) * 0.25;
     this.pedRing.rotation.y += dt * 0.5;
-    if (this.fillLine?.visible) this.fillLine.rotation.y -= dt * 0.8;
+    if (this.fillLine?.visible) this.fillLine.children.forEach((m, i) => (m.position.x = (i ? 1 : -1) * (0.41 + Math.abs(Math.sin(t * 5)) * 0.05)));
     // toy idle: a wiggle every few seconds
     if (this.toy) {
       this.toy.update(gdt);

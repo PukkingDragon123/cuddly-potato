@@ -1,11 +1,12 @@
 // Crafted voxel props + pixel effects for the vial opening and the NEW CARD
-// cutscene (no plain rings, discs or boxes): pixel rings (dashed glowing voxel
-// loops, tintable), a pixel shockwave, a pixel light beam, a voxel red carpet
-// with velvet-rope posts, crack decals for the Superhero Landing and a voxel
-// trading-card frame for SPECIAL cards.
+// cutscene (no rings, circles, discs or plain boxes): glowing voxel chevrons /
+// arrows / reticle brackets (tintable), ring-free impacts (the battle's pixel-star
+// ground hit), a beam of dashed pixel bars, a voxel red carpet with velvet-rope
+// posts, crack decals for the Superhero Landing and a voxel trading-card frame
+// for SPECIAL cards.
 import * as THREE from 'three';
 import { Mats, makeMesh } from '../core/voxel.js';
-import { animate } from '../core/tween.js';
+import { groundHit } from '../game/battle/voxfx.js';
 import { G, cyl, n3, shade } from '../models/kit.js';
 
 const geoCache = new Map();
@@ -17,74 +18,116 @@ const tintMat = (color, opacity = 1) => new THREE.MeshBasicMaterial({
   color, vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
 });
 
-/** Dashed loop of voxels (radius in voxels) lying flat; white vertex colours, tinted by the material. */
-function ringGeo(r, dash = 3, gap = 1, thick = 1) {
-  return cached(`ring:${r}:${dash}:${gap}:${thick}`, () => {
+/** Build a flat-ish voxel sprite from pixel rows (x right, z toward the camera), white vertex colours (tinted by material). */
+function spriteGeo(key, rows, depth = 1) {
+  return cached(key, () => {
     const g = G();
-    const n = Math.round(Math.PI * 2 * r);
-    for (let i = 0; i < n; i++) {
-      if (i % (dash + gap) >= dash) continue;
-      const a = (i / n) * Math.PI * 2;
-      for (let t = 0; t < thick; t++) {
-        const rr = r - t;
-        // brighter pixel at the start of each dash: a little chase-light look
-        g.set(Math.round(Math.cos(a) * rr), 0, Math.round(Math.sin(a) * rr), i % (dash + gap) === 0 ? 0xffffff : 0xb8c4d8);
-      }
-    }
+    rows.forEach((row, z) => [...row].forEach((ch, x) => {
+      if (ch === '.') return;
+      for (let y = 0; y < depth; y++) g.set(x - (row.length >> 1), y, z - (rows.length >> 1), ch === 'W' ? 0xffffff : 0xa8b4cc);
+    }));
     return g.build({ scale: 1, pivot: [0, 0, 0], jitter: 0, ao: false, maxSamples: 4 });
   });
 }
+const ARROW = ['..W..', '.WWW.', 'WWwWW', '..w..', '..w..'];
+const CORNER = ['WWWW', 'Wwww', 'Ww..', 'Ww..'];
 
 /**
- * A glowing pixel ring (flat, radius in world units). Returns a Mesh whose material
- * colour tints it; voxel size = world radius / rVox.
+ * Pixel "light studs" around a radius (no ring: eight little glowing voxel chevrons pointing in),
+ * tinted by the returned group's `material`. Used round the reveal pedestal.
  */
-export function pixelRing(radius, color = 0xffffff, o = {}) {
-  const rVox = o.rVox ?? 14;
-  const m = new THREE.Mesh(ringGeo(rVox, o.dash ?? 3, o.gap ?? 1, o.thick ?? 1), tintMat(color, o.opacity ?? 1));
-  m.scale.setScalar(radius / rVox);
-  m.renderOrder = 7;
-  return m;
+export function pixelStuds(radius, color = 0xffffff, n = 8) {
+  const grp = new THREE.Group();
+  const mat = tintMat(color, 1);
+  const geo = spriteGeo('arrow', ARROW, 1);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.setScalar(radius * 0.05);
+    m.position.set(Math.cos(a) * radius, 0, Math.sin(a) * radius);
+    m.rotation.y = Math.PI / 2 - a; // tips point at the centre
+    m.renderOrder = 7;
+    grp.add(m);
+  }
+  grp.material = mat;
+  return grp;
 }
 
-/** Pixel shockwave: a dashed voxel ring that blasts outward and fades (replaces flat ring meshes). */
+/** "Fill to here" marks: two glowing voxel arrows pointing at the tube from either side. */
+export function fillMarks(halfWidth, color = 0x7fe6ff) {
+  const grp = new THREE.Group();
+  const mat = tintMat(color, 1);
+  const geo = spriteGeo('arrow', ARROW, 1);
+  for (const sx of [-1, 1]) {
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.setScalar(0.045);
+    m.position.set(sx * (halfWidth + 0.14), 0, 0.12);
+    // stand the arrow up facing the camera, tip pointing in
+    m.rotation.order = 'ZYX';
+    m.rotation.set(Math.PI / 2, 0, sx * Math.PI / 2);
+    m.renderOrder = 7;
+    grp.add(m);
+  }
+  grp.material = mat;
+  return grp;
+}
+
+/** Targeting reticle on the ground: four pixel corner brackets (Superhero Landing). */
+export function pixelReticle(size, color = 0xff3a5a) {
+  const grp = new THREE.Group();
+  const mat = tintMat(color, 1);
+  const geo = spriteGeo('corner', CORNER, 1);
+  [[-1, -1, 0], [1, -1, -Math.PI / 2], [1, 1, Math.PI], [-1, 1, Math.PI / 2]].forEach(([sx, sz, r]) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.setScalar(size * 0.09);
+    m.position.set(sx * size * 0.5, 0, sz * size * 0.5);
+    m.rotation.y = r;
+    grp.add(m);
+  });
+  // centre cross
+  const c = new THREE.Mesh(spriteGeo('cross', ['.W.', 'WWW', '.W.'], 1), mat);
+  c.scale.setScalar(size * 0.06);
+  grp.add(c);
+  grp.material = mat;
+  return grp;
+}
+
+/** Impact flash without rings: the battle's pixel-star ground hit (sparks, debris, dust). */
 export function pixelShock(scene, pos, o = {}) {
-  if (!scene) return;
-  const ring = pixelRing(1, o.color ?? 0xffffff, { rVox: 18, dash: 2, gap: 1, thick: 2 });
-  ring.position.set(pos.x, (pos.y ?? 0) + 0.04, pos.z);
-  scene.add(ring);
-  const R = o.radius ?? 2.5;
-  animate(o.dur ?? 0.5, (e) => {
-    ring.scale.setScalar(Math.max(0.01, 0.1 + e * R) / 18);
-    ring.material.opacity = 0.95 * (1 - e) * (1 - e * 0.3);
-    ring.rotation.y = e * 0.4;
-  }, { ease: 'outCubic', onComplete: () => { scene.remove(ring); ring.material.dispose(); } });
+  groundHit({ x: pos.x, y: pos.y ?? 0, z: pos.z ?? 0 }, { radius: o.radius ?? 2, color: o.color ?? 0xffffff, power: o.power });
 }
 
-/** A beam of light made of stacked pixel rings that scroll upward (Glitch Teleport, upgrade). */
+/** A teleport beam of dashed vertical pixel bars (on a square) whose dashes scroll upward. */
 export function pixelBeam(radius, height, color) {
   const grp = new THREE.Group();
   const mat = tintMat(color, 0.9);
-  const n = Math.max(6, Math.round(height / 0.22));
-  const rings = [];
-  for (let i = 0; i < n; i++) {
-    const m = new THREE.Mesh(ringGeo(10, 2, 1, 1), mat);
-    m.scale.setScalar(radius / 10);
+  const segs = Math.round(height / 0.09);
+  const geo = cached('beambar:' + segs, () => {
+    const g = G();
+    for (let y = 0; y < segs; y++) if (y % 4 !== 3) g.set(0, y, 0, y % 4 === 0 ? 0xffffff : 0xa8c0d8);
+    return g.build({ scale: 1, pivot: [0, 0, 0], jitter: 0, ao: false, maxSamples: 4 });
+  });
+  const bars = [];
+  const per = 4;
+  for (let side = 0; side < 4; side++) for (let k = 0; k < per; k++) {
+    const t = (k + 0.5) / per * 2 - 1;
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.set(0.045, height / segs, 0.045);
+    const [x, z] = side === 0 ? [t, -1] : side === 1 ? [1, t] : side === 2 ? [-t, 1] : [-1, -t];
+    m.position.set(x * radius, 0, z * radius);
+    m.userData.off = (side * per + k) * 0.37;
     m.renderOrder = 7;
     grp.add(m);
-    rings.push(m);
+    bars.push(m);
   }
-  let t = 0;
+  let tt = 0;
   grp.userData = {
     mat,
     update(dt) {
-      t += dt;
-      rings.forEach((m, i) => {
-        const k = ((i / n) + t * 0.55) % 1;
-        m.position.y = k * height;
-        m.rotation.y = t * 1.5 + i;
-        m.scale.setScalar((radius / 10) * (1 - k * 0.25));
-      });
+      tt += dt;
+      // dashes climb: shift each bar up by a fraction of a dash, wrapping
+      for (const m of bars) m.position.y = -(((tt * 1.6 + m.userData.off) % 1) * 4 * (height / segs));
+      grp.rotation.y = Math.sin(tt * 3) * 0.05;
     },
   };
   grp.userData.update(0);

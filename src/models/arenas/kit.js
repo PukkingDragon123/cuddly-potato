@@ -344,8 +344,8 @@ export class ArenaKit {
    * o: { z (negative), y (bottom), w, h (world units), tw, th (texture px), paint(ctx, tw, th), fogTint: [hex, amount] }
    */
   parallax(id, o) {
-    // painted in HD (smooth shapes, ~2400 px wide backing store), never as hard pixel art
-    const hd = clamp(2400 / o.tw, 1, 8);
+    // painted in HD (smooth shapes, ~2048 px wide backing store), never as hard pixel art
+    const hd = clamp(2048 / o.tw, 1, 8);
     const tex = canvasTex('px_' + this.id + '_' + id, o.tw, o.th, (ctx, w, h) => {
       o.paint(ctx, w, h);
       ctx._P?.flush();
@@ -401,13 +401,13 @@ export function coverFit(tex, aspect) {
 
 export function skyTexture(id, stops, paint, o = {}) {
   const w = o.w ?? 160, h = o.h ?? 90;
-  // painted in HD: smooth gradient + soft painted clouds / glows (~1600 px wide), lightly grained against banding
+  // painted in HD: smooth gradient + soft painted clouds / glows (~1280 px wide), lightly grained against banding
   return canvasTex('sky_' + id, w, h, (ctx) => {
     paintGradient(ctx, 0, 0, w, h, stops, { bands: o.bands ?? 12 });
     paint && paint(ctx, w, h);
     ctx._P?.flush();
     hdGrain(ctx, 1.6);
-  }, { mip: false, hd: 1600 / w });
+  }, { mip: false, hd: 1280 / w });
 }
 
 // ---------------------------------------------------------------------------
@@ -838,7 +838,7 @@ export function puffGrid(o = {}) {
 }
 
 /** Soft round puff texture in the puff colours (lit top, shaded belly), cached per colour set. */
-function puffTex(o = {}) {
+export function puffTex(o = {}) {
   const light = o.light ?? 0xffffff, base = o.color ?? 0xeef2f8, sh = o.shade ?? 0xc4ccd8;
   return canvasTex('puff_' + light + '_' + base + '_' + sh, 64, 64, (ctx, w, h) => {
     const R = mulberry32((o.seed ?? 3) * 7 + 1);

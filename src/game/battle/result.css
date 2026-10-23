@@ -212,7 +212,7 @@
   position: relative; color: #fff;
   opacity: 0; transform: translateY(14px) scale(0.92);
 }
-.cn-card.in { animation: cnIn 0.38s cubic-bezier(.2, 1.6, .4, 1) both; }
+.cn-card.in { opacity: 1; transform: none; animation: cnIn 0.38s cubic-bezier(.2, 1.6, .4, 1) both; }
 @keyframes cnIn { 0% { opacity: 0; transform: translateY(14px) scale(0.9); filter: brightness(2.2); } 100% { opacity: 1; transform: none; filter: none; } }
 .cn-cap { font-family: var(--font-d); font-size: clamp(12px, 0.82em, 16px); letter-spacing: 0.16em; color: #9fb4ff; line-height: 1; margin-bottom: 0.3em; }
 .cn-bases { padding: calc(var(--u) * 0.2) calc(var(--u) * 0.8) calc(var(--u) * 0.4); }
@@ -271,7 +271,7 @@
   display: flex; align-items: center; gap: 0.35em; padding: 0 0.3em 0 0;
   opacity: 0; transform: scale(0.6);
 }
-.cn-chip.in { animation: popIn 0.32s cubic-bezier(.2, 1.6, .4, 1) both; }
+.cn-chip.in { opacity: 1; transform: none; animation: popIn 0.32s cubic-bezier(.2, 1.6, .4, 1) both; }
 .cn-chip .pi, .cn-chip img { width: clamp(22px, 1.6em, 32px); height: clamp(22px, 1.6em, 32px); object-fit: contain; }
 .cn-chip img.vial3d { image-rendering: auto; }
 .cn-chip > div { display: flex; flex-direction: column; line-height: 1; }
@@ -279,7 +279,7 @@
 .cn-chip small { font-size: clamp(9px, 0.6em, 12px); color: #a9b6e6; }
 .cn-chip.neg b { color: #ff8a9a; }
 .cn-ups { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1.2); justify-content: center; opacity: 0; font-family: var(--font-d); font-size: clamp(14px, 1em, 20px); color: #a8f07a; text-shadow: var(--outline-thin); }
-.cn-ups.in { animation: popIn 0.32s both; }
+.cn-ups.in { opacity: 1; animation: popIn 0.32s both; }
 .cn-ups span { display: inline-flex; align-items: center; gap: 0.3em; }
 .cn-ups .pi { width: 1.1em; height: 1.1em; }
 

@@ -446,8 +446,8 @@ const h2 = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % 997 / 997;
  * dimple shadow and optional stubble; lash faces keep the softer version with blush.
  */
 function shading(ctx, f) {
-  P(ctx, 19, 24, 'rgba(90,40,30,0.28)', 2, 1); // under the nose voxel
-  P(ctx, 18, 23, SKIN_SH, 1, 1); P(ctx, 21, 23, SKIN_SH, 1, 1);
+  P(ctx, 18, 26, 'rgba(90,40,30,0.26)', 4, 1); // under the sculpted nose
+  P(ctx, 17, 25, SKIN_SH, 1, 1); P(ctx, 22, 25, SKIN_SH, 1, 1);
   if (f.lashes) {
     for (const cx of EYE_X) P(ctx, cx - 3.5, EYE_Y - 4.2, 'rgba(70,30,30,0.08)', 8, 2);
     for (let y = 26; y < 40; y++) { P(ctx, 0, y, SKIN_SH, 2, 1); P(ctx, 38, y, SKIN_SH, 2, 1); }
