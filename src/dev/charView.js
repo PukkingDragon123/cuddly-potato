@@ -24,7 +24,7 @@ export class CharViewScene {
     this.scene.background = new THREE.Color(0x2f3d6a);
     this.camera = new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 200);
     addLights(this.scene, { shadowExtent: 14 });
-    const ground = (this.ground = new THREE.Mesh(new THREE.CircleGeometry(40, 48), new THREE.MeshLambertMaterial({ color: 0x5a7a9a })));
+    const ground = (this.ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: 0x5a7a9a })));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);

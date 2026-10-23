@@ -284,10 +284,10 @@ function buildHair(g, def) {
       shell(g, 1.2, (x, y, z) => scalp({ front: 34, temple: 31, side: 22, nape: 9, burns: 14 })(x, y, z), (x, y, z) => (y < 25 && Math.abs(x + 0.5) > 14 ? (hash3(x, y, z) < 0.5 ? fade : col(x, y, z)) : col(x, y, z)));
       shell(g, 3.2, (x, y, z) => y >= 31 && z <= 17, colZ, 1);
       // quiff: lifted front mass, sweeping back
-      blob(g, -2, 37.5, 14, 13, 4.2, 6.5, colZ, { p: 2.3 });
-      blob(g, -4, 39.5, 10, 10, 3.6, 7, colZ, { p: 2.3 });
-      capsule(g, [-10, 37, 17], [4, 40, 16], 2.6, 2.2, colZ);
-      capsule(g, [6, 36, 17], [12, 35, 13], 2.2, 1.6, colZ);
+      blob(g, -2, 38.5, 11.5, 13, 4.4, 6.5, colZ, { p: 2.3 });
+      blob(g, -4, 40.5, 7, 10, 3.6, 7, colZ, { p: 2.3 });
+      capsule(g, [-10, 38, 15], [4, 41.5, 14], 2.6, 2.2, colZ);
+      capsule(g, [6, 37, 15], [12, 36, 11], 2.2, 1.6, colZ);
       // part groove + comb lines
       for (let z = -12; z <= 21; z++) for (let y = 30; y <= 46; y++) if (g.has(-9, y, z) && !g.has(-9, y + 1, z)) g.set(-9, y, z, dark);
       g.paint((x, y, z, c) => (y >= 39 && (x + 40) % 5 === 0 && c !== dark && z < 14 && hash3(x, y, z) < 0.7 ? shade(c, -0.12) : undefined));

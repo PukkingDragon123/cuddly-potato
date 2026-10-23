@@ -3,7 +3,7 @@
 // runs straight across. Inside: campers' tents, sleeping bags, coolers, camp
 // chairs and snack piles; a podium with a mountain of cash and a $500,000
 // sign; film-crew cranes, tripods, a drone and spotlight towers; bleachers of
-// cheering fans (pixel-art crowd), porta-potties and a LAST TO LEAVE
+// cheering chibi voxel fans, porta-potties and a LAST TO LEAVE
 // billboard, over golden-afternoon suburbs, a water tower and rolling hills.
 import { beamMesh } from './atmos.js';
 import {

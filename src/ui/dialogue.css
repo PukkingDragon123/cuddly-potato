@@ -50,8 +50,8 @@
 .cdlg.cont .cdlg-cam { animation: none; }
 @keyframes cCamIn { 0% { transform: translateX(-24%) scaleX(0.3); opacity: 0; filter: brightness(3); } 60% { opacity: 1; filter: brightness(1.4); } 100% { transform: none; } }
 .cdlg-cam-in { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(color-mix(in srgb, var(--spk) 75%, #fff), var(--spk) 45%, var(--spk-d)); }
-.cdlg-glow { position: absolute; inset: 0; background: radial-gradient(ellipse 50% 70% at 62% 50%, color-mix(in srgb, var(--spk) 30%, #fff) 0%, transparent 70%); opacity: 0.7; }
-.cdlg.wide .cdlg-glow { background: radial-gradient(ellipse 60% 60% at 50% 45%, color-mix(in srgb, var(--spk) 30%, #fff) 0%, transparent 70%); }
+.cdlg-glow { position: absolute; left: 30%; top: -10%; width: 64%; height: 120%; background: color-mix(in srgb, var(--spk) 25%, #fff); opacity: 0.6; -webkit-mask: var(--pxs-glow-ell) center / 100% 100% no-repeat; mask: var(--pxs-glow-ell) center / 100% 100% no-repeat; image-rendering: pixelated; }
+.cdlg.wide .cdlg-glow { left: 0; width: 100%; }
 .cdlg-rays.px-rays { left: 62%; top: 48%; --rs: 190%; --ro: 0.45; }
 .cdlg.wide .cdlg-rays.px-rays { left: 50%; --rs: 260%; }
 .cdlg-host { position: absolute; inset: 0; }
