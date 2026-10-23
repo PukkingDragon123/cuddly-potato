@@ -16,8 +16,8 @@ export const rarityOf = (id) => RARITIES[cardDef(id)?.rarity ?? 'common'];
 export const isSpecial = (id) => !!SPELLS[id]?.special;
 // Clash Royale deck: 8 cards cycling through a hand of 4 (+ the NEXT card)
 export const DECK_SIZE = 8;
-// deck slots unlock with your best trophies: 4 at the start, all 8 at 200
-export const LINEUP_UNLOCKS = [0, 0, 0, 0, 20, 60, 120, 200];
+// full 8-card deck from the very first battle, like Clash Royale
+export const LINEUP_UNLOCKS = [0, 0, 0, 0, 0, 0, 0, 0];
 export const lineupSlots = (bestTrophies = 0) => LINEUP_UNLOCKS.filter((t) => bestTrophies >= t).length;
 export const DECK_PRESETS = 3;
 export { MAX_LEVEL, UPGRADE, UPGRADE_XP, RARITIES };
@@ -36,6 +36,5 @@ export const cardsOfArena = (arenaId) => ALL_CARDS.filter((c) => c.arena === are
 export const STARTER_DECK = ['panther', 'cloggedToilet', 'toiletRollRipper', 'trashedCan', 'pizzaSlicer', 'fryFiend', 'foodThrow', 'moneyDrop'];
 // every Commander starts with just two troops (like the Cat and the Tank Cat); the rest unlock as you play
 export const STARTER_TROOPS = ['panther', 'cloggedToilet'];
-// ...plus two SPECIAL cards so the deck cycles from the very first battle
-export const STARTER_SPECIALS = ['quickDraw', 'energyDrink'];
-export const STARTER_CARDS = [...STARTER_TROOPS, ...STARTER_SPECIALS];
+// the whole Beast Lab starter deck: a full 8 cards from the start
+export const STARTER_CARDS = STARTER_DECK;

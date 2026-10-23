@@ -663,17 +663,6 @@ export class BattleScene {
       clearPtr();
       this.lockInput = null;
     }
-    // 3b) a SPECIAL card
-    const dslot = slotOf('energyDrink');
-    if (dslot >= 0 && !sim.over) {
-      await talk('Shiny cards are *SPECIAL* tricks. *Energy Drink* = +3 POWER, once per battle. Tap it!');
-      this.lockInput = 'deploy';
-      remove = pointAt(() => this.hud.slotEl(slotOf('energyDrink')), 'Special!');
-      await until('deploy');
-      clearPtr();
-      this.lockInput = null;
-      await wait(0.8);
-    }
     // 4) defend
     await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);
     await talk('Here come my Swarms! Keep sending yours - your base *zaps* anything close.');

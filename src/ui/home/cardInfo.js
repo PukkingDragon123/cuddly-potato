@@ -56,7 +56,13 @@ export function cardStats(id, level = 1, variant = 'base') {
     if (d.shield) rows.push({ key: 'shield', icon: 'shield', label: 'Shield', v: Math.round(d.shield * pw * 100), suffix: '% HP' });
     if (d.slow) rows.push({ key: 'slow', icon: 'snow', label: 'Slow', v: Math.round(d.slow * 100) + '%' });
     if (d.freeze) rows.push({ key: 'freeze', icon: 'snow', label: 'Freeze', v: d.freeze + 's' });
-    if (d.dur) rows.push({ key: 'dur', icon: 'clock', label: 'Duration', v: d.dur + 's' });
+    if (d.rage) rows.push({ key: 'rage', icon: 'fire', label: 'Rage', v: `+${Math.round(d.dmgBoost * 100)}% dmg, +${Math.round(d.speedBoost * 100)}% speed` });
+    if (d.armor) rows.push({ key: 'armor', icon: 'shield', label: 'Shield', v: Math.round(d.armor * 100) + '% HP' });
+    if (d.titan) rows.push({ key: 'titan', icon: 'dna', label: 'Titan', v: `x${d.grow} size, +${Math.round(d.dmgBoost * 100)}% dmg` });
+    if (d.bolts) rows.push({ key: 'bolts', icon: 'lightning', label: 'Bolts', v: 'x' + d.bolts });
+    if (d.burn) rows.push({ key: 'burn', icon: 'fire', label: 'Burn', v: `${d.burn}/s for ${d.burnDur}s` });
+    if (d.overclock) rows.push({ key: 'oc', icon: 'bolt', label: 'Overcharge', v: d.overclock + 's' });
+    if (d.dur || d.rage || d.titan) rows.push({ key: 'dur', icon: 'clock', label: 'Duration', v: (d.dur ?? d.rage ?? d.titan) + 's' });
     rows.push({ key: 'radius', icon: 'range', label: 'Radius', v: d.radius ? d.radius.toFixed(1) : 'Your Lab' });
     rows.push({ key: 'cost', icon: 'energy', label: 'Energy Cost', v: String(d.elixir) });
     return rows;

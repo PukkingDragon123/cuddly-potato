@@ -149,6 +149,24 @@ export class BattleAI {
         if (b.hp < b.maxHp * 0.5 && enemies.some((e) => Math.abs(e.x - b.x) < 4)) return sim.play(si, h.slot, b.x);
         continue;
       }
+      // buff spells: on a fighting cluster of my troops
+      if (['adrenaline', 'ironCoat', 'titanSerum'].includes(sp.id)) {
+        const allies = sim.alliesOf(si);
+        let best = null, bc = 0;
+        for (const a of allies) {
+          if (!enemies.some((e) => Math.abs(e.x - a.x) < 4)) continue;
+          let c = 0;
+          for (const b of allies) if (Math.abs(a.x - b.x) < sp.radius) c += b.cost || 1;
+          if (c > bc) { bc = c; best = a.x; }
+        }
+        if (bc >= h.cost + 2 && this.r() < 0.35 + this.d * 0.5) return sim.play(si, h.slot, best);
+        continue;
+      }
+      if (sp.id === 'overclockChip') {
+        const near = enemies.filter((e) => Math.abs(e.x - s.lab.x) < 6).length;
+        if ((near >= 2 || s.energy < 3) && this.r() < 0.4 + this.d * 0.4) return sim.play(si, h.slot, s.lab.x);
+        continue;
+      }
       // damage spells: clusters worth at least the spell's cost, or finishing a tower
       const fb = sim.frontBuilding(si);
       if (fb && sp.dmg && sp.building && fb.hp <= sp.dmg * sp.building * 0.95 && this.r() < 0.6 + this.d * 0.4) return sim.play(si, h.slot, fb.x);

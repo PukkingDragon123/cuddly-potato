@@ -31,7 +31,7 @@ export function seedProfile(level = '1') {
     if (level === 'mid') grantMega('panthar', 'base');
     else MEGA_IDS.forEach((id, i) => grantMega(id, i === 1 ? 'gold' : 'base'));
     equipMega('panthar');
-    setDeck(['panther', 'cloggedToilet', 'steelPanther', 'fryFiend', 'beastTiger', 'quickDraw', 'couponBook', 'moneyDrop'].filter((id) => p.cards[id]));
+    setDeck(['panther', 'cloggedToilet', 'steelPanther', 'fryFiend', 'beastTiger', 'adrenaline', 'foodThrow', 'moneyDrop'].filter((id) => p.cards[id]));
     addVial('labPack');
     addVial('megaLab');
     addVial('testTube');

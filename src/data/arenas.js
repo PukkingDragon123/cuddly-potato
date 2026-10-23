@@ -315,7 +315,8 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     if (opts.length) deck.push(opts[Math.floor(rng() * opts.length)].id);
   };
   // lineup size grows with trophies (new rivals bring only a few Swarms, like you)
-  const size = Math.min(DECK_SIZE, 4 + Math.floor(trophies / 60));
+  // rivals bring a full Clash Royale deck too
+  const size = DECK_SIZE;
   // a sensible archetype: a cheap card, a tank, ranged support, a spell, then fill
   want((c) => c.kind === 'troop' && c.elixir <= 2);
   want((c) => c.kind === 'troop' && (c.role === 'tank' || c.role === 'siege'));
@@ -339,9 +340,9 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     clan: CLAN[Math.floor(rng() * CLAN.length)],
     banner: bannerIds[Math.floor(rng() * bannerIds.length)], difficulty: Math.min(0.95, 0.08 + trophies / 2600), ghost: true,
     // early rivals have flimsy bases so new players get satisfying wins
-    hpMult: Math.min(1, 0.45 + trophies / 1800),
+    hpMult: Math.min(1, 0.65 + trophies / 1800),
     // ...and slower POWER (negative surge) until ~700 trophies
-    perks: { energySurge: Math.min(0, -60 + trophies / 12) },
+    perks: { energySurge: Math.min(0, -40 + trophies / 12) },
     cmdLevel: Math.max(1, Math.min(8, Math.floor(trophies / 450) + 1)),
     // rivals past the Panthar unlock may bring a MEGA of their own
     mega: (() => {

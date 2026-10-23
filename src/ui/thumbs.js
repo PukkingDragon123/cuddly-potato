@@ -198,7 +198,13 @@ async function spellObject(id) {
       g.add(core);
       break;
     }
-    default: add(P.makeBeaker(0xff2e88), 0, 0, 0, 2);
+    default: {
+      // magic lab spells: a big potion in the spell's colour, with two small vials beside it
+      const col = new THREE.Color(SPELLS[id]?.color ?? '#ff2e88').getHex();
+      add(P.makeBeaker(col), 0, 0, 0, 2.2, 0.3);
+      add(P.makeBeaker(col), -0.42, 0, 0.18, 1.1, -0.4);
+      add(P.makeBeaker(col), 0.44, 0, 0.12, 1.25, 0.6);
+    }
   }
   return g;
 }

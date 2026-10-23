@@ -655,6 +655,86 @@ export class BattleSim {
         });
         break;
       }
+      case 'adrenaline': {
+        this.emit('spell', { side: si, id, x, delay: 0.35, radius: R });
+        this.later(0.35, () => {
+          for (const u of this.alliesOf(si)) {
+            if (Math.abs(u.x - x) > R + u.radius) continue;
+            u.buffs.rageT = def.rage * pw;
+            this.emit('buff', { unit: u, kind: 'rage' });
+          }
+        });
+        break;
+      }
+      case 'ironCoat': {
+        this.emit('spell', { side: si, id, x, delay: 0.3, radius: R });
+        this.later(0.3, () => {
+          for (const u of this.alliesOf(si)) {
+            if (u.mega || Math.abs(u.x - x) > R + u.radius) continue;
+            u.shieldHp = Math.max(u.shieldHp ?? 0, u.maxHp * def.armor * pw);
+            this.emit('shield', { unit: u });
+          }
+        });
+        break;
+      }
+      case 'titanSerum': {
+        this.emit('spell', { side: si, id, x, delay: 0.5, radius: R });
+        this.later(0.5, () => {
+          for (const u of this.alliesOf(si)) {
+            if (u.mega || u.boss || Math.abs(u.x - x) > R + u.radius) continue;
+            this.applyGrow(u, def.titan, def.hpBoost * pw, def.grow);
+            u.buffs.titanT = def.titan;
+            this.emit('giant', { unit: u });
+          }
+        });
+        break;
+      }
+      case 'fireball': {
+        this.emit('spell', { side: si, id, x, delay: 0.75, radius: R });
+        this.later(0.75, () => {
+          this.areaDamage(si, x, R, def.dmg * pw, { kind: 'fire', knock: 6, building: def.building });
+          for (const e of this.enemiesOf(si)) {
+            if (Math.abs(e.x - x) > R + e.radius) continue;
+            e.buffs.burn = Math.max(e.buffs.burn, def.burn * pw);
+            e.buffs.burnT = Math.max(e.buffs.burnT, def.burnDur);
+          }
+          this.emit('impact', { x, radius: R, kind: 'fire', side: si });
+        });
+        break;
+      }
+      case 'lightningStorm': {
+        const targets = this.enemiesOf(si).filter((e) => Math.abs(e.x - x) <= R + e.radius).sort((a, b) => b.hp - a.hp).slice(0, def.bolts);
+        const xs = targets.map((e) => e.x);
+        const fb = this.frontBuilding(si);
+        if (targets.length < def.bolts && fb && Math.abs(fb.x - x) <= R + fb.half) xs.push(fb.x);
+        this.emit('spell', { side: si, id, x, delay: 0.5, radius: R, xs });
+        targets.forEach((e, k) => this.later(0.5 + k * 0.18, () => {
+          if (e.dead) return;
+          this.damage(e, def.dmg * pw, null, { kind: 'shock' });
+          if (!e.dead) e.buffs.stun = Math.max(e.buffs.stun, def.stun * (e.boss ? 0.4 : 1));
+          this.emit('impact', { x: e.x, radius: 0.8, kind: 'shock', side: si });
+        }));
+        if (targets.length < def.bolts && fb && Math.abs(fb.x - x) <= R + fb.half) {
+          this.later(0.5 + targets.length * 0.18, () => { if (fb.alive) this.damageBuilding(fb, def.dmg * pw * def.building, null); });
+        }
+        break;
+      }
+      case 'overclockChip': {
+        s.buffs.overclock = def.overclock;
+        this.emit('spell', { side: si, id, x: s.labX, delay: 0, radius: 0 });
+        break;
+      }
+      case 'timeFreeze': {
+        this.emit('spell', { side: si, id, x, delay: 0.4, radius: R });
+        this.later(0.4, () => {
+          for (const e of this.enemiesOf(si)) {
+            if (e.mega || Math.abs(e.x - x) > R + e.radius) continue;
+            e.buffs.freeze = Math.max(e.buffs.freeze, def.freeze * (e.boss ? 0.4 : 1));
+            this.damage(e, def.dmg * pw, null, { kind: 'ice' });
+          }
+        });
+        break;
+      }
       case 'labShield': {
         for (const b of this.buildings(si)) {
           b.shield = b.maxHp * def.shield * pw;
@@ -817,7 +897,7 @@ export class BattleSim {
       dmgMult: opts.dmgMult ?? 1, x, y: 0, vx: 0, vy: 0, radius: 0.3 * size * (opts.scale ?? 1),
       size: size * (opts.scale ?? 1), state: 'spawn', spawnT: opts.delay ?? 0, cool: this.rand() * 0.3, atkPhase: 0, atkTarget: null,
       kbIndex: 0, kbThresholds: thresholds, kbT: 0,
-      buffs: { stun: 0, freeze: 0, slow: 0, slowT: 0, burn: 0, burnT: 0, growT: 0, growScale: 1, auraT: 0 },
+      buffs: { stun: 0, freeze: 0, slow: 0, slowT: 0, burn: 0, burnT: 0, growT: 0, growScale: 1, auraT: 0, rageT: 0, titanT: 0 },
       z: opts.z !== undefined ? Math.max(-FIELD.LANE_Z, Math.min(FIELD.LANE_Z, opts.z + (this.rand() - 0.5) * 0.6)) : (this.rand() - 0.5) * 2 * FIELD.LANE_Z,
       born: this.t, dead: false, boss: !!opts.boss, cost: def.elixir ?? 0,
       speedMult: opts.speedMult ?? 1, flying: !!def.traits?.flying, siege: !!def.traits?.siege, ambush: def.traits?.ambush ?? 0,
@@ -893,6 +973,8 @@ export class BattleSim {
       if (u.dead) return;
     }
     if (b.slowT > 0) { b.slowT -= dt; if (b.slowT <= 0) b.slow = 0; }
+    if (b.rageT > 0) b.rageT -= dt;
+    if (b.titanT > 0) b.titanT -= dt;
     if (b.growT > 0) {
       b.growT -= dt;
       if (b.growT <= 0) {
@@ -926,8 +1008,9 @@ export class BattleSim {
     if (b.stun > 0) { b.stun -= dt; u.state = 'stun'; u.atkPhase = 0; return; }
 
     const dance = s.buffs.dance > 0, rally = s.buffs.rally > 0;
-    const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.haste > 0 ? 1.25 : 1);
-    const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.frenzy > 0 ? 1.3 : 1);
+    const rage = b.rageT > 0 ? 1 + SPELLS.adrenaline.speedBoost : 1;
+    const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.haste > 0 ? 1.25 : 1) * rage;
+    const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.frenzy > 0 ? 1.3 : 1) * rage;
 
     if (u.mega) {
       u.life -= dt;
@@ -1018,7 +1101,8 @@ export class BattleSim {
 
   unitDamage(u) {
     const sb = this.sides[u.side].buffs;
-    let dmg = u.st.dmg * u.dmgMult * (sb.dance > 0 ? 1.5 : 1) * (sb.surge > 0 ? 1 + (SPELLS.adrenaline.amt ?? 0.4) : 1);
+    let dmg = u.st.dmg * u.dmgMult * (sb.dance > 0 ? 1.5 : 1) * (sb.surge > 0 ? 1.4 : 1)
+      * (u.buffs.rageT > 0 ? 1 + SPELLS.adrenaline.dmgBoost : 1) * (u.buffs.titanT > 0 ? 1 + SPELLS.titanSerum.dmgBoost : 1);
     if (u.ambush) {
       dmg *= u.ambush;
       u.ambush = 0;
