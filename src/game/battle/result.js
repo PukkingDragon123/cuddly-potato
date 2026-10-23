@@ -416,7 +416,7 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
   const time = sum?.time ?? 0;
   const smashed = !bases[1].alive, fell = !bases[0].alive;
   const headlineText = win
-    ? (smashed ? `*${me}* SMASHES *${riv}*'s base${time ? ` in ${fmtTime(time)}` : ''}!` : `*${me}* OUTLASTS *${riv}* on base HP!`)
+    ? (smashed ? `*${me}* SMASHES *${riv}*'s base${time >= 5 ? ` in ${fmtTime(time)}` : ''}!` : `*${me}* OUTLASTS *${riv}* on base HP!`)
     : loss
       ? (fell ? `*${riv}* FLATTENS *${me}*'s base! Rematch incoming?` : `*${riv}* edges out *${me}* at the buzzer!`)
       : `STALEMATE! *${me}* and *${riv}* can't be split!`;

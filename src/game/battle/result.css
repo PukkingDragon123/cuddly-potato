@@ -272,7 +272,8 @@
   opacity: 0; transform: scale(0.6);
 }
 .cn-chip.in { opacity: 1; transform: none; animation: popIn 0.32s cubic-bezier(.2, 1.6, .4, 1) both; }
-.cn-chip .pi, .cn-chip img { width: clamp(22px, 1.6em, 32px); height: clamp(22px, 1.6em, 32px); object-fit: contain; }
+.cn-chip .pi, .cn-chip img { width: clamp(22px, 1.6em, 32px); height: clamp(22px, 1.6em, 32px); }
+.cn-chip img.vial3d { object-fit: contain; }
 .cn-chip img.vial3d { image-rendering: auto; }
 .cn-chip > div { display: flex; flex-direction: column; line-height: 1; }
 .cn-chip b { font-family: var(--font-d); font-size: clamp(15px, 1.1em, 22px); color: #fff; text-shadow: var(--outline-thin); }
