@@ -135,6 +135,26 @@ export function drawUltFrame(cv, k, color, state = 'charging', phase = 0) {
 }
 const ultFrameCanvas = () => h('canvas', { class: 'u-frame', width: FN, height: FN });
 
+/** A dithered pixel-art contact shadow (octagonal, Bayer-thinned edge) as a data URL. */
+let _shadowURL = null;
+function pixelShadowURL() {
+  if (_shadowURL) return _shadowURL;
+  const W = 40, H = 12, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = Math.abs((x + 0.5 - W / 2) / (W / 2)), dy = Math.abs((y + 0.5 - H / 2) / (H / 2));
+    const d = Math.max(dx, dy, (dx + dy) / 1.3);
+    if (d > 1) continue;
+    const dens = d < 0.5 ? 1 : 1 - (d - 0.5) / 0.5;
+    if (B[(y & 3) * 4 + (x & 3)] / 16 >= dens) continue;
+    g.fillStyle = d < 0.5 ? 'rgba(4,2,20,0.62)' : 'rgba(4,2,20,0.45)';
+    g.fillRect(x, y, 1, 1);
+  }
+  return (_shadowURL = c.toDataURL());
+}
+
 /** Burst (ring + rays + sparks) at a screen point. */
 function burstAt(x, y, o = {}) {
   const el = h('div', { style: { position: 'absolute', left: x - 20 + 'px', top: y - 20 + 'px', width: '40px', height: '40px', pointerEvents: 'none' } });
@@ -237,7 +257,7 @@ export class BattleHUD {
       const sg = s0.cmd.signature;
       this.sigCol = SIG_COL[sg.id] ?? '#ffd84a';
       // a LIVE 3D Commander (falls back to a static portrait if WebGL thumbs fail)
-      try { this.live = new LiveChibi(cmd, { size: 224, color: this.sigCol }); } catch (e) { console.warn('live chibi failed', e); this.live = null; }
+      try { this.live = new LiveChibi(cmd, { size: 256, color: this.sigCol }); } catch (e) { console.warn('live chibi failed', e); this.live = null; }
       this.sigImg = this.live ? null : charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 128, eyes: 'determined', mouth: 'grin' });
       const u = this.makeUlt('sig', this.live?.canvas ?? this.sigImg, sg.name, this.sigCol, sg.icon ?? 'star');
       this.sig = u.el;
@@ -261,7 +281,7 @@ export class BattleHUD {
     this.megaEl = null;
     if (s0.mega) {
       const def = MEGAS[s0.mega.id];
-      this.megaImg = swarmThumb(s0.mega.id, s0.mega.variant ?? 'base', null, 128);
+      this.megaImg = swarmThumb(s0.mega.id, s0.mega.variant ?? 'base', null, 192);
       const u = this.makeUlt('mega', this.megaImg, def?.name ?? 'MEGA', def?.bolt ?? '#ff2e88', 'mega');
       this.megaU = u;
       this.megaEl = u.el;
@@ -296,14 +316,14 @@ export class BattleHUD {
     this.ocV = h('b', { class: 'bb-name' }, '');
     this.ocC = h('b', {}, '');
     this.ocFill = h('i');
+    // no panel: the next tier's 3D model floats and turns over the dock on a pixel contact shadow,
+    // with a slim name / cost / fill readout under it
     this.ocBtn = pressFx(h('div', { class: 'bh-basebtn hit', title: 'Upgrade your base (or tap it!)' },
       h('div', { class: 'bb-rays' }),
-      h('div', { class: 'bb-stage' }, h('i', { class: 'bb-plinth' }), this.ocModel),
-      this.ocTier,
-      h('div', { class: 'bb-txt' }, h('small', {}, 'UPGRADE'), this.ocV),
-      h('div', { class: 'bb-cost' }, icon('power'), this.ocC),
-      h('div', { class: 'bb-fill' }, this.ocFill),
-      h('div', { class: 'bb-shine' })));
+      h('div', { class: 'bb-stage' }, h('i', { class: 'bb-shadow', style: { backgroundImage: `url(${pixelShadowURL()})` } }), h('div', { class: 'bb-float' }, this.ocModel)),
+      h('div', { class: 'bb-info' },
+        h('div', { class: 'bb-txt' }, this.ocTier, h('small', {}, icon('up')), this.ocV),
+        h('div', { class: 'bb-meter' }, h('div', { class: 'bb-fill' }, this.ocFill), h('div', { class: 'bb-cost' }, icon('power'), this.ocC)))));
     this.ocBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); handlers.overclock(); });
     this.modelTier = 0;
     this.spinFrames = null;
@@ -381,7 +401,10 @@ export class BattleHUD {
     const el = pressFx(h('div', { class: `bh-ult ${kind}${img instanceof Node ? ' live' : ''} hit`, title: name, style: { '--uc': color } },
       h('div', { class: 'u-rays' }),
       frame,
-      h('div', { class: 'u-core' }, liq, img instanceof Node ? (img.classList.add('u-model'), img) : h('img', { class: 'u-model', src: img, alt: '' }), h('i', { class: 'u-arc a1' }), h('i', { class: 'u-arc a2' }), h('i', { class: 'u-arc a3' })),
+      h('div', { class: 'u-core' }, liq, h('i', { class: 'u-arc a1' }), h('i', { class: 'u-arc a2' }), h('i', { class: 'u-arc a3' })),
+      // the 3D character pops OUT of the octagon: clipped to the window below the frame's waist line,
+      // free (in front of the bezel) above it
+      img instanceof Node ? (img.classList.add('u-model', 'u-pop'), img) : h('img', { class: 'u-model u-pop', src: img, alt: '' }),
       h('div', { class: 'u-tag' }, icon(ic), kind === 'mega' ? 'MEGA' : 'ULT'),
       pct));
     return { el, liq, pct, frame, color, fkey: '' };
@@ -414,30 +437,25 @@ export class BattleHUD {
     this.modelTier = show;
     const style = this.cfg.sides[0].labStyle;
     try {
-      const [first] = await baseSpin(show, { style, size: 192 });
+      const [first] = await baseSpin(show, { style, size: 256, zoom: 0.68 });
       if (this.modelTier !== show) return;
       this.ocModel.src = first;
       if (!initial) { this.ocModel.classList.remove('in'); void this.ocModel.offsetWidth; this.ocModel.classList.add('in'); }
       // turntable frames for the "you can afford it" spin, rendered in the background
       this.spinFrames = null;
       setTimeout(async () => {
-        const fr = await baseSpin(show, { style, size: 192, frames: 12 });
+        const fr = await baseSpin(show, { style, size: 256, frames: 20, zoom: 0.68 });
         if (this.modelTier === show) this.spinFrames = fr;
       }, initial ? 1500 : 400);
     } catch (e) { console.warn('base thumb failed', e); }
   }
 
-  /** Step the turntable when affordable (or during the upgrade spin). */
+  /** The turntable: a slow idle turn, faster when affordable, a whirl during the upgrade. */
   spinModel(dt, on) {
     const fr = this.spinFrames;
     if (!fr || reduced()) return;
-    this.spinT = (this.spinT ?? 0) + dt * (this.fastSpin > 0 ? 34 : on ? 7 : 0);
+    this.spinT = (this.spinT ?? 0) + dt * (this.fastSpin > 0 ? 40 : on ? 9 : 2.6);
     if (this.fastSpin > 0) this.fastSpin -= dt;
-    if (!on && !(this.fastSpin > 0)) {
-      // settle back on the hero angle
-      if (this.spinIdx) { this.spinIdx = 0; this.ocModel.src = fr[0]; this.spinT = 0; }
-      return;
-    }
     const i = Math.floor(this.spinT) % fr.length;
     if (i !== this.spinIdx) { this.spinIdx = i; this.ocModel.src = fr[i]; }
   }
@@ -784,7 +802,7 @@ export class BattleHUD {
     void b.offsetWidth;
     b.classList.add('upgraded');
     setTimeout(() => b.classList.remove('upgraded'), 1100);
-    burst(b, { color: '#c08aff', count: 24, scale: 1.4, ring: false, colors: ['#ffd84a', '#ffffff', '#c08aff', '#8fd4ff'] });
+    burst(b.querySelector('.bb-stage') ?? b, { color: '#c08aff', count: 28, scale: 1.2, ring: false, colors: ['#ffd84a', '#ffffff', '#c08aff', '#8fd4ff'] });
     // spin the model of the tier we just built, then swap to the next one
     this.fastSpin = 0.9;
     setTimeout(() => this.updateBaseModel(), 900);

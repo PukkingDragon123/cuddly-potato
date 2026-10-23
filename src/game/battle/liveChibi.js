@@ -138,8 +138,9 @@ export class LiveChibi {
     // bust framing (head + chest, arms in when they go up), with a punchy zoom
     const H = CHIBI_HEIGHT;
     this.camY = (this.camY ?? 0) + (this.ch.inner.position.y - (this.camY ?? 0)) * 0.35;
+    // framed for the pop-out canvas: hips at the bottom edge, head near the top
     const cy = H * 0.6 + this.camY;
-    const dist = (H * 2.2) / Math.max(0.6, this.zoom);
+    const dist = (H * 2.45) / Math.max(0.6, this.zoom);
     this.cam.position.set(0.15, cy + H * 0.12, dist);
     this.cam.lookAt(0, cy, 0);
     // this context needs its own env map + no scene colour grade
