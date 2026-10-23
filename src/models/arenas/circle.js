@@ -394,7 +394,7 @@ function fanChibiGrid(v) {
   const g = new VoxGrid();
   const R = mulberry32(v * 97 + 5);
   const pick = (a) => a[Math.floor(R() * a.length)];
-  const shirt = pick(SHIRT), skin = pick(SKIN), hair = pick(HAIR), cheer = v % 2 === 0;
+  const shirt = pick(SHIRT), skin = SKIN[(v * 5 + 1) % SKIN.length], hair = pick(HAIR), cheer = v % 2 === 0;
   // torso (seated) + shirt trim
   g.box(-2, 0, -1, 2, 4, 1, (x, y) => (y === 4 ? shade(shirt, 0.15) : y === 0 ? shade(shirt, -0.2) : shirt));
   if (v % 3 === 0) g.box(-1, 2, 2, 1, 3, 2, 0xffffff); // shirt print
@@ -411,15 +411,15 @@ function fanChibiGrid(v) {
   g.paint((x, y, z) => (g.has(x, y, z) && y >= 5 && (y >= 10 || z <= -2 || (Math.abs(x) === 3 && y >= 8)) ? hair : undefined));
   if (R() < 0.3) { const cap = pick([0xe8343c, 0x1d9bf0, 0x2a2a36, 0xffffff, 0xffd23f]); g.box(-3, 11, -3, 3, 12, 2, cap).box(-2, 11, 3, 2, 11, 5, cap); }
   // face: eyes with a highlight, blush, smile
-  for (const ex of [-2, 1]) { g.box(ex, 7, 3, ex + 1, 8, 3, 0x1a1420); g.set(ex, 8, 3, 0xffffff); }
-  g.set(-3, 6, 3, 0xff9a9a).set(3, 6, 3, 0xff9a9a);
-  g.box(-1, 6, 3, 1, 6, 3, 0x8a2a2a);
+  for (const ex of [-2, 2]) g.box(ex, 7, 3, ex, 8, 3, 0x1a1420);
+  g.set(-2, 6, 3, mixHex(skin, 0xff7a7a, 0.45)).set(2, 6, 3, mixHex(skin, 0xff7a7a, 0.45));
+  g.set(0, 6, 3, mixHex(skin, 0x8a2a2a, 0.6));
   return g;
 }
 
 function addCrowd(K, cx, z0, L, seed) {
   // seated chibi voxel fans on every bleacher row (6 instanced variants), bouncing as they cheer
-  const VARIANTS = 6, V = 0.055;
+  const VARIANTS = 8, V = 0.058;
   const seats = [];
   const R = mulberry32(seed * 13 + 1);
   const wUnits = L * 0.25 - 0.8;
