@@ -1,46 +1,55 @@
 /* ONLINE BATTLE: home sticker, hub (radar search, players list), challenge toasts, VS handoff. */
 
-/* ---- the LIVE 1v1 sticker on the BATTLE button ---------------------------- */
+/* ---- the LIVE 1v1 pixel badge on the BATTLE button ----------------------- */
 .ol-entry {
-  position: absolute; z-index: 4; left: calc(var(--u) * -3.2); top: calc(var(--u) * -7.4);
-  width: calc(var(--u) * 15); height: calc(var(--u) * 15); padding: 0; border: 0; border-radius: 50%; cursor: pointer;
-  color: #fff; font-family: var(--font-d); rotate: -12deg;
-  background: radial-gradient(circle at 34% 28%, #ff9ad0 0 12%, #ff2e88 34%, #a3105c 72%, #5a0a3c 100%);
-  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.2) #ffd84a, 0 0 0 calc(var(--px) * 3.2) var(--ink),
-    inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.35), inset 0 calc(var(--px) * 1.5) 0 rgba(255, 255, 255, 0.45), 0 calc(var(--px) * 2) calc(var(--px) * 4) rgba(255, 46, 136, 0.55);
+  position: absolute; z-index: 4; left: calc(var(--u) * -5.4); top: calc(var(--u) * -10);
+  width: calc(var(--u) * 19); height: calc(var(--u) * 19); padding: 0; border: 0; background: none; cursor: pointer;
+  color: #fff; font-family: var(--font-d);
+  filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(18, 12, 36, 0.55));
   transition: transform 0.15s cubic-bezier(.3, 1.8, .5, 1);
-  animation: olStick 3.4s ease-in-out infinite;
+  animation: olStick 1.6s steps(2) infinite;
 }
 .ol-entry:active { transform: scale(0.9); }
 @media (hover: hover) { .ol-entry:hover { transform: scale(1.08); } }
-.ol-entry-face { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; line-height: 0.85; text-shadow: var(--outline-thin); }
+.ol-entry-art, .ol-entry-ring { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; }
+.ol-entry-art { z-index: 1; }
+.ol-entry-ring { z-index: 0; opacity: 0; }
+.ol-entry.live .ol-entry-ring { animation: olPing 2s steps(8) infinite; }
+.ol-entry.live .ol-entry-ring.r2 { animation-delay: 1s; }
+.ol-entry.busy { animation-duration: 0.8s; }
+.ol-entry-face { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 0.82; text-shadow: var(--outline-thin); }
 .ol-entry-face b { font-size: calc(var(--u) * 4.4); letter-spacing: 0.02em; }
 .ol-entry-face small { font-size: calc(var(--u) * 2.5); letter-spacing: 0.12em; color: #fff36a; }
-.ol-entry-ic { width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); margin-bottom: calc(var(--u) * 0.2); filter: drop-shadow(0 var(--px) 0 var(--ink)); }
-.ol-entry-ring { position: absolute; inset: calc(var(--px) * -1); border-radius: 50%; border: calc(var(--px) * 1.5) solid #ff6ab4; opacity: 0; pointer-events: none; }
-.ol-entry.live .ol-entry-ring { animation: olPing 2s ease-out infinite; }
-.ol-entry.live .ol-entry-ring.r2 { animation-delay: 1s; }
-.ol-entry.busy .ol-entry-ring { border-style: dashed; border-color: #fff36a; opacity: 1; animation: hmSpin 2.4s linear infinite; inset: calc(var(--px) * -4); }
-.ol-entry.busy .ol-entry-ring.r2 { display: none; }
+.ol-entry-ic { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); margin-bottom: calc(var(--u) * 0.1); filter: drop-shadow(0 var(--px) 0 var(--ink)); }
 .ol-entry-n:empty { display: none; }
 .ol-entry-n {
-  position: absolute; z-index: 3; right: calc(var(--u) * -1.2); top: calc(var(--u) * -0.6); min-width: calc(var(--u) * 5); height: calc(var(--u) * 5);
-  display: flex; align-items: center; justify-content: center; padding: 0 0.25em; rotate: 12deg;
-  font-size: calc(var(--u) * 3); color: #fff; background: #2fbf4a; border-radius: calc(var(--u) * 2.5);
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #9cf39c; text-shadow: var(--outline-thin);
+  position: absolute; z-index: 3; right: calc(var(--u) * -1.6); top: calc(var(--u) * 0.4); min-width: calc(var(--u) * 7.4); height: calc(var(--u) * 4.4);
+  display: flex; align-items: center; justify-content: center; gap: 0.15em; padding: 0 calc(var(--u) * 0.9);
+  font-size: calc(var(--u) * 2.9); color: #fff; text-shadow: var(--outline-thin);
+  background: center / 100% 100% no-repeat; image-rendering: pixelated;
 }
-.ol-entry-n::before { content: ''; width: 0.38em; height: 0.38em; margin-right: 0.2em; border-radius: 50%; background: #d8ffd0; animation: olBlink 1.2s steps(2) infinite; }
-@keyframes olStick { 0%, 100% { rotate: -12deg; } 50% { rotate: -6deg; } }
-@keyframes olPing { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(1.55); opacity: 0; } }
+.ol-entry-n::before { content: ''; width: calc(var(--px) * 2); height: calc(var(--px) * 2); background: #d8ffd0; box-shadow: 0 0 0 calc(var(--px) * 0.5) #145a22; animation: olBlink 1.2s steps(2) infinite; }
+@keyframes olStick { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--px) * -2); } }
+@keyframes olPing { 0% { transform: scale(1); opacity: 0.95; } 100% { transform: scale(1.45); opacity: 0; } }
 @keyframes olBlink { 50% { opacity: 0.25; } }
-body.landscape .ol-entry { width: calc(var(--u) * 13); height: calc(var(--u) * 13); top: calc(var(--u) * -5.6); left: calc(var(--u) * -4.2); }
+body.landscape .ol-entry { width: calc(var(--u) * 15.5); height: calc(var(--u) * 15.5); top: calc(var(--u) * -7.6); left: calc(var(--u) * -4.4); }
+
+/* stepped pixel portrait frame: the portrait is clipped to the frame's window */
+.ol-pxp { position: relative; flex: none; aspect-ratio: 1; image-rendering: pixelated; }
+.ol-pxp::after { content: ''; position: absolute; inset: 0; z-index: 2; background: var(--fr) center / 100% 100% no-repeat; image-rendering: pixelated; pointer-events: none; }
+.ol-pxp-in {
+  position: absolute; inset: 9%; overflow: hidden;
+  background: linear-gradient(color-mix(in srgb, var(--bg) 55%, #fff), color-mix(in srgb, var(--bg) 70%, #120c24));
+  clip-path: polygon(0 12%, 6% 12%, 6% 6%, 12% 6%, 12% 0, 88% 0, 88% 6%, 94% 6%, 94% 12%, 100% 12%, 100% 88%, 94% 88%, 94% 94%, 88% 94%, 88% 100%, 12% 100%, 12% 94%, 6% 94%, 6% 88%, 0 88%);
+}
+.ol-pxp-in img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ---- hub ------------------------------------------------------------------- */
 .ol-modal .modal-body { overflow-x: hidden; }
 .ol-hub { gap: calc(var(--u) * 1.4); }
 .ol-head { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 2); font-family: var(--font-d); font-size: 1.05em; min-height: 1.4em; }
 .ol-live { display: inline-flex; align-items: center; gap: 0.4em; padding: 0.05em 0.6em; background: rgba(0, 0, 0, 0.35); box-shadow: 0 0 0 var(--px) var(--ink); color: #c6ffd0; text-shadow: var(--outline-thin); }
-.ol-live i { width: 0.55em; height: 0.55em; border-radius: 50%; background: #3ae05a; box-shadow: 0 0 0.5em #3ae05a; animation: olBlink 1.2s steps(2) infinite; }
+.ol-live i { width: calc(var(--px) * 3); height: calc(var(--px) * 3); background: #3ae05a; box-shadow: 0 0 0 var(--px) #145a22, 0 0 0.5em #3ae05a; animation: olBlink 1.2s steps(2) infinite; }
 .ol-live.off { color: #ffb0b8; } .ol-live.off i { background: #ff4a5a; box-shadow: none; animation: none; }
 .ol-live.wait { color: #ffe9a0; } .ol-live.wait i { background: var(--gold); }
 .ol-head-s { display: inline-flex; align-items: center; gap: 0.3em; color: var(--gold); text-shadow: var(--outline-thin); }
@@ -50,35 +59,12 @@ body.landscape .ol-entry { width: calc(var(--u) * 13); height: calc(var(--u) * 1
 .ol-wait { display: flex; align-items: center; justify-content: center; gap: 0.6em; flex: 1; font-weight: 700; color: var(--gold); }
 
 .ol-quick { align-items: center; gap: calc(var(--u) * 1.6); }
-.ol-radar {
-  position: relative; width: min(calc(var(--u) * 58), 70vw); aspect-ratio: 1; border-radius: 50%; overflow: hidden; isolation: isolate;
-  background:
-    repeating-linear-gradient(0deg, rgba(80, 255, 200, 0.08) 0 1px, transparent 1px calc(var(--u) * 4)),
-    repeating-linear-gradient(90deg, rgba(80, 255, 200, 0.08) 0 1px, transparent 1px calc(var(--u) * 4)),
-    radial-gradient(circle, #0f5a5a 0%, #0a2e44 55%, #071a2c 100%);
-  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 3) #2a8a8a, 0 0 0 calc(var(--px) * 4) var(--ink), inset 0 0 calc(var(--u) * 6) rgba(0, 0, 0, 0.6), 0 0 calc(var(--u) * 5) rgba(60, 255, 200, 0.18);
-}
-.ol-ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; translate: -50% -50%; border: var(--px) solid rgba(90, 255, 210, 0.35); }
-.ol-ring.r1 { width: 33%; height: 33%; } .ol-ring.r2 { width: 63%; height: 63%; } .ol-ring.r3 { width: 92%; height: 92%; border-style: dashed; }
-.ol-radar::before, .ol-radar::after { content: ''; position: absolute; background: rgba(90, 255, 210, 0.25); }
-.ol-radar::before { left: 50%; top: 4%; bottom: 4%; width: 1px; } .ol-radar::after { top: 50%; left: 4%; right: 4%; height: 1px; }
-.ol-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(90, 255, 210, 0.55), rgba(90, 255, 210, 0.12) 50deg, transparent 90deg); animation: hmSpin 4s linear infinite; opacity: 0.45; }
-.ol-radar.on .ol-sweep { animation-duration: 1.6s; opacity: 1; }
-.ol-blips { position: absolute; inset: 0; z-index: 2; }
-.ol-blip { position: absolute; width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); translate: -50% -50%; border-radius: 50%; background: #7dffb0; box-shadow: 0 0 calc(var(--u) * 1.5) #7dffb0; animation: olBlip 1.6s ease-in-out infinite; animation-delay: var(--d); }
-.ol-blip.hot { background: #ff5aa8; box-shadow: 0 0 calc(var(--u) * 1.8) #ff2e88; }
-@keyframes olBlip { 0%, 100% { opacity: 1; scale: 1; } 50% { opacity: 0.35; scale: 0.7; } }
-.ol-me {
-  position: absolute; z-index: 3; left: 50%; top: 50%; translate: -50% -50%; width: 30%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
-  background: radial-gradient(circle at 50% 35%, #4fb0ff, #174ea8); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.5) #fff, 0 0 0 calc(var(--px) * 3.5) var(--ink), 0 0 calc(var(--u) * 4) rgba(80, 180, 255, 0.7);
-}
-.ol-me img { width: 100%; height: 100%; object-fit: cover; }
-.ol-radar.on .ol-me { animation: olMe 1.6s ease-in-out infinite; }
+.ol-radar { position: relative; width: min(calc(var(--u) * 60), 72vw); aspect-ratio: 1; filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(18, 12, 36, 0.6)); }
+.ol-radar-cv { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.ol-me { position: absolute; z-index: 3; left: 50%; top: 50%; translate: -50% -50%; width: 31%; }
+.ol-radar.on .ol-me { animation: olMe 1.6s steps(4) infinite; }
 @keyframes olMe { 50% { scale: 1.06; } }
-.ol-radar.found { background: radial-gradient(circle, #ffd84a 0%, #ff2e88 45%, #5a0a3c 100%); }
-.ol-radar.found .ol-ring { border-color: rgba(255, 255, 255, 0.6); animation: olPing 1.2s ease-out infinite; }
-.ol-radar.found .ol-ring.r2 { animation-delay: 0.4s; } .ol-radar.found .ol-ring.r3 { animation-delay: 0.8s; }
-.ol-radar.found .ol-me { width: 40%; background: radial-gradient(circle at 50% 35%, #ff7a8a, #b8122e); animation: olMe 0.8s ease-in-out infinite; }
+.ol-radar.found .ol-me { width: 40%; animation: olMe 0.8s steps(4) infinite; }
 .ol-pitch { display: flex; flex-direction: column; align-items: center; gap: 0.2em; text-align: center; font-size: 0.9em; }
 .ol-pitch b { font-size: 1.4em; }
 .ol-find { min-width: calc(var(--u) * 50); }
@@ -97,8 +83,7 @@ body.landscape .ol-entry { width: calc(var(--u) * 13); height: calc(var(--u) * 1
 .ol-players { gap: var(--u); }
 .ol-rows { display: flex; flex-direction: column; gap: var(--u); }
 .ol-row { display: flex; align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1) calc(var(--u) * 1.4); animation: olIn 0.3s cubic-bezier(.3, 1.6, .5, 1) both; }
-.ol-row-port { width: calc(var(--u) * 11); height: calc(var(--u) * 11); flex: none; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 50% 35%, #ff7a8a, #8a1230); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2) #fff3; }
-.ol-row-port img { width: 100%; height: 100%; object-fit: cover; }
+.ol-row-port { width: calc(var(--u) * 12); }
 .ol-row-tx { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 0.1em; }
 .ol-row-tx b { font-family: var(--font-d); font-size: 1.3em; color: #fff; text-shadow: var(--outline-thin); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ol-row-meta { display: flex; align-items: center; gap: 0.3em; font-weight: 700; font-size: 0.85em; color: var(--gold); }
@@ -119,8 +104,7 @@ body.landscape .ol-entry { width: calc(var(--u) * 13); height: calc(var(--u) * 1
   box-shadow: 0 0 0 calc(var(--px) * 2) #ff2e88, 0 calc(var(--px) * 3) calc(var(--px) * 8) rgba(0, 0, 0, 0.5);
 }
 .ol-inv.out { transition: opacity 0.2s, translate 0.2s; opacity: 0; translate: -50% -40%; }
-.ol-inv-port { width: calc(var(--u) * 13); height: calc(var(--u) * 13); flex: none; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 50% 35%, #ff7a8a, #8a1230); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2.5) #ffd84a; animation: olMe 0.9s ease-in-out infinite; }
-.ol-inv-port img { width: 100%; height: 100%; object-fit: cover; }
+.ol-inv-port { width: calc(var(--u) * 14); animation: olMe 0.9s steps(4) infinite; }
 .ol-inv-tx { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .ol-inv-tx small { color: #ff8ac4; font-size: 0.85em; text-shadow: var(--outline-thin); }
 .ol-inv-name { font-family: var(--font-d); font-size: 1.5em; color: #fff; text-shadow: var(--outline); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -151,8 +135,7 @@ body.landscape .ol-entry { width: calc(var(--u) * 13); height: calc(var(--u) * 1
 .ol-vs-side.them { animation-name: olSideInR; }
 @keyframes olSideIn { from { opacity: 0; translate: -60% 0; } }
 @keyframes olSideInR { from { opacity: 0; translate: 60% 0; } }
-.ol-vs-port { width: min(calc(var(--u) * 30), 36vw); aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.5), rgba(0, 0, 0, 0.25)); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 3) #fff, 0 0 0 calc(var(--px) * 4) var(--ink), 0 calc(var(--px) * 4) calc(var(--px) * 10) rgba(0, 0, 0, 0.5); }
-.ol-vs-port img { width: 100%; height: 100%; object-fit: cover; }
+.ol-vs-port { width: min(calc(var(--u) * 32), 38vw); }
 .ol-vs-side.them .ol-vs-port img { transform: scaleX(-1); }
 .ol-vs-name { max-width: 40vw; font-family: var(--font-d); font-size: calc(var(--u) * 6); color: #fff; text-shadow: var(--outline); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ol-vs-tr { display: inline-flex; align-items: center; gap: 0.3em; padding: 0 0.5em; font-family: var(--font-d); font-size: calc(var(--u) * 4); color: var(--gold); background: rgba(0, 0, 0, 0.45); box-shadow: 0 0 0 var(--px) var(--ink); text-shadow: var(--outline-thin); }
@@ -180,5 +163,5 @@ body.portrait .ol-vs-side.me { order: 3; } body.portrait .ol-vs-side.them { orde
 .ol-net.hide { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ol-entry, .ol-entry-ring, .ol-sweep, .ol-blip, .ol-me, .ol-vs-vs, .ol-vs-band::after, .ol-inv-port { animation: none !important; }
+  .ol-entry, .ol-entry-art, .ol-entry-ring, .ol-me, .ol-vs-vs, .ol-vs-band::after, .ol-inv-port { animation: none !important; }
 }

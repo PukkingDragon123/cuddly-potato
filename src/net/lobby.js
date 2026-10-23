@@ -383,7 +383,7 @@ class Lobby {
       // hand over to the battle scene: hold anything that arrives until it listens,
       // and give both pages time to build the 3D battle before calling anyone gone
       link.hold();
-      link.silentMax = 90000;
+      link.silentMax = 240000;
       offEarly();
       const late = early.filter((m) => m?.t !== 'hi' && m?.t !== 'go');
       link.queue.unshift(...late.map((m) => [m, 'r']));

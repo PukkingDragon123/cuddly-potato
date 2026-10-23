@@ -66,7 +66,7 @@ export function openSettings(ctx) {
       h('div', { class: 'mn-credits' },
         h('b', { class: 't-d outline mn-credits-t' }, 'MRBEAST ', h('span', { class: 'c-pink' }, 'SWARMERS')),
         h('span', { class: 't-sm' }, 'A voxel + pixel-art fan game. Every model, sound and tune is generated in code.'),
-        h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Font: Handjet'),
+        h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Jersey 25 + Handjet'),
         h('span', { class: 'mn-disclaimer' }, icon('alert', 's'), DISCLAIMER)),
       subHead('SAVE DATA'),
       row('skull', 'Reset all progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' }), 'Deletes your cards, trophies and everything'),

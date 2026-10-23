@@ -124,7 +124,11 @@ export class BattleScene {
       }
       this.ai = null;
       this.offClose = peer?.onClose((why) => this.peerLost(why));
-      if (mode === 'online') this.offStatus = peer?.onStatus?.((st) => this.netStatus(st));
+      if (mode === 'online') {
+        this.offStatus = peer?.onStatus?.((st) => this.netStatus(st));
+        // the opponent vanished while this page was still building the battle
+        if (!peer || peer.dead) setTimeout(() => this.peerLost(peer?.closeReason === 'lost' ? 'lost' : 'left'), 0);
+      }
       this.offMsg = peer?.on((m) => {
         if (m.t === 'emote' && params.role === 'guest') this.hud?.showEmote(1, m.e);
         if (m.t === 'ready') this.peerReady = true;
@@ -843,7 +847,8 @@ export class BattleScene {
   /** Online 1v1 over: normal ranked rewards (none for a cancelled or near-instant forfeit). */
   async onlineEnd(res, bases, names) {
     const sim = this.sim;
-    const quickForfeit = this.endReason === 'forfeit' && sim.t < 20;
+    // rewards need a real fight: a base destroyed, or 20+ seconds of battle (no farming instant forfeits)
+    const quickForfeit = sim.t < 20 && sim.sides[0].lab.alive && sim.sides[1].lab.alive;
     const fair = !this.noContest && !quickForfeit;
     const rewards = fair ? battleRewards({ result: res, margin: bases[0].frac, arenaId: this.arenaId, mode: 'ranked', opponentTrophies: this.opponentTrophies ?? state.p.trophies }) : null;
     state.save();

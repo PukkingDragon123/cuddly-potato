@@ -315,7 +315,7 @@ export class RoomLink {
     }
     if (this.downAt && now - this.downAt > LOST_MAX) return this.close('lost');
     if (this.downAt) return; // can't judge the opponent while we are offline
-    if (this.leftAt && now - this.leftAt > Math.max(LEFT_GRACE, this.silentMax - SILENT_MAX)) return this.close('left');
+    if (this.leftAt && now - this.leftAt > (this.silentMax > SILENT_MAX ? 30000 : LEFT_GRACE)) return this.close('left');
     if (this.open && now - this.lastHeard > this.silentMax) return this.close('timeout');
   }
 }

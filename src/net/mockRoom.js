@@ -190,14 +190,15 @@ export function installMockRoom() {
     }
   }
 
-  // heartbeats: peers silent for 4 s have left (a crashed / killed tab)
+  // heartbeats: peers silent for 45 s have left (a crashed tab; a closed / killed tab says bye at once).
+  // Generous like the platform, whose connection lives outside the page's (possibly busy) main thread.
   setInterval(() => {
     if (!alive) return;
     for (const R of rooms.values()) {
       if (linkUp) post({ k: 'hb', room: R.name });
       const now = performance.now();
       for (const [id, p] of R.peers) {
-        if (id === myPeer || now - (p.seen ?? now) < 4000) continue;
+        if (id === myPeer || now - (p.seen ?? now) < 45000) continue;
         R.peers.delete(id);
         R.mark('left', p);
       }

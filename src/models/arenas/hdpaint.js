@@ -74,8 +74,9 @@ export function hdSun(ctx, cx, cy, r, o = {}) {
   const col = o.color ?? 0xfff0b0, core = o.core ?? 0xffffff, halo = o.halo ?? 0xfff6d8;
   hdGlow(ctx, cx, cy, r * (o.haloR ?? 5) * 1.15, r * (o.haloR ?? 5) * 1.15, halo, (o.haloA ?? 0.55) * 0.9, 1.8);
   hdGlow(ctx, cx, cy, r * 2.4, r * 2.4, o.halo2 ?? halo, 0.8, 1.4);
-  if (o.rays) {
-    const n = o.rays, len = r * (o.rayLen ?? 6);
+  const rays = o.rays ?? 12;
+  if (rays) {
+    const n = rays, len = r * (o.rayLen ?? (o.rays ? 6 : 3.4));
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let k = 0; k < n; k++) {

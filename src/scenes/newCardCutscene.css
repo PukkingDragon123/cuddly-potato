@@ -44,14 +44,14 @@ body.landscape .vo-cut-panel { left: auto; right: calc(var(--safe-r) + var(--u) 
 .vo-cut-panel.in .vo-cut-kicker span { transform: skewX(-12deg); }
 
 .vo-cut-name {
-  display: flex; flex-wrap: wrap; justify-content: center; font-family: var(--font-d); line-height: 0.92; letter-spacing: 0.02em;
-  font-size: clamp(30px, calc(var(--u) * 15), 120px); color: #fff; text-align: center; max-width: 100%;
+  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; font-family: var(--font-d); line-height: 0.92; letter-spacing: 0.02em;
+  font-size: clamp(22px, calc(var(--u) * 15 * var(--nk, 1)), 120px); color: #fff; text-align: center; max-width: 100%;
   text-shadow: var(--outline), 0 calc(var(--px) * 3) 0 var(--ink), 0 0 calc(var(--u) * 4) var(--rc);
 }
-body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; font-size: clamp(28px, calc(var(--u) * 12), 110px); }
-.vo-cut-name span { display: inline-block; opacity: 0; }
-.vo-cut-name span.sp { width: 0.35em; }
-.vo-cut-panel.in .vo-cut-name span { animation: voCutLetter 0.32s cubic-bezier(.2, 1.5, .4, 1) both; }
+body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; font-size: clamp(22px, calc(var(--u) * 12 * var(--nk, 1)), 110px); }
+.vo-cut-word { display: inline-flex; white-space: nowrap; }
+.vo-cut-l1 { display: inline-block; opacity: 0; }
+.vo-cut-panel.in .vo-cut-l1 { animation: voCutLetter 0.32s cubic-bezier(.2, 1.5, .4, 1) both; }
 @keyframes voCutLetter { 0% { opacity: 0; transform: translateY(-40%) scale(3.2) rotate(-12deg); filter: blur(2px); } 100% { opacity: 1; transform: none; filter: none; } }
 .vo-cut-name.hit { animation: voCutHit 0.4s ease-out; }
 @keyframes voCutHit { 0% { transform: scale(1.12); filter: brightness(2); } 100% { transform: none; filter: none; } }

@@ -161,15 +161,15 @@ const shadowTex = () => pixelTex('shadow', 32, (ctx, s) => {
   }
 });
 /** Spell aim reticle: a dashed pixel octagon, corner brackets and a crosshair. */
-const reticleTex = () => pixelTex('reticle', 64, (ctx, s) => {
+const reticleTex = () => pixelTex('reticle2', 32, (ctx, s) => {
   const px = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
     const dx = (x + 0.5 - s / 2) / (s / 2), dy = (y + 0.5 - s / 2) / (s / 2), d = octD(dx, dy);
-    const a = Math.atan2(dy, dx), seg = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 32);
-    if (d <= 0.97 && d > 0.89) { if (seg % 2 === 0) px(x, y, d > 0.93 ? '#ffffff' : '#dfe8ff'); }
-    else if (d <= 0.86 && d > 0.83 && seg % 4 === 1) px(x, y, 'rgba(255,255,255,0.6)');
+    const a = Math.atan2(dy, dx), seg = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 16);
+    if (d <= 1 && d > 0.8 && seg % 2 === 0) px(x, y, d > 0.9 ? '#ffffff' : '#cfe0ff');
   }
-  for (let k = -5; k <= 5; k++) if (Math.abs(k) > 1) { px(32 + k, 32, '#ffffff'); px(32, 32 + k, '#ffffff'); }
+  for (let k = -3; k <= 3; k++) if (Math.abs(k) > 0) { px(15 + (k > 0 ? 1 : 0) + k, 15, '#ffffff'); px(15, 15 + k, '#ffffff'); }
+  px(15, 15, '#ffffff');
 });
 /** Dithered fill for the aim area. */
 const fillTex = () => pixelTex('aimfill', 32, (ctx, s) => {
@@ -416,12 +416,12 @@ class UnitActor {
     const dir = u.side === 0 ? -1 : 1; // "behind" the troop
     if (sb.surge > 0) {
       // rage: red-hot embers boiling off the body + a hot core flicker
-      for (let i = 0; i < 2; i++) particles.spawn('glow', { x: p.x + rand(-0.25, 0.25) * u.size, y: p.y + rand(0.1, 0.9) * H, z: p.z + rand(-0.2, 0.2), vx: rand(-0.3, 0.3), vy: rand(1.2, 2.4), vz: 0, size: rand(0.04, 0.08), life: rand(0.35, 0.6), grav: 1.5, drag: 1, color: pick([0xff2a1a, 0xff5a1f, 0xffa31a]) });
-      if (Math.random() < 0.3) this.rig.flash?.(0.03);
+      for (let i = 0; i < 3; i++) particles.spawn('glow', { x: p.x + rand(-0.3, 0.3) * u.size, y: p.y + rand(0.1, 1) * H, z: p.z + rand(-0.2, 0.3), vx: rand(-0.3, 0.3), vy: rand(1.4, 2.8), vz: 0, rx: 0, ry: 0, rz: 0, sx: 0.07, sy: rand(0.1, 0.18), sz: 0.07, life: rand(0.35, 0.65), grav: 1.5, drag: 1, color: pick([0xff2a1a, 0xff5a1f, 0xffa31a, 0xff2a1a]) });
+      particles.spawn('glow', { x: p.x + rand(-0.2, 0.2) * u.size, y: p.y + 0.06, z: p.z + 0.25, vx: 0, vy: rand(0.4, 0.9), vz: 0, rx: 0, ry: 0, rz: 0, size: rand(0.1, 0.16), life: 0.3, grav: 0, drag: 1, color: 0xff3a1a });
     }
     if (sb.frenzy > 0) {
       // frenzy: fast yellow sparks zipping off the arms
-      for (let i = 0; i < 2; i++) particles.spawn('glow', { x: p.x + rand(-0.2, 0.2), y: p.y + rand(0.3, 0.8) * H, z: p.z + 0.2, vx: dir * rand(3, 6), vy: rand(-0.5, 1.5), vz: rand(-0.5, 0.5), sx: 0.12, sy: 0.025, sz: 0.025, rx: 0, ry: 0, rz: 0, life: rand(0.15, 0.25), grav: 0, drag: 2, color: pick([0xffe14a, 0xfff6a0, 0xffffff]) });
+      for (let i = 0; i < 3; i++) particles.spawn('glow', { x: p.x + rand(-0.25, 0.25), y: p.y + rand(0.3, 0.9) * H, z: p.z + 0.25, vx: -dir * rand(2, 5) * (Math.random() < 0.5 ? 1 : -1), vy: rand(-0.5, 2), vz: rand(-0.5, 0.5), sx: 0.16, sy: 0.04, sz: 0.04, rx: 0, ry: 0, rz: rand(-0.6, 0.6), life: rand(0.15, 0.28), grav: 0, drag: 2, color: pick([0xffe14a, 0xfff6a0, 0xffffff]) });
     }
     if (sb.haste > 0 && u.state === 'walk') {
       // haste: white wind streaks trailing behind
@@ -913,7 +913,7 @@ export class BattleView {
       // pixel-art reticle decal + dithered fill + a dotted voxel guide beam (no plain ring / disc meshes)
       this.aimRing = new THREE.Mesh(PLANE, decalMat(reticleTex(), new THREE.Color(sp.color), 0.95));
       this.aimRing.renderOrder = 3;
-      const disc = new THREE.Mesh(PLANE, decalMat(fillTex(), new THREE.Color(sp.color), 0.22));
+      const disc = new THREE.Mesh(PLANE, decalMat(fillTex(), new THREE.Color(sp.color), 0.32));
       disc.position.y = -0.005;
       this.aimRing.add(disc);
       const bm = new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color).multiplyScalar(1.6), transparent: true, opacity: 0.55, depthWrite: false, fog: false, toneMapped: false });
@@ -971,7 +971,7 @@ export class BattleView {
     this.updateSideBuffs(gdt);
     for (const z of this.zones) z.update(gdt);
     this.zones = this.zones.filter((z) => !z.done);
-    if (this.aimRing) this.aimRing.children[0].material.opacity = 0.16 + Math.sin(this.t * 6) * 0.06;
+    if (this.aimRing) this.aimRing.children[0].material.opacity = 0.3 + Math.sin(this.t * 6) * 0.08;
     if (this.zone?.visible) {
       this.zone.material.opacity = 0.45 + Math.sin(this.t * 5) * 0.1;
       this.zoneEdge.material.opacity = 0.6 + Math.sin(this.t * 8) * 0.35;

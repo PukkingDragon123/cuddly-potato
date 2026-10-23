@@ -52,7 +52,7 @@
 .r-win .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #ffcf4a 0%, #ff8a2a 18%, #7a1e8a 48%, #1a0a3a 78%, #07041a 100%); }
 .r-loss .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #4a5a8a 0%, #2a2a5a 30%, #120f30 70%, #050412 100%); }
 .r-draw .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #b07aff 0%, #5a3aa8 30%, #1a1040 75%, #07041a 100%); }
-.cv-rays.px-rays { top: 66%; --rs: 210vmax; --ro: 0.5; }
+.cv-rays.px-rays { top: 66%; --rs: 130vmax; --ro: 0.4; }
 .r-loss .cv-rays.px-rays { --ro: 0.12; }
 .cv-spots { position: absolute; inset: 0; pointer-events: none; }
 .cv-spots::before, .cv-spots::after {
@@ -298,9 +298,14 @@
 @keyframes cnRun { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
 /* landscape: tighter board */
+.landscape .cn-right { overflow: hidden; }
+.landscape .cn-board { flex: 1 1 auto; }
+.landscape .cn-mvp-frame { width: clamp(40px, 11vh, 60px); }
+.landscape .cn-trophy .v { font-size: clamp(24px, 2em, 40px); }
+.landscape .cn-grid { gap: calc(var(--u) * 0.9); }
 .landscape .cn-right { gap: calc(var(--u) * 1.1); padding-bottom: calc(var(--u) * 0.8); }
 .landscape .cn-board { gap: calc(var(--u) * 1.1); }
-.landscape .cn-tile { min-height: clamp(42px, 12vh, 66px); padding: calc(var(--u) * 0.8) calc(var(--u) * 1.2); }
+.landscape .cn-tile { min-height: clamp(36px, 10vh, 60px); }
 .landscape .cn-tile .v { font-size: clamp(20px, 1.8em, 34px); }
 .landscape .cn-base { margin-top: calc(var(--u) * 0.5); }
 .landscape .cn-bases { padding: calc(var(--u) * 1) calc(var(--u) * 1.6); }

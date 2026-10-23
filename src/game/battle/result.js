@@ -162,18 +162,18 @@ function makeNewsDesk() {
       for (let z = -4; z <= z1 + 1; z++) g.set(x, 8, z, z >= z1 + 1 ? trim : top);
       g.set(x, 9, z1 + 1, trim);
     }
-    // monitor on the anchor's left (screen glows)
-    g.box(9, 9, -1, 15, 9, 1, 0x22283a);
-    g.box(11, 10, 0, 13, 11, 0, 0x22283a);
-    g.box(8, 12, 0, 16, 17, 0, 0x14182a);
-    for (let x = 9; x <= 15; x++) for (let y = 13; y <= 16; y++) g.set(x, y, 1, (x + y) % 5 === 0 ? 0xffd84a : y === 16 ? 0xe0263f : 0x2a6ae8, true);
-    // mug + scripts on the right
-    g.cylinder(-14, 2, 9, 11, 1.2, 0xffffff);
-    g.set(-14, 11, 2, 0x5a3418);
-    g.set(-12, 10, 2, 0xffffff);
-    g.box(-9, 9, 1, -5, 9, 3, 0xf4f6ff);
-    g.box(-9, 10, 1, -5, 10, 2, 0xe8eef8);
-    g.set(-6, 10, 3, 0xe0263f);
+    // a small monitor at the far end (screen glows), angled toward the anchor
+    g.box(-19, 9, -2, -15, 9, 0, 0x22283a);
+    g.box(-18, 10, -1, -16, 10, -1, 0x22283a);
+    g.box(-20, 11, -1, -14, 15, -1, 0x14182a);
+    for (let x = -19; x <= -15; x++) for (let y = 12; y <= 14; y++) g.set(x, y, 0, (x + y) % 4 === 0 ? 0xffd84a : y === 14 ? 0xe0263f : 0x2a6ae8, true);
+    // mug + scripts on the other side
+    g.cylinder(13, 2, 9, 11, 1.2, 0xffffff);
+    g.set(13, 11, 2, 0x5a3418);
+    g.set(15, 10, 2, 0xffffff);
+    g.box(6, 9, 1, 10, 9, 3, 0xf4f6ff);
+    g.box(6, 10, 1, 10, 10, 2, 0xe8eef8);
+    g.set(9, 10, 3, 0xe0263f);
     deskGeo = g.build({ pivot: [0, 0, 0] });
   }
   const grp = new THREE.Group();
@@ -266,8 +266,8 @@ export async function showResult(parent, opts) {
   };
   const layoutVerdict = () => {
     cam.updateMatrixWorld();
-    if (champ) placeAt(champ, 0.5, portrait ? 0.9 : 0.97, portrait ? 0.44 : 0.6);
-    if (other) placeAt(other, portrait ? 0.2 : 0.24, portrait ? 0.83 : 0.9, portrait ? 0.24 : 0.34, -2);
+    if (champ) placeAt(champ, portrait ? 0.5 : 0.62, portrait ? 0.9 : 1.0, portrait ? 0.44 : 0.5);
+    if (other) placeAt(other, portrait ? 0.2 : 0.3, portrait ? 0.83 : 0.93, portrait ? 0.24 : 0.3, -2);
   };
   if (champ) { stage.add(champ.root); champ.root.rotation.y = 0.12; }
   if (other) { stage.add(other.root); other.root.rotation.y = 0.5; }
@@ -333,7 +333,7 @@ export async function showResult(parent, opts) {
   anchor = chibiFor({ char: 'anchor' });
   try {
     const desk = makeNewsDesk();
-    desk.position.set(0.15, 0, 0.62);
+    desk.position.set(0.15, -0.36, 0.62);
     stage.add(desk);
   } catch (e) { /* the studio works without its desk */ }
   if (anchor) {
@@ -347,12 +347,12 @@ export async function showResult(parent, opts) {
     if (!anchor) return;
     cam.fov = 24;
     cam.updateProjectionMatrix();
-    const vh = 2.25;
+    const vh = 2.0;
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     // anchor sits left of centre (the BEAST NEWS screen fills the right)
     const off = (portrait ? 0.15 : 0.1) * vh * cam.aspect;
     aim.set(off, 1.12, 0);
-    cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.35, Math.cos(0.12) * dist);
+    cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.12, Math.cos(0.12) * dist);
     cam.lookAt(aim);
   };
   stage.onResize = () => frameAnchor();

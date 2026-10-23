@@ -16,7 +16,7 @@
 // drawn mirror-imaged before the flip so it reads correctly.
 import * as THREE from 'three';
 import { VoxGrid, Mats, makeMesh } from '../../core/voxel.js';
-import { rbox, cyl, shade, n3 } from '../kit.js';
+import { rbox, cyl, capsule, shade, n3 } from '../kit.js';
 import { PAL, mixHex, hash3, mulberry32, clamp, vnoise, ring, text, textW, mirrorGrid, glassMat, glowMat, tintMat, hazardC } from './common.js';
 import { panelBox, windowZ, windowX, dishGrid, antennaGrid, pipe, hazard, signZ, boltEmblem, barrel, crate } from './labParts.js';
 import { makeLabBuilding } from './lab.js';
@@ -1034,18 +1034,46 @@ function tier4(P, m) {
   b.box(GX1 + 1, GY0 + 1, -7, GX1 + 1, 17, 3, (x, y) => (y % 2 ? METAL : METAL_L));
   b.box(GX1 + 1, GY0 + 1, -7, GX1 + 1, GY0 + 3, 3, INK);
   windowX(b, -12, 13, -10, 19, GX1, { frame: P.w2, glass: 0x8ec4e6, glow: false });
-  // upper module (control room)
+  // upper module: a corrugated Quonset control-room hut (half-cylinder roof, ribbed, porthole windows)
   const UX0 = -24, UX1 = 2, UY0 = GY1 + 2, UY1 = 41, UZ0 = -12, UZ1 = 5;
-  panelBox(b, UX0, UY0, UZ0, UX1, UY1, UZ1, { c1: P.w, c2: P.w2, seam: P.seam, px: 9, py: 8 });
-  b.box(UX0, UY0, UZ0, UX1, UY0, UZ1, P.md);
-  b.box(UX0, UY1 - 1, UZ0, UX1, UY1 - 1, UZ1, P.m);
-  b.box(UX0, UY1, UZ0, UX1, UY1, UZ1, (x, y, z) => ((x + z) % 4 === 0 ? P.boltL : P.bolt));
-  b.box(-23, 30, UZ1 + 1, -9, 38, UZ1 + 1, P.w2);
-  b.box(-22, 31, UZ1 + 1, -10, 37, UZ1 + 1, null);
-  b.box(-22, 31, UZ1, -10, 37, UZ1, (x, y) => (y <= 32 ? METAL_D : 0x24314f));
-  for (const mx of [-21, -17, -13]) b.box(mx, 34, UZ1, mx + 2, 35, UZ1, P.glow, true);
-  b.box(-16, 31, UZ1 + 1, -16, 37, UZ1 + 1, P.w2);
-  boltEmblem(b, -4, 34, UZ1 + 1, { r: 5, disc: P.bolt, rim: P.w, bolt: 0xffffff, glow: false });
+  const QCZ = (UZ0 + UZ1) / 2, QRZ = (UZ1 - UZ0) / 2 + 0.4, QRY = UY1 - UY0;
+  const qIn = (y, z) => ((z - QCZ) / QRZ) ** 2 + ((y - UY0) / QRY) ** 2 <= 1;
+  const qTop = (z) => Math.round(UY0 + QRY * Math.sqrt(Math.max(0, 1 - ((z - QCZ) / QRZ) ** 2)));
+  for (let x = UX0; x <= UX1; x++) for (let z = UZ0; z <= UZ1; z++) for (let y = UY0; y <= UY1; y++) {
+    if (!qIn(y, z)) continue;
+    const edge = x === UX0 || x === UX1;
+    const outer = !qIn(y + 1, z) || !qIn(y, z + 1) || !qIn(y, z - 1);
+    let c = (x - UX0) % 2 ? P.w : P.w2;
+    if ((x - UX0) % 9 === 0) c = P.seam;
+    if (edge && outer) c = P.m;
+    else if (edge) c = (y + z) % 5 === 0 ? P.w2 : P.w;
+    if (y === UY0) c = P.md;
+    if (y >= UY1 - 1 && !edge) c = (x % 3 === 0) ? P.boltL : P.bolt;
+    b.set(x, y, z, c);
+  }
+  // rib hoops standing proud every 9 voxels
+  for (let x = UX0 + 9; x < UX1; x += 9) for (let z = UZ0; z <= UZ1 + 1; z++) {
+    const y = qTop(Math.min(z, UZ1)) + 0;
+    if (z <= UZ1) b.set(x, Math.min(UY1 + 1, y + 1), z, P.md);
+  }
+  // porthole windows on the curved camera side with glowing monitors inside
+  for (const wx of [-20, -13, -6]) {
+    for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+      const d = Math.hypot(dx, dy);
+      if (d > 2.6) continue;
+      const y = UY0 + 6 + dy;
+      let z = UZ1 + 1;
+      while (z > UZ0 && !b.has(wx + dx, y, z)) z--;
+      b.set(wx + dx, y, z, d > 1.7 ? P.m : d < 0.8 ? P.glow : 0x24314f, d < 0.8);
+      if (d > 1.7) b.set(wx + dx, y, z + 1, METAL_L);
+    }
+  }
+  // round hatch door on the +x end cap + a bolt badge on the -x end
+  for (let dz = -3; dz <= 3; dz++) for (let dy = 0; dy <= 9; dy++) {
+    const d = Math.hypot(dz, Math.max(0, dy - 6) * 1.2);
+    if (d > 3.3) continue;
+    b.set(UX1 + 1, UY0 + 1 + dy, Math.round(QCZ) + dz, d > 2.4 ? METAL_L : (dy === 4 && dz === 2) ? PAL.yellow : P.w2);
+  }
   // seat cushion on the deck
   b.box(9, GY1 + 2, -4, 15, GY1 + 2, 2, P.md).box(9, GY1 + 3, -4, 15, GY1 + 3, 2, (x, y, z) => ((x + z) % 3 ? P.m : P.ml));
   // stair ladder to the deck (+x end, back)
@@ -1059,11 +1087,11 @@ function tier4(P, m) {
   for (let z = GZ0; z <= GZ1; z += 3) rail.box(GX1, GY1 + 2, z, GX1, GY1 + 4, z, PAL.yellow);
   rail.box(GX1, GY1 + 4, GZ0, GX1, GY1 + 4, GZ1, PAL.yellow);
   // antenna (stage 1)
-  const ant = new VoxGrid().merge(antennaGrid(12, { tipCol: P.bolt }), -21, UY1 + 1, 1);
+  const ant = new VoxGrid().merge(antennaGrid(12, { tipCol: P.bolt }), -21, UY1 + 1, -3);
   // roof vents + clutter (stage 3)
   const vents = new VoxGrid();
-  vents.box(-3, UY1 + 1, -10, 1, UY1 + 3, -6, METAL).box(-2, UY1 + 4, -9, 0, UY1 + 4, -7, METAL_D);
-  vents.box(-14, UY1 + 1, -11, -12, UY1 + 4, -9, METAL_L).box(-15, UY1 + 5, -12, -11, UY1 + 5, -8, METAL_D);
+  vents.box(-1, UY1, -6, 1, UY1 + 2, -2, METAL).box(-1, UY1 + 3, -5, 1, UY1 + 3, -3, METAL_D);
+  vents.box(-18, UY1, -5, -16, UY1 + 3, -3, METAL_L).box(-19, UY1 + 4, -6, -15, UY1 + 4, -2, METAL_D);
   const clutter = new VoxGrid();
   barrel(clutter, -28, 2, 9, P.m, { hazard: true, h: 7, r: 2 });
   barrel(clutter, -28, 2, 4, PAL.yellow, { h: 6, r: 2 });
@@ -1071,7 +1099,7 @@ function tier4(P, m) {
   // break up the module boxes: bevelled corners, band lips, plinth, facade pilasters
   const tankClear4 = (x, y, z) => (x - TKX) ** 2 + (z - TKZ) ** 2 < 6.5 ** 2;
   dressBox(b, GX0, GY0, GZ0, GX1, GY1, GZ1, { trim: P.w2, dark: P.seam, lips: [[GY1, P.bolt], [GY1 - 1, P.boltD], [GY1 - 2, P.m]], plinth: P.md, rib: 9, walls: [P.w, P.w2], skip: tankClear4 });
-  dressBox(b, UX0, UY0, UZ0, UX1, UY1, UZ1, { trim: P.w2, dark: P.seam, lips: [[UY1, P.bolt], [UY1 - 1, P.boltD]], plinth: P.md, rib: 9, walls: [P.w, P.w2] });
+
   return {
     body: b,
     chunks: [
@@ -1081,24 +1109,24 @@ function tier4(P, m) {
       { name: 'vents', grid: vents, stage: 3 },
     ],
     anims: [
-      { name: 'dish', type: 'spin', axis: 'y', speed: 0.7, grid: dishGrid({ r: 5, col: P.w, back: METAL, rim: P.bolt, tip: P.bolt }), at: [-6.5, UY1 + 1, -4.5], stage: 2 },
+      { name: 'dish', type: 'spin', axis: 'y', speed: 0.7, grid: dishGrid({ r: 5, col: P.w, back: METAL, rim: P.bolt, tip: P.bolt }), at: [-7.5, UY1 + 1, -3.5], stage: 2 },
       { name: 'fan', type: 'spin', axis: 'z', speed: 7, grid: fanGrid(3, P.w2), piv: [0.5, 0.5, 0.5], at: [FX + 0.5, FY + 0.5, GZ1 + 1.5], stage: 3 },
       { name: 'arcs', type: 'spin', axis: 'y', speed: 9, grid: arcGrid(4, P.ml), piv: [0.5, 0.5, 0.5], at: [5.5, tc + 0.5, 6.5], stage: 2 },
     ],
     lights: [
-      { at: [-23.5, UY1 + 1.8, 4.5], color: 0xffa62a, mode: 'blink', rate: 1.6, phase: 0, stage: 2 },
-      { at: [1.5, UY1 + 1.8, 4.5], color: 0xffa62a, mode: 'blink', rate: 1.6, phase: 0.5, stage: 3 },
-      { at: [-20.5, UY1 + 14.6, 1.5], color: 0xff3040, mode: 'blink', rate: 1, stage: 1 },
+      { at: [-23.5, UY1 + 1.8, QCZ + 0.5], color: 0xffa62a, mode: 'blink', rate: 1.6, phase: 0, stage: 2 },
+      { at: [1.5, UY1 + 1.8, QCZ + 0.5], color: 0xffa62a, mode: 'blink', rate: 1.6, phase: 0.5, stage: 3 },
+      { at: [-20.5, UY1 + 14.6, -2.5], color: 0xff3040, mode: 'blink', rate: 1, stage: 1 },
       { at: [19.5, 20.6, -2], color: 0x5fff7a, mode: 'steady', stage: 3, size: 1.2 },
     ],
     tanks: [{ at: [TKX + 0.5, TY0, TKZ + 0.5], r: 4.3, h: TY1 - TY0 + 1, bubbles: 9 }],
     puffs: [
-      { at: [-12.5, UY1 + 6.5, -9.5], color: 0xf0f4fa, rate: 1.2, rise: 0.5, s0: 0.08, s1: 0.3, life: 1.6, op: 0.45, until: 3 },
+      { at: [-16.5, UY1 + 6.5, -3.5], color: 0xf0f4fa, rate: 1.2, rise: 0.5, s0: 0.08, s1: 0.3, life: 1.6, op: 0.45, until: 3 },
       { at: [DCX + 0.5, 55.5, DCZ + 0.5], color: 0xe8f0f4, rate: 1.4, rise: 0.6, s0: 0.08, s1: 0.34, life: 1.6, op: 0.45, vx: -0.15, until: 3 },
     ],
     core: [TKX + 0.5, 13, TKZ + 0.5],
     seat: [12.5, GY1 + 4, -0.5],
-    fires: [[-14, UY1 + 1, 2], [6, GY1 + 2, 8], [-20, 18, GZ1 + 1]],
+    fires: [[-14, UY1 + 1, -3], [6, GY1 + 2, 8], [-20, 18, GZ1 + 1]],
     sparks: [[-18, 20, GZ1 + 1], [16, 14, GZ1 + 2], [20, 10, -2], [-6, 36, UZ1 + 2]],
     smoke: [[-10, UY1 + 2, -2], [10, GY1 + 2, -6]],
     rubble: { cols: [P.w, P.w2, P.seam, P.m, P.bolt, METAL, METAL_D], h: 8 },
@@ -1186,9 +1214,21 @@ function tier5(P, m) {
   pipe(pipes, 'y', Y0 + 2, Y1 + 1, X0 - 1, Z1 - 3, METAL_L, P.bolt, 0, 6);
   // roof vents (stage 2) with fans
   const vents = new VoxGrid();
-  vents.box(-4, Y1 + 2, -14, 4, Y1 + 5, -6, (x, y, z) => (y === Y1 + 5 ? P.w2 : P.w));
-  for (const vx of [-2, 2]) cyl(vents, 'y', vx, -10, Y1 + 6, Y1 + 6, 1.6, 1.6, METAL_DD);
   vents.box(10, Y1 + 2, -14, 15, Y1 + 4, -9, METAL).box(11, Y1 + 5, -13, 14, Y1 + 5, -10, METAL_D);
+  // observatory dome on the roof: ribbed glass hemisphere with a big telescope poking out of the slit
+  const DX = 1, DZ = -5, DR = 7.5, DY = Y1 + 2;
+  b.box(DX - 8, Y1 + 1, DZ - 8, DX + 8, DY, DZ + 8, (x, y, z) => (Math.hypot(x - DX, z - DZ) > 8.6 ? null : y === DY ? P.md : METAL_D));
+  for (let x = Math.floor(DX - DR); x <= DX + DR; x++) for (let z = Math.floor(DZ - DR); z <= DZ + DR; z++) for (let y = DY + 1; y <= DY + DR + 1; y++) {
+    const d = Math.hypot(x - DX, (y - DY - 1) * 1.05, z - DZ);
+    if (d > DR + 0.4 || d < DR - 1.2) continue;
+    const slit = Math.abs(z - DZ) <= 1 && x < DX && y > DY + 2;
+    if (slit) continue;
+    const a = Math.atan2(z - DZ, x - DX);
+    const rib = Math.abs(Math.sin(a * 4)) < 0.16 || (y - DY) % 4 === 0;
+    b.set(x, y, z, rib ? P.md : (x > DX && y > DY + 4 ? mixHex(GLASS, P.ml, 0.3) : mixHex(GLASS_D, P.m, 0.35)));
+  }
+  capsule(b, [DX, DY + 3, DZ], [DX - 6, DY + 12, DZ], 1.6, 1.1, (x, y, z, t) => (t > 0.9 ? INK : t > 0.75 ? P.bolt : METAL_D));
+  b.box(DX - 1, DY + 1, DZ - 1, DX + 1, DY + 3, DZ + 1, METAL_D);
   // antenna (stage 1)
   const ant = new VoxGrid().merge(antennaGrid(13, { tipCol: P.bolt }), -10, TTY1 + 2, 0);
   const clutter = new VoxGrid();
@@ -1209,7 +1249,6 @@ function tier5(P, m) {
     ],
     anims: [
       { name: 'dish', type: 'spin', axis: 'y', speed: 0.6, grid: dishGrid({ r: 6, col: P.w, back: METAL, rim: P.bolt, tip: P.bolt }), at: [-17.5, TTY1 + 2, -5.5], stage: 2 },
-      ...[-2, 2].map((vx) => ({ name: 'roofFan', type: 'spin', axis: 'y', speed: 6, grid: flatFan(1.6, METAL_L), at: [vx + 0.5, Y1 + 6, -9.5], stage: 2 })),
       { name: 'arcs', type: 'spin', axis: 'y', speed: 9, grid: arcGrid(5, P.ml), piv: [0.5, 0.5, 0.5], at: [2.5, tc5 + 0.5, 6.5], stage: 2 },
     ],
     lights: [
@@ -1220,7 +1259,7 @@ function tier5(P, m) {
     ],
     tanks: [{ at: [TKX + 0.5, TY0, TKZ + 0.5], r: 4.8, h: TY1 - TY0 + 1, bubbles: 10 }],
     orbs: [{ at: [TKX + 0.5, (TY0 + TY1) / 2 + 0.5, TKZ + 0.5], r: 2.9, rings: [{ r: 3.6, tilt: 0.5, speed: 1.6 }, { r: 3.6, tilt: -0.7, speed: -2.2 }] }],
-    puffs: [{ at: [-1.5, Y1 + 7, -9.5], color: 0xf0f4fa, rate: 1.4, rise: 0.6, s0: 0.1, s1: 0.35, life: 1.6, op: 0.4, until: 2 }],
+    puffs: [{ at: [12.5, Y1 + 7, -11.5], color: 0xf0f4fa, rate: 1.4, rise: 0.6, s0: 0.1, s1: 0.35, life: 1.6, op: 0.4, until: 2 }],
     core: [TKX + 0.5, 18, TKZ + 0.5],
     seat: [12.5, Y1 + 4, -0.5],
     fires: [[-18, Y1 + 2, 6], [2, Y1 + 2, -8], [-14, 22, Z1 + 1], [10, Y1 + 2, 8]],

@@ -114,7 +114,7 @@ export async function vsIntro(parent, cfg, opts = {}) {
     if (s.labLevel) pills.push(h('span', { class: 'vsx-pill lv sk-well' }, icon('lab'), h('b', {}, `LV ${s.labLevel}`)));
     return h('div', { class: `vsx-info s${i}` },
       h('div', { class: `vsx-tag ${i ? 'sk-chip-red' : 'sk-chip-blue'}` }, i ? (s.clan || 'CHALLENGER') : 'YOU'),
-      h('div', { class: 'vsx-nm' }, s.name ?? (i ? 'Rival' : 'You')),
+      h('div', { class: 'vsx-nm', style: { '--nk': String(Math.min(1, 9 / Math.max(9, (s.name ?? '').length))) } }, s.name ?? (i ? 'Rival' : 'You')),
       pills.length ? h('div', { class: 'vsx-pills' }, pills) : null);
   };
   const panel = (i) => h('div', { class: `vsx-panel s${i}`, style: { '--tc': TEAM[i] } },

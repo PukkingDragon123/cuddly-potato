@@ -256,8 +256,11 @@ export class NewCardCutscene {
     const st = this.st, d = this.d, r = this.rar;
     const name = (d.name ?? st.id).toUpperCase();
     const series = st.spell ? (d.special ? 'SPECIAL CARD' : 'SPELL CARD') : (SERIES[d.series]?.name ?? '').toUpperCase();
-    const letters = [...name].map((ch, i) => h('span', { class: ch === ' ' ? 'sp' : '', style: { animationDelay: (i * 0.035).toFixed(3) + 's' } }, ch === ' ' ? ' ' : ch));
-    const nameEl = h('div', { class: 'vo-cut-name' }, ...letters);
+    // letters slam in one by one; words never break mid-word and long names shrink to fit
+    let li = 0;
+    const words = name.split(' ').map((w) => h('span', { class: 'vo-cut-word' }, ...[...w].map((ch) => h('span', { class: 'vo-cut-l1', style: { animationDelay: (li++ * 0.035).toFixed(3) + 's' } }, ch))));
+    const longest = Math.max(...name.split(' ').map((w) => w.length));
+    const nameEl = h('div', { class: 'vo-cut-name', style: { '--nk': Math.min(1, 9 / Math.max(longest, name.length * 0.62)).toFixed(3) } }, ...words);
     const kicker = h('div', { class: 'vo-cut-kicker' }, h('span', {}, 'NEW CARD UNLOCKED!'));
     const tags = h('div', { class: 'vo-cut-tags' },
       h('span', { class: `vo-cut-rar r-${st.rarity}` }, r.name.toUpperCase()),

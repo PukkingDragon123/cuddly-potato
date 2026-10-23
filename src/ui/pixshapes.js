@@ -15,6 +15,9 @@
 //   --pxs-shadow    dithered ink contact shadow             (image)
 //   --pxs-bubble    lab bubble: outline + highlight         (image)
 //   --pxs-ped       lit pedestal disc: rim, top, lip bands  (mask; colour with --ped-* gradient)
+//   --pxs-brackets  lock-on corner brackets                 (mask)
+//   --pxs-burst     pixel starburst                         (mask)
+//   --pxs-diamond   stepped diamond ring                    (mask)
 //   --ic-energy     the POWER gem icon (card cost badge)    (image)
 import { iconURL } from './icons.js';
 
@@ -79,6 +82,24 @@ export function injectPixShapes() {
     if (lip <= 0.98 && y > 5) return 'rgba(255,255,255,0.55)';
     return null;
   });
+  // lock-on brackets: four stepped L corners with a notch (tutorial pointer target)
+  v['--pxs-brackets'] = sprite(32, 32, (x, y) => {
+    const ex = Math.min(x, 31 - x), ey = Math.min(y, 31 - y);
+    if (ex < 3 && ey < 10 || ey < 3 && ex < 10) return W;
+    if (ex === 3 && ey === 3) return W; // inner corner step
+    if (ex === 13 && ey < 2 || ey === 13 && ex < 2) return 'rgba(255,255,255,0.7)'; // tick
+    return null;
+  });
+  // pixel starburst: 8 rays of square texels with gaps, a plus core (tap flash)
+  v['--pxs-burst'] = sprite(25, 25, (x, y) => {
+    const dx = x - 12, dy = y - 12, ax = Math.abs(dx), ay = Math.abs(dy);
+    if (ax + ay <= 1) return W;
+    const onAxis = (dx === 0 || dy === 0) && Math.max(ax, ay) >= 4 && Math.max(ax, ay) <= 11 && Math.max(ax, ay) % 4 !== 3;
+    const onDiag = ax === ay && ax >= 3 && ax <= 8 && ax % 3 !== 2;
+    return onAxis ? W : onDiag ? 'rgba(255,255,255,0.75)' : null;
+  });
+  // stepped diamond ring (claim shockwave)
+  v['--pxs-diamond'] = sprite(24, 24, (x, y) => { const d = Math.abs(x - 11.5) + Math.abs(y - 11.5); return d <= 11.5 && d > 9 ? W : null; });
   try { v['--ic-energy'] = `url(${iconURL('energy')})`; } catch (e) { /* icons unavailable */ }
   const de = document.documentElement.style;
   for (const k in v) de.setProperty(k, v[k]);

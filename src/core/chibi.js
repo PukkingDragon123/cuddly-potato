@@ -14,10 +14,11 @@ import { Mats, makeMesh, VOX } from './voxel.js';
 import { PixelFace } from './face.js';
 import { damp, rand, shade } from './util.js';
 import {
-  H, buildHead, buildBody, buildTail, buildCape, buildUpperArm, buildForearm, buildHand, buildThigh, buildShin,
+  FV, buildHead, buildBody, buildTail, buildCape, buildUpperArm, buildForearm, buildHand, buildThigh, buildShin,
 } from '../models/characters/parts.js';
 import { normalizeAcc, handItem } from '../models/characters/accessories.js';
 import { Emote } from '../models/characters/emotes.js';
+import { meshAO } from '../models/characters/mesh.js';
 
 const HEAD_H = 10, BODY_H = 5, LEG_H = 4; // in legacy 0.1 voxels (world sizes kept identical)
 const GEO_CACHE = new Map();
@@ -42,9 +43,9 @@ function syncEnv() {
 
 function bake(res) {
   if (!res) return null;
-  const g = res.g && res.g.size ? res.g.build({ scale: H, pivot: [0, 0, 0], jitter: 0.035 }) : null;
-  const m = res.metal && res.metal.size ? res.metal.build({ scale: H, pivot: [0, 0, 0], jitter: 0.02 }) : null;
-  return g || m ? { g, m } : null;
+  const g = res.g && res.g.size ? meshAO(res.g, { scale: FV }) : null;
+  const m = res.metal && res.metal.size ? meshAO(res.metal, { scale: FV }) : null;
+  return g || m ? { g, m, faceMask: res.faceMask ?? null } : null;
 }
 function cached(key, fn) {
   if (!GEO_CACHE.has(key)) GEO_CACHE.set(key, bake(fn()));
@@ -682,13 +683,13 @@ export class Chibi {
     const leg = (x) => {
       const L = new THREE.Group(); L.position.set(x, 0, 0);
       add(L, thigh);
-      const knee = new THREE.Group(); knee.position.y = -4 * H; L.add(knee);
+      const knee = new THREE.Group(); knee.position.y = -8 * FV; L.add(knee);
       add(knee, shin);
       this.hips.add(L);
       return [L, knee];
     };
-    [this.legL, this.kneeL] = leg(-3 * H);
-    [this.legR, this.kneeR] = leg(3 * H);
+    [this.legL, this.kneeL] = leg(-6 * FV);
+    [this.legR, this.kneeR] = leg(6 * FV);
 
     this.torso = new THREE.Group();
     this.hips.add(this.torso);
@@ -697,28 +698,28 @@ export class Chibi {
     const tail = cached('tail|' + ck, () => buildTail(d));
     if (tail) {
       this.tail = new THREE.Group();
-      this.tail.position.y = 1.5 * H;
+      this.tail.position.y = 3 * FV;
       this.torso.add(this.tail);
       const m = add(this.tail, tail);
-      if (m) m.position.y = -1.5 * H;
+      if (m) m.position.y = -3 * FV;
     }
     // cape
     const capeA = this.acc.find((a) => a.type === 'cape');
     if (capeA) {
       this.cape = new THREE.Group();
       const hasPack = this.acc.some((a) => a.type === 'backpack');
-      this.cape.position.set(0, 9.5 * H, (hasPack ? -11 : -5) * H);
+      this.cape.position.set(0, 19 * FV, (hasPack ? -18 : -9) * FV);
       this.torso.add(this.cape);
       add(this.cape, cached('cape|' + ck, () => buildCape(d, capeA)));
     }
 
     // arms: shoulder -> elbow -> wrist
     const arm = (side) => {
-      const sh = new THREE.Group(); sh.position.set(side * 8 * H, (BODY_H - 0.5) * V, 0);
+      const sh = new THREE.Group(); sh.position.set(side * 16 * FV, (BODY_H - 0.5) * V, 0);
       add(sh, cached('upper' + side + '|' + ck, () => buildUpperArm(d, side)));
-      const el = new THREE.Group(); el.position.y = -4 * H; sh.add(el);
+      const el = new THREE.Group(); el.position.y = -8 * FV; sh.add(el);
       add(el, cached('fore' + side + '|' + ck, () => buildForearm(d, side)));
-      const hand = new THREE.Group(); hand.position.y = -4 * H; el.add(hand);
+      const hand = new THREE.Group(); hand.position.y = -8 * FV; el.add(hand);
       this.torso.add(sh);
       return [sh, el, hand];
     };
@@ -745,7 +746,7 @@ export class Chibi {
     const stubC = def.stubble ? (typeof def.stubble === 'number' ? def.stubble : typeof def.beard === 'number' ? def.beard : hairC) : null;
     const stubble = stubC != null ? `rgba(${(stubC >> 16) & 255},${(stubC >> 8) & 255},${stubC & 255},0.3)` : null;
     // blush only by default for lash (feminine) faces; hero faces stay clean
-    this.face = new PixelFace({ eyeColor: def.eyeColor, blush: def.blush ?? !!def.lashes, browColor, lashes: def.lashes, freckles: def.freckles, stubble });
+    this.face = new PixelFace({ eyeColor: def.eyeColor, blush: def.blush ?? !!def.lashes, browColor, lashes: def.lashes, freckles: def.freckles, stubble, mask: headPart?.faceMask });
     const faceMat = new THREE.MeshStandardMaterial({ map: this.face.texture, transparent: true, alphaTest: 0.05, roughness: 0.6, metalness: 0, envMapIntensity: 0.4, envMap: CHAR_MAT.envMap });
     const plane = new THREE.Mesh(PLANE_GEO, faceMat);
     plane.position.set(0, (HEAD_H / 2) * V, 0.5 + 0.004);

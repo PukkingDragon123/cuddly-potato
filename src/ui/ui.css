@@ -995,7 +995,6 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 }
 .btn > .btn-fx > .btn-ripple {
   position: absolute; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0) 0 46%, rgba(255, 255, 255, 0.55) 47% 56%, rgba(255, 255, 255, 0.18) 57% 64%, rgba(255, 255, 255, 0) 65%);
 }
 .btn > .btn-fx > .btn-flash { position: absolute; inset: 0; background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35)); mix-blend-mode: screen; opacity: 0; }
 .btn.btn-afford::after {
@@ -1031,11 +1030,13 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
   border: 0; border-radius: 0; box-shadow: none; image-rendering: pixelated;
   -webkit-mask: var(--pxs-ring) center / 100% 100% no-repeat; mask: var(--pxs-ring) center / 100% 100% no-repeat;
 }
-.tut-ring { background: var(--spark); }
-.ui-burst-ring { background: var(--bc, #ffd84a); }
+.tut-ring { background: var(--spark); -webkit-mask-image: var(--pxs-brackets); mask-image: var(--pxs-brackets); animation: pxLock 0.9s steps(6) infinite; }
+@keyframes pxLock { 0% { width: calc(var(--u) * 22); height: calc(var(--u) * 22); opacity: 0.2; rotate: 0deg; } 60% { width: calc(var(--u) * 11); height: calc(var(--u) * 11); opacity: 1; rotate: 0deg; } 100% { width: calc(var(--u) * 11); height: calc(var(--u) * 11); opacity: 0.85; } }
+.ui-burst-ring { background: var(--bc, #ffd84a); -webkit-mask-image: var(--pxs-diamond); mask-image: var(--pxs-diamond); }
+/* tap flash: a stepped pixel starburst (btnFx.js) */
 .btn > .btn-fx > .btn-ripple {
-  border-radius: 0; background: rgba(255, 255, 255, 0.7); image-rendering: pixelated;
-  -webkit-mask: var(--pxs-ring) center / 100% 100% no-repeat; mask: var(--pxs-ring) center / 100% 100% no-repeat;
+  border-radius: 0; background: rgba(255, 255, 255, 0.85); image-rendering: pixelated;
+  -webkit-mask: var(--pxs-burst) center / 100% 100% no-repeat; mask: var(--pxs-burst) center / 100% 100% no-repeat;
 }
 /* notification badges: a crafted pixel highlight instead of a round gloss spot */
 .badge { background: linear-gradient(#ffc0c6 0 0) calc(var(--px) * 1.5) calc(var(--px) * 1) / calc(var(--px) * 2) var(--px) no-repeat, linear-gradient(#ff9aa4 0 0) calc(var(--px) * 1) calc(var(--px) * 2) / var(--px) var(--px) no-repeat, var(--red); }

@@ -1,7 +1,7 @@
 // Button feel: every `.btn` in the DOM (button() or hand-built) gets spring-driven
 // press / release tweens through one set of delegated pointer listeners.
 //   press    - squashes down onto its lip (skin swaps to the pressed frame, the face
-//              sinks), icon tucks in, a pixel ripple rings out from the finger
+//              sinks), icon tucks in, a stepped pixel starburst pops at the finger
 //   release  - springs back with an overshoot stretch (jelly), white tap flash,
 //              icon bounces + wobbles
 //   cancel   - (scrolled away / dragged off) a soft spring back, no flash
@@ -36,12 +36,12 @@ function ripple(b, x, y) {
   if (!r.width) return;
   const i = document.createElement('i');
   i.className = 'btn-ripple';
-  const size = Math.max(r.width, r.height) * 2.3;
+  const size = Math.min(r.width, r.height) * 1.5; // pixel starburst, not a round ripple
   i.style.width = i.style.height = size + 'px';
   i.style.left = (x - r.left) + 'px';
   i.style.top = (y - r.top) + 'px';
   fx.appendChild(i);
-  i.animate([{ transform: 'translate(-50%,-50%) scale(0.04)', opacity: 0.9 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.15,.75,.3,1)' }).onfinish = () => i.remove();
+  i.animate([{ transform: 'translate(-50%,-50%) scale(0.3) rotate(0deg)', opacity: 1 }, { transform: 'translate(-50%,-50%) scale(1.15) rotate(22.5deg)', opacity: 0 }], { duration: 420, easing: 'steps(7, end)' }).onfinish = () => i.remove();
 }
 function flash(b) {
   if (reduced()) return;

@@ -8,6 +8,7 @@
 //   &react=laugh     force a reaction (loops)       &cycle=0     no auto cycling
 //   &yaw=0.4         turn everyone                  &seated=1    sit everyone down first
 //   &zoom=0.6        camera distance multiplier        &anims=a,b,c one pose / reaction per character
+//   &cyaw=0.6        orbit the camera
 //   &id=jimmy,jimmy  repeat a character (e.g. with &anims=)
 import * as THREE from 'three';
 import { engine, addLights } from '../core/engine.js';
@@ -104,6 +105,7 @@ export class CharViewScene {
       this.pitch = 0.3;
     }
     this.dist *= Number(P('zoom', '1'));
+    this.yaw = Number(P('cyaw', '0')); // &cyaw=0.6 orbits the camera
     const ui = $ui();
     ui.appendChild(h('div', { class: 'px-box', style: { position: 'absolute', top: '6px', left: '6px', fontSize: '11px', pointerEvents: 'none' } }, `Characters (${n}) - drag to rotate`));
     if (single) this.buildPanel(ui);

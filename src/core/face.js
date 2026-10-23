@@ -501,6 +501,21 @@ const LOUD = new Set(['shout', 'scream', 'grin', 'beam', 'laugh']);
 const SADM = new Set(['frown', 'wobble', 'sad', 'pout', 'grimace']);
 const HAPPYM = new Set(['smile', 'smileSmall', 'tongue', 'cat', 'smirk', 'mmm']);
 
+const MASKS = new WeakMap();
+/** Alpha mask canvas from a Uint8Array (1 = keep), cached per array. */
+function maskCanvas(mask) {
+  let c = MASKS.get(mask);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const cx = c.getContext('2d');
+  const img = cx.createImageData(S, S);
+  for (let i = 0; i < S * S; i++) img.data[i * 4 + 3] = mask[i] ? 255 : 0;
+  cx.putImageData(img, 0, 0);
+  MASKS.set(mask, c);
+  return c;
+}
+
 // ---------------------------------------------------------------------------
 
 export class PixelFace {
@@ -512,6 +527,8 @@ export class PixelFace {
     this.freckles = opts.freckles ?? false;
     // stubble shadow (css colour) drawn over the jaw, e.g. 'rgba(40,28,24,0.22)'
     this.stubble = opts.stubble ?? null;
+    // which pixels lie on the flat front of the sculpted head (Uint8Array S*S); the rest is clipped
+    this.maskCanvas = opts.mask ? maskCanvas(opts.mask) : null;
     this.canvas = document.createElement('canvas');
     this.canvas.width = S;
     this.canvas.height = S;
@@ -708,6 +725,11 @@ export class PixelFace {
     const implied = EYE_FX[this.eyes];
     if (implied) for (const k of implied) if (!this.fxOn.has(k)) FX[k](ctx, t, this);
     for (const k of this.fxOn.keys()) FX[k](ctx, t, this);
+    if (this.maskCanvas) {
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(this.maskCanvas, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     this.texture.needsUpdate = true;
   }
 }

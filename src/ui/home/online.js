@@ -14,12 +14,15 @@ import { arenaById, currentArena, ARENAS } from '../../data/arenas.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { game } from '../../game/game.js';
 import { segTabs, cmdImg, notify } from './common.js';
+import { badgeURL, burstRingURL, pillURL, frameURL, RadarScreen } from './onlineArt.js';
 import { friendCodePanel } from './friend.js';
 
 const plain = (s) => String(s ?? '').replace(/[*_]/g, '');
 const ST_LABEL = { idle: 'ONLINE', searching: 'SEARCHING', matching: 'MATCHING', playing: 'IN BATTLE' };
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const cmdOf = (id) => (COMMANDERS[id] ? id : 'recruit');
+/** A Commander portrait in a stepped pixel frame (team colour). */
+const framed = (cls, img, col) => h('div', { class: 'ol-pxp ' + cls, style: { '--fr': `url(${frameURL(col)})`, '--bg': col } }, h('div', { class: 'ol-pxp-in' }, img));
 
 let ctrl = null; // the live controller (one per home screen)
 let hub = null; // the open hub modal
@@ -33,8 +36,11 @@ export const onlineIntent = { next: null };
 export function mountOnlineEntry(host, ctx) {
   ctrl?.dispose();
   const n = h('span', { class: 'ol-entry-n' }, '');
+  n.style.backgroundImage = `url(${pillURL('#2fbf4a', 22, 12)})`;
+  const ring = () => h('img', { class: 'ol-entry-ring', src: burstRingURL(), alt: '', draggable: 'false' });
   const el = h('button', { class: 'ol-entry', type: 'button', 'data-tip': 'Battle *real players* live!' },
-    h('i', { class: 'ol-entry-ring' }), h('i', { class: 'ol-entry-ring r2' }),
+    ring(), h('img', { class: 'ol-entry-ring r2', src: burstRingURL(), alt: '', draggable: 'false' }),
+    h('img', { class: 'ol-entry-art', src: badgeURL(), alt: '', draggable: 'false' }),
     h('span', { class: 'ol-entry-face' }, icon('swords', 'ol-entry-ic'), h('b', {}, '1v1'), h('small', {}, 'LIVE')), n);
   el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -99,7 +105,7 @@ function inviteToast(c, inv) {
     fn();
   };
   const t = h('div', { class: 'ol-inv sk-panel-dark' },
-    h('div', { class: 'ol-inv-port' }, cmdImg(cmdOf(inv.cmd), null, { size: 96 })),
+    framed('ol-inv-port', cmdImg(cmdOf(inv.cmd), null, { size: 96 }), '#ff2e88'),
     h('div', { class: 'ol-inv-tx' }, h('small', { class: 't-d' }, 'BATTLE CHALLENGE!'), name, h('span', { class: 'ol-inv-tr' }, icon('trophy'), String(inv.tr ?? 0))),
     h('div', { class: 'ol-inv-btns' },
       button('ACCEPT', done(() => { audio.play('go'); lobby.accept(inv); }), 'green sm', { icon: 'check' }),
@@ -130,7 +136,7 @@ function vsHandoff(c, match) {
   const arena = arenaById(match.arena) ?? ARENAS[0];
   const rem = match.remote;
   const side = (cls, cmdId, skin, nm, tr) => h('div', { class: 'ol-vs-side ' + cls },
-    h('div', { class: 'ol-vs-port' }, cmdImg(cmdOf(cmdId), skin, { size: 192, eyes: 'happy', mouth: 'grin' })),
+    framed('ol-vs-port', cmdImg(cmdOf(cmdId), skin, { size: 192, eyes: 'happy', mouth: 'grin' }), cls === 'me' ? '#2b8cf2' : '#f23a4a'),
     h('b', { class: 'ol-vs-name' }, nm), h('span', { class: 'ol-vs-tr' }, icon('trophy'), String(tr)));
   const num = h('div', { class: 'ol-vs-count' }, '3');
   const el = h('div', { class: 'ol-vs' },
@@ -209,7 +215,7 @@ export function openOnline(ctx, tab = 'quick', opts = {}) {
   function drawTabs() {
     clear(tabsEl);
     tabsEl.append(segTabs([
-      { id: 'quick', label: 'QUICK MATCH', icon: 'swords' },
+      { id: 'quick', label: 'MATCH', icon: 'swords' },
       { id: 'friends', label: 'PLAYERS', icon: 'friends' },
       { id: 'code', label: 'CODE', icon: 'cards' },
     ], cur, (id) => { cur = id; draw(); }, 'ol-seg'));
@@ -247,25 +253,28 @@ export function openOnline(ctx, tab = 'quick', opts = {}) {
   }
 
   // QUICK MATCH -------------------------------------------------------------
-  function radar(list, searching) {
-    const blips = h('div', { class: 'ol-blips' });
-    const el = h('div', { class: 'ol-radar ' + (searching ? 'on' : '') },
-      h('i', { class: 'ol-ring r1' }), h('i', { class: 'ol-ring r2' }), h('i', { class: 'ol-ring r3' }), h('i', { class: 'ol-sweep' }), blips,
-      h('div', { class: 'ol-me' }, cmdImg(state.p.commanders.equipped, state.p.commanders.owned[state.p.commanders.equipped]?.skin ?? null, { size: 128 })));
-    el.setPeers = (ps) => setBlips(blips, ps);
+  function radar(list, searching, opts = {}) {
+    const scr = new RadarScreen();
+    scr.fast = searching;
+    scr.hot = !!opts.hot;
+    const cmd = opts.cmd ?? state.p.commanders.equipped;
+    const me = framed('ol-me', cmdImg(cmdOf(cmd), opts.cmd ? null : state.p.commanders.owned[cmd]?.skin ?? null, { size: 128, ...(opts.face ?? {}) }), opts.hot ? '#f23a4a' : '#2b8cf2');
+    const el = h('div', { class: 'ol-radar ' + (searching ? 'on ' : '') + (opts.hot ? 'found' : '') }, scr.el, me);
+    el.setPeers = (ps) => scr.setBlips(blipsOf(ps));
     el.setPeers(list);
     return el;
   }
-  function setBlips(blips, list) {
-    clear(blips);
+  function blipsOf(list) {
+    const out = [];
     for (const p of list) {
       if (p.sameTab) continue;
-      // a stable spot per player
+      // a stable spot per player, around the ring between the portrait and the bezel
       let hsh = 0;
       for (const ch of p.peer) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
-      const a = (hsh % 360) * (Math.PI / 180), r = 22 + ((hsh >> 9) % 22);
-      blips.appendChild(h('i', { class: 'ol-blip ' + (p.mp.st === 'searching' ? 'hot' : ''), style: { left: 50 + Math.cos(a) * r + '%', top: 50 + Math.sin(a) * r + '%', '--d': (hsh % 17) / 10 + 's' } }));
+      const a = (hsh % 360) * (Math.PI / 180), r = 0.3 + ((hsh >> 9) % 14) / 100;
+      out.push({ x: 0.5 + Math.cos(a) * r, y: 0.5 + Math.sin(a) * r, hot: p.mp.st === 'searching' });
     }
+    return out;
   }
   function quickView() {
     const list = lobby.players();
@@ -301,8 +310,7 @@ export function openOnline(ctx, tab = 'quick', opts = {}) {
     area.dataset.tab = 'found';
     const name = h('b', { class: 'ol-found-name' }, info.name || info.nick || 'Rival');
     area.append(h('div', { class: 'col ol-quick' },
-      h('div', { class: 'ol-radar found' }, h('i', { class: 'ol-ring r1' }), h('i', { class: 'ol-ring r2' }), h('i', { class: 'ol-ring r3' }),
-        h('div', { class: 'ol-me' }, cmdImg(cmdOf(info.partner?.mp?.cmd), null, { size: 128, eyes: 'happy', mouth: 'grin' }))),
+      radar([], true, { hot: true, cmd: cmdOf(info.partner?.mp?.cmd), face: { eyes: 'happy', mouth: 'grin' } }),
       h('div', { class: 'ol-searching' }, h('small', { class: 't-d c-gold' }, 'OPPONENT FOUND!'), name, h('span', { class: 'ol-dots ol-sub' }, 'Connecting'))));
     audio.play('levelUp');
   }
@@ -330,7 +338,7 @@ export function openOnline(ctx, tab = 'quick', opts = {}) {
           : pending ? button('WAITING', () => { lobby.cancelInvite(); draw(); }, 'gray sm', { icon: 'clock' })
           : button('CHALLENGE', async () => { await lobby.challenge(p.peer); audio.play('go'); draw(); }, free ? 'pink sm' : 'gray sm disabled', { icon: 'swords' });
         rows.append(h('div', { class: 'ol-row sk-panel-dark ' + st },
-          h('div', { class: 'ol-row-port' }, cmdImg(cmdOf(p.mp.cmd), null, { size: 80 })),
+          framed('ol-row-port', cmdImg(cmdOf(p.mp.cmd), null, { size: 80 }), st === 'idle' ? '#2fbf4a' : st === 'searching' ? '#ffc21a' : '#f23a4a'),
           h('div', { class: 'ol-row-tx' }, h('b', {}, p.name), h('span', { class: 'ol-row-meta' }, icon('trophy'), String(Math.max(0, p.mp.tr | 0)), h('i', { class: 'ol-st ' + st }, ST_LABEL[st]))),
           act));
       }

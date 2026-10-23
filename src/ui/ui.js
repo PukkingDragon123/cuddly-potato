@@ -92,7 +92,15 @@ export function rich(text) {
 // Icons
 
 export const iconURL = pixIconURL;
+// icons that depict people are rendered as the game's 3D chibis (chibiIcons.js, lazy)
+const CHIBI_ICON_NAMES = new Set(['friends']);
+const BLANK_IMG = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 export function icon(name, cls = '') {
+  if (CHIBI_ICON_NAMES.has(name)) {
+    const img = h('img', { src: BLANK_IMG, class: 'pi chibi-ic ' + cls, alt: name, draggable: 'false' });
+    import('./chibiIcons.js').then((m) => m.chibiIconURL(name)).then((u) => { img.src = u ?? iconURL(name); }).catch(() => { img.src = iconURL(name); });
+    return img;
+  }
   return h('img', { src: iconURL(name), class: 'pi ' + cls, alt: name, draggable: 'false' });
 }
 /**
@@ -376,6 +384,8 @@ export function speech(target, text, dur = 2.2, opts = {}) {
 /** Tutorial pointer: at a DOM element, screen point, or world position. Returns remover. */
 export function pointAt(target, tip = '', opts = {}) {
   const hand = h('img', { class: 'tut-hand', src: handURL() });
+  // the pointer hand is a voxel chibi glove like every other human in the game (swap in when ready)
+  import('./chibiIcons.js').then((m) => { const u = m.chibiHandURL(); if (u) { hand.src = u; hand.classList.add('chibi'); } }).catch(() => {});
   const ring = h('div', { class: 'tut-ring' });
   const tipEl = tip ? h('div', { class: 'tut-tip pop-in' }, tip) : null;
   const layer = $overlay();

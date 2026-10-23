@@ -246,7 +246,7 @@ export function mount(el, ctx, opts = {}) {
     PASS_TIERS.forEach((t, i) => {
       const reached = i < tier, cur = i === tier, ms = isMilestoneTier(i);
       const kind = tierFood(i);
-      const dish = foodSpin(kind, { plate: ms ? 'gold' : 'plate', gold: ms, size: ms ? 176 : 144, cls: 'ps-dish' });
+      const dish = foodSpin(kind, { plate: ms ? 'gold' : 'plate', size: ms ? 176 : 144, cls: 'ps-dish' });
       const node = h('div', { class: 'ps-node', role: 'button', 'aria-label': `Tier ${i + 1}: ${FEAST_NAMES[kind] ?? kind}` },
         dish,
         h('b', { class: 'ps-node-n t-d outline' }, String(i + 1)),
