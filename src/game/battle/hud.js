@@ -436,15 +436,17 @@ export class BattleHUD {
     if (show === this.modelTier) return;
     this.modelTier = show;
     const style = this.cfg.sides[0].labStyle;
+    // the player's chibi Commander (equipped skin) rides on the seat; the model rocks to keep them facing out
+    const bo = { style, size: 256, zoom: 0.7, cmd: this.cfg.sides[0].commander ?? null, cmdScale: 1.35, sway: 0.75 };
     try {
-      const [first] = await baseSpin(show, { style, size: 256, zoom: 0.68 });
+      const [first] = await baseSpin(show, bo);
       if (this.modelTier !== show) return;
       this.ocModel.src = first;
       if (!initial) { this.ocModel.classList.remove('in'); void this.ocModel.offsetWidth; this.ocModel.classList.add('in'); }
       // turntable frames for the "you can afford it" spin, rendered in the background
       this.spinFrames = null;
       setTimeout(async () => {
-        const fr = await baseSpin(show, { style, size: 256, frames: 20, zoom: 0.68 });
+        const fr = await baseSpin(show, { ...bo, frames: 24 });
         if (this.modelTier === show) this.spinFrames = fr;
       }, initial ? 1500 : 400);
     } catch (e) { console.warn('base thumb failed', e); }

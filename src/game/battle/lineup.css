@@ -103,7 +103,7 @@
   position: relative; width: calc(var(--u) * 34); height: calc(var(--u) * 19); cursor: pointer; touch-action: manipulation; pointer-events: auto; isolation: isolate;
 }
 .bb-stage { position: absolute; left: 50%; bottom: calc(var(--u) * 6.4); width: calc(var(--u) * 30); height: calc(var(--u) * 27); translate: -50% 0; z-index: 2; pointer-events: none; }
-.bb-shadow { position: absolute; left: 50%; bottom: calc(var(--u) * -1); width: 72%; height: calc(var(--u) * 5); translate: -50% 0; display: block; background: center / 100% 100% no-repeat; image-rendering: pixelated; animation: bbShadow 2.6s ease-in-out infinite; }
+.bb-shadow { position: absolute; left: 50%; bottom: calc(var(--u) * -1); width: 72%; height: auto; aspect-ratio: 40 / 12; translate: -50% 0; display: block; background: center / 100% 100% no-repeat; image-rendering: pixelated; animation: bbShadow 2.6s ease-in-out infinite; }
 .bb-float { position: absolute; inset: 0; animation: bbFloat 2.6s ease-in-out infinite; }
 @keyframes bbFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--u) * -1.1); } }
 @keyframes bbShadow { 0%, 100% { scale: 1; opacity: 1; } 50% { scale: 0.86; opacity: 0.75; } }

@@ -378,14 +378,34 @@ const loadBaseMod = () => (baseModP ??= import('../models/props/base.js'));
  */
 export async function baseSpin(tier, o = {}) {
   const n = o.frames ?? 1, size = o.size ?? 128;
-  const k = `${tier}|${o.side ?? 0}|${tier === 5 ? o.style ?? '' : ''}|${size}|${n}`;
+  const cmd = o.cmd ?? null;
+  const k = `${tier}|${o.side ?? 0}|${tier === 5 ? o.style ?? '' : ''}|${size}|${n}|${o.zoom ?? ''}|${o.sway ?? ''}|${cmd ? (cmd.char ?? cmd.id) + JSON.stringify(cmd.override ?? null) + (o.cmdScale ?? '') : ''}`;
   if (baseUrls.has(k)) return baseUrls.get(k);
   const job = loadBaseMod().then((M) => {
     const b = M.makeBase(tier, { side: o.side ?? 0, style: o.style });
     try { b.update?.(0.016, 1); } catch (e) { /* animated bits are optional */ }
+    // the player's chibi Commander sits on the base's seat anchor (a little larger than in battle so it reads at button size)
+    if (cmd && b.seat) {
+      try {
+        const def = { ...CHARACTERS[cmd.char ?? cmd.id], ...(cmd.override ?? {}) };
+        const ch = new Chibi(def, { fidget: false });
+        ch.play('sit');
+        if (o.mood) ch.mood(o.mood); else ch.expr('happy', 'grin');
+        ch.face.blinkT = 99;
+        ch.face.autoLook = false;
+        for (let i = 0; i < 8; i++) ch.update(0.03);
+        ch.face.redraw?.();
+        b.seat.updateWorldMatrix(true, false);
+        ch.root.position.copy(b.seat.position);
+        ch.root.rotation.y = (o.side ?? 0) === 0 ? 0.55 : -0.55;
+        ch.root.scale.setScalar(o.cmdScale ?? 1.3);
+        b.root.add(ch.root);
+      } catch (e) { console.warn('base thumb commander failed', e); }
+    }
     const urls = [];
     for (let i = 0; i < n; i++) {
-      const yaw = -0.62 + (i / n) * Math.PI * 2;
+      // o.sway: rock back and forth around the hero angle (keeps a seated Commander facing out) instead of a full turn
+      const yaw = o.sway ? -0.62 + Math.sin((i / n) * Math.PI * 2) * o.sway : -0.62 + (i / n) * Math.PI * 2;
       urls.push(engine.renderThumb(b.root, { size, yaw, pitch: 0.3, zoom: o.zoom ?? 0.8 }));
     }
     try { b.dispose?.(); } catch (e) { /* ignore */ }
