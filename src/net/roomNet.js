@@ -71,6 +71,9 @@ export class RoomLink {
     this.downAt = this.connected ? 0 : performance.now();
     this.canEmit = true;
     this.dirty = true;
+    // how long the opponent may stay silent; raised while a page builds the battle
+    // scene (a busy main thread sends nothing), back to SILENT_MAX once it runs
+    this.silentMax = SILENT_MAX;
     this.status = 'connecting';
     // delivery is HELD until a listener is ready (release()): nothing heard while
     // switching owners (lobby -> battle scene) is lost
@@ -135,6 +138,7 @@ export class RoomLink {
     this.dead = true;
     this.open = false;
     this.closeReason = reason;
+    if (reason !== 'local') console.warn('room link closed:', reason);
     clearInterval(this.flushT);
     clearInterval(this.hbT);
     for (const off of this.offs) try { off(); } catch (e) { /* ignore */ }
@@ -311,8 +315,8 @@ export class RoomLink {
     }
     if (this.downAt && now - this.downAt > LOST_MAX) return this.close('lost');
     if (this.downAt) return; // can't judge the opponent while we are offline
-    if (this.leftAt && now - this.leftAt > LEFT_GRACE) return this.close('left');
-    if (this.open && now - this.lastHeard > SILENT_MAX) return this.close('timeout');
+    if (this.leftAt && now - this.leftAt > Math.max(LEFT_GRACE, this.silentMax - SILENT_MAX)) return this.close('left');
+    if (this.open && now - this.lastHeard > this.silentMax) return this.close('timeout');
   }
 }
 

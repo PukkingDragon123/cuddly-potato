@@ -1008,3 +1008,10 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
   .btn > .btn-fx { display: none; }
   .btn { transition: none; }
 }
+
+/* HD pixel icons (icons.js draws them at 2x their design grid, 64-96 px): nearest-neighbour when
+   they are shown at / above native size (2-3x phone screens), smooth downsampling on 1x screens
+   where an icon is drawn smaller than its pixels (nearest would drop whole outline rows). */
+@media (max-resolution: 1.99dppx) {
+  img.pi, .pi, .ui-fly, .spark.star, .tr-ar-isle { image-rendering: auto; }
+}

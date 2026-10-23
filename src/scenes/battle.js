@@ -593,6 +593,8 @@ export class BattleScene {
     if (this.ai && !this.sim.paused) this.ai.update(gdt);
     this.sim.update(gdt);
     this.hostSync && this.hostSync.update(dt);
+    // online: both pages are past loading once the clock runs - back to normal disconnect detection
+    if (this.mode === 'online' && !this.netLive && this.sim.t > 0.5 && this.peer) { this.netLive = true; this.peer.silentMax = 15000; }
     this.view.update(dt, this.sim.paused && !this.sim.over ? 0 : gdt);
     this.hud.update(dt);
     this.tutTick && this.tutTick(dt);

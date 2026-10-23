@@ -26,6 +26,7 @@ import { makeVial } from '../models/props/vials.js';
 import { makeBeaker, makeSodaRocket } from '../models/props/abilities.js';
 import { h, icon, button } from '../ui/ui.js';
 import { entranceDef } from '../data/entrances.js';
+import { pixelRing, pixelShock, pixelBeam, voxCarpet, voxPost, voxRope, voxCracks } from './vialProps.js';
 import { RARITIES, cardDef, isSpell, ALL_CARDS } from '../data/cards.js';
 import { SWARMS, SERIES, ROLE_INFO, swarmStats, speedName } from '../data/swarms.js';
 import { spellPower } from '../data/spells.js';
@@ -416,19 +417,19 @@ export class NewCardCutscene {
     const C = this.C, H = hero.H;
     hero.root.position.set(C.x, 5, C.z);
     hero.root.rotation.y = 0.3;
-    // a shadow grows where it will land
-    const sh = new THREE.Mesh(new THREE.CircleGeometry(Math.max(0.3, hero.W * 0.6), 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthWrite: false }));
-    sh.rotation.x = -Math.PI / 2;
+    // a pixel target ring locks on where it will land
+    const sh = pixelRing(Math.max(0.35, hero.W * 0.65), 0xff3a5a, { rVox: 16, dash: 2, gap: 2, thick: 2, opacity: 0 });
     sh.position.set(C.x, 0.012, C.z);
     this.addTemp(sh);
+    this.extra.push((dt) => { sh.rotation.y += dt * 2.5; });
     this.setCam((t) => [_a.set(C.x + 0.55, 0.09, C.z + 2.0 + t * 0.05), _b.set(C.x, Math.max(H * 0.5, Math.min(2.4, hero.root.position.y + H * 0.5)), C.z)]);
     this.camT.fov = 40;
     audio.play('whoosh', { pitch: 0.5 });
-    await this.tween(0.45, (e) => (sh.material.opacity = 0.45 * e));
+    await this.tween(0.45, (e) => (sh.material.opacity = 0.9 * e));
     audio.play('whoosh', { pitch: 0.8 });
     await this.tween(0.42, (e) => {
       hero.root.position.y = 5 * (1 - e);
-      sh.scale.setScalar(0.4 + e * 0.6);
+      sh.scale.setScalar((Math.max(0.35, hero.W * 0.65) / 16) * (1.6 - e * 0.6));
     }, 'inQuad');
     hero.root.position.y = 0;
     // IMPACT
@@ -438,30 +439,21 @@ export class NewCardCutscene {
     this.host.flash(0.55, 0.35);
     audio.play('boom', { pitch: 0.8 });
     audio.play('thud', { pitch: 0.7 });
-    fx.shockwave(_a.set(C.x, 0.02, C.z), { radius: 3.2, color: 0xffffff });
-    fx.shockwave(_a.set(C.x, 0.02, C.z), { radius: 1.8, color: this.rc, dur: 0.6 });
+    pixelShock(this.root, _a.set(C.x, 0.02, C.z), { radius: 3.2, color: 0xffffff });
+    pixelShock(this.root, _a.set(C.x, 0.02, C.z), { radius: 1.8, color: this.rc, dur: 0.6 });
     fx.burst(_a.set(C.x, 0.05, C.z), { count: 26, colors: [0x2a3152, 0x1a1f3c, 0x8e9ab8], size: 0.07, speed: 4, up: 1.4, life: 1.1 });
     fx.smoke(_a.set(C.x, 0, C.z), { count: 14, scale: 0.36, radius: 1.3, color: 0x6b7590 });
-    sh.material.color.set(0x05060f);
+    sh.visible = false;
     this.crater(C);
     await this.wait(0.55);
     this.camT.fov = 34;
-    animate(0.6, (e) => (sh.material.opacity = 0.45 * (1 - e)));
   }
 
   crater(C) {
-    // radial crack lines on the bench
-    const g = new THREE.Group();
-    const m = new THREE.MeshBasicMaterial({ color: 0x05060f, transparent: true, opacity: 0.8, depthWrite: false });
-    for (let i = 0; i < 9; i++) {
-      const len = rand(0.35, 0.8);
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(0.035, len), m);
-      p.rotation.x = -Math.PI / 2;
-      p.rotation.z = (i / 9) * Math.PI * 2 + rand(-0.2, 0.2);
-      p.position.set(Math.sin(p.rotation.z) * -len * 0.5, 0.011, Math.cos(p.rotation.z) * -len * 0.5);
-      g.add(p);
-    }
-    g.position.set(C.x, 0, C.z);
+    // jagged voxel cracks punched into the bench
+    const g = voxCracks(1 + Math.floor(Math.random() * 3));
+    g.position.set(C.x, 0.002, C.z);
+    g.rotation.y = rand(0, Math.PI * 2);
     this.addTemp(g);
   }
 
@@ -499,7 +491,7 @@ export class NewCardCutscene {
     fx.slime(at, { count: 22, color: 0x7cff3a, speed: 5 });
     fx.smoke(_a.set(C.x, 0, C.z), { count: 26, scale: 0.38, radius: 1.8, color: 0x4fbf3a, rise: 1.3, life: 1.3 });
     fx.smoke(_a.set(C.x, 0, C.z), { count: 14, scale: 0.32, radius: 1.5, color: 0x2a6a2a, life: 1.5 });
-    fx.shockwave(_a.set(C.x, 0.02, C.z), { radius: 3, color: 0x7cff3a });
+    pixelShock(this.root, _a.set(C.x, 0.02, C.z), { radius: 3, color: 0x7cff3a });
     hero.root.visible = true;
     hero.root.rotation.y = 0.3;
     await this.tween(0.55, (e) => {
@@ -514,27 +506,21 @@ export class NewCardCutscene {
 
   async inCarpet(hero) {
     const C = this.C, H = hero.H;
-    // the carpet rolls out towards the camera
-    const carpet = new THREE.Group();
-    const len = 3.4;
-    const red = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.014, len), new THREE.MeshStandardMaterial({ color: 0xc8142e, roughness: 0.9 }));
-    red.position.z = len / 2;
-    red.receiveShadow = true;
-    const goldM = new THREE.MeshStandardMaterial({ color: 0xffd23f, roughness: 0.4, metalness: 0.5 });
-    for (const x of [-0.5, 0.5]) {
-      const e = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.018, len), goldM);
-      e.position.set(x, 0, len / 2);
-      carpet.add(e);
-    }
-    carpet.add(red);
-    carpet.position.set(C.x, 0.008, C.z - 2.6);
+    // the voxel carpet rolls out towards the camera, between velvet ropes
+    const carpet = voxCarpet(3.4);
+    carpet.position.set(C.x, 0.003, C.z - 2.6);
     carpet.scale.z = 0.001;
     this.addTemp(carpet);
-    // velvet rope posts
-    for (const x of [-0.75, 0.75]) for (const z of [-1.6, -0.5]) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.42, 10), goldM);
-      p.position.set(C.x + x, 0.21, C.z + z);
-      this.addTemp(p);
+    for (const x of [-0.75, 0.75]) {
+      for (const z of [-2.0, -0.5]) {
+        const p = voxPost();
+        p.position.set(C.x + x, 0, C.z + z);
+        this.addTemp(p);
+      }
+      const rope = voxRope(1.5);
+      rope.rotation.y = -Math.PI / 2;
+      rope.position.set(C.x + x, 0, C.z - 2.0);
+      this.addTemp(rope);
     }
     hero.root.position.set(C.x, 0, C.z - 2.3);
     hero.root.rotation.y = 0;
@@ -595,7 +581,7 @@ export class NewCardCutscene {
     fx.slime(at, { count: 18, color: 0xc8142e, speed: 5 });
     fx.fire(at, { count: 20, radius: 2, scale: 1.6 });
     fx.smoke(_a.set(C.x, 0, C.z), { count: 18, scale: 0.38, radius: 1.5, color: 0x6b6f7a, life: 1.3 });
-    fx.shockwave(_a.set(C.x, 0.02, C.z), { radius: 3.2, color: 0xffa31a });
+    pixelShock(this.root, _a.set(C.x, 0.02, C.z), { radius: 3.2, color: 0xffa31a });
     // the Swarm bails out at the last second and lands
     hero.root.visible = true;
     hero.root.rotation.y = 0;
@@ -614,10 +600,13 @@ export class NewCardCutscene {
 
   async inGlitch(hero) {
     const C = this.C, H = hero.H;
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0x3ff2e0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 4.5, 24, 1, true), beamMat);
-    beam.position.set(C.x, 2.25, C.z);
+    // a teleport beam of scrolling pixel rings
+    const beam = pixelBeam(0.5, 4.2, 0x3ff2e0);
+    const beamMat = beam.userData.mat;
+    beamMat.opacity = 0;
+    beam.position.set(C.x, 0, C.z);
     this.addTemp(beam);
+    this.extra.push((dt) => beam.userData.update(dt));
     hero.root.position.copy(C);
     hero.root.rotation.y = 0.3;
     hero.root.visible = false;
@@ -648,7 +637,7 @@ export class NewCardCutscene {
     audio.play('zap', { pitch: 1.4 });
     audio.play('bigPop');
     this.host.flash(0.5, 0.3);
-    fx.shockwave(_a.set(C.x, 0.02, C.z), { radius: 2.6, color: 0x3ff2e0 });
+    pixelShock(this.root, _a.set(C.x, 0.02, C.z), { radius: 2.6, color: 0x3ff2e0 });
     fx.sparkle(_a.set(C.x, H * 0.5, C.z), { count: 30, colors: [0x3ff2e0, 0xffffff, 0xff2e88], speed: 3.5, radius: 0.8 });
     animate(0.4, (e) => (beamMat.opacity = 0.7 * (1 - e)), { onComplete: () => beam.parent?.remove(beam) });
     await this.wait(0.35);
@@ -703,7 +692,7 @@ export class NewCardCutscene {
     this.setCam(() => [_a.set(C.x + 0.35, 0.16, C.z + 2.5), _b.set(C.x + 0.2, H * 0.5, C.z)], 0.12);
     fx.foam(m, { count: 30, colors: [0xffffff, 0xf2fbff, rc, rc], speed: 1.1, power: 0.55, ground: 0, scale: 0.45 });
     fx.sparkle(m, { count: 24, colors: [0xffffff, rc, 0xffd23f], speed: 4.5, radius: 0.6, size: 0.05 });
-    fx.shockwave(_a.set(C.x, 0.02, C.z), { radius: 2.4, color: rc });
+    pixelShock(this.root, _a.set(C.x, 0.02, C.z), { radius: 2.4, color: rc });
     fx.rise(_a.set(C.x, 0, C.z), { count: 36, colors: [rc, 0xffffff], radius: Math.max(0.4, hero.W * 0.6) });
     // power-up glow on the hero + SLOW-MO
     this.glow.position.set(C.x, H * 0.5, C.z + 0.4);

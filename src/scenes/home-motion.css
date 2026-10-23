@@ -11,15 +11,9 @@
 .hm-mini, .hm-slot, .hm-zbox, .hm-tabbtn, .hm-prof, .hm-bwrap, .hm-top .pill, .hm-side-play, .hm-nav-ind { will-change: transform; }
 .hm-mini, .hm-slot, .hm-zbox, .hm-tabbtn, .hm-bwrap { transform-origin: 50% 70%; }
 
-/* ---- BATTLE: a soft breathing pedestal glow instead of shock rings */
+/* ---- BATTLE: the wrapper breathes (no shock rings, no glow blobs: the pixel sunburst behind it stays) */
 .hm-bwrap { animation: hmBwrapBreathe 2.6s ease-in-out infinite; }
 @keyframes hmBwrapBreathe { 0%, 100% { scale: 1; } 50% { scale: 1.028; } }
-.hm-bglow {
-  position: absolute; left: -14%; right: -14%; top: -30%; bottom: -36%; z-index: -1; pointer-events: none;
-  background: radial-gradient(ellipse 50% 50% at 50% 55%, rgba(255, 236, 140, 0.55), rgba(255, 180, 40, 0.22) 50%, transparent 72%);
-  animation: hmBglow 2.6s ease-in-out infinite;
-}
-@keyframes hmBglow { 0%, 100% { opacity: 0.55; scale: 0.96; } 50% { opacity: 1; scale: 1.04; } }
 /* the crossed swords clash every few seconds: a smooth wind-up, strike and settle */
 .hm-battle .pi { animation: hmSwords2 3.2s cubic-bezier(.3, 1.5, .5, 1) infinite; transform-origin: 50% 60%; }
 @keyframes hmSwords2 {
@@ -52,5 +46,13 @@
 .hm-top .pill .val { font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hm-bwrap, .hm-bglow, .hm-battle .pi, .hm-zbox .zt.hm-tro-pop { animation: none !important; }
+  .hm-bwrap, .hm-battle .pi, .hm-zbox .zt.hm-tro-pop { animation: none !important; }
+}
+
+/* the BATTLE pedestal light: stepped pixel bands in a stair-cut trapezoid (no soft oval blob) */
+.hm-play::before {
+  background:
+    var(--tx-grid) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)),
+    linear-gradient(transparent 0 30%, rgba(255, 216, 74, 0.14) 30% 52%, rgba(255, 216, 74, 0.28) 52% 72%, rgba(255, 200, 60, 0.46) 72% 88%, rgba(255, 236, 140, 0.7) 88%);
+  clip-path: polygon(14% 0, 86% 0, 86% 25%, 92% 25%, 92% 50%, 97% 50%, 97% 75%, 100% 75%, 100% 100%, 0 100%, 0 75%, 3% 75%, 3% 50%, 8% 50%, 8% 25%, 14% 25%);
 }

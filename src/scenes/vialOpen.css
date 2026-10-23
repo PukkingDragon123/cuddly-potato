@@ -259,17 +259,14 @@ body.landscape .vo-shake { left: auto; right: calc(var(--safe-r) + var(--u) * 3)
 .vo-shake-ic { width: 1.3em; height: 1.3em; }
 .vo-shake-cells { display: flex; gap: calc(var(--u) * 1.6); }
 .vo-shake-cells i {
-  /* little test-tube charge cells: empty glass -> glowing liquid */
-  position: relative; display: block; width: calc(var(--u) * 5.4); height: calc(var(--u) * 9); border-radius: 0 0 calc(var(--u) * 2.7) calc(var(--u) * 2.7);
-  background: radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.5) 0 12%, transparent 14%), linear-gradient(#0c1240, #1a2470);
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.67) rgba(127, 230, 255, 0.45);
+  /* pixel-art test-tube charge cells (sprites drawn in vialOpen.js tubeSprite) */
+  display: block; width: calc(var(--px) * 10); height: calc(var(--px) * 15);
+  background: center / 100% 100% no-repeat; image-rendering: pixelated;
+  filter: drop-shadow(0 var(--px) 0 rgba(0, 0, 0, 0.5));
 }
-.vo-shake-cells i::before { content: ''; position: absolute; left: -12%; right: -12%; top: calc(var(--u) * -1.2); height: calc(var(--u) * 1.6); background: #8e9ab8; box-shadow: 0 0 0 var(--px) var(--ink); }
-.vo-shake-cells i.on {
-  background: radial-gradient(circle at 30% 22%, #fff 0 12%, transparent 14%), linear-gradient(#fff 0 8%, #9ff4ff 8% 30%, #29b6f6 30% 100%);
-  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--u) * 2.4) rgba(127, 230, 255, 0.9);
-}
-.vo-shake-cells i.cur { animation: voPip 0.7s ease-in-out infinite; box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--u) * 2) rgba(255, 255, 255, 0.6), inset 0 0 0 calc(var(--px) * 0.67) #fff; }
+.vo-shake-cells i.on { filter: drop-shadow(0 var(--px) 0 rgba(0, 0, 0, 0.5)) drop-shadow(0 0 calc(var(--px) * 3) rgba(127, 230, 255, 0.8)); }
+.vo-shake-cells i.cur { animation: voCellBob 0.7s steps(2) infinite; }
+@keyframes voCellBob { 50% { transform: translateY(calc(var(--px) * -1.5)); } }
 .vo-shake-cells i.vo-cellpop { animation: voCellPop 0.35s cubic-bezier(.2, 1.8, .4, 1); }
 @keyframes voCellPop { 0% { transform: scale(1.35) rotate(-10deg); filter: brightness(1.8); } 100% { transform: none; filter: none; } }
 .vo-odds {

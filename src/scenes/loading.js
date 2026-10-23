@@ -54,7 +54,32 @@ export function cineBackdrop() {
       '--d': `${2.2 + Math.random() * 2.4}s`, '--dl': `${-Math.random() * 4}s`,
     } }));
   }
-  return h('div', { class: 'cn-back' }, h('i', { class: 'fl' }), sparks);
+  return h('div', { class: 'cn-back' }, h('img', { class: 'gl', src: glintURL(), alt: '', draggable: 'false' }), sparks);
+}
+/** The clash flare as pixel art: an 8-point star burst with tapered arms, dithered halo and a hot core. */
+let _glint = null;
+function glintURL() {
+  if (_glint) return _glint;
+  const S = 64, c = S / 2;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d');
+  const put = (x, y, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); };
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = x + 0.5 - c, dy = y + 0.5 - c, ax = Math.abs(dx), ay = Math.abs(dy);
+    const r = Math.hypot(dx, dy) / c;
+    const main = (ax < 1.5 - r && ay < c * 0.98) || (ay < 1.5 - r && ax < c * 0.98);
+    const diag = Math.abs(ax - ay) < 1.2 - r && r < 0.62;
+    const core = ax + ay < 7;
+    const halo = ax + ay < 15 && (x + y) % 2 === 0;
+    const dust = ax + ay < 24 && (x * 7 + y * 3) % 11 === 0;
+    if (core) put(x, y, ax + ay < 3.5 ? '#ffffff' : '#fff3c0');
+    else if (main) put(x, y, r < 0.4 ? '#ffffff' : r < 0.7 ? '#ffe9a0' : 'rgba(255,214,120,0.7)');
+    else if (diag) put(x, y, 'rgba(255,240,200,0.85)');
+    else if (halo) put(x, y, 'rgba(255,220,140,0.45)');
+    else if (dust) put(x, y, 'rgba(255,230,170,0.5)');
+  }
+  return (_glint = cv.toDataURL());
 }
 /** Film dressing shared with the title: vignette, grain, light leak, streaks, letterbox. */
 export function cineDressing() {

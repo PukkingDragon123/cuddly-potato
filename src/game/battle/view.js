@@ -129,20 +129,55 @@ function pixelTex(key, size, paint) {
   texCache[key] = t;
   return t;
 }
-const ringTex = () => pixelTex('ring', 32, (ctx, s) => {
-  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
-    if (d > 0.98) continue;
-    if (d > 0.78) { ctx.fillStyle = d > 0.9 ? '#ffffff' : '#dfe8ff'; ctx.fillRect(x, y, 1, 1); }
-    else if (d > 0.7) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, 1, 1); }
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const octD = (x, y) => Math.max(Math.abs(x), Math.abs(y), (Math.abs(x) + Math.abs(y)) / 1.3); // pixel octagon metric
+/** Team marker under units: four pixel corner brackets + front / back ticks (tinted by the team colour). */
+const ringTex = () => pixelTex('bracket', 32, (ctx) => {
+  const px = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
+  const L = 8;
+  for (const [sx, sy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    for (let k = 0; k < L; k++) for (let w = 0; w < 2; w++) {
+      const a = 3 + k, b = 3 + w;
+      const X = (v) => (sx ? 31 - v : v), Y = (v) => (sy ? 31 - v : v);
+      px(X(a), Y(b), w ? '#dfe8ff' : '#ffffff');
+      px(X(b), Y(a), w ? '#dfe8ff' : '#ffffff');
+    }
+    // ink-ish inner shade for depth
+    const X = (v) => (sx ? 31 - v : v), Y = (v) => (sy ? 31 - v : v);
+    for (let k = 5; k < L + 2; k++) { px(X(k), Y(5), 'rgba(255,255,255,0.35)'); px(X(5), Y(k), 'rgba(255,255,255,0.35)'); }
   }
+  // tick marks on the sides
+  for (let k = 13; k < 19; k++) { px(k, 2, '#ffffff'); px(k, 29, '#ffffff'); }
 });
+/** Soft pixel shadow: an octagonal blob that thins out in an ordered (Bayer) dither, no smooth disc. */
 const shadowTex = () => pixelTex('shadow', 32, (ctx, s) => {
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
+    const d = octD((x + 0.5 - s / 2) / (s / 2), (y + 0.5 - s / 2) / (s / 2));
     if (d > 1) continue;
-    const a = d < 0.6 ? 0.5 : d < 0.82 ? 0.34 : 0.16;
-    ctx.fillStyle = `rgba(10,8,30,${a})`;
+    const dens = d < 0.55 ? 1 : 1 - (d - 0.55) / 0.45;
+    if (BAYER4[(y & 3) * 4 + (x & 3)] / 16 >= dens) continue;
+    ctx.fillStyle = `rgba(10,8,30,${d < 0.55 ? 0.5 : 0.36})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+});
+/** Spell aim reticle: a dashed pixel octagon, corner brackets and a crosshair. */
+const reticleTex = () => pixelTex('reticle', 64, (ctx, s) => {
+  const px = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const dx = (x + 0.5 - s / 2) / (s / 2), dy = (y + 0.5 - s / 2) / (s / 2), d = octD(dx, dy);
+    const a = Math.atan2(dy, dx), seg = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 32);
+    if (d <= 0.97 && d > 0.89) { if (seg % 2 === 0) px(x, y, d > 0.93 ? '#ffffff' : '#dfe8ff'); }
+    else if (d <= 0.86 && d > 0.83 && seg % 4 === 1) px(x, y, 'rgba(255,255,255,0.6)');
+  }
+  for (let k = -5; k <= 5; k++) if (Math.abs(k) > 1) { px(32 + k, 32, '#ffffff'); px(32, 32 + k, '#ffffff'); }
+});
+/** Dithered fill for the aim area. */
+const fillTex = () => pixelTex('aimfill', 32, (ctx, s) => {
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const d = octD((x + 0.5 - s / 2) / (s / 2), (y + 0.5 - s / 2) / (s / 2));
+    if (d > 0.95) continue;
+    if (BAYER4[(y & 3) * 4 + (x & 3)] / 16 >= 0.5 - d * 0.25) continue;
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(x, y, 1, 1);
   }
 });
@@ -875,18 +910,23 @@ export class BattleView {
     }
     const sp = SPELLS[spellId];
     if (!this.aimRing) {
-      const geo = new THREE.RingGeometry(0.9, 1, 48).rotateX(-Math.PI / 2);
-      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.9, depthWrite: false, fog: false });
-      this.aimRing = new THREE.Mesh(geo, mat);
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.2, depthWrite: false, fog: false }));
+      // pixel-art reticle decal + dithered fill + a dotted voxel guide beam (no plain ring / disc meshes)
+      this.aimRing = new THREE.Mesh(PLANE, decalMat(reticleTex(), new THREE.Color(sp.color), 0.95));
+      this.aimRing.renderOrder = 3;
+      const disc = new THREE.Mesh(PLANE, decalMat(fillTex(), new THREE.Color(sp.color), 0.22));
+      disc.position.y = -0.005;
       this.aimRing.add(disc);
-      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7, 6, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color), transparent: true, opacity: 0.35, depthWrite: false, fog: false }));
-      beam.position.y = 3.5;
-      this.aimRing.add(beam);
+      const bm = new THREE.MeshBasicMaterial({ color: new THREE.Color(sp.color).multiplyScalar(1.6), transparent: true, opacity: 0.55, depthWrite: false, fog: false, toneMapped: false });
+      for (let k = 0; k < 12; k++) {
+        const dot = new THREE.Mesh(this.iceGeo, bm);
+        dot.scale.set(0.025, 0.22, 0.025);
+        dot.position.y = 0.4 + k * 0.55;
+        this.aimRing.add(dot);
+      }
       this.scene.add(this.aimRing);
     }
     const r = Math.max(0.8, sp.radius || 1.2);
-    this.aimRing.scale.set(r, 1, Math.min(r, FIELD.LANE_HALF));
+    this.aimRing.scale.set(r * 2, 1, Math.min(r, FIELD.LANE_HALF) * 2);
     this.aimRing.position.set(clamp(x, -FIELD.VIEW_X, FIELD.VIEW_X), 0.06, 0);
   }
 

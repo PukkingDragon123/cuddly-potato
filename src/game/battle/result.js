@@ -31,6 +31,7 @@ import { BASE_UPGRADES } from '../../data/labs.js';
 import { cardDef } from '../../data/cards.js';
 import { cardArtImg } from '../../ui/thumbs.js';
 import { Stage3D } from '../../ui/stage3d.js';
+import { VoxGrid, makeMesh } from '../../core/voxel.js';
 
 const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const fmtN = (n) => Math.round(n).toLocaleString('en-US');
@@ -87,6 +88,86 @@ function chibiFor(cmd) {
   const base = CHARACTERS[cmd.char ?? cmd.id];
   if (!base) return null;
   try { return new Chibi({ ...base, ...(cmd.override ?? {}) }, { fidget: false }); } catch (e) { return null; }
+}
+
+
+// ---------------------------------------------------------------------------
+// BEAST NEWS desk: a voxel anchor desk (glossy top with a chrome lip, panelled
+// front with a red LED strip, a pixel-art logo screen, a monitor, a mug and a
+// stack of scripts) that the anchor stands behind.
+
+let deskGeo = null;
+function deskLogoTex() {
+  const c = document.createElement('canvas');
+  c.width = 96; c.height = 24;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.fillStyle = '#120c24'; g.fillRect(0, 0, 96, 24);
+  g.fillStyle = '#ffffff'; g.fillRect(2, 2, 46, 20);
+  g.fillStyle = '#e0263f'; g.fillRect(48, 2, 46, 20);
+  g.fillStyle = '#ffd84a'; g.fillRect(2, 19, 92, 3);
+  g.font = 'bold 15px "Jersey 10", monospace';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#e0263f'; g.fillText('BEAST', 25, 11);
+  g.fillStyle = '#ffffff'; g.fillText('NEWS', 71, 11);
+  // crisp the anti-aliased glyph edges to hard pixels
+  const d = g.getImageData(0, 0, 96, 24);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const k = i / 4, x = k % 96, y = (k / 96) | 0;
+    if (y < 2 || y > 18) continue;
+    const red = x >= 48;
+    const lum = d.data[i] + d.data[i + 1] + d.data[i + 2];
+    const on = red ? lum > 560 : d.data[i + 1] < 160;
+    const col = red ? (on ? [255, 255, 255] : [224, 38, 63]) : (on ? [224, 38, 63] : [255, 255, 255]);
+    d.data[i] = col[0]; d.data[i + 1] = col[1]; d.data[i + 2] = col[2]; d.data[i + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function makeNewsDesk() {
+  if (!deskGeo) {
+    const g = new VoxGrid();
+    const W = 20; // half width
+    const top = 0x1a2150, trim = 0xdfe6f6, panel = 0x24308a, panelHi = 0x3446b0, base = 0x0c1238, red = 0xff3a52;
+    for (let x = -W; x < W; x++) {
+      const edge = Math.abs(x + 0.5) > W - 3; // rounded-off wing ends step back
+      const z1 = edge ? 4 : 5;
+      // plinth + kick plate
+      for (let z = -2; z <= z1 - 1; z++) g.set(x, 0, z, base);
+      // front panel with vertical seams
+      for (let y = 1; y <= 7; y++) {
+        const seam = ((x + W) % 8) === 0;
+        g.set(x, y, z1, y === 6 ? red : seam ? panelHi : panel, y === 6);
+        g.set(x, y, z1 - 1, panel);
+      }
+      // desk top slab, chrome lip on the front edge
+      for (let z = -4; z <= z1 + 1; z++) g.set(x, 8, z, z >= z1 + 1 ? trim : top);
+      g.set(x, 9, z1 + 1, trim);
+    }
+    // monitor on the anchor's left (screen glows)
+    g.box(9, 9, -1, 15, 9, 1, 0x22283a);
+    g.box(11, 10, 0, 13, 11, 0, 0x22283a);
+    g.box(8, 12, 0, 16, 17, 0, 0x14182a);
+    for (let x = 9; x <= 15; x++) for (let y = 13; y <= 16; y++) g.set(x, y, 1, (x + y) % 5 === 0 ? 0xffd84a : y === 16 ? 0xe0263f : 0x2a6ae8, true);
+    // mug + scripts on the right
+    g.cylinder(-14, 2, 9, 11, 1.2, 0xffffff);
+    g.set(-14, 11, 2, 0x5a3418);
+    g.set(-12, 10, 2, 0xffffff);
+    g.box(-9, 9, 1, -5, 9, 3, 0xf4f6ff);
+    g.box(-9, 10, 1, -5, 10, 2, 0xe8eef8);
+    g.set(-6, 10, 3, 0xe0263f);
+    deskGeo = g.build({ pivot: [0, 0, 0] });
+  }
+  const grp = new THREE.Group();
+  grp.add(makeMesh(deskGeo));
+  // the logo screen on the front
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 0.36), new THREE.MeshBasicMaterial({ map: deskLogoTex(), toneMapped: false }));
+  logo.position.set(0, 0.36, 0.565);
+  grp.add(logo);
+  return grp;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +316,11 @@ export async function showResult(parent, opts) {
   setTimeout(() => sting.remove(), 700);
   // the anchor at her desk
   anchor = chibiFor({ char: 'anchor' });
+  try {
+    const desk = makeNewsDesk();
+    desk.position.set(0.15, 0, 0.62);
+    stage.add(desk);
+  } catch (e) { /* the studio works without its desk */ }
   if (anchor) {
     stage.add(anchor.root);
     anchor.root.rotation.y = 0.28;
@@ -246,12 +332,12 @@ export async function showResult(parent, opts) {
     if (!anchor) return;
     cam.fov = 24;
     cam.updateProjectionMatrix();
-    const vh = 1.75;
+    const vh = 2.25;
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    // anchor sits left of centre in portrait (the BEAST NEWS screen fills the right)
-    const off = (portrait ? 0.14 : 0.04) * vh * cam.aspect;
-    aim.set(off, 1.22, 0);
-    cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.1, Math.cos(0.12) * dist);
+    // anchor sits left of centre (the BEAST NEWS screen fills the right)
+    const off = (portrait ? 0.15 : 0.1) * vh * cam.aspect;
+    aim.set(off, 1.12, 0);
+    cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.35, Math.cos(0.12) * dist);
     cam.lookAt(aim);
   };
   stage.onResize = () => frameAnchor();
@@ -331,7 +417,6 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
         h('b', {}, win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW'),
         h('span', {}, arenaName))),
     cam,
-    h('div', { class: 'cn-desk' }, h('i', { class: 'cn-desk-top' }), h('div', { class: 'cn-desk-logo' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS'))),
     h('div', { class: 'cn-bug' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS')),
     h('div', { class: 'cn-live' }, h('i'), 'LIVE'));
   const lower = h('div', { class: 'cn-lower' },

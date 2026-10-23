@@ -128,13 +128,12 @@ export function groundHit(pos, o = {}) {
   const col = toHex(o.color ?? 0xffffff);
   const pw = o.power ?? Math.min(1.6, 0.45 + R * 0.28);
   const x = pos.x, z = pos.z ?? 0, y = Math.max(0, pos.y ?? 0);
-  // flash pop: a few big additive cubes that blink out fast
-  for (let i = 0; i < 3; i++) {
+  // flash pop: a 4-point pixel star (two crossed thin streaks + a hot core), not a blob
+  const L = 0.5 + R * 0.22, T = 0.05 + R * 0.012;
+  for (const [sx, sy, c, lf] of [[L, T, 0xffffff, 0.14], [T, L * 0.8, 0xffffff, 0.14], [L * 0.6, T * 1.6, col, 0.2], [T * 1.6, L * 0.5, col, 0.2], [T * 2.2, T * 2.2, 0xffffff, 0.1]]) {
     particles.spawn('glow', {
-      x: x + rnd(-0.15, 0.15) * R, y: y + 0.25 + rnd(0, 0.3), z: z + rnd(-0.1, 0.1),
-      vx: 0, vy: rnd(0.2, 0.8), vz: 0, rvx: 0, rvy: 0, rvz: 0,
-      size: (0.35 + R * 0.12) * rnd(0.7, 1.1), life: rnd(0.08, 0.16), grav: 0, drag: 2, shrinkStart: 0.1,
-      color: i ? col : 0xffffff,
+      x, y: y + 0.35, z: z + 0.3, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, rvx: 0, rvy: 0, rvz: 0,
+      sx, sy, sz: T, life: lf, grav: 0, drag: 0, shrinkStart: 0.2, color: c,
     });
   }
   // sparks: fast glowing chips flung up + out

@@ -1,45 +1,38 @@
-/* Entrance animation poster tiles (src/ui/entranceArt.js). */
+/* Entrance animation poster tiles (src/ui/entranceArt.js): pixel-art canvases + a looping pixel icon. */
 .ent-art {
   --ec: #29b6f6;
-  position: relative; width: 100%; height: 100%; min-height: calc(var(--u) * 14); overflow: hidden; isolation: isolate;
-  background: radial-gradient(ellipse at 50% 85%, color-mix(in srgb, var(--ec) 55%, transparent), transparent 70%), linear-gradient(#0d1033, #1b1450 60%, #0a0a22);
-  box-shadow: inset 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) color-mix(in srgb, var(--ec) 60%, #fff 0%);
+  position: relative; width: 100%; height: 100%; min-height: calc(var(--u) * 14); overflow: hidden; isolation: isolate; background: #0d1033;
+  box-shadow: inset 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) var(--ec);
 }
-.ent-rays {
-  position: absolute; inset: -40%; z-index: 0; opacity: 0.35; pointer-events: none;
-  background: repeating-conic-gradient(from 0deg at 50% 62%, var(--ec) 0 6deg, transparent 6deg 18deg);
-  animation: entSpin 9s linear infinite;
-}
-@keyframes entSpin { to { transform: rotate(360deg); } }
+.ent-bg, .ent-fx { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; }
+.ent-bg { z-index: 0; object-fit: cover; }
+.ent-fx { z-index: 2; object-fit: cover; opacity: 0; }
 .ent-clap {
-  position: absolute; left: 0; right: 0; top: 0; height: 13%; z-index: 2;
+  /* clapperboard stripe: hard pixel diagonals */
+  position: absolute; left: 0; right: 0; top: 0; height: 13%; z-index: 4; image-rendering: pixelated;
   background: repeating-linear-gradient(120deg, #f6f8ff 0 calc(var(--px) * 3), #15121f calc(var(--px) * 3) calc(var(--px) * 6));
   box-shadow: 0 var(--px) 0 var(--ink);
 }
-.ent-floor {
-  position: absolute; left: 8%; right: 8%; bottom: 10%; height: 8%; z-index: 1; border-radius: 50%;
-  background: radial-gradient(ellipse, color-mix(in srgb, var(--ec) 80%, #fff 20%), transparent 70%); opacity: 0.8;
-}
-.ent-hero { position: absolute; left: 50%; bottom: 14%; width: 58%; height: 58%; translate: -50% 0; z-index: 3; }
-.ent-ic { width: 100%; height: 100%; filter: drop-shadow(0 0 calc(var(--px) * 3) var(--ec)) drop-shadow(0 calc(var(--px) * 2) 0 rgba(0, 0, 0, 0.45)); }
-.ent-fx { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
-/* per-entrance loops */
-.ent-strut .ent-hero { animation: entStrut 2.4s ease-in-out infinite; }
-@keyframes entStrut { 0% { transform: translateX(-70%); } 40%, 100% { transform: translateX(0); } 50% { transform: translateX(0) scale(1.08); } }
+.ent-hero { position: absolute; left: 50%; bottom: 22%; width: 52%; height: 52%; translate: -50% 0; z-index: 3; }
+.ent-ic { width: 100%; height: 100%; filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(0, 0, 0, 0.55)); }
+/* per-entrance loops (stepped, pixel-y) */
+.ent-strut .ent-hero { animation: entStrut 2.4s steps(12) infinite; }
+@keyframes entStrut { 0% { transform: translateX(-70%); } 40%, 100% { transform: translateX(0); } }
+.ent-strut .ent-fx { animation: entBlink 1.2s steps(1) infinite; }
 .ent-heroLanding .ent-hero { animation: entLand 2s cubic-bezier(.5, 0, .9, .5) infinite; }
-@keyframes entLand { 0% { transform: translateY(-140%) scale(0.8); } 35% { transform: translateY(0) scale(1.25, 0.75); } 45%, 100% { transform: none; } }
-.ent-heroLanding .ent-fx { background: radial-gradient(ellipse at 50% 88%, #fff 0 6%, transparent 30%); animation: entPuff 2s linear infinite; }
-@keyframes entPuff { 0%, 30% { opacity: 0; transform: scale(0.4); } 36% { opacity: 1; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.4); } }
-.ent-labExplosion .ent-fx { background: radial-gradient(circle at 50% 70%, #eaffd0 0 8%, #7cff3a 18%, rgba(60, 200, 40, 0.6) 32%, transparent 50%); animation: entBoom 2.2s ease-out infinite; }
-@keyframes entBoom { 0% { opacity: 0; transform: scale(0.2); } 12% { opacity: 1; transform: scale(1); } 60%, 100% { opacity: 0; transform: scale(1.6); } }
-.ent-labExplosion .ent-hero { animation: entEmerge 2.2s ease-out infinite; }
-@keyframes entEmerge { 0%, 20% { opacity: 0; transform: scale(0.6); } 45%, 100% { opacity: 1; transform: none; } }
-.ent-redCarpet .ent-floor { left: 0; right: 0; bottom: 6%; height: 14%; border-radius: 0; background: linear-gradient(90deg, #8a0a1e, #ff3a5a 50%, #8a0a1e); clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%); }
-.ent-redCarpet .ent-fx { background: radial-gradient(circle at 18% 40%, #fff 0 3%, transparent 6%), radial-gradient(circle at 82% 30%, #fff 0 3%, transparent 6%), radial-gradient(circle at 70% 60%, #fff 0 2%, transparent 5%); animation: entFlash 1.1s steps(2) infinite; }
-@keyframes entFlash { 50% { opacity: 0; } }
+@keyframes entLand { 0% { transform: translateY(-140%); } 35% { transform: translateY(0) scale(1.25, 0.75); } 45%, 100% { transform: none; } }
+.ent-heroLanding .ent-fx { animation: entImpact 2s steps(1) infinite; }
+@keyframes entImpact { 0%, 34% { opacity: 0; } 35%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+.ent-labExplosion .ent-fx { animation: entBoom 2.2s steps(1) infinite; }
+@keyframes entBoom { 0%, 10% { opacity: 0; } 11%, 30% { opacity: 1; } 31%, 100% { opacity: 0; } }
+.ent-labExplosion .ent-hero { animation: entEmerge 2.2s steps(6) infinite; }
+@keyframes entEmerge { 0%, 25% { opacity: 0; transform: scale(0.5); } 50%, 100% { opacity: 1; transform: none; } }
+.ent-redCarpet .ent-hero { bottom: 18%; }
+.ent-redCarpet .ent-fx { animation: entBlink 0.5s steps(1) infinite; }
+@keyframes entBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .ent-rocketDrop .ent-hero { animation: entRocket 2s cubic-bezier(.4, 0, 1, 1) infinite; }
 @keyframes entRocket { 0% { transform: translate(-120%, -120%) rotate(45deg); } 40% { transform: translate(0, 0) rotate(45deg); } 46% { transform: scale(1.3, 0.7); } 55%, 100% { transform: none; } }
-.ent-rocketDrop .ent-fx { background: radial-gradient(circle at 50% 80%, #fff2a0 0 6%, #ff8a2a 16%, transparent 36%); animation: entPuff 2s linear infinite; }
+.ent-rocketDrop .ent-fx { animation: entImpact 2s steps(1) infinite; }
 .ent-glitchTeleport .ent-hero { animation: entGlitch 1.6s steps(1) infinite; }
 @keyframes entGlitch {
   0% { transform: translate(-10%, 0); filter: drop-shadow(3px 0 0 #ff2e88) drop-shadow(-3px 0 0 #3ff2e0); opacity: 0.4; }
@@ -47,8 +40,8 @@
   24% { transform: translate(-4%, 2%); opacity: 0.2; }
   36%, 100% { transform: none; filter: none; opacity: 1; }
 }
-.ent-glitchTeleport .ent-fx { background: repeating-linear-gradient(180deg, rgba(63, 242, 224, 0.22) 0 calc(var(--px) * 1), transparent calc(var(--px) * 1) calc(var(--px) * 3)); animation: entScan 0.8s linear infinite; }
-@keyframes entScan { to { background-position: 0 calc(var(--px) * 6); } }
+.ent-glitchTeleport .ent-fx { animation: entGlitchFx 0.6s steps(1) infinite; }
+@keyframes entGlitchFx { 0% { opacity: 1; transform: translateX(-4%); } 33% { opacity: 0; } 66% { opacity: 1; transform: translateX(5%); } }
 @media (prefers-reduced-motion: reduce) { .ent-art * { animation: none !important; } }
 
 /* shop: ENTRANCES section tiles (src/ui/home/shop.js) */

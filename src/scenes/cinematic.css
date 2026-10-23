@@ -163,11 +163,9 @@ body.landscape .tt-load { top: calc(var(--safe-t) + 7vh + var(--u) * 1); }
   background: repeating-linear-gradient(90deg, rgba(127, 230, 255, 0.5) 0 1px, transparent 1px 7vh), repeating-linear-gradient(0deg, rgba(127, 230, 255, 0.5) 0 1px, transparent 1px 7vh);
   -webkit-mask-image: linear-gradient(#000, transparent 85%); mask-image: linear-gradient(#000, transparent 85%);
 }
-.cn-back .fl { position: absolute; left: 50%; top: 54%; width: 70vmin; height: 70vmin; translate: -50% -50%; mix-blend-mode: screen;
-  background: conic-gradient(from 0deg, transparent 0 8deg, rgba(255, 240, 200, 0.5) 10deg, transparent 12deg 52deg, rgba(255, 240, 200, 0.4) 55deg, transparent 58deg 98deg, rgba(255, 240, 200, 0.5) 100deg, transparent 102deg 150deg, rgba(255, 240, 200, 0.35) 153deg, transparent 156deg 205deg, rgba(255, 240, 200, 0.5) 207deg, transparent 210deg 262deg, rgba(255, 240, 200, 0.4) 265deg, transparent 268deg 312deg, rgba(255, 240, 200, 0.45) 315deg, transparent 318deg);
-  -webkit-mask-image: radial-gradient(circle, #000 8%, transparent 62%); mask-image: radial-gradient(circle, #000 8%, transparent 62%);
-  animation: cnRays 30s linear infinite; }
-@keyframes cnRays { to { rotate: 360deg; } }
+.cn-back .gl { position: absolute; left: 50%; top: 54%; width: 64vmin; height: 64vmin; translate: -50% -50%; image-rendering: pixelated; mix-blend-mode: screen;
+  animation: cnGlint 2.8s ease-in-out infinite; }
+@keyframes cnGlint { 0%, 100% { transform: scale(0.94) rotate(0deg); opacity: 0.85; } 50% { transform: scale(1.06) rotate(4deg); opacity: 1; } }
 .cn-back .sp { position: absolute; width: calc(var(--px) * 2); height: calc(var(--px) * 2); background: #fff6c8; box-shadow: 0 0 calc(var(--px) * 3) #ffd84a; left: var(--x); top: var(--y); opacity: 0; animation: cnSpark var(--d, 3s) var(--dl, 0s) ease-out infinite; }
 @keyframes cnSpark { 0% { opacity: 0; transform: translate(0, 0) scale(1); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.4); } }
 
@@ -211,7 +209,7 @@ body.landscape .ld-mid { padding-top: calc(var(--safe-t) + 7vh + var(--u) * 3); 
 .ld-tip .hl { color: #9ff2ff; font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
-  .cn-grain, .cn-leak, .cn-streak, .cn-logo .sweep::before, .cn-logo.reveal *, .cn-back .fl, .cn-back .sp, .ld-still.on, .tt-start { animation: none !important; }
+  .cn-grain, .cn-leak, .cn-streak, .cn-logo .sweep::before, .cn-logo.reveal *, .cn-back .gl, .cn-back .sp, .ld-still.on, .tt-start { animation: none !important; }
   .ld-still.on, .cn-logo.reveal * { opacity: 1; }
 }
 /* narrow portrait screens: tuck the bolt over the end of the lettering so it never clips */

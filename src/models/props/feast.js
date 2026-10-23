@@ -3,7 +3,7 @@
 // a sesame burger, a pepperoni pizza slice, a glazed donut, fries, a soda cup,
 // an ice-cream cone, a cupcake, a hot dog and a popcorn bucket, plus the
 // plates / golden cake stand they spin on. Every food faces +Z and sits on y = 0.
-//   makeFeast(kind, { gold })  -> Object3D        FEAST_KINDS
+//   makeFeast(kind, { gold, metal }) -> Object3D  FEAST_KINDS (metal: real gold material, needs an env map)
 //   makePlate(kind)            -> Object3D        'plate' | 'gold' | 'premium'
 import { THREE, VoxGrid, Mats, makeMesh, PAL, hash3, vnoise, text, cachedGeometry } from './common.js';
 import { variantMaterials, variantColor } from '../../core/voxel.js';
@@ -261,7 +261,9 @@ export function makeFeast(kind = 'burger', opts = {}) {
   const fn = FEAST[kind] ?? FEAST.burger;
   const gold = !!opts.gold;
   const geo = cachedGeometry(`feast:${kind}:${gold ? 'g' : ''}`, gold ? goldGrid(fn) : fn, { scale: FEAST_VOX, jitter: 0.03 });
-  const m = makeMesh(geo, gold ? variantMaterials('gold') : Mats.pair);
+  // gold = the gold-recoloured grid in toy plastic (metal finishes need a scene env map;
+  // thumbnails and the UI stage render without one, where metal reads as dull brown)
+  const m = makeMesh(geo, gold && opts.metal ? variantMaterials('gold') : Mats.pair);
   const root = new THREE.Group();
   root.add(m);
   root.name = 'feast:' + kind;
@@ -290,7 +292,7 @@ export function makePlate(kind = 'plate') {
     return g;
   }, { scale: FEAST_VOX, jitter: 0.02 });
   const root = new THREE.Group();
-  root.add(makeMesh(geo, kind === 'gold' ? variantMaterials('gold') : Mats.pair));
+  root.add(makeMesh(geo, Mats.pair));
   root.userData.top = (kind === 'gold' ? 10 : 2) * FEAST_VOX;
   return root;
 }

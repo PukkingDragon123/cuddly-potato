@@ -88,6 +88,53 @@ export function pressFx(el) {
   return el;
 }
 
+// --------------------------------------------------------------------------- pixel ULT frame
+// The ultimate buttons are framed by a hand-built pixel-art containment bezel
+// (a stepped octagon, never a CSS circle): 24 charge cells run clockwise from
+// the top, lit in the ultimate's colour with a bright tip, chasing white when
+// ready; a top-left lit / bottom-right shaded steel rim with rivets + ink lines.
+const FN = 44, ULT_CELLS = 24;
+const hexRgb = (hex) => { const v = parseInt(String(hex).trim().replace('#', ''), 16) || 0xffd84a; return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+const mixRgb = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const octR = (dx, dy) => Math.max(Math.abs(dx), Math.abs(dy), (Math.abs(dx) + Math.abs(dy)) / 1.32);
+export function drawUltFrame(cv, k, color, state = 'charging', phase = 0) {
+  const c = cv.getContext('2d');
+  const img = c.createImageData(FN, FN), d = img.data;
+  const uc = hexRgb(color), ink = [18, 12, 36], off = state === 'none' || state === 'used' ? [44, 48, 80] : [27, 33, 96];
+  const steel = [58, 68, 150], white = [255, 255, 255];
+  const lit = state === 'ready' ? ULT_CELLS : Math.floor(Math.min(1, k) * ULT_CELLS + 1e-4);
+  const C = (FN - 1) / 2;
+  for (let y = 0; y < FN; y++) for (let x = 0; x < FN; x++) {
+    const dx = x - C, dy = y - C, r = octR(dx, dy);
+    if (r > 21.6 || r < 15.4) continue;
+    let col;
+    if (r > 20.4 || r < 16.6) col = ink;
+    else {
+      const t = (r - 16.6) / 3.8; // 0 inner .. 1 outer
+      const lightK = (-dx - dy) / (2 * 21.6); // top-left lit
+      let a = Math.atan2(dx, -dy); if (a < 0) a += Math.PI * 2;
+      const u = (a / (Math.PI * 2)) * ULT_CELLS, cell = Math.floor(u), fu = u - cell;
+      if (t > 0.78) col = mixRgb(steel, lightK > 0 ? white : ink, Math.abs(lightK) * 0.9); // outer steel rim
+      else if (fu < 0.16) col = [10, 12, 42]; // cell divider
+      else if (cell < lit) {
+        col = mixRgb(uc, t > 0.45 ? white : [0, 0, 0], t > 0.45 ? 0.3 : 0.22);
+        if (state === 'ready' && (cell + phase) % 3 === 0) col = mixRgb(col, white, 0.65);
+        if (state !== 'ready' && cell === lit - 1 && phase) col = mixRgb(col, white, 0.55);
+      } else col = mixRgb(off, t > 0.45 ? [80, 90, 170] : off, 0.35);
+    }
+    const i = (y * FN + x) * 4;
+    d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+  }
+  // rivets on the eight facets
+  for (let j = 0; j < 8; j++) {
+    const a = (j / 8) * Math.PI * 2 + Math.PI / 8;
+    const x = Math.round(C + Math.sin(a) * 19.6 * 0.93), y = Math.round(C - Math.cos(a) * 19.6 * 0.93);
+    for (const [ox, oy, v] of [[0, 0, 235], [1, 0, 150], [0, 1, 150], [1, 1, 90]]) { const i = ((y + oy) * FN + x + ox) * 4; d[i] = d[i + 1] = v; d[i + 2] = Math.min(255, v + 20); d[i + 3] = 255; }
+  }
+  c.putImageData(img, 0, 0);
+}
+const ultFrameCanvas = () => h('canvas', { class: 'u-frame', width: FN, height: FN });
+
 /** Burst (ring + rays + sparks) at a screen point. */
 function burstAt(x, y, o = {}) {
   const el = h('div', { style: { position: 'absolute', left: x - 20 + 'px', top: y - 20 + 'px', width: '40px', height: '40px', pointerEvents: 'none' } });
@@ -132,6 +179,9 @@ export class BattleHUD {
     this.sel = -1;
     const s0 = sim.sides[0];
     const root = (this.root = h('div', { class: 'bhud' }));
+    // pixel-art sprites used by the CSS (cost gems, seam spark)
+    root.style.setProperty('--ic-energy', `url(${iconURL('energy')})`);
+    root.style.setProperty('--ic-spark', `url(${iconURL('spark4')})`);
 
     // ------------------------------------------------------------ top: tug-of-war bar
     const end = (i) => {
@@ -226,7 +276,10 @@ export class BattleHUD {
       });
     } else if (!cfg.sides[0].noMegaTeaser) {
       // no MEGA yet: a locked teaser pointing at the Trophy Road
+      const nf = ultFrameCanvas();
+      drawUltFrame(nf, 0, '#6a74a8', 'none');
       this.megaEl = pressFx(h('div', { class: 'bh-ult mega none hit', title: 'MEGA' },
+        nf,
         h('div', { class: 'u-core' }, icon('mega')),
         h('div', { class: 'lockt' }, icon('lock'), h('span', {}, icon('trophy'), '300')),
         h('div', { class: 'u-pct' }, 'MEGA')));
@@ -321,15 +374,17 @@ export class BattleHUD {
 
   /** An ultimate button: 3D render in a charging ring with liquid + electric arcs. */
   makeUlt(kind, img, name, color, ic) {
+    const frame = ultFrameCanvas();
+    drawUltFrame(frame, 0, color);
     const liq = h('div', { class: 'u-liq' }, h('i', { class: 'bub' }), h('i', { class: 'bub' }), h('i', { class: 'bub' }));
     const pct = h('div', { class: 'u-pct' }, '0%');
     const el = pressFx(h('div', { class: `bh-ult ${kind}${img instanceof Node ? ' live' : ''} hit`, title: name, style: { '--uc': color } },
       h('div', { class: 'u-rays' }),
-      h('div', { class: 'u-ring' }),
+      frame,
       h('div', { class: 'u-core' }, liq, img instanceof Node ? (img.classList.add('u-model'), img) : h('img', { class: 'u-model', src: img, alt: '' }), h('i', { class: 'u-arc a1' }), h('i', { class: 'u-arc a2' }), h('i', { class: 'u-arc a3' })),
       h('div', { class: 'u-tag' }, icon(ic), kind === 'mega' ? 'MEGA' : 'ULT'),
       pct));
-    return { el, liq, pct };
+    return { el, liq, pct, frame, color, fkey: '' };
   }
 
   /** The MEGA sits in the dock in landscape, floats above it in portrait. */
@@ -778,6 +833,9 @@ export class BattleHUD {
   /** Ultimate ring + liquid + state. */
   setUlt(u, k, state, label) {
     u.el.style.setProperty('--k', Math.max(0, Math.min(1, k)).toFixed(3));
+    const ph = state === 'ready' ? Math.floor(performance.now() / 110) % 3 : Math.floor(performance.now() / 260) % 2;
+    const fkey = `${Math.floor(Math.min(1, k) * ULT_CELLS)}|${state}|${ph}`;
+    if (fkey !== u.fkey) { u.fkey = fkey; drawUltFrame(u.frame, k, u.color, state, ph); }
     u.liq.style.height = (Math.min(1, k) * 100).toFixed(1) + '%';
     if (u.pct.textContent !== label) u.pct.textContent = label;
     u.el.classList.toggle('ready', state === 'ready');

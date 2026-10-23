@@ -183,12 +183,13 @@ export function mount(el, ctx, opts = {}) {
   function hero(tier, into, max) {
     const N = PASS_TIERS.length;
     const frac = max ? 1 : into / SEASON.calPerTier;
-    // floating 3D food around the poster (no plates), tap them for a spin
-    const foods = [['feast', 'f0'], ['donut', 'f1'], ['burger', 'f2'], ['icecream', 'f3']].map(([k, c]) => {
-      const f = foodSpin(k, { plate: 'none', size: 160, cls: `ps-hfood ${c}` });
-      f.addEventListener('click', (e) => { e.stopPropagation(); audio.play('boing'); spinBurst(f, { hop: 14 }); sparkle(f, { count: 10, colors: ['#ffd84a', '#ff7ac0', '#ffffff', '#ff8a1f'] }); });
+    // the season buffet: spinning 3D dishes on the poster's picnic table (tap one for a spin)
+    const buffet = h('div', { class: 'ps-buffet' }, ...['feast', 'burger', 'donut', 'pizza', 'icecream'].map((k, i) => {
+      const f = foodSpin(k, { plate: 'plate', size: 144, cls: `ps-hfood f${i}` });
+      f.addEventListener('click', (e) => { e.stopPropagation(); audio.play('boing'); spinBurst(f, { hop: 16 }); sparkle(f, { count: 10, colors: ['#ffd84a', '#ff7ac0', '#ffffff', '#ff8a1f'] }); });
       return f;
-    });
+    }));
+    const foods = [];
     const art = h('div', { class: 'ps-hero-art' },
       h('div', { class: 'px-rays ps-hero-rays' }),
       swarmImg(SEASON.hero.swarm, 'base', null, 192, 'ps-hero-swarm'),
@@ -214,7 +215,7 @@ export function mount(el, ctx, opts = {}) {
         h('div', { class: 'ps-title t-d t-3d' }, ...SEASON.name.split(' ').map((w) => h('span', {}, w))),
         h('div', { class: 'ps-tagline' }, SEASON.tagline),
         h('div', { class: 'ps-tiers t-d' }, `TIER ${Math.min(tier, N)} / ${N}`)),
-      xp);
+      buffet, xp);
   }
 
   function premiumPanel() {

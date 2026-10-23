@@ -257,10 +257,11 @@ export class HomeScene {
         rig.root.lookAt(Z.camPos.x, bp.y, Z.camPos.z);
         rig.setState('idle');
         this.scene.add(rig.root);
-        const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.5, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff2e88, transparent: true, opacity: 0.7, depthWrite: false }));
+        // pixel-art boss sigil on the ground (a spiked diamond with a skull, not a plain ring)
+        const ring = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: bossSigilTex(), color: 0xff4fa3, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
         ring.position.copy(bp).setY(bp.y + 0.06);
         this.scene.add(ring);
-        this.actors.push({ kind: 'boss', obj: rig, update: (dt) => { rig.update(dt); ring.rotation.y += dt; ring.material.opacity = 0.5 + Math.sin(this.t * 3) * 0.25; }, zone: Z });
+        this.actors.push({ kind: 'boss', obj: rig, update: (dt) => { rig.update(dt); ring.material.opacity = 0.6 + Math.sin(this.t * 3) * 0.25; ring.scale.setScalar(1 + Math.sin(this.t * 3) * 0.03); }, zone: Z });
         const defeated = !!p.bosses?.[boss.id];
         this.addPick(rig.root, () => this.openBoss(boss.id), { label: defeated ? `${boss.name} ✓` : boss.name, cls: 'boss', iconName: 'skull', h: rig.height + 0.6, zone: Z });
       }
@@ -381,7 +382,7 @@ export class HomeScene {
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
     this.practiceBtn = button('TRAIN', () => game.go('battle', { mode: 'practice' }), 'gray lg hm-side-play', { icon: 'sword' });
     // the wrapper breathes + lifts on hover; the button itself keeps the generic press / release
-    const bwrap = (this.bwrap = h('div', { class: 'hm-bwrap' }, h('i', { class: 'hm-bglow' }), this.battleBtn));
+    const bwrap = (this.bwrap = h('div', { class: 'hm-bwrap' }, this.battleBtn));
     const play = h('div', { class: 'hm-play' }, this.practiceBtn, bwrap, this.bossBtn);
     // ONLINE BATTLE (engineer A): the LIVE 1v1 sticker on the BATTLE button + live-match lobby
     loadOpt('../ui/home/online.js').then((m) => m.mountOnlineEntry(bwrap, this.ctx())).catch((e) => console.warn('online unavailable', e));
@@ -953,6 +954,35 @@ export class HomeScene {
     const p = state.p;
     if (p) Object.assign(shown, { coins: p.coins, bucks: p.bucks, trophies: p.trophies });
   }
+}
+
+/** Boss gate sigil: a hazard diamond with corner spikes, notched rim and a pixel skull (white, tinted). */
+let _sigil = null;
+function bossSigilTex() {
+  if (_sigil) return _sigil;
+  const S = 40, c = S / 2;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d');
+  const px = (x, y, a = 1) => { ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillRect(x, y, 1, 1); };
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const d = Math.abs(x + 0.5 - c) + Math.abs(y + 0.5 - c);
+    if (d > 15 && d <= 17.5 && !((x + y) % 6 === 0)) px(x, y, 1); // notched rim
+    else if (d > 12 && d <= 13.5) px(x, y, 0.55); // inner rim
+    else if (d <= 12 && (x + y) % 2 === 0) px(x, y, 0.16); // dithered fill
+  }
+  // spikes off the four corners
+  for (let k = 0; k < 4; k++) for (let i = 0; i < 3; i++) {
+    const [dx, dy] = [[1, 0], [-1, 0], [0, 1], [0, -1]][k];
+    px(c + dx * (18 + i) - (dx ? 0 : 0), c + dy * (18 + i), 1);
+  }
+  // pixel skull
+  const skull = ['..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', 'XX..X..XX', 'XX..X..XX', 'XXXX.XXXX', '.XXXXXXX.', '..X.X.X..'];
+  skull.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'X') px(c - 4 + i, c - 4 + j, 0.95); }));
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return (_sigil = t);
 }
 
 function pickSound(id) {

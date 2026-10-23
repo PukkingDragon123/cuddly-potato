@@ -37,35 +37,23 @@
 .cdlg.at-top.closing .cdlg-panel { animation-name: cOutTop; }
 @keyframes cOutTop { to { opacity: 0; transform: translateY(-10px) scale(0.97); } }
 
-/* ---- face cam: skewed window, live 3D close-up */
+/* ---- face cam: pixel-art riveted frame around a live 3D close-up */
 .cdlg-cam {
   position: relative; z-index: 1; flex: none;
-  height: clamp(104px, 18vh, 176px); margin: 0 calc(var(--px) * 3) calc(var(--px) * -2);
-  transform: skewX(-7deg); overflow: hidden; border-radius: calc(var(--px) * 1.5);
+  height: clamp(110px, 18vh, 180px); margin: 0 calc(var(--px) * 2) calc(var(--px) * -3);
+  border: 0 solid; border-image: var(--ski-plate-ring) 12 / calc(6 * var(--px)) / 0 stretch; border-width: calc(4 * var(--px));
   background: var(--spk-d);
-  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 2) #fff, 0 0 0 calc(var(--px) * 3) var(--ink), 0 calc(var(--px) * 3) 0 calc(var(--px) * 2) rgba(5, 3, 20, 0.45);
+  filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(5, 3, 20, 0.45));
   animation: cCamIn 0.42s cubic-bezier(.16, 1.35, .35, 1) both;
 }
-.cdlg.wide .cdlg-rays { left: 50%; }
-.cdlg.wide .cdlg-cam { width: clamp(112px, 25%, 172px); height: auto; aspect-ratio: 1 / 1.08; margin: 0 0 calc(var(--px) * 2) calc(var(--px) * 3); }
+.cdlg.wide .cdlg-cam { width: clamp(118px, 26%, 178px); height: auto; aspect-ratio: 1 / 1.08; margin: 0 0 calc(var(--px) * 2) calc(var(--px) * 2); }
 .cdlg.cont .cdlg-cam { animation: none; }
-@keyframes cCamIn { 0% { transform: skewX(-7deg) translateX(-30%) scaleX(0.3); opacity: 0; filter: brightness(3); } 60% { opacity: 1; filter: brightness(1.4); } 100% { transform: skewX(-7deg); filter: none; } }
-.cdlg-cam-in { position: absolute; inset: 0 -14%; transform: skewX(7deg); overflow: hidden; }
-.cdlg-rays {
-  position: absolute; left: 62%; top: 45%; width: 260%; aspect-ratio: 1; translate: -50% -50%;
-  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--spk) 70%, #fff) 0 6deg, color-mix(in srgb, var(--spk) 80%, #0a0630) 6deg 15deg);
-  animation: cSpin 18s linear infinite;
-}
-.cdlg-rays::after {
-  content: ''; position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--spk) 30%, #fff) 0 6%, transparent 26%, rgba(6, 4, 24, 0.55) 46%);
-}
-@keyframes cSpin { to { rotate: 360deg; } }
-.cdlg-dots {
-  position: absolute; inset: 0;
-  background: radial-gradient(circle, rgba(10, 6, 30, 0.38) 1.1px, transparent 1.6px) 0 0 / 6px 6px;
-  -webkit-mask-image: radial-gradient(ellipse 70% 80% at 50% 45%, transparent 35%, #000 85%); mask-image: radial-gradient(ellipse 70% 80% at 50% 45%, transparent 35%, #000 85%);
-}
+@keyframes cCamIn { 0% { transform: translateX(-24%) scaleX(0.3); opacity: 0; filter: brightness(3); } 60% { opacity: 1; filter: brightness(1.4); } 100% { transform: none; } }
+.cdlg-cam-in { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(color-mix(in srgb, var(--spk) 75%, #fff), var(--spk) 45%, var(--spk-d)); }
+.cdlg-glow { position: absolute; inset: 0; background: radial-gradient(ellipse 50% 70% at 62% 50%, color-mix(in srgb, var(--spk) 30%, #fff) 0%, transparent 70%); opacity: 0.7; }
+.cdlg.wide .cdlg-glow { background: radial-gradient(ellipse 60% 60% at 50% 45%, color-mix(in srgb, var(--spk) 30%, #fff) 0%, transparent 70%); }
+.cdlg-rays.px-rays { left: 62%; top: 48%; --rs: 190%; --ro: 0.45; }
+.cdlg.wide .cdlg-rays.px-rays { left: 50%; --rs: 260%; }
 .cdlg-host { position: absolute; inset: 0; }
 .cdlg-host > canvas { position: absolute; inset: 0; display: block; image-rendering: auto; }
 .cdlg-still { position: absolute; left: 50%; top: 54%; height: 150%; translate: -50% -50%; object-fit: contain; image-rendering: auto; animation: cStill 6s ease-out both; }
@@ -93,16 +81,9 @@
 /* ---- text panel */
 .cdlg-box {
   position: relative; z-index: 2; flex: 1; min-width: 0; min-height: clamp(66px, calc(var(--u) * 18), 104px);
-  padding: calc(var(--px) * 5 + 0.45em) calc(var(--px) * 4 + 0.35em) calc(var(--px) * 4 + 0.35em) calc(var(--px) * 4 + 0.4em);
-  color: #fff; border-radius: calc(var(--px) * 2.5);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--spk) 22%, transparent), transparent 40%),
-    repeating-linear-gradient(transparent 0 3px, rgba(255, 255, 255, 0.025) 3px 4px),
-    linear-gradient(#1e1650, #120c38 55%, #0c0828);
-  box-shadow:
-    0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.8) color-mix(in srgb, var(--spk) 75%, #fff),
-    inset 0 calc(var(--px) * 1.6) 0 rgba(255, 255, 255, 0.12),
-    0 calc(var(--px) * 2) 0 var(--px) rgba(5, 3, 20, 0.5), 0 calc(var(--px) * 4) calc(var(--px) * 10) rgba(5, 3, 20, 0.45);
+  padding: calc(var(--px) * 2 + 0.45em) calc(var(--px) * 1 + 0.35em) calc(var(--px) * 1 + 0.35em) calc(var(--px) * 1 + 0.4em);
+  color: #fff;
+  filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(5, 3, 20, 0.5));
   animation: cBoxIn 0.36s cubic-bezier(.2, 1.4, .4, 1) 0.06s both;
 }
 .cdlg.at-top .cdlg-box { animation-name: cBoxInTop; }
@@ -112,14 +93,11 @@
 
 /* name plate: slams onto the top-left corner of the panel */
 .cdlg-name {
-  position: absolute; left: calc(var(--px) * 3); top: 0; translate: 0 -62%; z-index: 3;
-  padding: 0.04em 0.75em 0.12em; transform: skewX(-10deg); white-space: nowrap;
+  position: absolute; left: calc(var(--px) * 2); top: 0; translate: 0 -66%; z-index: 3;
+  padding: 0 0.45em; white-space: nowrap;
   font-family: var(--font-d); font-size: clamp(22px, 1.8em, 34px); line-height: 1; letter-spacing: 0.06em; color: #fff; text-shadow: var(--outline-thin);
-  background: linear-gradient(var(--spk-l) 0 calc(var(--px) * 1.2), var(--spk) calc(var(--px) * 1.2) 56%, color-mix(in srgb, var(--spk) 70%, #0a0820) 56%);
-  box-shadow: 0 0 0 var(--px) var(--ink), 0 0 0 calc(var(--px) * 1.8) #fff, 0 0 0 calc(var(--px) * 2.6) var(--ink), 0 calc(var(--px) * 2) 0 calc(var(--px) * 2) rgba(5, 3, 20, 0.4);
-  border-radius: calc(var(--px) * 1.2);
 }
-.cdlg-name > span { display: inline-block; transform: skewX(10deg); }
+.cdlg-name > span { display: inline-block; translate: 0 -0.06em; }
 .cdlg:not(.cont) .cdlg-name { animation: cNameIn 0.42s cubic-bezier(.2, 1.7, .4, 1) 0.14s both; }
 @keyframes cNameIn { 0% { opacity: 0; scale: 2.4; filter: brightness(4); } 40% { opacity: 1; } 100% { scale: 1; filter: none; } }
 
@@ -150,10 +128,8 @@
 
 /* tap-to-continue badge */
 .cdlg-next {
-  position: absolute; right: calc(var(--px) * 4); bottom: 0; translate: 0 55%; display: flex; align-items: center; gap: 0.3em;
-  padding: 0.05em 0.5em 0.1em 0.6em; font-family: var(--font-d); font-size: clamp(13px, 1em, 18px); line-height: 1.1; letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin);
-  background: linear-gradient(var(--spk-l) 0 calc(var(--px) * 0.8), var(--spk) calc(var(--px) * 0.8) 60%, color-mix(in srgb, var(--spk) 72%, #0a0820) 60%);
-  box-shadow: 0 0 0 calc(var(--px) * 0.8) var(--ink); border-radius: calc(var(--px) * 1.5);
+  position: absolute; right: calc(var(--px) * 3); bottom: 0; translate: 0 60%; display: flex; align-items: center; gap: 0.3em;
+  padding: 0 0.3em 0 0.4em; font-family: var(--font-d); font-size: clamp(13px, 1em, 18px); line-height: 1.1; letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin);
   opacity: 0; scale: 0.4; transition: opacity 0.12s, scale 0.26s cubic-bezier(.2, 1.8, .4, 1); pointer-events: none;
 }
 .cdlg-next > i { width: calc(var(--px) * 3.4); height: calc(var(--px) * 2.4); background: #fff; clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 1px 0 var(--ink)); }

@@ -82,19 +82,18 @@ function pixelTex(key, size, paint) {
   texCache[key] = t;
   return t;
 }
-const ringTex = () => pixelTex('ring', 32, (ctx, s) => {
+/** Pixel-art contact shadow: a dithered blob with a jagged rim (never a clean disc). */
+const shadowTex = () => pixelTex('shadow2', 32, (ctx, s) => {
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
-    if (d > 0.98) continue;
-    if (d > 0.78) { ctx.fillStyle = d > 0.9 ? '#ffffff' : '#dfe8ff'; ctx.fillRect(x, y, 1, 1); }
-    else if (d > 0.7) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, 1, 1); }
-  }
-});
-const shadowTex = () => pixelTex('shadow', 32, (ctx, s) => {
-  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
+    const dx = x + 0.5 - s / 2, dy = y + 0.5 - s / 2;
+    const a = Math.atan2(dy, dx);
+    const rim = 1 - 0.1 * Math.abs(Math.sin(a * 3 + 0.6)) - 0.06 * Math.abs(Math.sin(a * 7 + 1.9));
+    const d = Math.hypot(dx, dy) / (s / 2) / rim;
     if (d > 1) continue;
-    ctx.fillStyle = `rgba(10,8,30,${d < 0.6 ? 0.5 : d < 0.82 ? 0.34 : 0.16})`;
+    // core solid, then a checker dither band, then sparse pixels at the very rim
+    if (d > 0.82 && (x + y) % 2) continue;
+    if (d > 0.93 && (x * 3 + y) % 4) continue;
+    ctx.fillStyle = `rgba(10,8,30,${d < 0.55 ? 0.5 : 0.36})`;
     ctx.fillRect(x, y, 1, 1);
   }
 });
@@ -113,14 +112,59 @@ const starTex = () => pixelTex('star', 48, (ctx, s) => {
     ctx.fillRect(x, y, 1, 1);
   }
 });
-/** Soft pixel glow disc (for light pools / flares). */
-const flareTex = () => pixelTex('flare', 32, (ctx, s) => {
+/** 4-point pixel glint: tapered cross arms + a faceted diamond core (flares, hot spots). */
+const glintTex = () => pixelTex('glint', 32, (ctx, s) => {
+  const c = s / 2;
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const d = Math.hypot(x + 0.5 - s / 2, y + 0.5 - s / 2) / (s / 2);
-    if (d > 1) continue;
-    const a = Math.round((1 - d) * (1 - d) * 6) / 6;
-    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    const dx = Math.abs(x + 0.5 - c), dy = Math.abs(y + 0.5 - c);
+    const arm = (dx < 1 && dy < c * 0.95) || (dy < 1 && dx < c * 0.95) || (dx < 2 && dy < c * 0.5) || (dy < 2 && dx < c * 0.5);
+    const diag = Math.abs(dx - dy) < 1 && dx < c * 0.32;
+    const core = dx + dy < c * 0.34;
+    const halo = dx + dy < c * 0.55 && (x + y) % 2 === 0;
+    if (!(arm || diag || core || halo)) continue;
+    const r = Math.max(dx, dy) / c;
+    const a = core ? 1 : halo && !arm ? 0.35 : arm ? Math.max(0.25, 1 - r * 0.9) : 0.6;
+    ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`;
     ctx.fillRect(x, y, 1, 1);
+  }
+});
+/** Long tapered pixel shard pointing along +x (light streaks, the anamorphic line). */
+const spikeTex = () => pixelTex('spike', 32, (ctx, s) => {
+  const c = s / 2;
+  for (let x = 0; x < s; x++) {
+    const k = 1 - Math.abs(x + 0.5 - c) / c;
+    const hh = Math.max(0, Math.round(Math.pow(k, 1.6) * 4));
+    for (let y = -hh; y <= hh; y++) {
+      const a = (y === 0 ? 1 : 0.75 - Math.abs(y) / (hh + 1) * 0.5) * (0.35 + k * 0.65);
+      ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`;
+      ctx.fillRect(x, c + y, 1, 1);
+    }
+  }
+});
+/** Scorch / spell splat: an irregular spiky pixel burst with crack lines and a dithered edge. */
+const splatTex = () => pixelTex('splat', 48, (ctx, s) => {
+  const c = s / 2;
+  const spikes = [0.2, 1.1, 1.9, 2.6, 3.5, 4.3, 5.1, 5.8];
+  const radius = (a) => {
+    let r = 0.5 + 0.05 * Math.sin(a * 5 + 1);
+    for (const sa of spikes) { const d = Math.abs(((a - sa + Math.PI * 3) % (Math.PI * 2)) - Math.PI); r += Math.max(0, 0.42 - d * 1.6) * 0.9; }
+    return Math.min(0.98, r);
+  };
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const dx = x + 0.5 - c, dy = y + 0.5 - c;
+    const a = Math.atan2(dy, dx);
+    const d = Math.hypot(dx, dy) / c / radius(a);
+    if (d > 1) continue;
+    if (d > 0.78 && (x + y) % 2) continue;
+    const a1 = d < 0.3 ? 0.95 : d < 0.6 ? 0.6 : 0.32;
+    ctx.fillStyle = `rgba(255,255,255,${a1})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  // cracks radiating out of the core
+  ctx.fillStyle = 'rgba(255,255,255,1)';
+  for (const sa of spikes) for (let r = 2; r < c * radius(sa) * 0.95; r++) {
+    const w = Math.sin(r * 0.9 + sa * 3) * 0.6;
+    ctx.fillRect(Math.round(c + Math.cos(sa + w * 0.12) * r), Math.round(c + Math.sin(sa + w * 0.12) * r), 1, 1);
   }
 });
 
@@ -325,6 +369,27 @@ class Arcs {
 
 // ---------------------------------------------------------------------------
 
+/** A jagged voxel ice crystal (frozen-ray prison): faceted shards, frosty rim, bright edges. */
+function iceGrid(r) {
+  const g = new VoxGrid();
+  const col = (x, y, z) => ((x + y * 2 + z) % 5 === 0 ? 0xffffff : y > 8 ? 0xdffbff : (x + z) % 3 === 0 ? 0x9ff2ff : 0xbff6ff);
+  // a chunky core block with chipped corners, plus shards jutting up and out
+  for (let y = 0; y < 10; y++) for (let x = -5; x <= 5; x++) for (let z = -5; z <= 5; z++) {
+    const corner = Math.abs(x) + Math.abs(z) > 8 - (y > 6 ? (y - 6) * 1.5 : 0);
+    if (!corner) g.set(x, y, z, col(x, y, z));
+  }
+  const shards = [[-4, 3, 0.35], [3, 4, -0.3], [0, -4, 0.15], [4, -2, -0.5], [-2, 4, 0.5]];
+  for (const [sx, sz, lean] of shards) {
+    const hh = 12 + Math.floor(r() * 5);
+    for (let y = 0; y < hh; y++) {
+      const w = Math.max(0, Math.round(2 - y / (hh / 2.2)));
+      const ox = Math.round(sx + lean * y * 0.5);
+      for (let x = -w; x <= w; x++) for (let z = -w; z <= w; z++) g.set(ox + x, y, sz + z, y > hh - 3 ? 0xffffff : col(x, y, z));
+    }
+  }
+  return g;
+}
+
 export class FrozenBattle {
   /** k: arena index; o.locked shows a darkened, padlocked teaser. */
   constructor(k, o = {}) {
@@ -369,7 +434,6 @@ export class FrozenBattle {
     this.liveGrade = { ...this.grade, tint: [...this.grade.tint], lift: [...this.grade.lift] };
 
     this.shadowMat = this.own(new THREE.MeshBasicMaterial({ map: shadowTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, fog: false }));
-    this.ringMats = TEAM.map((c) => this.own(new THREE.MeshBasicMaterial({ map: ringTex(), color: c, transparent: true, opacity: 0.95, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, fog: false })));
     this.bits = new FrozenBits();
     try {
       this.stage();
@@ -604,12 +668,11 @@ export class FrozenBattle {
     }
     this.scene.add(root);
     this.rigs.push(rig);
-    // ground decals: soft shadow (shrinks with height) + team ring
+    // ground decal: a dithered pixel contact shadow (shrinks with height)
     const r = Math.max(0.55, 0.62 * sc);
     const air = Math.max(0, root.position.y);
     const sh = 1 / (1 + air * 0.45);
     this.decal(x, z, r * 1.5 * sh, r * 1.1 * sh, this.shadowMat);
-    if (air < 0.6) this.decal(x, z, r * 1.6, r * 1.15, this.ringMats[side]);
     return rig;
   }
 
@@ -695,7 +758,7 @@ export class FrozenBattle {
     sp.position.copy(pos);
     sp.renderOrder = 8;
     this.scene.add(sp);
-    const inner = new THREE.Sprite(this.own(new THREE.SpriteMaterial({ map: flareTex(), color: new THREE.Color(1.3, 1.25, 1.1), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: 0.45 })));
+    const inner = new THREE.Sprite(this.own(new THREE.SpriteMaterial({ map: glintTex(), color: new THREE.Color(1.3, 1.25, 1.1), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: 0.45 })));
     inner.position.copy(pos);
     inner.renderOrder = 8;
     this.scene.add(inner);
@@ -707,9 +770,9 @@ export class FrozenBattle {
     });
   }
 
-  /** Small pulsing light flare. */
+  /** Small pulsing pixel glint. */
   flare(pos, color, size = 1) {
-    const mat = this.own(new THREE.SpriteMaterial({ map: flareTex(), color: new THREE.Color(color).multiplyScalar(2), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, transparent: true, opacity: 0.75 }));
+    const mat = this.own(new THREE.SpriteMaterial({ map: glintTex(), color: new THREE.Color(color).multiplyScalar(2), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, transparent: true, opacity: 0.75 }));
     const sp = new THREE.Sprite(mat);
     sp.position.copy(pos);
     sp.renderOrder = 6;
@@ -721,13 +784,13 @@ export class FrozenBattle {
   /** Anamorphic lens flare: a long thin horizontal streak + a soft core (movie lens look). */
   anamorphic(pos, color, len = 7) {
     const col = new THREE.Color(color).multiplyScalar(1.6);
-    const mk = (op) => this.own(new THREE.SpriteMaterial({ map: flareTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: op }));
+    const mk = (op) => this.own(new THREE.SpriteMaterial({ map: spikeTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: op }));
     const line = new THREE.Sprite(mk(0.55)), line2 = new THREE.Sprite(mk(0.3));
     for (const sp of [line, line2]) { sp.position.copy(pos); sp.renderOrder = 9; this.scene.add(sp); }
     this.updaters.push((dt, t) => {
       const k = 1 + Math.sin(t * 5.3) * 0.05 + Math.sin(t * 1.7) * 0.06;
       line.scale.set(len * k, 0.09 * k, 1);
-      line2.scale.set(len * 0.45 * k, 0.32, 1);
+      line2.scale.set(len * 0.45 * k, 0.5, 1);
       line.material.opacity = 0.5 + Math.sin(t * 2.1) * 0.08;
     });
   }
@@ -737,7 +800,7 @@ export class FrozenBattle {
     const col = new THREE.Color(color).multiplyScalar(1.8);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + (this.r() - 0.5) * 0.5;
-      const mat = this.own(new THREE.SpriteMaterial({ map: flareTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, transparent: true, opacity: 0.7 }));
+      const mat = this.own(new THREE.SpriteMaterial({ map: spikeTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, transparent: true, opacity: 0.7 }));
       mat.rotation = a;
       const sp = new THREE.Sprite(mat);
       const d = reach * (0.45 + this.r() * 0.6);
@@ -748,17 +811,19 @@ export class FrozenBattle {
       const ph = this.r() * 6.28, th = 0.05 + this.r() * 0.05;
       this.updaters.push((dt, t) => {
         const f = 0.75 + Math.sin(t * 9 + ph) * 0.18 + Math.sin(t * 23 + ph * 2) * 0.07;
-        sp.scale.set(len * f, th, 1);
+        sp.scale.set(len * f, th * 4, 1);
         mat.opacity = 0.42 + f * 0.3;
       });
     }
   }
 
-  /** A filled glow pool on the ground (scorch / spell light) — soft disc, no ring edge. */
+  /** A pixel-art scorch / spell splat glowing on the ground (spiky, cracked — never a disc or ring). */
   glowPool(x, z, r, color, op = 0.5) {
-    const mat = this.own(new THREE.MeshBasicMaterial({ map: flareTex(), color: new THREE.Color(color).multiplyScalar(1.4), transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, fog: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    const mat = this.own(new THREE.MeshBasicMaterial({ map: splatTex(), color: new THREE.Color(color).multiplyScalar(1.4), transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, fog: false, blending: THREE.AdditiveBlending, toneMapped: false }));
     const ph = this.r() * 6;
-    return this.decal(x, z, r * 2, r * 1.4, mat, (t, m) => { m.material.opacity = op * (0.82 + Math.sin(t * 2.3 + ph) * 0.18); });
+    const m = this.decal(x, z, r * 2, r * 1.4, mat, (t, mm) => { mm.material.opacity = op * (0.82 + Math.sin(t * 2.3 + ph) * 0.18); });
+    m.rotation.y = this.r() * Math.PI;
+    return m;
   }
 
   /** Chunks of the ground blasted up by a hit, hanging in the air (tumbling slowly). */
@@ -855,9 +920,9 @@ export class FrozenBattle {
         const tgt = o.target;
         const p = tgt ? tgt.root.position : new THREE.Vector3(x, 0, 0);
         const h = Math.max(tgt?.height ?? 0.7, 0.6) * 1.15;
-        const ice = new THREE.Mesh(CUBE, this.own(new THREE.MeshPhongMaterial({ color: 0x9ff2ff, transparent: true, opacity: 0.42, shininess: 100, depthWrite: false })));
-        ice.scale.set(h * 0.95, h, h * 0.95);
-        ice.position.set(p.x, h / 2, p.z);
+        const ice = new THREE.Mesh(this.own(iceGrid(this.r).build({ pivot: 'bottom', scale: h / 12 })), this.own(new THREE.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: 0.55, shininess: 110, specular: 0xffffff, depthWrite: false })));
+        ice.position.set(p.x, 0, p.z);
+        ice.rotation.y = 0.4;
         this.scene.add(ice);
         B.sim(() => fx.burst(new THREE.Vector3(p.x, 0.6, p.z), { count: 26, colors: [0x9ff2ff, 0xffffff, 0xc8f8ff], size: 0.1, speed: 5, ground: -5 }), 0.15);
         ringAt(1.5, 0x9ff2ff);

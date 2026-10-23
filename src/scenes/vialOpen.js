@@ -46,6 +46,7 @@ import { game } from '../game/game.js';
 import { spellThumbAsync } from '../ui/thumbs.js';
 import { ShakeInput, TiltInput, requestMotion, motionNeedsPermission, isTouchDevice } from './vialGestures.js';
 import { NewCardCutscene } from './newCardCutscene.js';
+import { pixelRing, pixelShock, voxCardFrame } from './vialProps.js';
 
 const INK = 0x15121f, WHITE = 0xf6f8ff, BLUE = 0x1d7cf2, BLUE_D = 0x1050b4, BLUE_L = 0x8fd4ff, PINK = 0xff1f9e, YEL = 0xffd23f;
 const PED_Z = 0.9, PED_TOP = 0.25;
@@ -60,6 +61,50 @@ const css = (hex) => '#' + hex.toString(16).padStart(6, '0');
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
 // pouring: where the jug tips over the tube, how far it tips, how full the tube gets
 const POUR_POS = new THREE.Vector3(0.76, 2.24, 0.05), POUR_TILT = 1.2, FILL_TARGET = 0.64;
+
+// ---------------------------------------------------------------------------
+// Pixel-art shake-meter cell: a little test tube (empty / filled / next / tier-coloured)
+
+const TUBE_ART = [
+  '..kkkkkkkk..',
+  '.kMMMMMMMMk.',
+  '.kmmmmmmmmk.',
+  '..kkkkkkkk..',
+  '..kGHggggk..',
+  '..kGHggggk..',
+  '..kGgggggk..',
+  '..kGLLLLLk..',
+  '..kGLLLLLk..',
+  '..kGLlLLLk..',
+  '..kGLLLLLk..',
+  '..kGLLLlLk..',
+  '..kGLLLLLk..',
+  '..kGLlLLLk..',
+  '..kGLLLLLk..',
+  '..kGLLLLLk..',
+  '...kLLLLk...',
+  '....kkkk....',
+];
+const tubeSprites = new Map();
+function tubeSprite(state, liquid = '#29b6f6') {
+  const key = state + liquid;
+  if (tubeSprites.has(key)) return tubeSprites.get(key);
+  const c = document.createElement('canvas');
+  c.width = 12;
+  c.height = TUBE_ART.length;
+  const g = c.getContext('2d');
+  const on = state === 'on';
+  const cur = state === 'cur';
+  const pal = {
+    k: cur ? '#ffffff' : '#15121f', M: cur ? '#ffffff' : '#d2d9e8', m: '#7a849c',
+    G: on ? '#e8fbff' : '#4a5a9a', H: on ? '#ffffff' : '#6f84c8', g: on ? '#bdf3ff' : '#141c4c',
+    L: on ? liquid : '#101642', l: on ? '#ffffff' : '#1a2470',
+  };
+  TUBE_ART.forEach((row, y) => [...row].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); } }));
+  const url = c.toDataURL();
+  tubeSprites.set(key, url);
+  return url;
+}
 
 // ---------------------------------------------------------------------------
 // Textures & stage pieces (built once)
@@ -337,10 +382,11 @@ export class VialOpenScene {
     const pm = makeMesh(gs.ped, Mats.toyGlossPair);
     pm.receiveShadow = true;
     this.ped.add(pm);
-    this.ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.022, 6, 56), this.ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = PED_TOP + 0.01;
+    // dashed pixel ring of light around the pedestal top (tinted per rarity)
+    const ring = pixelRing(0.66, 0xffffff, { rVox: 22, dash: 3, gap: 1 });
+    this.ringMat = ring.material;
+    this.pedRing = ring;
+    ring.position.y = PED_TOP + 0.005;
     this.ped.add(ring);
     this.ped.position.set(0, 0, PED_Z);
     this.ped.scale.setScalar(0.001);
@@ -664,8 +710,11 @@ export class VialOpenScene {
   }
   /** Shake meter cells + upgrade odds. */
   updateShakeMeter(pop = -1) {
+    const liq = '#' + new THREE.Color(this.up ? VIAL_TIER_LOOK[this.tier()].liquid : 0x29b6f6).getHexString();
     this.cells.forEach((c, i) => {
-      c.className = i < this.shakesDone ? 'on' : i === this.shakesDone ? 'cur' : '';
+      const st = i < this.shakesDone ? 'on' : i === this.shakesDone ? 'cur' : 'off';
+      c.className = st === 'off' ? '' : st;
+      c.style.backgroundImage = `url(${tubeSprite(st, liq)})`;
       if (i === pop) bump(c, 'vo-cellpop');
     });
     this.shakeN.textContent = `${this.shakesDone}/${this.shakesMax}`;
@@ -841,7 +890,7 @@ export class VialOpenScene {
       const a = (i / 8) * Math.PI * 2;
       fx.dust(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r * 0.7), { count: 3, scale: 1.4, vx: Math.cos(a) * 1.2, color: pick([0x8e9ab8, 0x6b7590, 0xb8c2d6]) });
     }
-    fx.shockwave(new THREE.Vector3(0, 0.01, 0), { radius: 1.6, color: 0xb8c6e8, dur: 0.4 });
+    pixelShock(this.scene, new THREE.Vector3(0, 0.01, 0), { radius: 1.6, color: 0xb8c6e8, dur: 0.4 });
     await animate(0.3, (e, k) => (v.root.position.y = Math.sin(k * Math.PI) * 0.16)).promise;
     if (this.dead) return;
     v.root.position.y = 0;
@@ -937,9 +986,8 @@ export class VialOpenScene {
   /** Glowing "fill to here" ring around the tube. */
   buildFillLine() {
     if (!this.fillLine) {
-      this.fillLineMat = new THREE.MeshBasicMaterial({ color: 0x7fe6ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
-      this.fillLine = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.014, 6, 40), this.fillLineMat);
-      this.fillLine.rotation.x = Math.PI / 2;
+      this.fillLine = pixelRing(0.31, 0x7fe6ff, { rVox: 11, dash: 2, gap: 1 });
+      this.fillLineMat = this.fillLine.material;
       this.scene.add(this.fillLine);
     }
     this.fillLine.position.set(0, 0.34 + 1.52 * FILL_TARGET, 0);
@@ -1137,7 +1185,7 @@ export class VialOpenScene {
     v.shake(0.9);
     const mid = new THREE.Vector3(v.root.position.x, v.height * 0.6, 0.1);
     fx.sparkle(mid, { count: 50, colors: [0xffffff, look.glow, 0xffd23f], speed: 5, radius: 1.2 });
-    fx.shockwave(new THREE.Vector3(v.root.position.x, 0.02, 0), { radius: 2.8, color: look.glow });
+    pixelShock(this.scene, new THREE.Vector3(v.root.position.x, 0.02, 0), { radius: 2.8, color: look.glow });
     fx.burst(mid, { count: 24, layer: 'glow', colors: [0xffffff, look.glow], size: 0.06, speed: 5, grav: -3, life: 0.8 });
     if (tier === 'legendary' || tier === 'epic') fx.confetti(mid.clone().setY(v.height + 0.6), { count: 60, ground: 0, colors: [look.glow, 0xffffff, 0xffd23f, 0xff2e88] });
     bigBanner('UPGRADE!', this.vialName().toUpperCase(), { color: rcol?.color ?? '#fff', cls: 'vo-banner vo-upbanner', dur: 1.5 });
@@ -1185,7 +1233,7 @@ export class VialOpenScene {
     this.flash(this.best >= 2 ? 0.8 : 0.5);
     this.flareK = 1.4;
     fx.sparkle(m, { count: 30 + best * 15, colors: [0xffffff, rc, rc], speed: 5, radius: 1 });
-    fx.shockwave(new THREE.Vector3(0, 0.02, 0), { radius: 2.6, color: rc });
+    pixelShock(this.scene, new THREE.Vector3(0, 0.02, 0), { radius: 2.6, color: rc });
     this.beamBurst(rc, 1.2);
     if (this.product === 'testTube') {
       fx.foam(m, { count: 70, colors: [0xffffff, 0xf2fbff, this.liq, this.liq], speed: 2.2, power: 0.9, ground: 0 });
@@ -1496,11 +1544,17 @@ export class VialOpenScene {
       g.font = 'bold 26px sans-serif';
       g.textAlign = 'center';
       g.fillText((d.name ?? '').toUpperCase().slice(0, 18), W / 2, H - 38);
-      // cost gem
-      g.fillStyle = '#ff2e88';
-      g.beginPath();
-      g.arc(42, 42, 24, 0, Math.PI * 2);
-      g.fill();
+      // cost gem (a stepped pixel diamond)
+      for (let r = 0; r < 7; r++) {
+        const wd = (r < 4 ? r + 1 : 7 - r) * 6;
+        g.fillStyle = '#15121f';
+        g.fillRect(42 - wd - 3, 18 + r * 7 - 1, wd * 2 + 6, 9);
+      }
+      for (let r = 0; r < 7; r++) {
+        const wd = (r < 4 ? r + 1 : 7 - r) * 6;
+        g.fillStyle = r < 2 ? '#ff8ac4' : r < 5 ? '#ff2e88' : '#c4126a';
+        g.fillRect(42 - wd, 18 + r * 7, wd * 2, 7);
+      }
       g.fillStyle = '#fff';
       g.font = 'bold 30px sans-serif';
       g.fillText(String(d.elixir ?? 0), 42, 53);
@@ -1513,10 +1567,13 @@ export class VialOpenScene {
       img.onload = () => { draw(img); tx.needsUpdate = true; };
       img.src = url;
     }).catch(() => {});
+    // a voxel card frame in the rarity colour with the art as a lit panel inside it
     const front = new THREE.MeshStandardMaterial({ map: tx, roughness: 0.35, metalness: 0.1, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.35 });
-    const edge = new THREE.MeshStandardMaterial({ color: new THREE.Color(rc), roughness: 0.3, metalness: 0.6 });
-    const back = new THREE.MeshStandardMaterial({ color: 0x1d7cf2, roughness: 0.4, metalness: 0.3 });
-    const card = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.99, 0.035), [edge, edge, edge, edge, front, back]);
+    const card = new THREE.Group();
+    const frame = voxCardFrame(new THREE.Color(rc).getHex());
+    const art = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.86), front);
+    art.position.z = 0.004;
+    card.add(frame, art);
     const inner = new THREE.Group();
     card.position.y = 0.62;
     inner.add(card);
@@ -1649,7 +1706,7 @@ export class VialOpenScene {
       audio.play('reveal', { pitch: 0.9 });
       audio.jingle('unlock');
       fx.burst(at, { count: 28, layer: 'glow', colors: [0xffffff, rc, 0xffd23f], size: 0.06, speed: 4.5, grav: -3, life: 0.8, ground: 0 });
-      fx.shockwave(new THREE.Vector3(0, PED_TOP + 0.02, PED_Z), { radius: 2, color: rc });
+      pixelShock(this.scene, new THREE.Vector3(0, PED_TOP + 0.02, PED_Z), { radius: 2, color: rc });
       this.rayMat.color.set(rc);
       this.rayTarget = 0.4;
       this.raySpin = 0.4;
@@ -1658,7 +1715,7 @@ export class VialOpenScene {
       audio.jingle('rare');
       audio.play('magic');
       fx.rise(new THREE.Vector3(0, PED_TOP, PED_Z), { count: 40, colors: [rc, 0xffffff, 0xe2c4ff], radius: 0.7 });
-      fx.shockwave(new THREE.Vector3(0, PED_TOP + 0.02, PED_Z), { radius: 2.6, color: rc });
+      pixelShock(this.scene, new THREE.Vector3(0, PED_TOP + 0.02, PED_Z), { radius: 2.6, color: rc });
       fx.confetti(new THREE.Vector3(0, 2.2, PED_Z - 0.2), { count: 40, ground: 0, colors: [rc, 0xffffff, 0xff2e88, 0xffd23f] });
       this.rayMat.color.set(rc);
       this.rayTarget = 0.75;
@@ -1672,7 +1729,7 @@ export class VialOpenScene {
       this.flash(0.95, 0.6);
       engine.shake(0.55);
       engine.hitstop(0.08);
-      fx.shockwave(new THREE.Vector3(0, PED_TOP + 0.02, PED_Z), { radius: 3.4, color: rc });
+      pixelShock(this.scene, new THREE.Vector3(0, PED_TOP + 0.02, PED_Z), { radius: 3.4, color: rc });
       fx.confetti(new THREE.Vector3(-0.8, 2.6, PED_Z - 0.3), { count: 70, ground: 0 });
       fx.confetti(new THREE.Vector3(0.8, 2.6, PED_Z - 0.3), { count: 70, ground: 0 });
       fx.sparkle(at, { count: 50, colors: [0xffffff, rc, 0xffd23f], speed: 5, radius: 1 });
@@ -1964,6 +2021,8 @@ export class VialOpenScene {
       this.ped.scale.set(1 + b, 1 - b, 1 + b);
     }
     this.ringMat.opacity = 0.6 + Math.sin(t * 4) * 0.25;
+    this.pedRing.rotation.y += dt * 0.5;
+    if (this.fillLine?.visible) this.fillLine.rotation.y -= dt * 0.8;
     // toy idle: a wiggle every few seconds
     if (this.toy) {
       this.toy.update(gdt);

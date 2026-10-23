@@ -22,6 +22,7 @@ import { engine } from '../core/engine.js';
 import { Chibi } from '../core/chibi.js';
 import { CHARACTERS } from '../data/characters.js';
 import { Stage3D } from './stage3d.js';
+import { ensureSkin } from './skin.js';
 
 let active = null; // { el, done }
 let lastClose = 0, lastName = '';
@@ -105,7 +106,6 @@ function faceCamFor(who, color) {
   if (cam && cam.key === cd.key) { cam.setColor(color); return cam; }
   cam?.dispose();
   try { cam = new FaceCam(cd.def, cd.key, color); } catch (e) { console.warn('face cam failed', e); cam = null; }
-  window.__faceCam = cam; // DEBUG
   return cam;
 }
 function releaseCam() {
@@ -188,13 +188,16 @@ export function say(who, text, opts = {}) {
   const fallback = !fc && who?.portrait ? h('img', { class: 'cdlg-still', src: who.portrait, alt: '', draggable: 'false' }) : null;
   const camEl = (fc || fallback) ? h('div', { class: 'cdlg-cam' },
     h('div', { class: 'cdlg-cam-in' },
-      h('i', { class: 'cdlg-rays' }), h('i', { class: 'cdlg-dots' }), host, fallback, h('i', { class: 'cdlg-sweep' }), h('i', { class: 'cdlg-grade' })),
+      h('i', { class: 'cdlg-glow' }), h('i', { class: 'px-rays w cdlg-rays' }), host, fallback, h('i', { class: 'cdlg-sweep' }), h('i', { class: 'cdlg-grade' })),
     h('i', { class: 'cdlg-mark tl' }), h('i', { class: 'cdlg-mark tr' }), h('i', { class: 'cdlg-mark bl' }), h('i', { class: 'cdlg-mark br' })) : null;
 
   const textEl = h('div', { class: 'cdlg-txt' });
-  const next = h('div', { class: 'cdlg-next' }, h('span', {}, 'TAP'), h('i'));
-  const nameEl = name ? h('div', { class: 'cdlg-name' }, h('span', {}, name)) : null;
-  const box = h('div', { class: 'cdlg-box' }, nameEl, textEl, next);
+  // pixel-art frames tinted in the speaker colour (riveted plate panel, jelly name plate + TAP chip)
+  let plateSk = '', btnSk = '';
+  try { plateSk = ensureSkin('plate', color); btnSk = ensureSkin('btn', color); } catch (e) { /* plain fallback */ }
+  const next = h('div', { class: 'cdlg-next ' + btnSk }, h('span', {}, 'TAP'), h('i'));
+  const nameEl = name ? h('div', { class: 'cdlg-name ' + btnSk }, h('span', {}, name)) : null;
+  const box = h('div', { class: 'cdlg-box ' + plateSk }, nameEl, textEl, next);
   const panel = h('div', { class: 'cdlg-panel' }, camEl, box);
   const dlg = h('div', { class: `dialogue cdlg ${wide ? 'wide' : 'tall'} ${camEl ? 'has-cam' : ''} ${cont ? 'cont' : ''} ${blocking ? '' : 'passive'}`, style: { '--spk': color } },
     blocking ? h('div', { class: 'cdlg-catch' }) : null,
