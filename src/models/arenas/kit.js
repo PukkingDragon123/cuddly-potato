@@ -1,5 +1,5 @@
 // Arena environment kit: shared helpers for building (a) side-view battle
-// arenas (voxel lane + 3D scenery + layered 2D pixel-art parallax backgrounds)
+// arenas (voxel lane + 3D scenery + HD painted sky / far layers, see hdpaint.js)
 // and (b) Beast Island zone dioramas.
 //
 // Battle arena layout (see src/game/battle/field.js):
@@ -8,7 +8,7 @@
 //   * the camera sits at z ≈ +24..34 looking at the lane slightly from above,
 //     panning in x within ±(VIEW_X - halfView). Keep tall things out of z 0.6..7.
 //   * background scenery z < -3, landmarks around z -12..-30, parallax pixel
-//     layers far behind (z -50..-160), sky is a screen-space gradient.
+//     layers far behind (z -50..-160, painted in HD), sky is a screen-space HD painted texture.
 import * as THREE from 'three';
 import { VoxGrid, Mats, makeMesh } from '../../core/voxel.js';
 import { mulberry32, hash3, shade, mixHex, clamp } from '../../core/util.js';

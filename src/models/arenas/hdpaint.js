@@ -161,9 +161,20 @@ export function hdCloud(ctx, discs, bottom, o = {}) {
   oc.width = W; oc.height = H;
   const c = oc.getContext('2d');
   c.setTransform(k, 0, 0, k, -(x0 - pad) * k, -(y0 - pad) * k);
+  // a flat-bottomed bridge under the puffs merges them into one cloud mass (never a row of separate balls)
+  let bx0 = Infinity, bx1 = -Infinity;
+  for (const [x, , r] of discs) { bx0 = Math.min(bx0, x - r * 0.4); bx1 = Math.max(bx1, x + r * 0.4); }
+  const bh = Math.max(1, (bottom - y0) * 0.42);
   const shape = (dx = 0, dy = 0, rs = 1) => {
     c.beginPath();
     for (const [x, y, r] of discs) { c.moveTo(x + dx + r * rs, y + dy); c.arc(x + dx, y + dy, r * rs, 0, TAU); }
+    if (bx1 - bx0 > bh * 1.2) {
+      c.moveTo(bx0 + dx + bh * 1.2, bottom - bh * 0.5 + dy);
+      c.ellipse(bx0 + dx + bh * 0.6, bottom - bh * 0.5 + dy, bh * 0.6, bh * 0.5, 0, 0, TAU);
+      c.rect(bx0 + dx + bh * 0.6, bottom - bh + dy, bx1 - bx0 - bh * 1.2, bh);
+      c.moveTo(bx1 + dx, bottom - bh * 0.5 + dy);
+      c.ellipse(bx1 + dx - bh * 0.6, bottom - bh * 0.5 + dy, bh * 0.6, bh * 0.5, 0, 0, TAU);
+    }
   };
   c.save();
   c.beginPath();

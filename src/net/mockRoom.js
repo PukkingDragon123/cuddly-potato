@@ -10,7 +10,8 @@
 //
 // URL knobs: mockuser=<id> (default: one per tab), mockname=<display name>,
 // mockrole=viewer (no emits: presence-only path), mockdrop=0.3 (drop that share
-// of emits), mocklag=120 (ms delivery delay). In-page: window.__mockRoom
+// of emits), mocklag=120 (ms delivery delay), mockpatience=120 (s of silence before the
+// opponent counts as gone; for slow test machines). In-page: window.__mockRoom
 // .drop() (simulate a dead connection), .restore(), .kill() (tab gone).
 const q = new URLSearchParams(location.search);
 const CH = 'swarmers-mockroom';
@@ -96,6 +97,8 @@ export function installMockRoom() {
     };
     const api = {
       name,
+      // ?mockpatience=<s>: slow test machines (software GL, several pages) starve timers for many seconds
+      silentMaxHint: q.get('mockpatience') ? +q.get('mockpatience') * 1000 : undefined,
       emit(topic, data) {
         if (!R.joined) return Promise.reject(err('invalid_argument', 'left this room'));
         if (!/^[a-z][a-z0-9_.-]{0,47}$/.test(topic)) return Promise.reject(err('invalid_argument', 'bad topic'));

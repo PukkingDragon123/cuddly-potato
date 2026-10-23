@@ -135,7 +135,8 @@ function releaseFocus() {
 
 /** Split rich() HTML into word spans (inline-blocks that pop) + a beat after punctuation. */
 function wordSpans(container, html) {
-  container.innerHTML = html;
+  // punctuation right after an emphasis / accent run joins it (so "*Panther*!" never wraps the "!" alone)
+  container.innerHTML = html.replace(/<\/(b|em)>([!?.,;:]+)/g, '$2</$1>');
   const words = [];
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   const nodes = [];

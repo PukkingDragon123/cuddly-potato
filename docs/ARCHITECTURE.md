@@ -46,10 +46,11 @@ src/
     swarmRig.js        part-driven procedural animation + toy finishes (gloss, metal, translucent, glow)
     swarmModels.js     createSwarm(id, {variant, skin, scale, model}) registry; models in swarms/*.js by series
     arenas/            battle arenas + Beast Island zone dioramas (kit.js ArenaKit + sky/animation/scenery
-                       helpers, wildsKit.js; one module per arena, 15 arenas)
+                       helpers, hdpaint.js HD painted skies / far layers / clouds (never hard pixel art),
+                       wildsKit.js; one module per arena, 15 arenas)
     island/            Beast Island world: terrain (chunked), water, sky, props, makeBeastIsland() - 15 zones
                        incl. the northern region and the floating space station
-    props/             base tiers tent -> Mega HQ (base.js), MEGA containment vessel (containment.js), legacy Lab
+    props/             base tiers Camp Lab -> Mega HQ (base.js: lab-gear brushes, dressBox), MEGA containment vessel (containment.js), legacy Lab
                        buildings (lab.js), vials (vials.js), lab interior + misc props
   scenes/
     title.js           title: movie title sequence over the frozen battle (UI instantly, 3D fades up when built;

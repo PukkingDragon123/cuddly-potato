@@ -64,8 +64,10 @@ const volcanoGrid = (res = 1) => () => {
     const low = Math.min(hAt(x + 1, z), hAt(x - 1, z), hAt(x, z + 1), hAt(x, z - 1)) - 1;
     for (let y = Math.max(0, Math.min(hh - 2, low)); y < hh; y++) {
       // only a shell (top 3 voxels + the visible front face) to keep the voxel count sane
-      let c = res < 1 ? (y % 4 === 0 ? C.basaltD : C.basalt) : (y + (x >> 2)) % 7 === 0 ? C.basaltD : hash3(x >> 2, y >> 2, z >> 2) < 0.2 ? C.basaltL : C.basalt;
-      if (y === hh - 1 && res === 1 && hash3(x, y, z) < 0.25) c = C.ash;
+      // smooth rock strata (noise bands, not per-voxel speckle)
+      const nv = vnoise(x * 0.07, y * 0.22, z * 0.07);
+      let c = res < 1 ? (y % 4 === 0 ? C.basaltD : C.basalt) : nv > 0.64 ? C.basaltL : nv < 0.3 ? C.basaltD : C.basalt;
+      if (y === hh - 1 && res === 1 && vnoise(x * 0.15, 5, z * 0.15) > 0.68) c = C.ash;
       if (streak) c = y === hh - 1 ? (hash3(x, y, z) < 0.4 ? C.lavaL : C.lava) : C.lavaD;
       g.set(x, y, z, c);
     }
