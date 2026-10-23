@@ -23,14 +23,10 @@
 .vsx.portrait .s0 .vsx-fill { --fx: 34%; --fy: 78%; }
 .vsx.landscape .s0 .vsx-fill { --fx: 28%; --fy: 50%; }
 .vsx.landscape .s1 .vsx-fill { --fx: 72%; --fy: 50%; }
-.vsx-rays {
-  position: absolute; width: 220vmax; aspect-ratio: 1; left: var(--fx); top: var(--fy); translate: -50% -50%;
-  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.13) 0 5deg, transparent 5deg 13deg);
-  animation: cSpin 14s linear infinite;
-}
+.vsx-rays.px-rays { left: var(--fx); top: var(--fy); --rs: 170vmax; --ro: 0.4; z-index: 0; }
 .vsx.portrait .s1 .vsx-rays { --fx: 66%; --fy: 26%; }
 .vsx.portrait .s0 .vsx-rays { --fx: 34%; --fy: 78%; }
-.vsx.landscape .s0 .vsx-rays { --fx: 28%; --fy: 50%; animation-direction: reverse; }
+.vsx.landscape .s0 .vsx-rays { --fx: 28%; --fy: 50%; }
 .vsx.landscape .s1 .vsx-rays { --fx: 72%; --fy: 50%; }
 /* speed lines streaking in the slide direction */
 .vsx-lines {
@@ -112,11 +108,9 @@
 @keyframes vsxInfoL { 0% { opacity: 0; transform: translateX(-60px) skewX(-12deg); } 100% { opacity: 1; transform: none; } }
 @keyframes vsxInfoR { 0% { opacity: 0; transform: translateX(60px) skewX(12deg); } 100% { opacity: 1; transform: none; } }
 .vsx-tag {
-  font-family: var(--font-d); font-size: clamp(13px, 0.95em, 18px); letter-spacing: 0.12em; line-height: 1; color: #fff; padding: 0.14em 0.55em 0.18em;
-  background: var(--ink); box-shadow: 0 0 0 calc(var(--px) * 0.7) rgba(255, 255, 255, 0.7); transform: skewX(-10deg); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-d); font-size: clamp(13px, 0.95em, 18px); letter-spacing: 0.12em; line-height: 1; color: #fff; padding: 0 0.3em; text-shadow: var(--outline-thin);
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
-.vsx-info.s0 .vsx-tag { background: color-mix(in srgb, var(--you) 70%, #050320); }
-.vsx-info.s1 .vsx-tag { background: color-mix(in srgb, var(--riv) 70%, #050320); }
 .vsx-nm {
   font-family: var(--font-d); font-size: clamp(30px, 2.5em, 54px); line-height: 0.92; letter-spacing: 0.03em; color: #fff; text-shadow: var(--outline), 0 0 calc(var(--px) * 6) rgba(255, 255, 255, 0.35);
   max-width: 100%; overflow-wrap: anywhere; transform: skewX(-6deg);
@@ -124,8 +118,7 @@
 .vsx-pills { display: flex; gap: calc(var(--u) * 0.8); flex-wrap: wrap; }
 .vsx-info.s0.vsx-info .vsx-pills { justify-content: inherit; }
 .vsx-pill {
-  display: inline-flex; align-items: center; gap: 0.25em; padding: 0.1em 0.5em 0.12em 0.3em; font-family: var(--font-d); font-size: clamp(15px, 1.05em, 22px); line-height: 1;
-  color: #fff; background: rgba(5, 3, 20, 0.72); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.6) rgba(255, 255, 255, 0.35); border-radius: calc(var(--px) * 1.5);
+  display: inline-flex; align-items: center; gap: 0.25em; padding: 0 0.3em 0 0.1em; font-family: var(--font-d); font-size: clamp(15px, 1.05em, 22px); line-height: 1; color: #fff;
 }
 .vsx-pill .pi { width: 1.15em; height: 1.15em; }
 .vsx-pill.tr b { color: #ffd84a; }

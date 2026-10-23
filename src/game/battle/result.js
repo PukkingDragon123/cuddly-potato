@@ -83,6 +83,21 @@ function clock() {
   };
 }
 
+/** A little pixel-art "recording" light (7x7 sprite with a highlight, no CSS circles). */
+let _dot = null;
+function recDot(cls = '') {
+  if (!_dot) {
+    const rows = ['..kkk..', '.krrrk.', 'krwrrrk', 'krrrrdk', 'krrrrdk', '.krddk.', '..kkk..'];
+    const pal = { k: '#3a0610', r: '#ff3a52', w: '#ffd0d8', d: '#c8102e' };
+    const c = document.createElement('canvas');
+    c.width = c.height = 7;
+    const g = c.getContext('2d');
+    rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); } }));
+    _dot = c.toDataURL();
+  }
+  return h('img', { class: 'recdot ' + cls, src: _dot, alt: '', draggable: 'false' });
+}
+
 function chibiFor(cmd) {
   if (!cmd) return null;
   const base = CHARACTERS[cmd.char ?? cmd.id];
@@ -177,7 +192,7 @@ export function finalBlow(parent, { win = true, view = null } = {}) {
   const el = h('div', { class: `cfb ${win ? 'win' : 'loss'}` },
     h('i', { class: 'cfb-vig' }), h('i', { class: 'cfb-lines' }),
     h('i', { class: 'cfb-bar t' }), h('i', { class: 'cfb-bar b' }),
-    h('div', { class: 'cfb-tag' }, h('i'), 'SLOW-MO'),
+    h('div', { class: 'cfb-tag' }, recDot(), 'SLOW-MO'),
     h('div', { class: 'cfb-stamp' }, h('b', {}, win ? 'BASE' : 'YOUR BASE'), h('span', {}, win ? 'DESTROYED!' : 'HAS FALLEN!')),
     h('i', { class: 'cfb-flash' }));
   parent.appendChild(el);
@@ -225,12 +240,12 @@ export async function showResult(parent, opts) {
   root.addEventListener('pointerdown', () => seq.skip());
   const letters = [...title].map((ch, i) => h('span', { style: { '--i': i } }, ch));
   const verdict = h('div', { class: 'cres-verdict' },
-    h('i', { class: 'cv-bg' }), h('i', { class: 'cv-rays' }), win ? h('i', { class: 'cv-spots' }) : null, loss ? h('i', { class: 'cv-rain' }) : null,
+    h('i', { class: 'cv-bg' }), h('i', { class: 'px-rays w cv-rays' }), win ? h('i', { class: 'cv-spots' }) : null, loss ? h('i', { class: 'cv-rain' }) : null,
     stageHost,
     h('div', { class: 'cv-head' },
       win ? icon('crown', 'cv-crown') : loss ? icon('skull', 'cv-crown') : null,
       h('div', { class: 'cv-title' }, letters),
-      h('div', { class: 'cv-sub' }, win ? `${names[0]} WINS!` : loss ? `${names[1]} WINS` : 'NOBODY BLINKED')),
+      h('div', { class: `cv-sub sk-ribbon-${win ? 'pink' : loss ? 'blue' : 'purple'}` }, win ? `${names[0]} WINS!` : loss ? `${names[1]} WINS` : 'NOBODY BLINKED')),
     h('i', { class: 'cv-bar t' }), h('i', { class: 'cv-bar b' }, h('span', { class: 'cv-skip' }, 'TAP TO CONTINUE')),
     h('i', { class: 'cv-flash' }));
   root.appendChild(verdict);
@@ -418,10 +433,10 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
         h('span', {}, arenaName))),
     cam,
     h('div', { class: 'cn-bug' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS')),
-    h('div', { class: 'cn-live' }, h('i'), 'LIVE'));
+    h('div', { class: 'cn-live sk-plate-dark' }, recDot(), 'LIVE'));
   const lower = h('div', { class: 'cn-lower' },
-    h('div', { class: 'cn-tag' }, 'BREAKING'),
-    h('div', { class: 'cn-hlw' }, headline, h('div', { class: 'cn-by' }, 'NORA NEWSLY  /  BEAST NEWS ', h('b', {}, arenaName.toUpperCase()))));
+    h('div', { class: 'cn-tag sk-chip-red' }, 'BREAKING'),
+    h('div', { class: 'cn-hlw sk-plate-dark' }, headline, h('div', { class: 'cn-by' }, 'NORA NEWSLY  /  BEAST NEWS ', h('b', {}, arenaName.toUpperCase()))));
 
   // ---- the report board
   const board = h('div', { class: 'cn-board' });
@@ -434,11 +449,11 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     const pct = h('span', { class: 'pc' }, '100%');
     const el = h('div', { class: `cn-base s${i}` },
       h('div', { class: 'nm' }, h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')),
-      h('b', { class: 'bar' }, fill, pct));
+      h('b', { class: 'bar sk-well' }, h('i', { class: 'fw' }, fill), pct));
     return { el, fill, pct, b };
   };
   const bRows = [baseRow(0), baseRow(1)];
-  const basesEl = h('div', { class: 'cn-card cn-bases' }, h('div', { class: 'cn-cap' }, 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
+  const basesEl = h('div', { class: 'cn-card cn-bases sk-panel-dark' }, h('div', { class: 'cn-cap' }, 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
   board.appendChild(basesEl);
   steps.push({
     say: true,
@@ -458,8 +473,8 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
           else {
             t.fill.style.width = (to * 100).toFixed(1) + '%';
             t.pct.textContent = Math.round(to * 100) + '%';
-            if (!t.b.alive) { t.el.appendChild(h('div', { class: 'cn-stamp' }, 'DESTROYED')); audio.play('stamp'); bump(t.el, 'cn-hit'); }
-            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp good' }, 'FLAWLESS')); audio.play('stamp', { pitch: 1.2 }); }
+            if (!t.b.alive) { t.el.appendChild(h('div', { class: 'cn-stamp sk-chip-red' }, 'DESTROYED')); audio.play('stamp'); bump(t.el, 'cn-hit'); }
+            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp good sk-chip-green' }, 'FLAWLESS')); audio.play('stamp', { pitch: 1.2 }); }
             res();
           }
         };
@@ -483,7 +498,7 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
   board.appendChild(grid);
   tiles.forEach((tl, k) => {
     const v = h('b', { class: 'v' }, tl.fmt ? tl.fmt(0) : '0');
-    const el = h('div', { class: 'cn-card cn-tile' }, h('div', { class: 'ic' }, icon(tl.ic)), v, h('small', {}, tl.label));
+    const el = h('div', { class: 'cn-card cn-tile sk-panel-dark' }, h('div', { class: 'ic' }, icon(tl.ic)), v, h('small', {}, tl.label));
     grid.appendChild(el);
     steps.push({
       say: k % 2 === 0,
@@ -507,9 +522,9 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     let art = null;
     try { art = cardArtImg(mvp.id, 'base', null, 160, 'cn-mvp-art'); } catch (e) { art = null; }
     const dmgV = h('b', {}, '0');
-    const el = h('div', { class: 'cn-card cn-mvp' },
-      h('div', { class: 'cn-mvp-tag' }, icon('star'), 'MVP'),
-      h('div', { class: 'cn-mvp-frame' }, h('i', { class: 'px-rays w' }), art),
+    const el = h('div', { class: 'cn-card cn-mvp sk-panel-gold' },
+      h('div', { class: 'cn-mvp-tag sk-chip-gold' }, icon('star'), 'MVP'),
+      h('div', { class: 'cn-mvp-frame sk-pod-gold' }, h('i', { class: 'px-rays w' }), art),
       h('div', { class: 'cn-mvp-info' }, h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
         mvp.dmg ? h('span', { class: 'd' }, dmgV, ' DMG') : null,
         mvp.count ? h('small', {}, `deployed x${mvp.count}`) : null));
@@ -530,7 +545,7 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
   const tr = r?.trophies ?? 0;
   if (r && (tr || opts.mode === 'ranked' || opts.mode === 'online')) {
     const tv = h('b', { class: 'v' }, '0');
-    const el = h('div', { class: `cn-card cn-trophy ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), tv, h('small', {}, 'TROPHIES'));
+    const el = h('div', { class: `cn-card cn-trophy sk-panel-gold ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), tv, h('small', {}, 'TROPHIES'));
     row.appendChild(el);
     steps.push({
       say: false,
@@ -553,7 +568,7 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     const items = [];
     const add = (ic, value, label, o = {}) => {
       const v = h('b', {}, '0');
-      const el = h('div', { class: `cn-chip k-${ic}${o.neg ? ' neg' : ''}` }, o.img ?? animIcon(ic), h('div', {}, v, h('small', {}, label)));
+      const el = h('div', { class: `cn-chip sk-pod${o.neg ? '-dim neg' : ''} k-${ic}` }, o.img ?? animIcon(ic), h('div', {}, v, h('small', {}, label)));
       items.push({ el, v, value, text: o.text });
     };
     if (r.coins) add('coin', r.coins, 'Coins');

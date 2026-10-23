@@ -439,6 +439,34 @@ function teslaCoil(g, x, y, z, h, P) {
   return y + h + 3;
 }
 
+/**
+ * Break up a box-shaped building mass so it never reads as a plain cuboid:
+ * bevelled vertical edges with trim, an overhanging cornice / band lips, a
+ * protruding plinth and pilaster ribs on the camera facade (only over plain wall).
+ * o: { trim, dark, chamfer, lips: [[y, colour], ...], plinth (colour | false), rib (spacing), walls: [colours], maxX }
+ */
+function dressBox(g, x0, y0, z0, x1, y1, z1, o = {}) {
+  const trim = o.trim ?? METAL_L, dark = o.dark ?? shade(trim, -0.22), c = o.chamfer ?? 1, maxX = o.maxX ?? 20;
+  if (c > 0) for (let y = y0; y <= y1; y++) for (const [ex, ez, sx, sz] of [[x0, z0, 1, 1], [x1, z0, -1, 1], [x0, z1, 1, -1], [x1, z1, -1, -1]]) {
+    for (let i = 0; i < c; i++) for (let j = 0; j < c - i; j++) g.del(ex + sx * i, y, ez + sz * j);
+    for (let i = 0; i <= c; i++) { const x = ex + sx * i, z = ez + sz * (c - i); if (g.has(x, y, z)) g.set(x, y, z, (y - y0) % 4 === 0 ? dark : trim); }
+  }
+  const ringAt = (y, col) => {
+    const put = (x, z) => { if (x > maxX || g.has(x, y, z) || (o.skip && o.skip(x, y, z))) return; g.set(x, y, z, col); };
+    for (let x = x0 + c; x <= x1 - c; x++) { put(x, z0 - 1); put(x, z1 + 1); }
+    for (let z = z0 + c; z <= z1 - c; z++) { put(x0 - 1, z); put(x1 + 1, z); }
+    for (let i = 0; i < c; i++) { put(x0 + i, z0 + c - 1 - i - 0); put(x1 - i, z0 + c - 1 - i); put(x0 + i, z1 - c + 1 + i); put(x1 - i, z1 - c + 1 + i); }
+  };
+  for (const [y, col] of o.lips ?? [[y1, trim], [y1 - 1, dark]]) ringAt(y, col);
+  if (o.plinth !== false) { ringAt(y0, o.plinth ?? dark); ringAt(y0 + 1, o.plinth ?? dark); }
+  if (o.rib) {
+    const walls = new Set(o.walls ?? []);
+    for (let x = x0 + c + Math.floor(o.rib / 2); x <= x1 - c - 1; x += o.rib)
+      for (let y = y0 + 2; y <= y1 - 2; y++) if (!g.has(x, y, z1 + 1) && walls.has(g.get(x, y, z1)) && !(o.skip && o.skip(x, y, z1 + 1))) g.set(x, y, z1 + 1, (y - y0) % 6 === 0 ? dark : trim);
+  }
+  return g;
+}
+
 /** Crackling arcs for a Tesla coil top (spun fast as an anim): zigzag glow bolts radiating out. */
 function arcGrid(r = 5, col = 0xbfe8ff) {
   const g = new VoxGrid();
@@ -1040,6 +1068,10 @@ function tier4(P, m) {
   barrel(clutter, -28, 2, 9, P.m, { hazard: true, h: 7, r: 2 });
   barrel(clutter, -28, 2, 4, PAL.yellow, { h: 6, r: 2 });
   crate(clutter, -30, 2, -3, 4);
+  // break up the module boxes: bevelled corners, band lips, plinth, facade pilasters
+  const tankClear4 = (x, y, z) => (x - TKX) ** 2 + (z - TKZ) ** 2 < 6.5 ** 2;
+  dressBox(b, GX0, GY0, GZ0, GX1, GY1, GZ1, { trim: P.w2, dark: P.seam, lips: [[GY1, P.bolt], [GY1 - 1, P.boltD], [GY1 - 2, P.m]], plinth: P.md, rib: 9, walls: [P.w, P.w2], skip: tankClear4 });
+  dressBox(b, UX0, UY0, UZ0, UX1, UY1, UZ1, { trim: P.w2, dark: P.seam, lips: [[UY1, P.bolt], [UY1 - 1, P.boltD]], plinth: P.md, rib: 9, walls: [P.w, P.w2] });
   return {
     body: b,
     chunks: [
@@ -1162,6 +1194,10 @@ function tier5(P, m) {
   const clutter = new VoxGrid();
   barrel(clutter, 17, Y0, 15, PAL.yellow, { h: 5, r: 1 });
   barrel(clutter, 14, Y0, 15, P.m, { h: 6, r: 1, glow: P.glow });
+  // break up the main block: bevelled corners, a jutting bolt-stripe band + cornice, plinth, pilasters
+  const tankClear5 = (x, y, z) => (x - TKX) ** 2 + (z - TKZ) ** 2 < 7.6 ** 2;
+  dressBox(b, X0, Y0, Z0, X1, Y1, Z1, { trim: P.w2, dark: P.seam, lips: [[33, P.bolt], [32, P.bolt], [31, P.boltD], [30, P.bolt], [Y1, P.w2], [29, P.md]], plinth: METAL_D, rib: 8, walls: [P.w, P.w2], skip: tankClear5 });
+  dressBox(tower, TX0, TTY0, TZ0, TX1, TTY1, TZ1, { trim: P.w2, dark: P.seam, lips: [[52, P.md], [44, P.w2]], plinth: false, rib: 7, walls: [P.w, P.w2] });
   return {
     body: b,
     chunks: [
@@ -1313,6 +1349,8 @@ function tier6(P, m) {
     { name: 'pylonCrystal', type: 'hover', amp: 1.2, freq: 2, speed: 1.6, grid: crystalGrid(P.glow, 2), piv: [0.5, 0.5, 0.5], at: [PX + 0.5, 39, PZ + 0.5], stage: 1 },
     ...[-27, 15].map((RX, i) => ({ name: 'crystal' + i, type: 'hover', amp: 1, freq: 2.4, speed: -1.2, grid: crystalGrid(P.bolt === 0xffd23f ? P.glow : P.boltL, 1), piv: [0.5, 0.5, 0.5], at: [RX + 0.5, 48, RZ + 0.5], stage: 2 })),
   ];
+  // the keep: banded lips + pilasters so it never reads as a plain block (corners are already bevelled)
+  dressBox(b, KX0, KY0, KZ0, KX1, KY1, KZ1, { trim: AR2, dark: SEAM, chamfer: 0, lips: [[51, P.boltL], [50, P.bolt], [KY0 + 3, P.md]], plinth: false, rib: 7, walls: [AR, AR2] });
   return {
     body: b,
     chunks: [

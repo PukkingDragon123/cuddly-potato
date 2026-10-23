@@ -110,15 +110,15 @@ export async function vsIntro(parent, cfg, opts = {}) {
   // ---- DOM
   const info = (s, i) => {
     const pills = [];
-    if (s.trophies !== undefined && s.trophies !== null) pills.push(h('span', { class: 'vsx-pill tr' }, icon('trophy'), h('b', {}, String(s.trophies))));
-    if (s.labLevel) pills.push(h('span', { class: 'vsx-pill lv' }, icon('lab'), h('b', {}, `LV ${s.labLevel}`)));
+    if (s.trophies !== undefined && s.trophies !== null) pills.push(h('span', { class: 'vsx-pill tr sk-well' }, icon('trophy'), h('b', {}, String(s.trophies))));
+    if (s.labLevel) pills.push(h('span', { class: 'vsx-pill lv sk-well' }, icon('lab'), h('b', {}, `LV ${s.labLevel}`)));
     return h('div', { class: `vsx-info s${i}` },
-      h('div', { class: 'vsx-tag' }, i ? (s.clan || 'CHALLENGER') : 'YOU'),
+      h('div', { class: `vsx-tag ${i ? 'sk-chip-red' : 'sk-chip-blue'}` }, i ? (s.clan || 'CHALLENGER') : 'YOU'),
       h('div', { class: 'vsx-nm' }, s.name ?? (i ? 'Rival' : 'You')),
       pills.length ? h('div', { class: 'vsx-pills' }, pills) : null);
   };
   const panel = (i) => h('div', { class: `vsx-panel s${i}`, style: { '--tc': TEAM[i] } },
-    h('i', { class: 'vsx-fill' }), h('i', { class: 'vsx-rays' }), h('i', { class: 'vsx-lines' }), h('i', { class: 'vsx-sweep' }), h('i', { class: 'vsx-edge' }));
+    h('i', { class: 'vsx-fill' }), h('i', { class: 'px-rays w vsx-rays' }), h('i', { class: 'vsx-lines' }), h('i', { class: 'vsx-sweep' }), h('i', { class: 'vsx-edge' }));
   const panels = [panel(0), panel(1)];
   const stageHost = h('div', { class: 'vsx-stage' });
   const svgNS = 'http://www.w3.org/2000/svg';

@@ -1015,3 +1015,38 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 @media (max-resolution: 1.99dppx) {
   img.pi, .pi, .ui-fly, .spark.star, .tr-ar-isle { image-rendering: auto; }
 }
+
+/* =========================================================================
+   Pixel shapes v1 (pixshapes.js): no smooth CSS circles / soft radial blobs.
+   Rings, glows, bubbles and shadows are texel-drawn sprites (stepped edges,
+   Bayer-dithered falloff) used as masks or images, scaled pixelated.
+   Available to every screen: --pxs-ring, --pxs-ring-ell, --pxs-disc, --pxs-ell,
+   --pxs-glow, --pxs-glow-ell, --pxs-glow-w, --pxs-shadow, --pxs-bubble, --pxs-ped.
+   ========================================================================= */
+.pxs-mask { -webkit-mask: var(--pxs-mask) center / 100% 100% no-repeat; mask: var(--pxs-mask) center / 100% 100% no-repeat; image-rendering: pixelated; }
+/* lab fizz bubbles: pixel bubble sprites */
+.lab-fizz > i { border: 0; border-radius: 0; box-shadow: none; background: var(--pxs-bubble) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+/* tutorial pulse ring + claim shockwave + button ripple: stepped pixel rings */
+.tut-ring, .ui-burst-ring {
+  border: 0; border-radius: 0; box-shadow: none; image-rendering: pixelated;
+  -webkit-mask: var(--pxs-ring) center / 100% 100% no-repeat; mask: var(--pxs-ring) center / 100% 100% no-repeat;
+}
+.tut-ring { background: var(--spark); }
+.ui-burst-ring { background: var(--bc, #ffd84a); }
+.btn > .btn-fx > .btn-ripple {
+  border-radius: 0; background: rgba(255, 255, 255, 0.7); image-rendering: pixelated;
+  -webkit-mask: var(--pxs-ring) center / 100% 100% no-repeat; mask: var(--pxs-ring) center / 100% 100% no-repeat;
+}
+/* notification badges: a crafted pixel highlight instead of a round gloss spot */
+.badge { background: linear-gradient(#ffc0c6 0 0) calc(var(--px) * 1.5) calc(var(--px) * 1) / calc(var(--px) * 2) var(--px) no-repeat, linear-gradient(#ff9aa4 0 0) calc(var(--px) * 1) calc(var(--px) * 2) / var(--px) var(--px) no-repeat, var(--red); }
+.badge.green { background: linear-gradient(#eaffd8 0 0) calc(var(--px) * 1.5) calc(var(--px) * 1) / calc(var(--px) * 2) var(--px) no-repeat, linear-gradient(#d4ffb0 0 0) calc(var(--px) * 1) calc(var(--px) * 2) / var(--px) var(--px) no-repeat, var(--green); }
+/* card tilt highlight: a dithered pixel glow following the pointer */
+:is(.mn-screen, .modal, .vo-root, .hm-unlock) .gcard::after {
+  background: rgba(255, 255, 255, 0.45); mix-blend-mode: screen; image-rendering: pixelated;
+  -webkit-mask: var(--pxs-glow) var(--mx, 50%) var(--my, 30%) / 75% 60% no-repeat; mask: var(--pxs-glow) var(--mx, 50%) var(--my, 30%) / 75% 60% no-repeat;
+}
+/* POWER cost badge: the hand-made HD pixel POWER gem instead of a smooth gradient hexagon */
+.gcard .cost { filter: drop-shadow(0 calc(var(--pxs) * 1.2) 0 rgba(8, 6, 28, 0.5)); }
+.gcard .cost::before { inset: -14%; clip-path: none; background: var(--ic-energy) center / 100% 100% no-repeat; image-rendering: pixelated; }
+.gcard .cost::after { display: none; }
+@media (max-resolution: 1.99dppx) { .gcard .cost::before { image-rendering: auto; } }

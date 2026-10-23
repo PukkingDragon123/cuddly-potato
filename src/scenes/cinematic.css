@@ -215,3 +215,4 @@ body.landscape .ld-mid { padding-top: calc(var(--safe-t) + 7vh + var(--u) * 3); 
 /* narrow portrait screens: tuck the bolt over the end of the lettering so it never clips */
 body.portrait .cn-logo:not(.sm) .bolt { width: calc(var(--u) * 15); height: calc(var(--u) * 15); right: calc(var(--u) * -1.5); top: calc(var(--u) * -9); }
 body.portrait .cn-logo.sm .bolt { right: calc(var(--u) * -1); top: calc(var(--u) * -5.5); }
+body.portrait .tt-load { right: auto; left: calc(var(--safe-l) + var(--u) * 3); top: calc(var(--safe-t) + 9vh - var(--u) * 4.5); }

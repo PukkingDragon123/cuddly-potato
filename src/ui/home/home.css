@@ -1468,3 +1468,48 @@
   .mn-ci-card .gcard .art > .stage, .mn-st-bar > i, .mn-ci-stats > .mn-st, .mn-ci-upbtn.shine, .mn-cmd-pedring, .mn-cmd-full.hop, .mn-cmd-name, .mn-rost.view, .mn-abil, .mn-perk, .mn-perk-ic > .t-d,
   .mn-prof-ban::after, .mn-prof-port, .mn-pstats > *, .mn-boss-art::before, .mn-boss-art::after, .mn-boss-tag, .mn-boss-deck > *, .mn-bossm .modal-foot .btn.xl, .mn-fr-choice::before, .mn-setrow, .mn-rwpop .mn-rw { animation: none !important; }
 }
+
+/* =========================================================================
+   Pixel shapes (ui/pixshapes.js): glows, halos, pedestals and portrait
+   backdrops are dithered / stepped pixel sprites instead of smooth circles.
+   ========================================================================= */
+/* soft round glows -> dithered pixel glows tinted by their colour */
+.ps-pod-art::before, .tr-pod-art::before, .mn-vtile-glow, .mn-cgrid:not(.locked) .mn-cc::before, .mn-deck .mn-cc::before {
+  border-radius: 0; image-rendering: pixelated;
+  -webkit-mask: var(--pxs-glow) center / 100% 100% no-repeat; mask: var(--pxs-glow) center / 100% 100% no-repeat;
+}
+.ps-pod-art::before { background: color-mix(in srgb, var(--pg, #8fd4ff) 60%, transparent); }
+.tr-pod-art::before { background: rgba(255, 255, 255, 0.34); }
+.mn-vtile-glow { background: color-mix(in srgb, var(--vc) 60%, #fff); }
+.mn-cgrid:not(.locked) .mn-cc::before, .mn-deck .mn-cc::before { background: var(--halo, transparent); }
+/* reward tiles: flat colour + a dithered pixel spotlight */
+.mn-rw.k-mega { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#a8308e 0 50%, #6a1a8a 50%); }
+.mn-rw.k-coins { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#f0b42a 0 50%, #c8780e 50%); }
+.mn-rw.k-bucks { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#e0408a 0 50%, #a8145a 50%); }
+.mn-rw.k-calories { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#f07a2a 0 50%, #c0400e 50%); }
+.mn-rw.k-vial { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#3a8ae0 0 50%, #1a52b0 50%); }
+.mn-rw.k-commander, .mn-rw.k-cmdSkin { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#8a56e0 0 50%, #5a2aa0 50%); }
+.mn-rw.k-skin, .mn-rw.k-serum { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#b03a9e 0 50%, #6a1a8a 50%); }
+.mn-rw.k-banner, .mn-rw.k-labSkin { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#2ab0a0 0 50%, #127a78 50%); }
+.mn-rw.k-card { background: var(--pxs-glow-w) 50% 30% / 105% 105% no-repeat, linear-gradient(#2e48b0 0 50%, #1b2a78 50%); }
+.mn-rw { image-rendering: pixelated; }
+/* portrait backdrops: stepped bands + a dithered spotlight behind the chibi render */
+.mn-npc-port { background: var(--pxs-glow-w) 50% 30% / 110% 110% no-repeat, linear-gradient(#4aa8f0 0 34%, #2f7ad8 34% 68%, #1a52b0 68%); image-rendering: pixelated; }
+.mn-npc.n-nolan .mn-npc-port { background: var(--pxs-glow-w) 50% 30% / 110% 110% no-repeat, linear-gradient(#ffd84a 0 34%, #f0a82a 34% 68%, #d8861a 68%); }
+.mn-npc.n-juan .mn-npc-port { background: var(--pxs-glow-w) 50% 30% / 110% 110% no-repeat, linear-gradient(#6ad84a 0 34%, #3aa83a 34% 68%, #1f7a3a 68%); }
+.tr-you-port { background: var(--pxs-glow-w) 50% 25% / 110% 110% no-repeat, linear-gradient(#8fd4ff 0 50%, #4fb0ff 50%); image-rendering: pixelated; }
+.mn-prof-port { background: var(--pxs-glow-w) 50% 30% / 110% 110% no-repeat, linear-gradient(rgba(255, 255, 255, 0.22) 0 34%, rgba(255, 255, 255, 0.1) 34% 68%, rgba(0, 0, 0, 0.2) 68%); image-rendering: pixelated; }
+.mn-labskin-art { background: var(--pxs-glow-w) 50% 35% / 105% 105% no-repeat, linear-gradient(color-mix(in srgb, var(--lt) 75%, #fff) 0 45%, var(--lt) 45%) !important; image-rendering: pixelated; }
+/* pedestals: a lit pixel disc (rim, top face, lip) */
+.mn-cmd-ped, .mn-hero-ped {
+  border-radius: 0; box-shadow: none; image-rendering: pixelated;
+  -webkit-mask: var(--pxs-ped) center / 100% 100% no-repeat; mask: var(--pxs-ped) center / 100% 100% no-repeat;
+}
+.mn-cmd-ped { background: linear-gradient(#c4f4ff 0 12%, #7fe6ff 12% 40%, #2b8cf2 40% 62%, #223585 62%); filter: none; }
+.mn-hero-ped { background: linear-gradient(#fff6c8 0 12%, color-mix(in srgb, var(--vc) 70%, #fff) 12% 40%, var(--vc) 40% 62%, color-mix(in srgb, var(--vc) 45%, #2a0a50) 62%); }
+.mn-cmd-pedring {
+  border-radius: 0; box-shadow: none; background: rgba(127, 230, 255, 0.85); image-rendering: pixelated;
+  -webkit-mask: var(--pxs-ring-ell) center / 100% 100% no-repeat; mask: var(--pxs-ring-ell) center / 100% 100% no-repeat;
+}
+/* the shop's corner bonus tag: pixel highlight, no gloss circle */
+.mn-cbonus { background: linear-gradient(#ffc0c6 0 0) calc(var(--px) * 1.5) calc(var(--px) * 1) / calc(var(--px) * 2) var(--px) no-repeat, var(--red); }

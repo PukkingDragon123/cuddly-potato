@@ -255,17 +255,28 @@ function spellModel(id) {
     case 'moneyDrop': add(makeMoneyBag(), 0, 0, 0, 1.1, 0.4); break;
     case 'sodaRocket': { const r = makeSodaRocket(); r.rotation.z = -0.4; add(r, 0, 0, 0, 1.2); break; }
     case 'freezeRay': {
-      const m = new THREE.MeshStandardMaterial({ color: 0x9ff2ff, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.9 });
-      const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), m);
-      c.scale.set(0.8, 1.3, 0.8);
-      c.position.y = 0.65;
-      g.add(c);
-      for (let i = 0; i < 4; i++) {
-        const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), m);
-        s.position.set(Math.cos(i * 1.6) * 0.5, 0.25 + (i % 2) * 0.2, Math.sin(i * 1.6) * 0.4);
-        s.scale.set(0.7, 1.3, 0.7);
-        g.add(s);
-      }
+      // a cluster of voxel ice crystals with glowing tips
+      const g = G();
+      const crystal = (cx, cz, r, hgt, lean) => {
+        for (let y = 0; y <= hgt; y++) {
+          const k = y / hgt;
+          const rr = r * (k < 0.75 ? 1 : (1 - k) / 0.25);
+          const ox = Math.round(lean * y);
+          for (let x = -Math.ceil(rr); x <= Math.ceil(rr); x++) for (let z = -Math.ceil(rr); z <= Math.ceil(rr); z++) {
+            if (Math.abs(x) + Math.abs(z) > rr + 0.3) continue;
+            const edge = Math.abs(x) + Math.abs(z) >= rr - 0.5;
+            g.set(cx + x + ox, y, cz + z, y >= hgt - 1 ? 0xffffff : edge ? 0xbff6ff : x < 0 ? 0x5fd0ff : 0x9ff2ff, y >= hgt - 1);
+          }
+        }
+      };
+      crystal(0, 0, 3, 22, 0);
+      crystal(-5, 2, 2, 12, -0.18);
+      crystal(5, 1, 2, 14, 0.15);
+      crystal(1, -4, 1.6, 9, 0.05);
+      crystal(-2, 4, 1.4, 7, -0.1);
+      const mesh = makeMesh(g.build({ scale: 0.05, pivot: 'bottom', jitter: 0.03, maxSamples: 60 }), Mats.toyGlossPair);
+      g.dispose?.();
+      add(mesh);
       break;
     }
     case 'labShield': {
@@ -1441,7 +1452,7 @@ export class VialOpenScene {
     if (this.halt()) return;
     const cut = new NewCardCutscene(this, st, { entrance: this.devOpts.entrance ?? equippedEntrance() });
     await cut.play();
-    if (this.dead) { cut.dispose(); return; }
+    if (this.halt()) { cut.dispose(); return; }
     const toy = cut.release();
     // back to the reveal stage: the hero lands on the pedestal next to its card
     this.ped.visible = true;

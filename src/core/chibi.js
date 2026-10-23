@@ -937,8 +937,12 @@ export class Chibi {
 
     // spring for squash/stretch
     if (dt > 0) {
-      this.squashV += (-this.squash * 180 - this.squashV * 12) * dt;
-      this.squash += this.squashV * dt;
+      // sub-stepped: this stiff spring blows up at slow-frame steps (dt 0.1)
+      const n = Math.ceil(dt / (1 / 40)), h = dt / n;
+      for (let i = 0; i < n; i++) {
+        this.squashV += (-this.squash * 180 - this.squashV * 12) * h;
+        this.squash += this.squashV * h;
+      }
     }
     const sq = this.squash;
 

@@ -7,6 +7,7 @@ import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
 import { iconURL as pixIconURL, iconAnim, animKindOf } from './icons.js';
 import { injectSkins } from './skin.js';
+import { injectPixShapes } from './pixshapes.js';
 import { fmt } from '../core/util.js';
 import { tapBtn, denyBtn, affordBtn } from './btnFx.js';
 
@@ -31,6 +32,7 @@ export function applyScale() {
 }
 if (typeof window !== 'undefined') {
   injectSkins();
+  injectPixShapes();
   applyScale();
   window.addEventListener('resize', applyScale);
   window.addEventListener('orientationchange', () => setTimeout(applyScale, 200));
