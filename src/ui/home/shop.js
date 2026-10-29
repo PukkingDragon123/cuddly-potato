@@ -351,7 +351,7 @@ export function mount(el, ctx) {
     // hero header
     inner.appendChild(h('div', { class: 'mn-shophead' },
       h('div', { class: 'mn-shophead-ic', 'data-sfx': 'pop' }, icon('shop')),
-      h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-d outline mn-shophead-t' }, 'BEAST SHOP'), h('span', { class: 't-xs c-muted' }, 'Fresh deals from the Lab every day')),
+      h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-d outline mn-shophead-t' }, 'BEAST SHOP'), h('span', { class: 't-xs c-muted' }, 'Fresh Lab deals every day')),
       h('span', { class: 'spacer' }),
       timerChip(midnightMs(), 'New in')));
     // featured hero offer

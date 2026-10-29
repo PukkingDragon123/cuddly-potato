@@ -664,8 +664,8 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
   const bits = [
     headlineText.replace(/\*/g, ''),
     mvpDef ? `MVP: ${mvpDef.name}${mvp.dmg ? ` dealt ${fmtN(mvp.dmg)} damage` : ''}` : null,
-    `${fmtN(st.deployed ?? 0)} troops deployed`,
-    `${fmtN(st.kills ?? 0)} Swarms defeated`,
+    `${fmtN(st.deployed ?? 0)} ${(st.deployed ?? 0) === 1 ? 'troop' : 'troops'} deployed`,
+    `${fmtN(st.kills ?? 0)} ${(st.kills ?? 0) === 1 ? 'Swarm' : 'Swarms'} defeated`,
     r?.trophies ? `TROPHIES ${tr > 0 ? '+' : ''}${tr}` : null,
     `Live from ${arenaName}`,
     'Beast Tiger "totally fine", says Jimmy',

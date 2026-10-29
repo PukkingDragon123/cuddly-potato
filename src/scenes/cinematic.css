@@ -434,3 +434,7 @@ body.portrait .tt-load { right: auto; left: calc(var(--safe-l) + var(--u) * 3); 
 .ld-kaboom { font-size: calc(var(--lp) * 18); }
 .ld.out .ld-cloud { animation-duration: 0.65s; }
 .ld.out .ld-cloud canvas { animation-duration: 0.65s; }
+/* bigger, readable loading copy */
+.ld-dest .k { font-size: calc(var(--u) * 3.5); }
+.ld-gaugebar > b { font-size: calc(var(--u) * 3.3); }
+.ld-tip { font-size: 0.88em; }

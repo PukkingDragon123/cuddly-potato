@@ -37,6 +37,9 @@ src/
       liveChibi.js     a live 3D Commander rendered into a HUD button canvas (ULT) via the thumb renderer
       sigCutscene.js   Commander ULTIMATE cutscene: freezes the world, hero shot + name card, follows the ability, payoff
       sigFx.js         ULTIMATE payoffs + lingering effects (mutants, buyout swaps, meteor crater, amber time-stop)
+      placement.js     Clash Royale card placement previews: deploy-zone floor grid + hazard-tape front line,
+                       red dithered out-of-bounds veil, hologram ghost of the troop formation, drop pin,
+                       waiting-for-POWER marker, edge-pan arrows (placement.css); the rule is sim.deployRange
       hud.js           battle HUD (top: one tug-of-war base-HP bar with clock, lean chip + lane strip;
                        Battle Cats dock: BASE upgrade button
                        with a 3D next-tier model, POWER wallet, hand + NEXT card with card-use animations,

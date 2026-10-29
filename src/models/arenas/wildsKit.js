@@ -3,6 +3,7 @@
 // instancing, cover-fit skies, scrolling pixel water / lava planes, flapping
 // flyers, floating particles (embers, fireflies, bubbles, dust), twinkling
 // glints, animated voxel flames, zone ground discs and hotspot anchors.
+import { viewAspect } from '../../core/util.js';
 import {
   THREE, VoxGrid, Mats, makeMesh, mulberry32, hash3, shade, mixHex, clamp, vnoise, glowMat, canvasTex, px, disc, bayer,
 } from './kit.js';
@@ -76,7 +77,7 @@ export function liveInst(K, id, gridFn, opts, n, o = {}) {
 export function fitSky(K, tex, texAspect = 16 / 9) {
   let last = 0;
   K.onUpdate(() => {
-    const a = typeof window !== 'undefined' ? window.innerWidth / Math.max(1, window.innerHeight) : texAspect;
+    const a = viewAspect(texAspect);
     if (Math.abs(a - last) < 1e-3) return;
     last = a;
     if (a < texAspect) { tex.repeat.set(a / texAspect, 1); tex.offset.set((1 - a / texAspect) / 2, 0); }

@@ -245,6 +245,7 @@ export class BattleScene {
     if (slot === this.sel) return;
     if (slot >= 0) this.cancelPending();
     this.sel = slot;
+    this.selK = slot >= 0 ? this.sim.sides[0].hand[slot] : undefined;
     this.hud.select(slot);
     const c = slot >= 0 ? this.card(slot) : null;
     this.plc.zone(c && !c.spell);
@@ -367,6 +368,8 @@ export class BattleScene {
         } else if (!p.card.spell) this.plc.ghost(p.card, this.sim.clampDeploy(0, p.x), { pending: true, cost: p.cost });
       }
     }
+    // the picked card left the hand (a DRAW / discard trick reshuffled it): put it down
+    if (this.sel >= 0 && this.sim.sides[0].hand[this.sel] !== this.selK) { this.select(-1); this.hud.dragEnd(); this.drag = null; }
     const a = this.aimPt;
     if (a && this.sel >= 0) {
       const x = this.aim(a.x, a.y, a.edge);
@@ -759,7 +762,8 @@ export class BattleScene {
         if (want === 'card') remove = pointAt(() => this.hud.slotEl(slotOf(id)), cardTip);
         else if (want === 'field') {
           spot = spotX();
-          if (Math.abs(spot - this.view.camX) > (this.view.halfW ?? 6) * 0.7) this.view.focus(spot, 3);
+          // frame the spot with the zone's front line in view
+          this.view.focus(spot + (this.view.halfW ?? 6) * 0.25, 4);
           remove = pointAt(() => { const q = this.view.xToScreen(spot, 0.35); return { x: q.x, y: q.y }; }, fieldTip);
         }
       };
@@ -770,11 +774,10 @@ export class BattleScene {
       clearPtr();
       return r;
     };
-    // a drop spot inside your zone that is on screen right now (or just behind your front troop)
+    // a drop spot well inside your zone (or just behind your front troop)
     const zoneSpot = (behind = null) => {
       const [a, b] = sim.deployRange(0);
-      const want = behind ?? this.view.camX + (this.view.halfW ?? 6) * 0.25;
-      return Math.max(a + 1.2, Math.min(b - 0.6, want));
+      return Math.max(a + 1.2, Math.min(b - 0.6, behind ?? b - 3));
     };
     if (ch) ch.expr('happy', 'grin', 3);
     await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Lab* (a folding table under a tarp). Mine's on the RIGHT. *Smash my base to win!*");

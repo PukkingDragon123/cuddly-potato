@@ -833,8 +833,11 @@ export class BattleSim {
         const c = this.densestEnemyX(si, this.sides[si].cmd.signature.radius * 0.8);
         return clampX(c ? c.x : enFace - s.dir * 1.6);
       }
-      case 'tiempoMuerto':
-        return clampX(enFace - s.dir * 2);
+      case 'tiempoMuerto': {
+        const es = this.enemiesOf(si).filter((u) => !u.mega);
+        if (!es.length) return clampX(enFace - s.dir * 2);
+        return clampX(es.reduce((a, u) => a + u.x, 0) / es.length);
+      }
       default:
         return clampX(this.frontEnemyX(si) ?? enFace);
     }

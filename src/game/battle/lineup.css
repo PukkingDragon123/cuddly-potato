@@ -629,3 +629,12 @@ body.landscape .bb-rays { bottom: calc(var(--u) * 16); }
 .bh-ults .bh-ult.sig { margin-top: 0; }
 /* portrait: the floating base model owns the space above its column, so the emote / skill row starts after it */
 body.portrait .bh-float { padding-left: calc(var(--safe-l) + var(--dk-pad) + var(--u) * 35); }
+
+/* ---- round 2 (M): readable HUD text on a 390 px phone (nothing under ~10-11 px) */
+.cf .nm { font-size: calc(var(--u) * 2.85); }
+.cf .lv, .cf .kw { font-size: calc(var(--u) * 2.6); }
+.bh-nextw .lbl { font-size: calc(var(--u) * 2.9); }
+.pw-rate { font-size: calc(var(--u) * 2.75); }
+.bb-lv { font-size: calc(var(--u) * 2.75); }
+.u-tag { font-size: calc(var(--u) * 2.9); }
+.bh-ult .lockt { font-size: calc(var(--u) * 2.6); }

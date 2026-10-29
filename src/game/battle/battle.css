@@ -515,3 +515,4 @@ body.landscape .bh-pause { top: calc(var(--safe-t) + var(--u) * 1); }
 @media (prefers-reduced-motion: reduce) {
   .tw-f, .tw-seam .sp, .tw-seam .chev, .tw-cap.low, .tw-clock .tag.in { animation: none !important; }
 }
+.tw-cap .tn { font-size: calc(var(--u) * 2.7); }

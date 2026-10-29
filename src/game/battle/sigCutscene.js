@@ -39,7 +39,7 @@ const hex = (css) => new THREE.Color(css).getHex();
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const TAN = Math.tan((30 * Math.PI) / 360);
 // phase starts as fractions of the frozen time (A = 0, the ability lands at 1)
-const PH = { B: 0.31, L: 0.5, C: 0.56, D: 0.8 };
+const PH = { B: 0.36, L: 0.52, C: 0.58, D: 0.8 };
 const PAY = 0.95; // payoff hold after the hit (s, real time)
 const BACK = 0.65; // ease back to the battle camera
 
@@ -140,19 +140,25 @@ export function playSigCutscene(view, ev) {
 
   // ------------------------------------------------------------ ability directors
   const tL = D * PH.L;
-  const dirc = DIRECTORS[sg.id]?.({ view, sim, side, dir, ch, H, P, X, D, tL, home, handPos, chest, col: C, scene }) ?? DIRECTORS.generic({ view, sim, side, dir, ch, H, P, X, D, tL, home, handPos, chest, col: C, scene });
+  // particle emission by rate (per second of cutscene time), so the look doesn't depend on the frame rate
+  const acc = {};
+  const E = (key, perSec, dt) => { const a = (acc[key] ?? Math.random()) + perSec * dt; const n = Math.floor(a); acc[key] = a - n; return n; };
+  const dirc = DIRECTORS[sg.id]?.({ view, sim, side, dir, ch, H, P, X, D, tL, home, handPos, chest, col: C, scene, E }) ?? DIRECTORS.generic({ view, sim, side, dir, ch, H, P, X, D, tL, home, handPos, chest, col: C, scene, E });
 
   // ------------------------------------------------------------ camera shots
-  const lab = view.labs?.[side];
   const pos = V(), lk = V();
   const smPos = V(), smLook = V();
   let smInit = false;
+  // A: the Commander framed in the screen band the name card leaves free (card low for you, high for the rival)
+  const band = portrait ? 0.3 : 0.43; // screen-height share the letterbox + name card cover on the card's side
+  const avail = 1 - 0.11 - band;
+  const centerOff = 0.5 - (rival ? band + avail / 2 : 0.11 + avail / 2); // > 0: the free band is above centre
   const heroShot = (k) => {
     const c = chest();
-    const d = fit(H * (portrait ? 1.7 : 2.3), H * 2.9) * lerp(1.18, 0.92, outQ(k));
-    // the name card sits low (yours) or high (the rival's): keep the Commander clear of it
-    const lift = rival ? -H * 0.3 : H * 0.42;
-    return { pos: V(c.x + dir * H * 0.7, c.y - H * 0.25, c.z + d), look: V(c.x + dir * H * 0.12, c.y - lift, c.z) };
+    const Hf = (H * 1.3) / avail; // the Commander fills ~75% of the free band
+    const d = Math.max(Hf / (2 * TAN), fit(H * 1.5, 0)) * lerp(1.12, 0.94, outQ(k));
+    const vis = 2 * d * TAN;
+    return { pos: V(c.x + dir * H * 0.7, c.y - H * 0.2, c.z + d), look: V(c.x + dir * H * 0.1, c.y - centerOff * vis, c.z) };
   };
   // B: low angle from below the roof edge, the Commander against the sky
   const launchShot = (k) => {
@@ -230,7 +236,7 @@ export function playSigCutscene(view, ev) {
       if (!launched && T >= tL) { launched = true; dirc.launch?.(); }
       if (launched) dirc.fly?.(clamp((T - tL) / (D - tL), 0, 1), dt);
       // the name card leaves after the wind-up starts
-      if (!cardOut && T > tB + (rival ? 0.25 : 0.55)) { cardOut = true; wrap.classList.add('cardout'); }
+      if (!cardOut && T > tB + 0.15) { cardOut = true; wrap.classList.add('cardout'); }
       if (T > (rival ? 0.12 : 0.3) && !ctl.slammed) {
         ctl.slammed = true;
         wrap.classList.add('slam');
@@ -348,7 +354,7 @@ export function playSigCutscene(view, ev) {
 const DIRECTORS = {
   /** RECRUIT: a giant vat of MEGA serum is hurled over your army and bursts into mutagen rain. */
   mutantUprising(c) {
-    const { ch, H, P, X, dir, home, handPos, scene, side, view } = c;
+    const { ch, H, P, X, dir, home, handPos, scene, side, view, E } = c;
     const G = [0x7cff3a, 0xd4ff9a, 0x3fd14a, 0xffffff];
     const vat = prop('makeBeaker', 0x7cff3a) ?? new THREE.Group();
     vat.scale.setScalar(H * 1.45);
@@ -365,8 +371,8 @@ const DIRECTORS = {
           const hp = handPos(0.02);
           vat.position.set(hp.x, hp.y + H * 0.12, hp.z + 0.05); // held up over the head
           vat.rotation.z = Math.sin(T * 9) * 0.08;
-          if (Math.random() < 0.5) P.spawn({ tex: 'drop', x: hp.x + rand(-0.2, 0.2) * H, y: hp.y + H * 0.8, z: hp.z + 0.2, vy: rand(0.8, 1.6), size: H * 0.09, color: G, glow: 1.5, life: 0.5 });
-          if (Math.random() < 0.3) P.spawn({ tex: 'helix', x: hp.x + rand(-0.6, 0.6) * H, y: hp.y + rand(0, 0.6) * H, z: hp.z + 0.3, vy: 1, size: H * 0.22, color: G, glow: 2.2, life: 0.6 });
+          for (let n = E('e367', 15, dt); n > 0; n--) P.spawn({ tex: 'drop', x: hp.x + rand(-0.2, 0.2) * H, y: hp.y + H * 0.8, z: hp.z + 0.2, vy: rand(0.8, 1.6), size: H * 0.09, color: G, glow: 1.5, life: 0.5 });
+          for (let n = E('e368', 9, dt); n > 0; n--) P.spawn({ tex: 'helix', x: hp.x + rand(-0.6, 0.6) * H, y: hp.y + rand(0, 0.6) * H, z: hp.z + 0.3, vy: 1, size: H * 0.22, color: G, glow: 2.2, life: 0.6 });
         }
       },
       launch() {
@@ -391,7 +397,7 @@ const DIRECTORS = {
           const p = d.piece(u);
           vat.position.copy(p);
           vat.rotation.z -= dt * 7 * dir;
-          if (Math.random() < 0.9) P.spawn({ tex: 'drop', x: p.x, y: p.y, z: p.z + 0.1, vx: -dir * 2, vy: -1, grav: 6, size: 0.22, color: G, glow: 2.2, life: 0.6 });
+          for (let n = E('e393', 27, dt); n > 0; n--) P.spawn({ tex: 'drop', x: p.x, y: p.y, z: p.z + 0.1, vx: -dir * 2, vy: -1, grav: 6, size: 0.22, color: G, glow: 2.2, life: 0.6 });
           if (u >= 0.62) d.burst();
         }
       },
@@ -421,10 +427,10 @@ const DIRECTORS = {
 
   /** JIMMY: a golden briefcase full of cash flies over the rival army and buys it. */
   beastBuyout(c) {
-    const { ch, H, P, X, dir, handPos, scene, view, side } = c;
+    const { ch, H, P, X, dir, handPos, scene, view, side, E } = c;
     const bc = prop('makeBriefcase');
     const obj = bc?.root ?? new THREE.Group();
-    obj.scale.setScalar(H * 1.25);
+    obj.scale.setScalar(H * 0.95);
     scene.add(obj);
     const CASH = [0x5fdc4a, 0x8af07a, 0xd4ffb0];
     const GOLD = [0xffd84a, 0xfff2b0, 0xffb02e, 0xffffff];
@@ -436,20 +442,31 @@ const DIRECTORS = {
     ch.play('present', { restart: true });
     ch.expr('money', 'grin', 3);
     const d = {
-      windup() { lidT = 0.001; audio.play('latch', { pitch: 0.9 }); audio.play('vsRiser', { vol: 0.5 }); ch.mood?.('excited', 1.5); },
+      windup() {
+        lidT = 0.001;
+        ch.play('holdUp', { restart: true }); // the open case goes up over his head
+        audio.play('latch', { pitch: 0.9 });
+        audio.play('vsRiser', { vol: 0.5 });
+        ch.mood?.('excited', 1.5);
+      },
       tick(T, dt) {
         if (lidT > 0 && lidT < 1) { lidT = Math.min(1, lidT + dt * 2.5); bc?.open(outQ(lidT)); }
         if (held) {
           const hp = handPos(-0.05);
-          obj.position.set(hp.x, hp.y - H * 0.15, hp.z + 0.25);
-          obj.rotation.set(0, -dir * 0.3, 0);
-          if (lidT > 0 && Math.random() < 0.7) P.spawn({ tex: Math.random() < 0.5 ? 'cash' : 'dollar', x: hp.x + rand(-0.3, 0.3) * H, y: hp.y + H * 0.2, z: hp.z + 0.3, vx: rand(-1, 1), vy: rand(2, 4), grav: 4, size: H * 0.16, color: Math.random() < 0.5 ? CASH : GOLD, glow: 1.8, life: 0.8, spin: rand(-5, 5) });
+          if (lidT > 0) {
+            obj.position.set(hp.x, hp.y + H * 0.02, hp.z + 0.05); // overhead, lid open, cash spraying out
+            obj.rotation.set(0, Math.PI - dir * 0.25, 0);
+          } else {
+            obj.position.set(hp.x, hp.y - H * 0.42, hp.z + 0.3); // held out at waist height
+            obj.rotation.set(0, Math.PI - dir * 0.25, 0);
+          }
+          if (lidT > 0) for (let n = E('cash', 21, dt); n > 0; n--) P.spawn({ tex: Math.random() < 0.5 ? 'cash' : 'dollar', x: hp.x + rand(-0.3, 0.3) * H, y: hp.y + H * 0.2, z: hp.z + 0.3, vx: rand(-1, 1), vy: rand(2, 4), grav: 4, size: H * 0.16, color: Math.random() < 0.5 ? CASH : GOLD, glow: 1.8, life: 0.8, spin: rand(-5, 5) });
         }
         // the bought troops get price-tagged while the world is frozen
-        if (lidT > 0 && Math.random() < 0.5) {
+        if (lidT > 0) {
           for (const u of targets) {
             const a = view.actors.get(u.id);
-            if (!a || Math.random() > 0.3) continue;
+            if (!a || !E('tag' + u.id, 5, dt)) continue;
             const q = a.rig.root.position, hh = Math.max(0.5, a.rig.height);
             P.spawn({ tex: 'dollar', x: q.x + rand(-0.3, 0.3), y: q.y + hh + rand(0.1, 0.5), z: q.z + 0.4, vy: 0.7, size: 0.32, color: GOLD, glow: 2.4, life: 0.5 });
           }
@@ -475,7 +492,7 @@ const DIRECTORS = {
         const p = d.piece(u);
         obj.position.copy(p);
         obj.rotation.y += dt * 5;
-        if (Math.random() < 0.9) P.spawn({ tex: 'cash', x: p.x, y: p.y, z: p.z, vx: rand(-1.5, 1.5) - dir, vy: rand(-0.5, 1.5), grav: 3, size: 0.32, color: CASH, glow: 1.4, life: 1.2, spin: rand(-6, 6), additive: false });
+        for (let n = E('e488', 27, dt); n > 0; n--) P.spawn({ tex: 'cash', x: p.x, y: p.y, z: p.z, vx: rand(-1.5, 1.5) - dir, vy: rand(-0.5, 1.5), grav: 3, size: 0.32, color: CASH, glow: 1.4, life: 1.2, spin: rand(-6, 6), additive: false });
         if (u >= 0.7 && !d.rained) {
           d.rained = true;
           bc?.open(1);
@@ -495,7 +512,7 @@ const DIRECTORS = {
 
   /** NOLAN: rides a soda rocket into orbit and belly-flops back down as a meteor. */
   orbitalFlop(c) {
-    const { ch, H, P, X, dir, home, scene, side } = c;
+    const { ch, H, P, X, dir, home, scene, side, E } = c;
     const rocket = prop('makeSodaRocket') ?? new THREE.Group();
     const RS = H * 1.25;
     rocket.scale.setScalar(RS);
@@ -511,7 +528,7 @@ const DIRECTORS = {
     let phase = 'roof', grow = 0;
     const _rb = new THREE.Box3();
     /** Top of the rocket's nose cone right now (Nolan stands on it). */
-    const noseY = () => (grow > 0.02 ? _rb.setFromObject(rocket).max.y - 0.04 : home.y);
+    const noseY = () => (grow > 0.02 ? _rb.setFromObject(rocket).max.y - RS * grow * 0.24 : home.y); // feet on the cone, not the needle tip
     ch.play('flex', { restart: true });
     ch.expr('determined', 'grin', 3);
     const d = {
@@ -525,11 +542,11 @@ const DIRECTORS = {
         audio.play('vsRiser', { vol: 0.5 });
         animate(0.3, (e) => { grow = e; rocket.scale.setScalar(Math.max(0.001, RS * e)); rocket.position.y = home.y - rBot * e; }, { ease: 'outBack' });
       },
-      tick() {
+      tick(T, dt) {
         if (phase === 'rocket') {
           // Nolan rides up on the rocket's nose; foam hisses out of the bottle
           ch.root.position.set(home.x, noseY(), home.z);
-          if (Math.random() < 0.8) P.spawn({ tex: 'cloud', x: home.x + rand(-0.6, 0.6), y: home.y + 0.1, z: home.z + rand(-0.2, 0.5), vx: rand(-1.5, 1.5), vy: rand(0.2, 0.8), drag: 2, size: rand(0.4, 0.7), color: [0xffffff, 0xdff2ff], glow: 1.1, life: 0.6, additive: false });
+          for (let n = E('e542', 24, dt); n > 0; n--) P.spawn({ tex: 'cloud', x: home.x + rand(-0.6, 0.6), y: home.y + 0.1, z: home.z + rand(-0.2, 0.5), vx: rand(-1.5, 1.5), vy: rand(0.2, 0.8), drag: 2, size: rand(0.4, 0.7), color: [0xffffff, 0xdff2ff], glow: 1.1, life: 0.6, additive: false });
         }
       },
       launch() {
@@ -555,9 +572,9 @@ const DIRECTORS = {
         if (u < 0.3) {
           rocket.position.set(p.x, p.y - H * 0.5 - (rTop - rBot) - rBot, p.z);
           ch.root.position.set(p.x, noseY(), p.z);
-          for (let i = 0; i < 3; i++) P.spawn({ tex: 'flame', x: p.x + rand(-0.25, 0.25), y: rocket.position.y + rBot, z: p.z + 0.2, vx: rand(-1, 1), vy: rand(-9, -5), size: rand(0.5, 0.9), color: FIRE, glow: 2.4, life: 0.4 });
-          if (Math.random() < 0.7) P.spawn({ tex: 'cloud', x: p.x + rand(-0.5, 0.5), y: rocket.position.y + rBot - 0.4, z: p.z, vx: rand(-1.2, 1.2), vy: -1.2, drag: 1.5, size: rand(0.8, 1.3), color: [0xffffff, 0xe8f4ff], glow: 1.05, life: 1.1, additive: false });
-          if (Math.random() < 0.6) P.spawn({ tex: 'streak', x: p.x + rand(-1.2, 1.2), y: p.y + rand(-1, 2), z: p.z + 0.6, vy: -14, size: rand(0.5, 0.9), color: [0xffffff, 0xdff2ff], glow: 2, life: 0.25 });
+          for (let n = E('e568', 90, dt); n > 0; n--) P.spawn({ tex: 'flame', x: p.x + rand(-0.25, 0.25), y: rocket.position.y + rBot, z: p.z + 0.2, vx: rand(-1, 1), vy: rand(-9, -5), size: rand(0.5, 0.9), color: FIRE, glow: 2.4, life: 0.4 });
+          for (let n = E('e569', 21, dt); n > 0; n--) P.spawn({ tex: 'cloud', x: p.x + rand(-0.5, 0.5), y: rocket.position.y + rBot - 0.4, z: p.z, vx: rand(-1.2, 1.2), vy: -1.2, drag: 1.5, size: rand(0.8, 1.3), color: [0xffffff, 0xe8f4ff], glow: 1.05, life: 1.1, additive: false });
+          for (let n = E('e570', 18, dt); n > 0; n--) P.spawn({ tex: 'streak', x: p.x + rand(-1.2, 1.2), y: p.y + rand(-1, 2), z: p.z + 0.6, vy: -14, size: rand(0.5, 0.9), color: [0xffffff, 0xdff2ff], glow: 2, life: 0.25 });
         } else if (u < 0.55) {
           if (phase !== 'orbit') {
             phase = 'orbit';
@@ -570,7 +587,7 @@ const DIRECTORS = {
           ch.root.position.set(p.x, p.y - H * 0.5, p.z);
           ch.root.rotation.set(0, side === 0 ? Math.PI / 2 : -Math.PI / 2, -dir * ((u - 0.3) / 0.25) * Math.PI * 1.5);
           // up here it's space: twinkling pixel stars around him
-          if (Math.random() < 0.6) P.spawn({ tex: Math.random() < 0.6 ? 'plus' : 'star4', x: p.x + rand(-3, 3), y: p.y + rand(-2, 2.5), z: p.z - rand(0.5, 3), size: rand(0.15, 0.35), color: STAR, glow: 2.2, life: rand(0.4, 0.8), flicker: 0.3 });
+          for (let n = E('e583', 18, dt); n > 0; n--) P.spawn({ tex: Math.random() < 0.6 ? 'plus' : 'star4', x: p.x + rand(-3, 3), y: p.y + rand(-2, 2.5), z: p.z - rand(0.5, 3), size: rand(0.15, 0.35), color: STAR, glow: 2.2, life: rand(0.4, 0.8), flicker: 0.3 });
         } else {
           if (phase !== 'dive') {
             phase = 'dive';
@@ -582,9 +599,9 @@ const DIRECTORS = {
           ch.root.position.set(p.x, p.y - H * 0.5, p.z);
           ch.root.rotation.set(0, side === 0 ? Math.PI / 2 : -Math.PI / 2, 0); // the belly-flop pose lies him belly-down
           // meteor: flames wrapped around him and a long fire trail streaming up
-          for (let i = 0; i < 4; i++) P.spawn({ tex: 'flame', x: p.x + rand(-0.5, 0.5) * H, y: p.y + rand(-0.3, 0.6) * H, z: p.z + rand(0, 0.6), vy: rand(4, 8), size: rand(0.5, 1) * H, color: FIRE, glow: 2.5, life: 0.32 });
-          if (Math.random() < 0.8) P.spawn({ tex: 'streak', x: p.x + rand(-0.6, 0.6), y: p.y + H * 1.2, z: p.z + 0.3, vy: 12, size: rand(0.8, 1.4), color: [0xffffff, 0xffd84a], glow: 2.6, life: 0.22 });
-          if (Math.random() < 0.6) P.spawn({ tex: 'ember', x: p.x, y: p.y + H * 0.5, z: p.z + 0.2, vx: rand(-2, 2), vy: rand(3, 6), size: 0.22, color: FIRE, glow: 2.4, life: 0.6 });
+          for (let n = E('e595', 55, dt); n > 0; n--) P.spawn({ tex: 'flame', x: p.x + rand(-0.55, 0.55) * H, y: p.y + rand(-0.2, 0.7) * H, z: p.z - rand(0.15, 0.6), vy: rand(4, 8), size: rand(0.35, 0.75) * H, color: FIRE, glow: 2.5, life: 0.32 });
+          for (let n = E('e596', 24, dt); n > 0; n--) P.spawn({ tex: 'streak', x: p.x + rand(-0.6, 0.6), y: p.y + H * 1.2, z: p.z + 0.3, vy: 12, size: rand(0.8, 1.4), color: [0xffffff, 0xffd84a], glow: 2.6, life: 0.22 });
+          for (let n = E('e597', 18, dt); n > 0; n--) P.spawn({ tex: 'ember', x: p.x, y: p.y + H * 0.5, z: p.z + 0.2, vx: rand(-2, 2), vy: rand(3, 6), size: 0.22, color: FIRE, glow: 2.4, life: 0.6 });
         }
         void dt;
       },
@@ -621,21 +638,19 @@ const DIRECTORS = {
     return d;
   },
 
-  /** JUAN: the final whistle; a wave of stopped time rolls across the field to the rival base. */
+  /** JUAN: the final whistle; a wave of stopped time rolls across the field onto the rival army. */
   tiempoMuerto(c) {
-    const { ch, H, P, X, dir, home, side, view } = c;
+    const { ch, H, P, X, dir, home, E } = c;
     const AM = [0xffa31a, 0xffd27a, 0xff7a1f, 0xfff2c8];
-    const en = 1 - side;
-    const enLab = view.labs?.[en];
-    const endX = enLab ? enLab.root.position.x : X + dir * 3;
     let fx0 = null;
     ch.play('whistle', { restart: true });
     ch.expr('determined', 'shout', 3);
     const d = {
       windup() {
         audio.play('vsRiser', { vol: 0.5 });
-        // the sky clock appears over the field
-        P.spawn({ tex: 'clock', x: lerp(home.x, endX, 0.5), y: 8.5, z: -3, size: 6, size1: 6, spin: -2.4, color: 0xffb02e, glow: 1.35, life: 3.5, additive: false });
+        // a giant clock appears in the sky behind Juan, its hands racing
+        P.spawn({ tex: 'clock', x: home.x + dir * H * 1.2, y: home.y + H * 2.2, z: home.z - 1.5, size: H * 2.6, size1: H * 2.6, spin: -3, color: 0xffb02e, glow: 1.35, life: 1.6, additive: false });
+        P.burst(V(home.x + dir * H * 1.2, home.y + H * 2.2, home.z - 1.2), { tex: 'plus', count: 16, speed: 3, size: H * 0.14, color: AM, glow: 2.2, life: 0.8, drag: 2 });
       },
       tick(T, dt) {
         if (fx0 === null && Math.random() < 0.15) audio.play('tick', { pitch: 1 + T * 0.4, vol: 0.4, gap: 0.12 });
@@ -650,26 +665,29 @@ const DIRECTORS = {
         audio.play('freeze', { pitch: 0.8 });
       },
       piece(u) {
-        const x = lerp(fx0 ?? home.x, endX - dir * 1.2, outQ(Math.min(1, u)));
+        // the wave reaches the rival army (X) as the ability lands, and rolls on to their base
+        const x = lerp(fx0 ?? home.x, X + dir * 0.6, Math.min(1, u));
         return V(x, 1.6, 0.4);
       },
       fly(u, dt) {
         const p = d.piece(u);
         // the wave front: a wall of clock glyphs and amber sparks; stopped flecks hang behind it
-        if (Math.random() < 0.7) P.spawn({ tex: 'clock', x: p.x + rand(-0.2, 0.2), y: rand(0.4, 3.6), z: rand(-0.8, 1.4), size: rand(0.5, 0.9), size1: 0.2, spin: rand(-3, 3), color: AM, glow: 2, life: 0.45 });
-        for (let i = 0; i < 3; i++) P.spawn({ tex: 'plus', x: p.x + rand(-0.4, 0.1) * dir, y: rand(0.2, 4), z: rand(-1, 1.6), size: rand(0.14, 0.24), color: AM, glow: 2.2, life: rand(1.5, 2.5) });
-        if (Math.random() < 0.4) P.spawn({ tex: 'hex', x: p.x, y: rand(0.5, 3), z: rand(-0.5, 1.2), vx: dir * 4, size: 0.4, color: AM, glow: 2.2, life: 0.4 });
+        // the wave front: a wall of clock glyphs, hexes and amber streaks; stopped flecks hang in the air behind it
+        for (let n = E('e669', 30, dt); n > 0; n--) P.spawn({ tex: 'clock', x: p.x + rand(-0.3, 0.3), y: rand(0.3, 4.2), z: rand(-0.8, 1.4), size: rand(0.5, 1.1), size1: 0.25, spin: rand(-4, 4), color: AM, glow: 2, life: 0.5 });
+        for (let n = E('e670', 21, dt); n > 0; n--) P.spawn({ tex: 'streak', x: p.x + rand(-0.2, 0.2), y: rand(0.3, 4), z: rand(-0.6, 1.2), vy: rand(-2, 2), size: rand(0.45, 0.7), color: [0xffb02e, 0xffd27a], glow: 1.6, life: 0.22 });
+        for (let n = E('e671', 60, dt); n > 0; n--) P.spawn({ tex: 'plus', x: p.x - dir * rand(0, 0.6), y: rand(0.2, 4.2), z: rand(-1, 1.6), size: rand(0.14, 0.26), color: AM, glow: 2.2, life: rand(1.5, 2.5) });
+        for (let n = E('e672', 18, dt); n > 0; n--) P.spawn({ tex: 'hex', x: p.x, y: rand(0.5, 3.5), z: rand(-0.5, 1.2), vx: dir * 5, size: rand(0.35, 0.55), color: AM, glow: 2.2, life: 0.4 });
         void dt;
       },
       arrive() {
         audio.play('tick', { pitch: 0.6, vol: 0.6 });
       },
       land() {
-        const p = V(endX - dir * 1.2, 2, 0.5);
+        const p = V(X, 1.6, 0.5);
         P.burst(p, { tex: 'clock', count: 6, speed: 4, size: 0.8, color: AM, glow: 2, life: 0.6 });
         P.burst(p, { tex: 'star4', count: 10, speed: 5, size: 0.7, color: [0xffffff, 0xffd27a], glow: 2.8, life: 0.4 });
       },
-      focus: () => V(lerp(X, endX, 0.35), 1.4, 0),
+      focus: () => V(X, 1.4, 0),
       cleanup() {},
     };
     return d;

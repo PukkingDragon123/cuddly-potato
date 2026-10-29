@@ -33,9 +33,9 @@ let amberMat = null;
 function amberIce(view) {
   if (!amberMat && view.iceMat) {
     amberMat = view.iceMat.clone();
-    amberMat.color = new THREE.Color(0xffa31a);
-    if (amberMat.emissive) amberMat.emissive = new THREE.Color(0x5a2a00);
-    amberMat.opacity = 0.6;
+    amberMat.color = new THREE.Color(0xffc23a);
+    if (amberMat.emissive) amberMat.emissive = new THREE.Color(0x7a4200);
+    amberMat.opacity = 0.5;
   }
   return amberMat;
 }
@@ -78,7 +78,7 @@ export function sigResolveFx(view, ev) {
         P.burst(V(q.x, q.y + 0.8, q.z + 0.3), { tex: 'dollar', count: 6, speed: 3, lift: 2.5, size: 0.34, color: GOLD, glow: 2.4, life: 0.8, drag: 2 });
         P.burst(V(q.x, q.y + 0.6, q.z + 0.3), { tex: 'star4', count: 8, speed: 4, size: 0.4, color: GOLD, glow: 2.6, life: 0.4 });
         const n = view.actors.get(sw.to);
-        if (n) { n.rig.flash?.(0.3); n.rig.boing?.(0.6); }
+        if (n) n.rig.boing?.(0.6);
       }
       for (const hi of ev.hires ?? []) view.dropVial?.(side, hi.unit, hi.x, hi.count, hi.delay);
       for (const a of view.actors.values()) {

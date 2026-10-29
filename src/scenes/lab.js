@@ -308,7 +308,7 @@ export class LabScene {
     this.camPos.copy(s.pos);
     this.camLook.copy(s.look);
     this.jimmy.play('wave');
-    this.ui.appendChild(h('div', { class: 'lb-back' }, button('ISLAND', () => game.go('home'), 'blue', { icon: 'island' })));
+    this.ui.appendChild(h('div', { class: 'lb-back' }, button('ISLAND', () => game.go('home', this.params?.backTab ? { tab: this.params.backTab } : {}), 'blue', { icon: 'island' })));
     const chat = () => {
       if (this.dead) return;
       speech(this.jimmy, JIMMY_LINES[Math.floor(Math.random() * JIMMY_LINES.length)], 3.2, { offsetY: 2.4 });

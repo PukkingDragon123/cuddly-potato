@@ -69,7 +69,7 @@ export function openSettings(ctx) {
         h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Jersey 25 + Handjet'),
         h('span', { class: 'mn-disclaimer' }, icon('alert', 's'), DISCLAIMER)),
       subHead('SAVE DATA'),
-      row('skull', 'Reset all progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' }), 'Cards, trophies, everything'),
+      row('skull', 'Reset all progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' }), 'There is no undo'),
     );
   }
 

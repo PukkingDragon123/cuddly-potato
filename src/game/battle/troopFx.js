@@ -4,12 +4,12 @@
 // existing pixel / voxel FX kit (hitPix, pixfx, particles, voxfx), so the
 // combat-FX owner can restyle any of these in one place.
 import * as THREE from 'three';
-import { fx } from '../../core/particles.js';
+import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
 import { floatText } from '../../ui/ui.js';
 import { hpx } from './hitPix.js';
 import { pix } from './pixfx.js';
-import { voxelPuddle, voxelBeam, groundHit, groundImpact } from './voxfx.js';
+import { voxelBeam, groundHit, groundImpact } from './voxfx.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -33,7 +33,9 @@ function label(view, pos, text, cls, life) {
   const seen = (view.troopLabels ??= {});
   if (seen[text] > now - 0.7) return;
   seen[text] = now;
-  floatText(pos, text, cls, { life, rise: 36 });
+  // one compact pixel tag style for every trait callout (plate colour by mood), matching the damage numbers
+  const tone = { crit: 'c-red', big: 'c-gold', heal: 'c-green', armor: 'c-steel' }[cls] ?? 'c-red';
+  floatText(pos, text, `hitn t-call ${tone}`, { life, rise: 30, spreadX: 4 });
 }
 /** One short callout above a troop (rate limited per troop too, so labels never pile up). */
 function callout(view, a, text, cls = 'crit', life = 0.85) {
@@ -43,35 +45,83 @@ function callout(view, a, text, cls = 'crit', life = 0.85) {
   a.calloutT = now;
   label(view, topOf(a), text, cls, life);
 }
-/** A ground decal puddle (voxel goo) that fades out after dur seconds. */
-function groundPool(view, x, z, r, color, dur, tick) {
-  const pool = voxelPuddle(r, color);
-  const mat = pool.material[0];
-  pool.position.set(x, 0.02, z ?? 0);
-  pool.scale.set(0.2, 1, 0.2);
-  view.scene.add(pool);
+// ---------------------------------------------------------------------------
+// Ground patches (fire trail, wet floor): a flat pixel-art decal (lumpy, dithered
+// edge, never a circle) PLUS upright pixel sprites, because the side-view camera
+// sees the ground almost edge-on - a decal alone reads as a thin line.
+// Decal meshes + materials are pooled per view; textures are cached per kind.
+const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const decalTex = {};
+function patchTex(kind) {
+  if (decalTex[kind]) return decalTex[kind];
+  const S = 40, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const hsh = (x, y) => { let n = Math.imul(x * 374761393 + y * 668265263, 1274126177); n ^= n >>> 13; return ((n >>> 0) % 1000) / 1000; };
+  const fire = kind === 'fire';
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = (x + 0.5 - S / 2) / (S / 2), dy = (y + 0.5 - S / 2) / (S / 2), a = Math.atan2(dy, dx);
+    const lump = 0.86 + 0.1 * Math.sin(a * 3 + 1) + 0.07 * Math.sin(a * 7) + 0.05 * (hsh(Math.floor((a + 4) * 4), 3) - 0.5);
+    const d = Math.max(Math.abs(dx), Math.abs(dy), (Math.abs(dx) + Math.abs(dy)) / 1.3) / lump;
+    if (d > 1) continue;
+    const edge = d > 0.78, bay = BAY[(y & 3) * 4 + (x & 3)] / 16;
+    if (edge && bay < (d - 0.78) / 0.22) continue;
+    let c;
+    if (fire) {
+      // scorched ground: charcoal with glowing ember cracks
+      const crack = Math.abs(Math.sin(x * 0.55 + Math.sin(y * 0.4) * 2.2)) < 0.16 || Math.abs(Math.sin(y * 0.7 - x * 0.2)) < 0.1;
+      c = crack && d < 0.8 ? (hsh(x, y) > 0.5 ? '#ffd23f' : '#ff7a1a') : d < 0.55 ? '#3a2422' : '#5a3426';
+    } else {
+      // wet floor: blue water, lighter rim, white glint dashes
+      const glint = (y === 13 && x > 12 && x < 20) || (y === 15 && x > 15 && x < 18) || (y === 25 && x > 22 && x < 27);
+      c = glint ? '#ffffff' : edge ? '#bfeaff' : d < 0.5 ? '#3fa8ff' : '#6cc4ff';
+    }
+    g.fillStyle = c;
+    g.fillRect(x, y, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return (decalTex[kind] = t);
+}
+function groundPatch(view, kind, x, z, r, dur, tick) {
+  const pool = (view.patchPool ??= []);
+  let m = pool.pop();
+  if (!m) {
+    m = new THREE.Mesh(PLANE, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, fog: false, toneMapped: false }));
+    m.renderOrder = 1;
+  }
+  m.material.map = patchTex(kind);
+  m.material.needsUpdate = true;
+  m.material.opacity = 0;
+  m.position.set(x, 0.035, z ?? 0);
+  m.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
+  const W = r * (kind === 'water' ? 2.6 : 2.2), D = Math.max(kind === 'water' ? 2.4 : 1.5, r * 1.8); // deep in z so the edge-on camera still sees a band
+  m.scale.set(W * 0.4, 1, D * 0.4);
+  view.scene.add(m);
   let t = 0;
   const zone = {
     done: false,
     update: (dt) => {
       t += dt;
-      const k = Math.min(1, t / 0.2);
-      pool.scale.set(0.2 + k * 0.8, 1, 0.2 + k * 0.8);
-      tick?.(t, dt);
-      if (t > dur) {
-        mat.opacity = Math.max(0, 0.85 - (t - dur) * 2);
-        if (mat.opacity <= 0) {
-          view.scene.remove(pool);
-          mat.dispose();
-          zone.done = true;
-        }
+      const k = Math.min(1, t / 0.18);
+      const e = 1 - (1 - k) ** 2;
+      m.scale.set(W * (0.4 + 0.6 * e), 1, D * (0.4 + 0.6 * e));
+      const fade = t > dur ? Math.max(0, 1 - (t - dur) / 0.4) : 1;
+      m.material.opacity = (kind === 'fire' ? 0.85 + Math.sin(t * 9 + x) * 0.12 : 0.88) * e * fade;
+      if (fade > 0.3) tick?.(t, dt);
+      if (fade <= 0) {
+        view.scene.remove(m);
+        pool.push(m);
+        zone.done = true;
       }
     },
   };
   view.zones.push(zone);
 }
-
-const POOL_COLORS = { fire: 0xff6a1f, water: 0x5fc8ff, slime: 0x7cff3a };
+const _tp = new THREE.Vector3();
 
 export function troopFx(view, ev) {
   switch (ev.type) {
@@ -111,17 +161,31 @@ export function troopFx(view, ev) {
       if (big) { hpx.dust(V(ev.x, 0, z), { count: 4, scale: 1.2 }); audio.play('boom', { pitch: 1.3, vol: 0.5, gap: 0.12 }); }
       break;
     }
-    case 'trail':
-      groundPool(view, ev.x, ev.z, ev.r * 0.8, POOL_COLORS[ev.kind] ?? 0xff6a1f, ev.dur, (t, dt) => {
-        if (Math.random() < dt * 5) hpx.fire(V(ev.x + rand(-0.3, 0.3), 0.05, (ev.z ?? 0) + rand(-0.2, 0.2)), { count: 1, scale: 0.6, embers: false });
+    case 'trail': {
+      // FIRE TRAIL: a scorched, ember-cracked patch with a row of licking pixel flames on it
+      const z = ev.z ?? 0, r = ev.r ?? 0.75;
+      groundPatch(view, 'fire', ev.x, z, r, ev.dur, (t, dt) => {
+        if (hpx.load > 0.6) return;
+        const k = Math.min(1, t / 0.3) * (t > ev.dur - 0.6 ? Math.max(0.25, (ev.dur - t) / 0.6) : 1);
+        if (Math.random() < dt * 11 * k) hpx.emit('solid', 'flame', { x: ev.x + rand(-r, r) * 0.85, y: 0.18, z: z + rand(-0.15, 0.45), vy: rand(0.4, 0.9), life: rand(0.35, 0.6), fps: 14, scale: rand(0.75, 1.15), color: Math.random() < 0.5 ? 0xff6a1a : 0xffa31a, fadeOut: 0.55 });
+        if (Math.random() < dt * 3 * k) hpx.embers(_tp.set(ev.x + rand(-r, r) * 0.6, 0.3, z + 0.3), { count: 1, scale: 1 });
       });
+      hpx.emit('solid', 'flame', { x: ev.x, y: 0.22, z: z + 0.3, vy: 0.8, life: 0.5, fps: 14, scale: 1.3, color: 0xff7a1a, fadeOut: 0.5 });
       break;
-    case 'puddle':
-      groundPool(view, ev.x, rand(-0.2, 0.2), ev.r, POOL_COLORS[ev.kind] ?? 0x5fc8ff, ev.dur, (t, dt) => {
-        if (Math.random() < dt * 3) fx.bubbles(V(ev.x + rand(-ev.r, ev.r) * 0.7, 0.08, rand(-0.6, 0.6)), { count: 1, color: 0xbff0ff });
+    }
+    case 'puddle': {
+      // WET FLOOR: a glossy blue puddle splashed down with drops, then glints and drips while it lasts
+      const z = rand(0.2, 0.4), r = ev.r ?? 1; // a little in front of the lane so the troops don't hide it
+      groundPatch(view, 'water', ev.x, z, r, ev.dur, (t, dt) => {
+        if (hpx.load > 0.6) return;
+        if (Math.random() < dt * 5) hpx.emit('glow', 'twinkle', { x: ev.x + rand(-r, r) * 0.8, y: 0.12, z: z + rand(0, 0.5), life: 0.4, scale: rand(0.9, 1.3), color: 0xdff6ff, fadeOut: 0.4 });
+        if (Math.random() < dt * 5) hpx.emit('solid', 'drop', { x: ev.x + rand(-r, r) * 0.8, y: 0.1, z: z + rand(0, 0.5), vx: rand(-0.6, 0.6), vy: rand(1.6, 2.6), grav: -14, ground: 0.05, life: 0.35, scale: 1, color: 0x8fd8ff, fadeOut: 0.6 });
       });
+      for (let i = 0; i < 7; i++) hpx.emit('solid', 'drop', { x: ev.x + rand(-0.3, 0.3), y: 0.15, z: z + 0.4, vx: rand(-3, 3), vy: rand(2, 4.5), grav: -16, ground: 0.05, life: rand(0.35, 0.55), scale: rand(0.9, 1.3), color: i % 3 ? 0x6cc4ff : 0xffffff, fadeOut: 0.7 });
+      hpx.emit('solid', 'splat', { x: ev.x, y: 0.25, z: z + 0.45, life: 0.25, scale: 0.7, color: 0x8fd8ff, fadeOut: 0.6 });
       audio.play('slosh', { pitch: 1.3, vol: 0.5, gap: 0.2 });
       break;
+    }
     case 'blink': {
       const a = actorOf(view, ev.unit);
       const z = a ? a.rig.root.position.z : 0;
@@ -142,8 +206,11 @@ export function troopFx(view, ev) {
     case 'chargeHit': {
       const a = actorOf(view, ev.unit);
       const z = a ? a.rig.root.position.z : 0;
-      groundHit(V(ev.x, 0, z), { radius: 1.2, color: 0xffd23f });
-      hpx.hit(V(ev.x, 0.6, z), 'heavy', 1.4, ev.unit.side === 0 ? 1 : -1);
+      const d = ev.unit.side === 0 ? 1 : -1;
+      hpx.hit(V(ev.x, 0.6, z), 'punch', 1.4, d);
+      hpx.hit(V(ev.x, 0.6, z), 'heavy', 0.8, d);
+      hpx.clash(V(ev.x, 0, z), d, { scale: 1.5, color: view.dustColor });
+      hpx.streaks(V(ev.x - d * 0.4, 0.6, z), d, { count: 3, h: 0.6 });
       audio.play('hitHeavy', { pitch: 0.9, gap: 0.08 });
       break;
     }
@@ -213,7 +280,7 @@ export function troopFx(view, ev) {
       const a = actorOf(view, ev.unit);
       if (a) a.rig.boing?.(0.5);
       hpx.dust(V(ev.x, 0, ev.minion?.z ?? 0), { count: 3, scale: 0.8 });
-      fx.groceries?.(V(ev.x, 0.6, ev.minion?.z ?? 0), { count: 3 });
+      hpx.poof(V(ev.x, 0.45, ev.minion?.z ?? 0), { scale: 0.6, color: 0xd6cdea, spark: 0xffe27a });
       audio.play('rattle', { pitch: 1.2, vol: 0.5, gap: 0.3 });
       break;
     }
@@ -229,6 +296,7 @@ export function troopFx(view, ev) {
       groundImpact(V(ev.x, 0, 0), { radius: ev.r * 1.2, colors: [0xff4fa3, 0x7a6cff, 0xffd23f] });
       hpx.boom(V(ev.x, 0.6, 0), { scale: 1.1, color: 0xff6a1a });
       view.smashNear?.(ev.x, ev.r, ev.side);
+      engine.shake(0.25);
       audio.play('explode', { pitch: 1.1, gap: 0.1 });
       break;
     case 'abduct': {
@@ -251,6 +319,7 @@ export function troopFx(view, ev) {
       groundImpact(V(ev.x, 0, z), { radius: ev.r, colors: [0x6a8a4a, 0x8a7a5a, 0xd8c4a0] });
       hpx.chips(V(ev.x, 0.1, z), { count: 8, colors: [0x6a8a4a, 0x8a7a5a], speed: 5 });
       view.smashNear?.(ev.x, ev.r, ev.unit.side);
+      engine.shake(0.2);
       audio.play('thud', { pitch: 0.7, gap: 0.1 });
       break;
     }
@@ -274,7 +343,8 @@ export function troopFx(view, ev) {
     case 'devour': {
       const a = actorOf(view, ev.unit);
       if (a) { a.rig.boing?.(0.7); callout(view, a, 'CHOMP!', 'big', 1); }
-      fx.chocolate?.(V(ev.x, 0.6, 0), { count: 14 });
+      hpx.chips(V(ev.x, 0.6, 0), { count: 8, colors: [0x5a3220, 0x7d4a2d, 0xffd23f], speed: 4 });
+      hpx.hit(V(ev.x, 0.7, 0), 'bite', 1.3, ev.unit.side === 0 ? 1 : -1);
       audio.play('chomp', { gap: 0.1 });
       break;
     }
@@ -288,7 +358,7 @@ export function troopFx(view, ev) {
     case 'absorb': {
       const a = actorOf(view, ev.unit);
       if (!a) break;
-      fx.slime(midOf(a), { count: 10, color: 0x7cff3a, speed: 3 });
+      hpx.splat(midOf(a), { color: 0x7cff3a, scale: 0.9 });
       callout(view, a, 'ABSORBED!', 'heal');
       audio.play('slime', { pitch: 0.8, gap: 0.15 });
       break;
@@ -315,6 +385,7 @@ export function troopFx(view, ev) {
       hpx.fire(V(ev.x, 0.2, ev.unit.z ?? 0), { count: 10, radius: ev.r * 0.6 });
       if (a) callout(view, a, 'ERUPTION!', 'big', 1.2);
       view.smashNear?.(ev.x, ev.r, ev.unit.side);
+      engine.shake(0.3);
       audio.play('explode', { pitch: 0.6, gap: 0.1 });
       break;
     }
@@ -328,7 +399,8 @@ export function troopFx(view, ev) {
     case 'healPulse': {
       const a = actorOf(view, ev.target);
       if (!a) break;
-      fx.rise(a.rig.root.position, { count: 6, colors: [0x5fdc4a, 0xd4ff9a], radius: 0.4 });
+      const p = a.rig.root.position;
+      for (let i = 0; i < 4; i++) hpx.emit('glow', i % 2 ? 'twinkle' : 'ember', { x: p.x + rand(-0.3, 0.3), y: p.y + rand(0.1, 0.6), z: p.z + 0.3, vy: rand(1, 1.8), life: rand(0.4, 0.7), scale: 1.2, color: i % 2 ? 0xd4ff9a : 0x5fdc4a, fadeOut: 0.5 });
       break;
     }
     case 'rally': {

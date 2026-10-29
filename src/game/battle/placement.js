@@ -284,8 +284,8 @@ export class Placement {
     u.uPx.value = Math.max(1, Math.round((engine.pixelRatio ?? 1) * 2));
     const pend = this.pending;
     // a waiting card's ghost turns amber and blinks
-    u.uMix.value = pend ? 0.5 : 0.24;
-    u.uAlpha.value = pend ? (Math.sin(this.t * 7) > 0.3 ? 0.72 : 0.42) : 0.7;
+    u.uMix.value = pend ? 0.5 : 0.18;
+    u.uAlpha.value = pend ? (Math.sin(this.t * 7) > 0.3 ? 0.78 : 0.45) : 0.8;
     u.uTint.value.setHex(pend ? 0xffb020 : 0x7fd2ff);
     this.edgeL.classList.toggle('on', edge < 0);
     this.edgeR.classList.toggle('on', edge > 0);

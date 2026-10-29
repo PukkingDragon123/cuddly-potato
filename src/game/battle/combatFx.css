@@ -5,9 +5,9 @@
   --sh: #8a6a2a;
   text-shadow: calc(var(--px) * 0.9) 0 0 var(--ink), calc(var(--px) * -0.9) 0 0 var(--ink), 0 calc(var(--px) * 0.9) 0 var(--ink), 0 calc(var(--px) * -0.9) 0 var(--ink),
     0 calc(var(--px) * 1.8) 0 var(--sh), 0 calc(var(--px) * 2.6) 0 var(--ink); }
-.ftext.hitn.t-m { font-size: calc(var(--u) * 2.7); color: #fff6dc; }
-.ftext.hitn.t-l { font-size: calc(var(--u) * 3.3); color: #ffe27a; --sh: #c86a10; }
-.ftext.hitn.t-xl { font-size: calc(var(--u) * 4); color: #ffb02e; --sh: #a8261e; }
+.ftext.hitn.t-m { font-size: calc(var(--u) * 3); color: #fff6dc; }
+.ftext.hitn.t-l { font-size: calc(var(--u) * 3.5); color: #ffe27a; --sh: #c86a10; }
+.ftext.hitn.t-xl { font-size: calc(var(--u) * 4.2); color: #ffb02e; --sh: #a8261e; }
 .ftext.hitn.s0 { color: #ffc4cc; --sh: #8a1a3a; }
 .ftext.hitn.s0.t-xl, .ftext.hitn.s0.t-l { color: #ff8a9a; }
 .ftext.hitn.k-fire { color: #ffb05a; --sh: #b8300e; }
@@ -31,3 +31,10 @@
 .ftext.hitn.heal { color: #a8ff8a; --sh: #1f7a3a; }
 /* a floater sits at the page corner until its first world-UI update places it: keep it hidden until then */
 .ftext:not([style*="transform"]) { visibility: hidden; }
+/* troop trait callouts (troopFx.js): a small pixel plate, colour by mood - never rotated */
+.ftext.hitn.t-call { font-size: calc(var(--u) * 2.4); letter-spacing: 0.12em; color: #fff; padding: 0.12em 0.5em 0.18em; background: #e8202a; --pl: #6a0a10;
+  text-shadow: 0 calc(var(--px) * 1) 0 var(--pl); box-shadow: 0 0 0 calc(var(--px) * 1) var(--ink), 0 calc(var(--px) * 1.6) 0 calc(var(--px) * 1) var(--ink);
+  white-space: nowrap; }
+.ftext.hitn.t-call.c-gold { background: #f0a81a; --pl: #7a4a0a; }
+.ftext.hitn.t-call.c-green { background: #2fae4a; --pl: #0f4a1f; }
+.ftext.hitn.t-call.c-steel { background: #5a78a8; --pl: #1f2a4a; }

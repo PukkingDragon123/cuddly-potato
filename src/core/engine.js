@@ -25,14 +25,15 @@ const QUALITY = {
   low: { dpr: 1, bloom: false, shadow: THREE.BasicShadowMap, shadowRes: 1024, aa: false },
 };
 const RETRO_TARGET = 360;
-// Adaptive quality governor: when frames are sustainedly slow (below ~48 fps and well
-// under what this display was seen to manage) it steps down the render resolution and
-// then refreshes the shadow map every other frame; when frames are fast again for a
-// while it steps back up (waiting longer after each failed step up, so it never
-// oscillates). ?gov=0 turns it off.
+// Adaptive quality governor: when frames are sustainedly slow (below ~48 fps) it first
+// refreshes the shadow map every other frame (an extra pass over every caster: on Beast
+// Island ~40% of the draw calls; a one-frame-old shadow is invisible), then steps the
+// render resolution down; when frames are fast again for a while it steps back up
+// (waiting longer after each failed step up, so it never oscillates). ?gov=0 turns it off.
 const GOV_LEVELS = [
   { res: 1, shadowEvery: 1 },
-  { res: 0.86, shadowEvery: 1 },
+  { res: 1, shadowEvery: 2 },
+  { res: 0.86, shadowEvery: 2 },
   { res: 0.74, shadowEvery: 2 },
   { res: 0.62, shadowEvery: 2 },
 ];
@@ -329,9 +330,12 @@ class Engine {
       const prev = r.getRenderTarget();
       // the composer path renders the scene into a linear HDR target (different shader variants)
       if (this.useComposer) r.setRenderTarget(this.composer.readBuffer);
-      let p;
-      try { p = r.compileAsync(obj, camera, target); } finally { r.setRenderTarget(prev); }
-      await Promise.race([p, new Promise((res) => setTimeout(res, 5000))]);
+      // without KHR_parallel_shader_compile the compile is synchronous either way (and
+      // compileAsync would log a warning): compile directly, still ahead of the first frame
+      const par = r.extensions.has('KHR_parallel_shader_compile');
+      let p = null;
+      try { if (par) p = r.compileAsync(obj, camera, target); else r.compile(obj, camera, target); } finally { r.setRenderTarget(prev); }
+      if (p) await Promise.race([p, new Promise((res) => setTimeout(res, 5000))]);
     } catch (e) { /* precompiling is only an optimisation */ }
   }
 
@@ -377,6 +381,7 @@ class Engine {
   }
   setGovLevel(l) {
     const G = this.gov;
+    const res0 = GOV_LEVELS[G.level].res;
     G.level = clamp(l, 0, GOV_LEVELS.length - 1);
     G.slowT = 0;
     G.okT = 0;
@@ -384,7 +389,7 @@ class Engine {
     G.ignoreT = 0.6; // the resize itself hitches
     G.check = undefined;
     this.renderer.shadowMap.autoUpdate = true;
-    this.resize();
+    if (GOV_LEVELS[G.level].res !== res0) this.resize();
   }
 
   frame(now) {

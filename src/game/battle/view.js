@@ -1653,15 +1653,24 @@ export class BattleView {
       case 'explode': {
         // kamikaze pop: a pixel fireball + sparks + smoke, a few voxel chunks, light ground debris
         const p = new THREE.Vector3(ev.x, 0.5, ev.unit.z);
-        hpx.boom(p, { scale: 1.5 });
-        hpx.hit(p, 'punch', 1.4, ev.unit.side === 0 ? 1 : -1);
-        groundHit(p.clone().setY(0), { radius: 1.6, color: 0xffd23f, sparks: 6, debris: 5, dust: 5 });
-        audio.play('explode');
-        engine.shake(0.3);
-        engine.hitstop(0.05);
+        const cracked = !!ev.cracked; // FRAGILE: cracked open early - a smaller shell-and-goo splat
+        if (cracked) {
+          hpx.splat(p, { color: 0xffd23f, scale: 1.1 });
+          hpx.chips(p, { anim: 'shard', count: 8, colors: [0xffffff, 0xf4ecd8, 0xe8dcc0], speed: 4.5 });
+          hpx.hit(p, 'punch', 1, ev.unit.side === 0 ? 1 : -1);
+          audio.play('splat', { pitch: 0.9, gap: 0.05 });
+          engine.shake(0.15);
+        } else {
+          hpx.boom(p, { scale: 1.5 });
+          hpx.hit(p, 'punch', 1.4, ev.unit.side === 0 ? 1 : -1);
+          groundHit(p.clone().setY(0), { radius: 1.6, color: 0xffd23f, sparks: 6, debris: 5, dust: 5 });
+          audio.play('explode');
+          engine.shake(0.3);
+          engine.hitstop(0.05);
+        }
         const a = this.actors.get(ev.unit.id);
         if (a) {
-          chunkPop(a.rig.meshes, 30, { force: 7, life: 1.2 });
+          chunkPop(a.rig.meshes, cracked ? 16 : 30, { force: cracked ? 4 : 7, life: 1.2 });
           a.dispose();
           this.actors.delete(ev.unit.id);
         }

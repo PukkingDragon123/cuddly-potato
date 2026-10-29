@@ -3,6 +3,7 @@
 // hazard barrels and hazmat crates, catwalks and big pipe runs, radiation
 // signs and rotating warning beacons, the BEAST ATOMIC containment dome,
 // steaming cooling towers and a smoking stack over an industrial skyline.
+import { viewAspect } from '../../core/util.js';
 import {
   THREE, VoxGrid, Mats, makeMesh, FIELD, shade, mixHex, hash3, vnoise, clamp, text, textW, glowMat, mulberry32, bayer,
   paintGradient, paintClouds, paintSkyline, paintRidge, paintSun, px, disc, skyTexture, parallaxWidth, canvasTex,
@@ -50,7 +51,7 @@ function setInst(im, i, x, y, z, ry = 0, rx = 0, rz = 0, s = 1) {
 function fitSky(K, tex, texAspect = 16 / 9) {
   let last = 0;
   K.onUpdate(() => {
-    const a = typeof window !== 'undefined' ? window.innerWidth / Math.max(1, window.innerHeight) : texAspect;
+    const a = viewAspect(texAspect);
     if (Math.abs(a - last) < 1e-3) return;
     last = a;
     if (a < texAspect) { tex.repeat.set(a / texAspect, 1); tex.offset.set((1 - a / texAspect) / 2, 0); }

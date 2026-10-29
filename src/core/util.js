@@ -134,3 +134,19 @@ export function todayKey(date = new Date()) {
 }
 
 export const sleepFrames = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+/**
+ * Viewport aspect (width / height), cached and refreshed on resize: reading
+ * window.innerWidth inside a per-frame update can force a style / layout pass.
+ */
+let _aspect = 0;
+export function viewAspect(fallback = 16 / 9) {
+  if (typeof window === 'undefined') return fallback;
+  if (!_aspect) {
+    const upd = () => { _aspect = window.innerWidth / Math.max(1, window.innerHeight); };
+    upd();
+    window.addEventListener('resize', upd);
+    window.addEventListener('orientationchange', () => setTimeout(upd, 200));
+  }
+  return _aspect;
+}

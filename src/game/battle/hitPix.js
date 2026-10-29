@@ -604,6 +604,7 @@ const HIT_KINDS = {
   bullet: { anim: 'ping', color: 0xfff0a0, size: 0.8, bits: 3, life: 0.14 },
   magic: { anim: 'magic', color: 0xd08aff, size: 0.85, bits: 4, life: 0.26, bit: 'twinkle', bitGrav: -2, bitColors: [0xffffff, 0xd08aff, 0x9ff2ff] },
   ice: { anim: 'magic', color: 0x9ff2ff, size: 0.8, bits: 4, life: 0.24, bit: 'shard', bitLayer: 'solid', bitColors: [0xffffff, 0xcff6ff, 0x9fe6ff] },
+  thorns: { anim: 'claw', color: 0x9adf5a, size: 0.6, bits: 3, life: 0.18, bit: 'shard', bitLayer: 'solid', bitColors: [0x6ab83a, 0x9adf5a, 0xd8ffb0] },
   venom: { anim: 'splat', color: 0x62d834, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0x62d834, scale: s * 0.6 }) },
   sludge: { anim: 'splat', color: 0x8fb23a, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0x8fb23a, scale: s * 0.8 }) },
   acid: { anim: 'splat', color: 0x7cff3a, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0x7cff3a, scale: s * 0.8 }) },

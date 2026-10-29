@@ -586,7 +586,7 @@ export class HomeScene {
       openVial: (o) => this.openVial(o.type, o.slot, o.source),
       openFree: () => this.openFree(),
       openMegas: () => this.openMegas(),
-      visitLab: () => game.go('lab', { visit: true }),
+      visitLab: () => game.go('lab', { visit: true, backTab: 'lab' }),
       battle: (params) => game.go('battle', params),
       focusArena: (id) => {
         document.querySelectorAll('.modal-back').forEach((m) => m.remove());

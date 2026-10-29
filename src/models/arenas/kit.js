@@ -11,7 +11,7 @@
 //     layers far behind (z -50..-160, painted in HD), sky is a screen-space HD painted texture.
 import * as THREE from 'three';
 import { VoxGrid, Mats, makeMesh } from '../../core/voxel.js';
-import { mulberry32, hash3, shade, mixHex, clamp } from '../../core/util.js';
+import { mulberry32, hash3, shade, mixHex, clamp, viewAspect } from '../../core/util.js';
 import { greedyGeometry, buildGreedy } from '../props/greedy.js';
 import { instanced, vgeo, glassMat, glowMat, text, textW, vnoise, PAL, css } from '../props/common.js';
 import { FIELD } from '../../game/battle/field.js';
@@ -1359,7 +1359,7 @@ export function tuftGrid(col = 0x4cb83a, o = {}) {
 export function fitSkyAuto(K, tex) {
   let last = 0;
   K.onUpdate(() => {
-    const a = typeof window !== 'undefined' ? window.innerWidth / Math.max(1, window.innerHeight) : 16 / 9;
+    const a = viewAspect(16 / 9);
     if (Math.abs(a - last) < 1e-3) return;
     last = a;
     coverFit(tex, a);
