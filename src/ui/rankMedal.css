@@ -1,0 +1,87 @@
+/* =========================================================================
+   Rank medal (src/ui/rankMedal.js): pixel-art medal image + live level
+   number + an occasional shine sweep. Size it with --rm on the element or a
+   parent. The number never rotates; the shine is a masked band that slides
+   with translate (composited), stepped for a pixel feel.
+   ========================================================================= */
+.rmedal {
+  --rm: calc(var(--u) * 9);
+  --ro: max(1px, calc(var(--rm) * 0.024));
+  position: relative; display: inline-block; flex: none; vertical-align: middle;
+  width: var(--rm); height: var(--rm); line-height: 1; pointer-events: inherit;
+}
+.rmedal > .rm-art { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: auto; pointer-events: none; }
+.rmedal > .rm-n {
+  position: absolute; left: var(--fx, 50%); top: var(--fy, 55%); translate: -50% -54%; z-index: 2;
+  font-family: var(--font-d); font-weight: 400; font-style: normal; letter-spacing: 0; line-height: 1; white-space: nowrap;
+  font-size: max(10px, calc(var(--rm) * var(--fr, 0.46) * 1.12)); color: #fff;
+  text-shadow:
+    calc(var(--ro) * -1) calc(var(--ro) * -1) 0 var(--ink), 0 calc(var(--ro) * -1) 0 var(--ink), var(--ro) calc(var(--ro) * -1) 0 var(--ink),
+    calc(var(--ro) * -1) 0 0 var(--ink), var(--ro) 0 0 var(--ink),
+    calc(var(--ro) * -1) var(--ro) 0 var(--ink), 0 var(--ro) 0 var(--ink), var(--ro) var(--ro) 0 var(--ink),
+    0 calc(var(--ro) * 2) 0 var(--ink), var(--ro) calc(var(--ro) * 2) 0 var(--ink), calc(var(--ro) * -1) calc(var(--ro) * 2) 0 var(--ink);
+  pointer-events: none;
+}
+.rmedal.rm-d2 > .rm-n { font-size: max(10px, calc(var(--rm) * var(--fr, 0.46) * 0.96)); letter-spacing: -0.02em; }
+/* two-tone pixel fill: white top, tier-tinted lower half (the outline stays on the parent) */
+.rmedal > .rm-n::after {
+  content: attr(data-n); position: absolute; inset: 0; text-shadow: none; color: transparent;
+  background: linear-gradient(180deg, #fff 0 58%, var(--rm-tint, #dfe8ff) 58%); -webkit-background-clip: text; background-clip: text;
+}
+.rmedal.rm-t-bronze { --rm-tint: #ffdcb8; }
+.rmedal.rm-t-silver { --rm-tint: #d6e2ff; }
+.rmedal.rm-t-gold { --rm-tint: #fff0a0; }
+.rmedal.rm-t-platinum { --rm-tint: #c4f8ff; }
+.rmedal.rm-t-diamond { --rm-tint: #e2d8ff; }
+.rmedal.rm-t-legend { --rm-tint: #ffd0e8; }
+.rmedal.rm-t-legend > .rm-art { filter: drop-shadow(0 0 calc(var(--rm) * 0.05) rgba(255, 90, 180, 0.75)); }
+/* shine: a masked window over the art; the band inside slides across every few seconds */
+.rmedal > .rm-shine, .rmedal > .rm-flash {
+  position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none;
+  -webkit-mask: var(--rm-img) center / 100% 100% no-repeat; mask: var(--rm-img) center / 100% 100% no-repeat;
+}
+.rmedal > .rm-shine::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 60%;
+  background: linear-gradient(115deg, transparent 0 34%, rgba(255, 255, 255, 0.55) 34% 50%, transparent 50% 58%, rgba(255, 255, 255, 0.3) 58% 66%, transparent 66%);
+  translate: -110% 0; animation: rmShine 6s steps(12) infinite; animation-delay: var(--rm-d, 0s);
+}
+@keyframes rmShine { 0%, 72% { translate: -110% 0; } 100% { translate: 180% 0; } }
+.rmedal > .rm-flash { background: #fff; opacity: 0; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .rmedal > .rm-shine::before { animation: none; } }
+
+/* ---------------------------------------------------------------- placements */
+/* home / lab / profile / rewards (labBadge in src/ui/home/common.js) */
+.rmedal.mn-rank { --rm: calc(var(--u) * 12); }
+.rmedal.mn-rank.big { --rm: calc(var(--u) * 21); }
+.rmedal.mn-rank.sm { --rm: calc(var(--u) * 10); }
+/* tier name ("Gold III"), profile only */
+.rm-tname { display: block; font-size: 1.15em; line-height: 1; white-space: nowrap; color: #fff; }
+.rm-tname.rm-t-bronze { color: #ffb47a; }
+.rm-tname.rm-t-silver { color: #dfe8ff; }
+.rm-tname.rm-t-gold { color: #ffd84a; }
+.rm-tname.rm-t-platinum { color: #8ff4ff; }
+.rm-tname.rm-t-diamond { color: #c8b4ff; }
+.rm-tname.rm-t-legend { color: #ff8ac4; }
+/* profile header: medal + tier name, kept clear of the modal's close button in the corner */
+.mn-prof-rank { flex: none; margin: calc(var(--u) * 1.4) calc(var(--u) * 3.2) calc(var(--u) * -0.4) 0; }
+.mn-prof-rank .rmedal { --rm: calc(var(--u) * 18); margin: calc(var(--u) * -2) 0 calc(var(--u) * -1.2); }
+/* home top bar: the medal overhangs the console a little */
+.hm-top .rmedal.hm-rank { --rm: calc(var(--u) * 12.5); margin: calc(var(--u) * -0.9) calc(var(--u) * -0.4) calc(var(--u) * -2.1) calc(var(--u) * -0.8); }
+/* battle HUD name plates (tug-of-war bar ends) */
+.tw-nm .rmedal.tw-rank { --rm: 1.55em; margin: -0.3em -0.1em; top: 0.12em; }
+/* clear of the base-tier chip that pokes up from each end of the bar */
+.tw-nm.s0 .rmedal.tw-rank { margin-left: calc(var(--u) * 3.6); }
+.tw-nm.s1 .rmedal.tw-rank { margin-right: calc(var(--u) * 3.6); }
+/* landscape: the bar hugs the screen top, so give the ribbon a little headroom */
+body.landscape .tw-nm:has(> .tw-rank) { padding-top: calc(var(--u) * 1.4); }
+body.landscape .tw-nm .rmedal.tw-rank { --rm: 1.8em; margin-block: -0.42em; }
+/* VS intro: the medal leads the trophy pill under the name */
+.vsx-pills .rmedal.vsx-rank { --rm: 3em; margin: -0.2em -0.1em -0.62em; font-size: clamp(15px, 1.05em, 22px); }
+/* Beast News result: medal by each name in BASE HP LEFT, and the Lab Level up line */
+.cn-base .nm.rk { flex-direction: row; align-items: center; gap: 0.3em; }
+.cn-base .nm.rk > .nmc { display: flex; flex-direction: column; min-width: 0; }
+.cn-base .rmedal.cn-rank { --rm: clamp(28px, 2.05em, 40px); margin: -0.1em -0.05em -0.1em -0.2em; }
+.cn-ups .cn-up-lab { color: #8fe4ff; }
+.cn-ups .rmedal.cn-up-rank { --rm: 2.1em; margin: -0.3em 0 -0.4em -0.2em; }
+/* boss challenge: the enemy's medal stands in for the stat icon */
+.rmedal.mn-st-rank { --rm: calc(var(--u) * 8); margin: calc(var(--u) * -0.5); }

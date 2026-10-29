@@ -266,6 +266,8 @@ class Engine {
     if (prev && prev.exit) prev.exit();
     this.current = sceneObj;
     this.covers.clear();
+    this.backdrop = null;
+    this.bdLive = null;
     this.trauma = 0;
     this.timeScale = 1;
     this.hitstopT = 0;
@@ -354,6 +356,24 @@ class Engine {
   }
   get covered() {
     return this.covers.size > 0;
+  }
+  /**
+   * Backdrop: a small scene of its own that is drawn instead of the current scene while opaque
+   * UI covers the canvas (e.g. the shop's bunker behind the SHOP tab), on the same renderer (no
+   * extra WebGL context). b = { scene, camera, update?(dt), bloom?, grade? } or null. Its bloom /
+   * grade apply while it shows; the scene's own come back when it stops. Cleared on scene change.
+   */
+  setBackdrop(b) {
+    this.backdrop = b || null;
+  }
+  /** Swap bloom / grade / shadows between the current scene and the backdrop being drawn. */
+  swapLook(bd) {
+    this.bdLive = bd;
+    const src = bd ?? this.current;
+    this.setBloom(src?.bloom || {});
+    this.setGrade(bd ? bd.grade ?? null : this.sceneGrade(this.current));
+    this.renderer.shadowMap.needsUpdate = true;
+    this.gov.ignoreT = Math.max(this.gov.ignoreT, 0.6); // the first frames of a new view are not representative
   }
 
   onFrame(fn) {
@@ -466,8 +486,13 @@ class Engine {
     }
     particles.update(gdt);
 
-    const cam = cur.camera;
-    if (!cam || this.holdRender || this.covers.size) return;
+    const bd = this.covers.size && !this.holdRender ? this.backdrop : null;
+    if (bd !== this.bdLive) this.swapLook(bd);
+    const cam = bd ? bd.camera : cur.camera;
+    if (!cam || this.holdRender || (this.covers.size && !bd)) return;
+    if (bd?.update) {
+      try { bd.update(dt); } catch (e) { console.error('Backdrop update error:', e); this.backdrop = null; return; }
+    }
     // camera shake (screen-space offset along the camera's right/up axes)
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const s = this.trauma * this.trauma * (cur.shakeScale ?? 1);
@@ -491,7 +516,7 @@ class Engine {
       sm.autoUpdate = false;
       if (this.frameNo % every === 0) sm.needsUpdate = true;
     } else sm.autoUpdate = true;
-    this.render(cur.scene, cam);
+    this.render(bd ? bd.scene : cur.scene, cam);
     if (shaken) cam.position.sub(this.shakeOffset);
     const S = this.stats;
     S.calls = info.render.calls;

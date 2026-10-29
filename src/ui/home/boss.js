@@ -3,6 +3,7 @@
 // (ctx.battle({ mode: 'boss', bossId })).
 import { h, icon, button, modal } from '../ui.js';
 import { cardEl } from '../cards.js';
+import { rankMedal } from '../rankMedal.js';
 import { audio } from '../../core/audio.js';
 import { state, cardLevel, currentDeck } from '../../game/state.js';
 import { BOSSES, arenaById } from '../../data/arenas.js';
@@ -44,7 +45,7 @@ export function openBoss(bossId, ctx) {
     h('div', { class: 'mn-boss-stats' },
       h('div', { class: 'mn-st' }, icon('star', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Recommended Level'), h('b', { class: `mn-st-v t-d outline ${ready ? '' : 'warn'}` }, `LV ${b.level}`))),
       b.bossHp ? h('div', { class: 'mn-st' }, icon('hp', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Boss Hitpoints'), h('b', { class: 'mn-st-v t-d outline' }, fmtN(b.bossHp)))) : null,
-      h('div', { class: 'mn-st' }, icon('lab', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Enemy Lab Level'), h('b', { class: 'mn-st-v t-d outline' }, String(b.level + 1)))),
+      h('div', { class: 'mn-st' }, rankMedal(b.level + 1, { cls: 'mn-st-rank', shine: false }), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Enemy Lab Level'), h('b', { class: 'mn-st-v t-d outline' }, String(b.level + 1)))),
       h('div', { class: 'mn-st' }, icon('cards', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Your Deck (avg.)'), h('b', { class: `mn-st-v t-d outline ${ready ? 'ok' : 'warn'}` }, `LV ${avgLv.toFixed(1)}`)))));
   const deckRow = h('div', { class: 'mn-boss-deck' }, ...b.deck.map((id) => cardEl(id, { size: 'mini', level: b.level, locked: false, owned: { level: b.level }, artSize: 128 })));
   const first = bundleList(b.reward);

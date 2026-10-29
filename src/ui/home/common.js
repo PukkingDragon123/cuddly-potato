@@ -21,6 +21,7 @@ import { BANNERS, SWARM_SKINS, LAB_SKINS, CMD_SKINS, PASS_TIERS } from '../../da
 import { TROPHY_ROAD, SECRETS, BOSSES } from '../../data/arenas.js';
 import { ENTRANCES } from '../../data/entrances.js';
 import { entranceArt } from '../entranceArt.js';
+import { rankMedal } from '../rankMedal.js';
 
 export { fmt, fmtTime };
 
@@ -641,9 +642,9 @@ export function priceBtn(label, cur, amount, onClick, cls = 'green', extra = {})
 export const RARITY_RIBBON = { common: 'blue', rare: 'gold', epic: 'purple', legendary: 'green', mythic: 'pink' };
 export const RARITY_BTN = { common: 'blue', rare: 'orange', epic: 'purple', legendary: 'teal', mythic: 'pink' };
 
-/** Hexagonal Lab Level badge. */
+/** Lab Level rank medal (src/ui/rankMedal.js). cls: 'big' | 'sm' plus extra classes; small ones skip the shine. */
 export function labBadge(level, cls = '') {
-  return h('div', { class: 'mn-labbadge ' + cls }, h('div', { class: 'mn-labbadge-in' }, h('b', { class: 't-d outline' }, String(level))));
+  return rankMedal(level, { cls: 'mn-rank ' + cls, shine: !/\bsm\b/.test(cls) });
 }
 
 /** Big pretty number (full digits below 100k). */

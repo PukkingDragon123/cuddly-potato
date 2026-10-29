@@ -83,6 +83,9 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
   variants, skins and the Feastables Panther **Mega Form**.
 - Lab Level (king level) from Lab XP, Commander levels, the 50-tier Food Season pass, daily challenges, Trophy Road rewards
   and a daily shop. Beast Bucks are earned in game only (no real-money purchases).
+- The **SHOP** is a secret bunker (a live voxel diorama: blast door, vault, CRTs, a corkboard with red string, crates of
+  contraband snacks) run by **Lonan**, who is definitely not Nolan in a fedora and a stick-on mustache. Tap him to talk
+  (he haggles once a day), and watch him flash his coat open when you buy something.
 
 ## Controls
 

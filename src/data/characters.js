@@ -97,6 +97,15 @@ export const CHARACTERS = {
     acc: ['earpiece', 'mic'],
     color: '#ff3a52',
   },
+  shadyNolan: {
+    // the SHOP's shady seller: Nolan in a "disguise" (trench coat, fedora, spy shades and a
+    // stick-on mustache that is not even his hair colour). Calls himself Lonan.
+    id: 'shadyNolan', name: 'Lonan', skin: 0xf5cfae, eyeColor: 0x4a8a5a, freckles: true,
+    hair: { style: 'messy', color: 0xc89a5a },
+    outfit: 'labcoat', coat: 0xb08d5c, shirt: 0x2a2630, accent: 0x6e5636, pants: 0x2e2c38, shoes: 0x3a2a20, gloves: 0x2a2428,
+    acc: [{ type: 'fedora', color: 0x4a3a30, band: 0x1c1410 }, 'spyShades', 'mustache'],
+    color: '#d8a548',
+  },
 };
 
 // Talking voices (audio.voice profiles): base = pitch Hz, formant = vocal tract
@@ -114,6 +123,7 @@ export const VOICES = {
   guard: { base: 98, formant: 0.92, range: 4, speed: 0.85, retro: 0.1 },
   fan: { base: 265, formant: 1.25, range: 10, speed: 1.22, retro: 0.12 },
   anchor: { base: 215, formant: 1.16, range: 7, speed: 1.08, breath: 0.25, retro: 0.08 },
+  shadyNolan: { base: 126, formant: 1.05, range: 5, speed: 0.8, breath: 0.75, retro: 0.08 },
 };
 export const DEFAULT_VOICE = { base: 170, formant: 1.08, range: 6, retro: 0.12 };
 /** Voice profile for a character id / def / name (falls back to a neutral NPC voice). */

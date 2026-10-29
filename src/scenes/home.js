@@ -18,6 +18,7 @@ import { fx } from '../core/particles.js';
 import { h, icon, animIcon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, bump, burst, rollNumber, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
 import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
+import { rankMedal, setRankMedal } from '../ui/rankMedal.js';
 import * as M from './homeMotion.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { Chibi } from '../core/chibi.js';
@@ -350,10 +351,10 @@ export class HomeScene {
     const p = state.p;
     const root = (this.root = h('div', { class: 'home' }));
     // top bar
-    this.lvlEl = h('div', { class: 'hm-lvl' }, '1');
+    this.lvlEl = rankMedal(labXpInfo().level, { cls: 'hm-rank' });
     this.nameEl = h('div', { class: 'nm' }, p.name);
     this.xpBar = bar(0, 'blue', '');
-    const prof = h('div', { class: 'hm-prof hit', 'data-tip': 'Your *Lab Level*: upgrade cards and win battles for Lab XP', onclick: () => this.openModal('profile', 'openProfile') }, h('div', { class: 'hm-lvlw' }, this.lvlEl, h('i', { class: 'hm-lvl-ring' })), h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
+    const prof = h('div', { class: 'hm-prof hit', 'data-tip': 'Your *Lab Level*: upgrade cards and win battles for Lab XP', onclick: () => this.openModal('profile', 'openProfile') }, h('div', { class: 'hm-lvlw' }, this.lvlEl), h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
     // pills start at what they showed last time; refresh() after the entrance rolls them up
     this.coinPill = pill('coin', shown.coins ?? p.coins, { plus: () => this.setTab('shop'), cls: 'hm-pill-coin' });
     this.buckPill = pill('bucks', shown.bucks ?? p.bucks, { plus: () => this.setTab('shop'), cls: 'hm-pill-buck' });
@@ -445,10 +446,8 @@ export class HomeScene {
     const p = state.p;
     this.rollReady = !first;
     const xp = labXpInfo();
-    if (this.lvlEl.textContent !== String(xp.level)) {
-      if (this.lvlEl.textContent !== '1' || xp.level !== 1) M.pop(this.lvlEl.parentNode, 0.4);
-      this.lvlEl.textContent = String(xp.level);
-    }
+    // rank medal: a level-up pops it (and swaps the medal art at the peak)
+    if (this.lvlEl._rm.level !== xp.level) setRankMedal(this.lvlEl, xp.level, { pop: !first && xp.level > this.lvlEl._rm.level });
     this.nameEl.textContent = p.name;
     const xf = xp.max ? 1 : xp.xp / Math.max(1, xp.need);
     this.xpBar.set(xf, xp.max ? 'MAX' : `${xp.xp}/${xp.need}`);
@@ -646,8 +645,11 @@ export class HomeScene {
   layoutTab() {
     if (this.navInd) M.slideIndicator(this.navInd, this.navBtns[TABS.findIndex((t) => t.id === this.tab)], true);
     if (!this.tabEl) return;
-    const top = this.root.querySelector('.hm-top').getBoundingClientRect().bottom;
-    const bottom = this.nav.getBoundingClientRect().top;
+    // layout boxes, not on-screen rects: the top bar / dock may still be sliding in (lobby intro),
+    // and a tab opened mid-slide would be sized off the moving bars (and stay that way)
+    const topEl = this.root.querySelector('.hm-top');
+    const top = topEl.offsetTop + topEl.offsetHeight;
+    const bottom = this.root.clientHeight - this.nav.offsetHeight;
     this.tabEl.style.top = top + 'px';
     this.tabEl.style.height = Math.max(100, bottom - top) + 'px';
   }

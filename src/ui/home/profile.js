@@ -9,6 +9,7 @@ import { ALL_CARDS, cardDef } from '../../data/cards.js';
 import { BANNERS, LAB_SKINS } from '../../data/season.js';
 import { currentArena, BOSSES, SECRETS } from '../../data/arenas.js';
 import { COMMANDERS } from '../../data/commanders.js';
+import { rankLabel } from '../rankMedal.js';
 import { bannerEl, cmdImg, labBadge, unlockHint, notify, deny, refreshCtx, fmtN, subHead, chip } from './common.js';
 import { labSkinImg } from '../thumbs.js';
 
@@ -41,7 +42,7 @@ export function openProfile(ctx) {
           h('b', { class: 't-d outline mn-prof-name' }, p.name),
           h('div', { class: 'row wrap gap-s' }, chip([icon('trophy', 's'), h('b', {}, fmtN(p.trophies))]), chip([icon('island', 's'), ar.name])),
           h('span', { class: 't-xs outline-sm' }, `Commander: ${COMMANDERS[cmd]?.name ?? '-'}`)),
-        h('div', { class: 'col center', style: { gap: 0 } }, labBadge(labLevel(), 'big'), h('span', { class: 't-xs t-d outline' }, 'LAB LEVEL'))));
+        h('div', { class: 'col center mn-prof-rank', style: { gap: 0 } }, labBadge(labLevel(), 'big'), rankLabel(labLevel()), h('span', { class: 't-xs t-d outline' }, 'LAB LEVEL'))));
   }
 
   function nameRow() {

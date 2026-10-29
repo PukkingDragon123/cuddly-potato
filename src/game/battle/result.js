@@ -30,6 +30,7 @@ import { VIALS } from '../../data/vials.js';
 import { BASE_UPGRADES } from '../../data/labs.js';
 import { cardDef } from '../../data/cards.js';
 import { cardArtImg } from '../../ui/thumbs.js';
+import { rankMedal, setRankMedal } from '../../ui/rankMedal.js';
 import { Stage3D } from '../../ui/stage3d.js';
 import { VoxGrid, makeMesh } from '../../core/voxel.js';
 
@@ -488,15 +489,20 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
   const board = h('div', { class: 'cn-board' });
   const steps = [];
 
-  // bases: HP left
+  // bases: HP left (each name carries its Lab Level rank medal)
+  let levels = opts.levels;
+  if (!levels) { try { levels = engine.current?.cfg?.sides?.map((sd) => sd?.labLevel) ?? []; } catch (e) { levels = []; } }
   const baseRow = (i) => {
     const b = bases[i];
     const fill = h('i', { class: 'f' });
     const pct = h('span', { class: 'pc' }, '100%');
+    const lv = levels[i];
+    const medal = lv ? rankMedal(lv, { cls: 'cn-rank', shine: false }) : null;
+    const who = [h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')];
     const el = h('div', { class: `cn-base s${i}` },
-      h('div', { class: 'nm' }, h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')),
+      medal ? h('div', { class: 'nm rk' }, medal, h('div', { class: 'nmc' }, who)) : h('div', { class: 'nm' }, who),
       h('b', { class: 'bar sk-well' }, h('i', { class: 'fw' }, fill), pct));
-    return { el, fill, pct, b };
+    return { el, fill, pct, b, medal };
   };
   const bRows = [baseRow(0), baseRow(1)];
   const basesEl = h('div', { class: 'cn-card cn-bases sk-panel-dark' }, h('div', { class: 'cn-cap' }, 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
@@ -652,11 +658,27 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
         gap: 60,
       });
     }
-    const ups = [...(r.levelUps ?? []).map((lu) => `Commander level ${lu.level ?? lu}!`), ...(r.labUps ?? []).map((lu) => `Lab Level ${lu.level ?? lu}!`)];
+    const ups = (r.levelUps ?? []).map((lu) => h('span', {}, icon('up'), `Commander level ${lu.level ?? lu}!`));
+    // Lab Level up: the rank medal pops from the old level to the new one (and so does the one by your name)
+    const labTo = r.labUps?.length ? r.labUps[r.labUps.length - 1].level ?? r.labUps[r.labUps.length - 1] : null;
+    const labMedal = labTo ? rankMedal(Math.max(1, labTo - r.labUps.length), { cls: 'cn-up-rank' }) : null;
+    if (labTo) ups.push(h('span', { class: 'cn-up-lab' }, labMedal, `Lab Level ${labTo}!`));
     if (ups.length) {
-      const el = h('div', { class: 'cn-ups' }, ups.map((u) => h('span', {}, icon('up'), u)));
+      const el = h('div', { class: 'cn-ups' }, ups);
       board.appendChild(el);
-      steps.push({ say: false, run: async () => { el.classList.add('in'); audio.play('levelUp'); }, gap: 100 });
+      steps.push({
+        say: false,
+        run: async (seq) => {
+          el.classList.add('in');
+          audio.play('levelUp');
+          if (labTo) {
+            await seq.wait(seq.skipping ? 0 : 260);
+            setRankMedal(labMedal, labTo, { pop: !seq.skipping });
+            if (bRows[0].medal) setRankMedal(bRows[0].medal, labTo, { pop: !seq.skipping });
+          }
+        },
+        gap: 100,
+      });
     }
   }
 

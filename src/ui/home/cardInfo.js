@@ -3,6 +3,7 @@
 // Lab XP), shiny finishes, Swarm skins and the Mega form toggle.
 import * as THREE from 'three';
 import { h, icon, button, modal, bar, sparkle, rollNumber, clear, rich, burst, confetti, $overlay } from '../ui.js';
+import { setRankMedal } from '../rankMedal.js';
 import { cardEl } from '../cards.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
@@ -372,7 +373,10 @@ export function openCardInfo(id, ctx, opts = {}) {
           const list = [];
           if (coins) list.push({ type: 'coins', amount: coins });
           if (bucks) list.push({ type: 'bucks', amount: bucks });
-          showRewards(list, { title: `LAB LEVEL ${lu.level}!`, color: 'blue', hero: labBadge(lu.level, 'big mn-rw-hero'), note: 'Your base got tougher: +7% HP and damage per level!', jingle: 'victory' });
+          // the rank medal arrives at the old level and pops up to the new one
+          const hero = labBadge(Math.max(1, lu.level - res.labUps.length), 'big mn-rw-hero');
+          showRewards(list, { title: `LAB LEVEL ${lu.level}!`, color: 'blue', hero, note: 'Your base got tougher: +7% HP and damage per level!', jingle: 'victory' });
+          setTimeout(() => setRankMedal(hero, lu.level, { pop: true }), 650);
         }
       }, 1300);
     }, 520);

@@ -11,7 +11,8 @@ src/
                        hitstop, raycast / rayToZPlane / toScreen, renderThumb (3D -> data URL; renderThumbAsync -> blob URL),
                        addLights; adaptive quality governor (shadow refresh, then resolution; ?gov=0 off), shader
                        precompile on scene change, frees the old scene's GPU buffers / shadow maps, engine.cover() for
-                       opaque UI (skips drawing the 3D)
+                       opaque UI (skips drawing the 3D), engine.setBackdrop() for a small scene drawn instead while
+                       covered (the shop bunker, the pass), on the same renderer
     voxel.js           VoxGrid (sparse grid, per-voxel AO, glow voxels, build), Mats (toy plastic, glow HDR), variants
     chibi.js, face.js  chibi characters (Jimmy, Nolan, Juan, NPCs) with pixel faces and pose animations
     particles.js       instanced particles + fx presets (burst, shatter, cash, foam, slime, confetti, shockwave...)
@@ -89,6 +90,10 @@ src/
                        labSkinThumb, baseSpin/baseThumb (battle base tiers); lazy queue renders on-screen images first
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss)
+    home/shop.js       SHOP tab: the secret bunker. bunker.js = the live voxel diorama drawn behind the tab with
+                       engine.setBackdrop (Lonan, the shady seller, behind his counter: idle acting, coat flash,
+                       parcel); bunkerProps.js = pure voxel builders, baked in bunkerWorker.js off the main thread;
+                       shopArt.js = pixel-art skins (crates, steel plates, stamp, CRT, vault); shopTalk.js = his lines
   dev/                 modelLab, arenaView, islandView, uiBench, screenBench, seed
 ```
 

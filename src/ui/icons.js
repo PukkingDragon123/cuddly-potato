@@ -1282,3 +1282,8 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
   return res;
 }
 export const ICON_COLORS = C;
+
+// --------------------------------------------------------------------------- shared raster kit [engineer K]
+// The rank medals (src/ui/rankMedal.js) paint on the same pixel canvas and run
+// through the same shader, so they read as part of this icon set.
+export { Pix as PixCanvas, render as renderPixArt, ramp as pixRamp };

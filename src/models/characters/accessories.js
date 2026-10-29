@@ -477,3 +477,75 @@ export function buildAccessory(a, slot, g, metal, def, side = 1) {
   if (!fn) return;
   fn(g, metal, def, a, side);
 }
+
+// ---------------------------------------------------------------------------
+// Disguise kit (the shop's shady seller): a snap-brim fedora, low spy shades that leave the
+// brows showing, and a stick-on mustache that is clearly not his real hair colour.
+SLOT.fedora = 'head';
+SLOT.spyShades = 'head';
+SLOT.mustache = 'head';
+HATS.add('fedora');
+EYEWEAR.add('spyShades');
+ACCESSORY_TYPES.push('fedora', 'spyShades', 'mustache');
+
+B.fedora = (g, metal, def, a) => {
+  const c = a.color ?? 0x4a3a30, band = a.band ?? 0x1c1410;
+  const top = shade(c, 0.08), dk = shade(c, -0.14), edge = shade(c, -0.24);
+  removeHair(g, (x, y) => y >= 18);
+  // wide brim: snapped down at the front, curled up at the back
+  for (let x = -15; x <= 14; x++)
+    for (let z = -14; z <= 15; z++) {
+      const d = Math.hypot((x + 0.5) / 13.6, (z - 0.5) / 13.4);
+      if (d > 1) continue;
+      const y = z >= 10 ? (z >= 12 ? 15 : 16) : z <= -9 ? 18 : 17;
+      if (g.has(x, y, z) && inHead(x, y, z, 0)) continue;
+      g.set(x, y, z, d > 0.9 ? edge : hash3(x, 3, z) < 0.12 ? dk : c);
+    }
+  // crown: tapers a little, a centre crease on top and pinched at the front
+  for (let y = 18; y <= 24; y++) {
+    const k = Math.max(0, (y - 21) / 3);
+    const rx = 10.8 - k * 1.2, rz = 10.1 - k * 1.1;
+    for (let x = -13; x <= 12; x++)
+      for (let z = -12; z <= 12; z++) {
+        if (Math.hypot((x + 0.5) / rx, (z - 0.5) / rz) > 1) continue;
+        const pinch = y >= 23 && z >= 4 && Math.abs(x + 0.5) > 8 - (y - 22) * 1.5 - (z - 4) * 0.5;
+        if (pinch) continue;
+        const crease = y >= 23 && Math.abs(x + 0.5) < 1.5 && z > -7;
+        if (crease && y === 24) continue;
+        let col = y <= 19 ? band : y === 24 || crease ? top : c;
+        if (y > 19 && y < 24 && hash3(x, y, z) < 0.05) col = dk;
+        g.set(x, y, z, col);
+      }
+  }
+  // little bow on the band (left side)
+  blob(g, -12, 18.5, 2, 0.8, 1, 1.4, shade(band, 0.12));
+};
+
+B.spyShades = (g, metal, def, a) => {
+  const frame = a.color ?? 0x14141c, lens = a.lens ?? 0x0e0e16, z = HEAD.z1 + 1;
+  for (const [x0, x1] of [[-9, -2], [1, 8]]) {
+    for (let x = x0; x <= x1; x++)
+      for (let y = 8; y <= 12; y++) {
+        const edge = x === x0 || x === x1 || y === 8 || y === 12;
+        g.set(x, y, z, edge ? frame : (x - x0 + (12 - y)) % 6 === 1 && y >= 10 ? 0x5a6a8a : lens);
+      }
+    g.set(x0 + 1, 11, z, 0xc8d4ee); // hard glint
+  }
+  g.set(-1, 11, z, frame); g.set(0, 11, z, frame);
+  for (let zz = 1; zz <= z; zz++) { g.set(HEAD.x0 - 1, 11, zz, frame); g.set(HEAD.x1 + 1, 11, zz, frame); }
+  g.set(-10, 11, z, frame); g.set(9, 11, z, frame);
+};
+
+B.mustache = (g, metal, def, a) => {
+  const c = a.color ?? 0x5a3418, hi = shade(c, 0.22), lo = shade(c, -0.22), z = HEAD.z1 + 1;
+  // sits right under the nose (the mouth stays visible below it when he talks), droops at the ends
+  for (let x = -7; x <= 6; x++) {
+    const ax = Math.abs(x + 0.5);
+    for (let y = 5; y <= 7; y++) {
+      if (y === 5 && ax < 4.5) continue;
+      if (y === 7 && ax > 5.5) continue;
+      g.set(x, y, z, hash3(x, y, 3) < 0.25 ? lo : y === 7 && ax < 3.5 ? hi : c);
+    }
+    if (ax < 4) for (let y = 6; y <= 7; y++) g.set(x, y, z + 1, hash3(x, y, 9) < 0.3 ? lo : y === 7 ? hi : c);
+  }
+};

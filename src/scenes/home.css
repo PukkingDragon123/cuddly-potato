@@ -24,15 +24,6 @@
   background: linear-gradient(90deg, transparent, var(--lab-cyan) 12%, #fff 50%, var(--lab-cyan) 88%, transparent); opacity: 0.85;
 }
 .hm-prof { display: flex; align-items: center; gap: calc(var(--u) * 1.2); min-width: 0; flex: 1 1 auto; cursor: pointer; }
-.hm-lvl {
-  position: relative; flex: none; width: calc(var(--u) * 9); height: calc(var(--u) * 9.6); display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-d); font-size: calc(var(--u) * 5); text-shadow: var(--outline-thin); color: #fff;
-  /* hex atom badge: ink rim, cyan glass, bubbling goo bottom */
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) 32% 16% / calc(var(--px) * 2) calc(var(--px) * 2) no-repeat,
-    linear-gradient(#e0ffff 0 9%, #4fc8ff 9% 46%, #2b8cf2 46% 64%, #22c8b0 64% 70%, #13a08a 70% 88%, #0b6a6a 88%);
-  clip-path: polygon(50% 0, 100% 22%, 100% 74%, 50% 100%, 0 74%, 0 22%);
-}
 .hm-pname { display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); min-width: 0; }
 .hm-pname .nm { font-family: var(--font-d); font-size: 1.15em; line-height: 1; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(var(--u) * 34); }
 .hm-pname .bar { width: calc(var(--u) * 24); height: calc(var(--u) * 2.8); }
@@ -279,23 +270,6 @@ body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
    ========================================================================= */
 /* ---- top bar */
 .hm-lvlw { position: relative; flex: none; display: flex; }
-.hm-lvl { filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(79, 200, 255, 0.6)); }
-.hm-lvl::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(105deg, transparent 0 40%, rgba(255, 255, 255, 0.75) 40% 47%, transparent 47% 52%, rgba(255, 255, 255, 0.4) 52% 55%, transparent 55%) no-repeat;
-  background-size: 300% 100%; background-position: 150% 0; animation: hmLvlShine 4.5s steps(18) infinite;
-}
-@keyframes hmLvlShine { 0%, 62% { background-position: 150% 0; } 100% { background-position: -60% 0; } }
-.hm-lvl-ring {
-  /* twinkling pixel star on the badge corner */
-  position: absolute; right: calc(var(--px) * -2.5); top: calc(var(--px) * -2); width: calc(var(--px) * 7); height: calc(var(--px) * 7); pointer-events: none; z-index: 2;
-  background:
-    linear-gradient(#fff, #fff) 50% 50% / var(--px) 100% no-repeat,
-    linear-gradient(#fff, #fff) 50% 50% / 100% var(--px) no-repeat,
-    linear-gradient(#fff6b8, #fff6b8) 50% 50% / calc(var(--px) * 3) calc(var(--px) * 3) no-repeat;
-  filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 236, 140, 0.95));
-  animation: ttTwinkle 3s steps(1) infinite;
-}
 .hm-top .pill { overflow: visible; }
 .hm-top .pill::before {
   /* glass glint that sweeps the pill now and then */
@@ -396,7 +370,7 @@ body.landscape .hm-battle { min-width: calc(var(--u) * 38); font-size: 2em; }
 @media (max-width: 380px) { .hm-battle { min-width: calc(var(--u) * 44); font-size: 2.05em; } .hm-zprog { width: calc(var(--u) * 18); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .hm-lvl::after, .hm-lvl-ring, .hm-top .pill::before, .hm-side.left .hm-mini, .hm-mini-rays, .hm-side.right .hm-sb,
+  .hm-top .pill::before, .hm-side.left .hm-mini, .hm-mini-rays, .hm-side.right .hm-sb,
   .hm-zone .arr > *, .hm-battle .pi, .hm-side-play, .hm-slot img.vt, .hm-slot-rays, .hm-slot-prog > i, .hm-slot .st, .hm-tabbtn .pi, .hm-tabbtn.on::after, .hm-tabbtn.on,
   .hm-tab, .hm-tab.hm-tab-out { animation: none !important; }
 }

@@ -518,6 +518,36 @@ function seatWrap(fn, t, p, k, d) {
   p.torsoRX = min(p.torsoRX, 0.4);
 }
 
+// shop counter poses (the shady seller): lean on the counter drumming the fingers while glancing
+// around, flash the coat open, lean in to whisper
+POSES.counterTap = (t, p) => {
+  const s = sin(t * 15);
+  p.torsoRX = 0.14; p.headRX = -0.04;
+  p.armLX = p.armRX = -0.78; p.armLZ = -0.22; p.armRZ = 0.22;
+  p.elbowL = -0.85; p.elbowR = -0.85 + max(0, s) * 0.12;
+  p.hl = 'open'; p.hr = s > 0.2 ? 'point' : 'open';
+  const g = sin(t * 0.8) + sin(t * 2.1) * 0.35;
+  p.headRY = g * 0.32; p.lookX = g * 1.2; p.lookOn = 1;
+  p.sy = 1 + sin(t * 2.2) * 0.01;
+};
+POSES.coatOpen = (t, p) => {
+  const b = sin(t * 3);
+  p.armLZ = -1.05; p.armRZ = 1.05; p.armLX = p.armRX = -0.3;
+  p.elbowL = p.elbowR = -0.45; p.elbowLZ = 0.55; p.elbowRZ = -0.55;
+  p.hl = p.hr = 'fist';
+  p.torsoRX = -0.1; p.headRX = -0.06; p.headRZ = b * 0.05;
+  p.y = abs(b) * 0.02;
+};
+POSES.pushShades = (t, p) => {
+  POSES.counterTap(t, p);
+  p.armRX = -1.25; p.armRZ = 0.62; p.elbowR = -1.95; p.hr = 'point'; p.headRX = 0.08;
+};
+POSES.whisper = (t, p) => {
+  p.torsoRX = 0.3; p.headRX = 0.06; p.headRZ = -0.08;
+  p.armRX = -1.35; p.armRZ = 0.55; p.elbowR = -1.95; p.hr = 'open';
+  p.armLX = -0.8; p.armLZ = -0.2; p.elbowL = -0.8; p.hl = 'open';
+  p.lookX = sin(t * 2.6) * 1.2; p.lookOn = 1;
+};
 const ONE_SHOT = { throw: 0.5, kick: 0.6, flick: 0.5, hit: 0.3, shocked: 0.7, jump: 0.75 };
 const LEGACY = new Set(['idle', 'walk', 'run', 'talk', 'cheer', 'dance', 'throw', 'kick', 'point', 'present', 'holdUp', 'sit', 'sitCheer', 'sitWorried', 'shocked', 'hit', 'sad', 'angry', 'facepalm', 'wave', 'flick', 'shake', 'bellyflop', 'victory']);
 // poses that make no sense while seated (react() won't seat-wrap them)

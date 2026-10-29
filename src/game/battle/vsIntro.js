@@ -14,6 +14,7 @@
 import './vsIntro.css';
 import * as THREE from 'three';
 import { h, icon } from '../../ui/ui.js';
+import { rankMedal } from '../../ui/rankMedal.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { Chibi } from '../../core/chibi.js';
@@ -113,7 +114,7 @@ export async function vsIntro(parent, cfg, opts = {}) {
   const info = (s, i) => {
     const pills = [];
     if (s.trophies !== undefined && s.trophies !== null) pills.push(h('span', { class: 'vsx-pill tr sk-well' }, icon('trophy'), h('b', {}, String(s.trophies))));
-    if (s.labLevel) pills.push(h('span', { class: 'vsx-pill lv sk-well' }, icon('lab'), h('b', {}, `LV ${s.labLevel}`)));
+    if (s.labLevel) pills.unshift(rankMedal(s.labLevel, { cls: 'vsx-rank' }));
     return h('div', { class: `vsx-info s${i}` },
       h('div', { class: `vsx-tag ${i ? 'sk-chip-red' : 'sk-chip-blue'}` }, i ? (s.clan || 'CHALLENGER') : 'YOU'),
       h('div', { class: 'vsx-nm', style: { '--nk': String(Math.min(1, 9 / Math.max(9, (s.name ?? '').length))) } }, s.name ?? (i ? 'Rival' : 'You')),
