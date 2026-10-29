@@ -1,12 +1,13 @@
 // Battle end cinematics.
 //
-// finalBlow(parent, { win, view }): the slow-mo base collapse beat (letterbox,
-//   vignette, speed lines, camera push, BASE DESTROYED slam) layered over the
-//   3D collapse that view.labDestroyed plays.
+// finalBlow(parent, { win }): the short base-destroyed beat (impact flash,
+//   BASE DESTROYED stamp, TV static) over the 3D crumble view.labDestroyed
+//   plays, then the broadcast cuts straight to the news.
 //
 // showResult(parent, opts): resolves with the id of the button pressed.
 //   1. VERDICT: VICTORY! / DEFEAT / DRAW slams over gold rays (or rain) while
 //      the winning Commander celebrates in live 3D (the loser sulks behind).
+//      (skipped with opts.cut: a destroyed base cuts straight to the sting)
 //   2. BREAKING NEWS sting.
 //   3. BEAST NEWS: anchor Nora Newsly (3D chibi) at the news desk presents the
 //      battle report: headline, base HP left, battle time, troops deployed,
@@ -23,12 +24,10 @@ import { h, icon, animIcon, button, rollNumber, sparkle, burst, confetti, bump }
 import { popWords } from '../../ui/dialogue.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
-import { animate } from '../../core/tween.js';
 import { Chibi } from '../../core/chibi.js';
 import { CHARACTERS } from '../../data/characters.js';
 import { VIALS } from '../../data/vials.js';
 import { BASE_UPGRADES } from '../../data/labs.js';
-import { debrisSprites, copyOf } from '../../scenes/labLoadArt.js';
 import { cardDef } from '../../data/cards.js';
 import { cardArtImg } from '../../ui/thumbs.js';
 import { Stage3D } from '../../ui/stage3d.js';
@@ -189,69 +188,67 @@ function makeNewsDesk() {
 }
 
 // ---------------------------------------------------------------------------
-// 0. Final blow (over the 3D base collapse)
+// 0. Final blow: a short, clean beat over the base going down, then the
+//    broadcast cuts to the news (battle.js calls showResult({ cut: true }) at ~1 s)
+//
+//   0.00 s  impact flash, the stamp pops in (BASE DESTROYED! / YOUR BASE FELL!)
+//   0.72 s  TV static: the feed "changes channel"
+//   1.00 s  showResult's BREAKING NEWS sting takes over; this layer fades away
 
-export function finalBlow(parent, { win = true, view = null } = {}) {
-  // pixel debris blasted off the stamp when it lands (shards, bolts, gears, splinters)
-  const chunks = h('div', { class: 'cfb-chunks' });
-  const spr = debrisSprites();
-  for (let i = 0; i < 22; i++) {
-    const s = spr[i % spr.length], c = copyOf(s);
-    const a = (i / 22) * Math.PI * 2 + Math.random() * 0.25, r = 22 + Math.random() * 30;
-    c.style.width = `calc(var(--px) * ${s.width * 1.6})`;
-    chunks.appendChild(h('i', { style: { '--dx': `${(Math.cos(a) * r).toFixed(1)}vmin`, '--dy': `${(Math.sin(a) * r * 0.75).toFixed(1)}vmin`, '--fall': `${(14 + Math.random() * 22).toFixed(1)}vmin`, '--rot': `${Math.round((Math.random() < 0.5 ? -1 : 1) * (300 + Math.random() * 700))}deg`, '--d': `${(0.7 + Math.random() * 0.5).toFixed(2)}s` } }, c));
-  }
+export function finalBlow(parent, { win = true } = {}) {
+  const stat = staticCanvas();
   const el = h('div', { class: `cfb ${win ? 'win' : 'loss'}` },
-    h('i', { class: 'cfb-vig' }), h('i', { class: 'cfb-lines' }),
-    h('i', { class: 'cfb-bar t' }), h('i', { class: 'cfb-bar b' }),
-    h('div', { class: 'cfb-tag' }, recDot(), 'SLOW-MO', h('b', {}, 'x0.2')),
-    crackCanvas(),
-    chunks,
-    h('div', { class: 'cfb-stamp' }, h('b', {}, win ? 'BASE' : 'YOUR BASE'), h('span', {}, win ? 'DESTROYED!' : 'HAS FALLEN!')),
-    h('i', { class: 'cfb-flash' }), h('i', { class: 'cfb-impact' }));
+    h('i', { class: 'cfb-vig' }),
+    h('div', { class: 'cfb-stamp' }, h('b', {}, win ? 'BASE' : 'YOUR BASE'), h('span', {}, win ? 'DESTROYED!' : 'FELL!')),
+    h('i', { class: 'cfb-flash' }),
+    stat.cv);
   parent.appendChild(el);
-  SND.slowmo();
-  audio.play('heartbeat', { pitch: 0.8 });
-  // camera push toward the collapsing base, eased back by the result screen's own framing
-  if (view) {
-    const z0 = view.zoom;
-    animate(1.4, (e) => { view.zoom = z0 + (Math.max(0.7, z0 * 0.72) - z0) * e; }, { ease: 'outCubic' });
-  }
-  // the stamp slams in on the collapse (baseFall.js COLLAPSE beat at 0.9 s)
+  requestAnimationFrame(() => el.classList.add('hit'));
+  audio.play('stamp', { pitch: win ? 0.9 : 0.7 });
   setTimeout(() => {
     if (!el.isConnected) return;
-    el.classList.add('hit');
-    audio.play('explode', { pitch: 0.55 });
-    audio.play('stamp', { pitch: 0.7 });
-  }, 950);
-  setTimeout(() => el.classList.add('out'), 2350);
-  setTimeout(() => el.remove(), 2900);
+    el.classList.add('tv');
+    stat.run(420);
+    sfx((a) => a.noise({ dur: 0.32, vol: 0.07, type: 'highpass', f0: 2400, attack: 0.005 }));
+  }, 720);
+  setTimeout(() => el.classList.add('out'), 1150);
+  setTimeout(() => el.remove(), 1500);
   return el;
 }
 
-/** The lens cracks on the collapse: jagged pixel fracture lines from an impact point (lower third). */
-function crackCanvas() {
-  const W = 240, H = Math.round(240 * (window.innerHeight / Math.max(1, window.innerWidth)));
+/** Pixel TV static (chunky grey/white noise + a rolling dark band), redrawn every frame while it runs. */
+function staticCanvas() {
+  const W = 96, H = Math.max(40, Math.round(96 * (window.innerHeight / Math.max(1, window.innerWidth))));
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
-  cv.className = 'cfb-crack';
+  cv.className = 'cfb-static';
   const g = cv.getContext('2d');
-  const ox = W * (0.3 + Math.random() * 0.4), oy = H * (0.58 + Math.random() * 0.12);
-  const P = (x, y, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), 1, 1); };
-  const branch = (x, y, a, len, depth) => {
-    for (let i = 0; i < len; i++) {
-      a += (Math.random() - 0.5) * 0.5;
-      x += Math.cos(a); y += Math.sin(a);
-      if (x < 0 || y < 0 || x >= W || y >= H) return;
-      P(x, y, 'rgba(255,255,255,0.9)');
-      P(x + 1, y + 1, 'rgba(10,8,30,0.55)');
-      if (depth < 2 && Math.random() < 0.035) branch(x, y, a + (Math.random() < 0.5 ? -0.8 : 0.8), len * 0.45, depth + 1);
+  const img = g.createImageData(W, H);
+  const draw = (t) => {
+    const band = ((t * 1.8) % 1) * H;
+    for (let y = 0; y < H; y++) {
+      const dark = Math.abs(y - band) < H * 0.08 ? 0.45 : 1;
+      for (let x = 0; x < W; x++) {
+        const v = (Math.random() * 4 | 0) * 70 * dark;
+        const i = (y * W + x) * 4;
+        img.data[i] = v; img.data[i + 1] = v; img.data[i + 2] = v + 12; img.data[i + 3] = 255;
+      }
     }
+    g.putImageData(img, 0, 0);
   };
-  for (let i = 0; i < 9; i++) branch(ox, oy, (i / 9) * Math.PI * 2 + Math.random() * 0.4, 50 + Math.random() * 90, 0);
-  // the shattered spot at the impact point
-  for (let y = -5; y <= 5; y++) for (let x = -6; x <= 6; x++) if (Math.abs(x) + Math.abs(y) < 7 && (x * 7 + y * 3) % 3 === 0) P(ox + x, oy + y, 'rgba(255,255,255,0.75)');
-  return cv;
+  return {
+    cv,
+    run(ms) {
+      const t0 = performance.now();
+      const step = (now) => {
+        if (!cv.isConnected) return;
+        const t = (now - t0) / 1000;
+        draw(t);
+        if (now - t0 < ms) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,13 +285,15 @@ export async function showResult(parent, opts) {
       h('div', { class: `cv-sub sk-ribbon-${win ? 'pink' : loss ? 'blue' : 'purple'}` }, win ? `${names[0]} WINS!` : loss ? `${names[1]} WINS` : 'NOBODY BLINKED')),
     h('i', { class: 'cv-bar t' }), h('i', { class: 'cv-bar b' }, h('span', { class: 'cv-skip' }, 'TAP TO CONTINUE')),
     h('i', { class: 'cv-flash' }));
-  root.appendChild(verdict);
+  // cut: a base was destroyed, so the battle cuts straight to the news (no verdict screen)
+  const cut = !!opts.cut;
+  if (!cut) root.appendChild(verdict);
 
   // 3D: the winner celebrates centre stage, the loser sulks behind
   const sides = sum?.sides ?? [];
   const winSide = win ? 0 : loss ? 1 : 0;
-  const champ = chibiFor(sides[winSide]?.commander);
-  const other = chibiFor(sides[1 - winSide]?.commander);
+  const champ = cut ? null : chibiFor(sides[winSide]?.commander);
+  const other = cut ? null : chibiFor(sides[1 - winSide]?.commander);
   const cam = stage.camera;
   cam.position.set(0, 1.25, 10);
   cam.lookAt(0, 1.25, 0);
@@ -324,30 +323,32 @@ export async function showResult(parent, opts) {
     for (const c of [champ, other, anchor]) if (c) for (let i = 0; i < n; i++) c.update(dt / n);
   });
   stage.onResize = () => phase === 'verdict' && layoutVerdict();
-  let phase = 'verdict';
+  let phase = cut ? 'news' : 'verdict';
   let anchor = null;
   stage.mount(stageHost);
   stage.start();
   if (import.meta.env.DEV) window.__resStage = stage;
 
-  if (champ) {
-    if (result === 'draw') champ.react('shrug', { dur: 3 });
-    else { champ.play('victory'); champ.mood('excited'); champ.boing(0.5); }
+  if (!cut) {
+    if (champ) {
+      if (result === 'draw') champ.react('shrug', { dur: 3 });
+      else { champ.play('victory'); champ.mood('excited'); champ.boing(0.5); }
+    }
+    if (other) {
+      if (result === 'draw') other.react('shrug', { dur: 3 });
+      else { other.play('sad'); other.mood('cry'); }
+    }
+    audio.play(win ? 'fanfare' : loss ? 'error' : 'bell');
+    setTimeout(() => { if (root.isConnected) { engine.shake?.(loss ? 0.3 : 0.2); audio.play('stamp', { pitch: loss ? 0.7 : 1 }); } }, 140 + title.length * 60);
+    if (win) {
+      audio.play('cheer');
+      confetti(verdict, { count: 50, life: 5, spread: 1.4 });
+      setTimeout(() => root.isConnected && burst(verdict.querySelector('.cv-title'), { color: '#ffd84a', count: 26, scale: 1.2 }), 160 + title.length * 60);
+    }
+    // celebration beats
+    setTimeout(() => { if (alive && champ && result !== 'draw') champ.react(win ? 'celebrate' : 'laugh', { dur: 1.8 }); }, 1100);
+    await seq.wait(2900);
   }
-  if (other) {
-    if (result === 'draw') other.react('shrug', { dur: 3 });
-    else { other.play('sad'); other.mood('cry'); }
-  }
-  audio.play(win ? 'fanfare' : loss ? 'error' : 'bell');
-  setTimeout(() => { if (root.isConnected) { engine.shake?.(loss ? 0.3 : 0.2); audio.play('stamp', { pitch: loss ? 0.7 : 1 }); } }, 140 + title.length * 60);
-  if (win) {
-    audio.play('cheer');
-    confetti(verdict, { count: 50, life: 5, spread: 1.4 });
-    setTimeout(() => root.isConnected && burst(verdict.querySelector('.cv-title'), { color: '#ffd84a', count: 26, scale: 1.2 }), 160 + title.length * 60);
-  }
-  // celebration beats
-  setTimeout(() => { if (alive && champ && result !== 'draw') champ.react(win ? 'celebrate' : 'laugh', { dur: 1.8 }); }, 1100);
-  await seq.wait(2900);
   // dev: window.__resHold = true keeps the verdict up (screenshots on slow machines)
   while (import.meta.env.DEV && window.__resHold && root.isConnected) await new Promise((res) => setTimeout(res, 300));
   if (!root.isConnected) { end(); return 'ok'; }

@@ -1513,3 +1513,21 @@
 }
 /* the shop's corner bonus tag: pixel highlight, no gloss circle */
 .mn-cbonus { background: linear-gradient(#ffc0c6 0 0) calc(var(--px) * 1.5) calc(var(--px) * 1) / calc(var(--px) * 2) var(--px) no-repeat, var(--red); }
+/* ---- round 2 (M): homes for what used to float on the lobby's left edge ---- */
+/* CARDS: the equipped MEGA ultimate under the deck */
+.mn-megabox { position: relative; display: flex; align-items: center; gap: calc(var(--u) * 2); padding: calc(var(--u) * 1.4) calc(var(--u) * 2); margin-top: calc(var(--u) * 1.6); }
+.mn-mega-art { width: calc(var(--u) * 14); height: calc(var(--u) * 14); flex: none; display: grid; place-items: center; background: var(--pxs-glow-w) 50% 40% / 110% 110% no-repeat, linear-gradient(#b03a9e 0 50%, #6a1a8a 50%); image-rendering: pixelated; box-shadow: 0 0 0 var(--px) var(--ink); }
+.mn-mega-art img { width: 100%; height: 100%; object-fit: contain; }
+.mn-mega-art.locked img { filter: grayscale(1) brightness(0.45); }
+.mn-mega-txt { gap: calc(var(--u) * 0.3) !important; min-width: 0; }
+.mn-mega-n { font-size: 1.15em; line-height: 1.05; }
+.mn-mega-s { color: #ffc8f0; line-height: 1.15; }
+.mn-megabox > .btn { flex: none; }
+/* SHOP: the free vial sits under the daily gift */
+.mn-freevial { margin-top: calc(var(--u) * 1.4); }
+.mn-freevial .mn-gift-rays { --ro: 0.45; }
+.mn-freevial.ready { box-shadow: 0 0 calc(var(--u) * 3) rgba(122, 255, 74, 0.35); }
+.mn-freevial .mn-gift-art .mn-vial { width: 100%; height: 100%; object-fit: contain; }
+/* LAB: the two shortcuts stack on the right */
+.mn-labgo { align-items: stretch; flex: none; }
+.mn-freevial.waiting .mn-gift-art, .mn-freevial.waiting .mn-gift-rays { filter: grayscale(0.8) brightness(0.7); animation: none; }

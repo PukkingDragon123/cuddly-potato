@@ -777,10 +777,10 @@ export class BattleScene {
     this.lockInput = null;
     const labFell = !sim.sides[0].lab.alive || !sim.sides[1].lab.alive;
     if (labFell) {
-      // slow-mo final blow: the HUD clears, letterbox + BASE DESTROYED slam over the collapse
+      // a short clean beat (stamp + TV static over the crumble), then straight to the news
       this.hud.setVisible(false);
-      finalBlow($overlay(), { win: !sim.sides[1].lab.alive, view: this.view });
-      await wait(2.6);
+      finalBlow($overlay(), { win: !sim.sides[1].lab.alive });
+      await wait(1.0);
     }
     else {
       const why = {
@@ -796,6 +796,7 @@ export class BattleScene {
     this.hud.setVisible(false);
     audio.stopMusic();
     if (!sim.draw) this.view.celebrate(sim.winner);
+    this.cutToNews = labFell;
     audio.jingle?.(win ? 'victory' : 'defeat');
     // stats
     const st = sim.sides[0].stats;
@@ -822,14 +823,14 @@ export class BattleScene {
     const again = this.mode === 'boss' ? 'RETRY' : this.mode === 'practice' ? 'AGAIN' : null;
     const btns = [{ id: 'ok', label: 'OK', color: 'blue' }];
     if (again) btns.unshift({ id: 'again', label: again, color: 'yellow', icon: 'swords' });
-    const choice = await showResult($overlay(), { result: res, bases, names, rewards, mode: this.mode, buttons: btns });
+    const choice = await showResult($overlay(), { result: res, bases, names, rewards, mode: this.mode, buttons: btns, cut: this.cutToNews });
     if (choice === 'again') game.go('battle', this.mode === 'boss' ? { mode: 'boss', bossId: this.params.bossId } : { mode: this.mode, arena: this.arenaId });
     else game.go('home', { from: 'battle', rewards });
   }
 
   async tutorialEnd(win, bases, names) {
     const J = JIMMY();
-    await showResult($overlay(), { result: win ? 'win' : 'loss', bases, names, rewards: null, mode: 'tutorial', buttons: [{ id: 'ok', label: 'OK', color: 'blue' }] });
+    await showResult($overlay(), { result: win ? 'win' : 'loss', bases, names, rewards: null, mode: 'tutorial', buttons: [{ id: 'ok', label: 'OK', color: 'blue' }], cut: this.cutToNews });
     if (!win) {
       await say(J, "Oof! Happens to everyone. Let's run it back - drop a tanky Panther in front and ranged Swarms behind!");
       game.go('battle', { mode: 'tutorial' });
@@ -852,7 +853,7 @@ export class BattleScene {
     // keep streaming the final state until the guest has it, then leave the match room
     setTimeout(() => { if (!this.dead && net.peer === this.peer) { net.clear(); lobby.endMatch(); } }, 6000);
     const btns = [{ id: 'again', label: 'PLAY AGAIN', color: 'yellow', icon: 'swords' }, { id: 'ok', label: 'OK', color: 'blue' }];
-    const choice = await showResult($overlay(), { result: this.noContest ? 'draw' : res, bases, names, rewards, mode: rewards ? 'ranked' : 'friend', buttons: btns });
+    const choice = await showResult($overlay(), { result: this.noContest ? 'draw' : res, bases, names, rewards, mode: rewards ? 'ranked' : 'friend', buttons: btns, cut: this.cutToNews });
     if (choice === 'again') (await import('../ui/home/online.js')).onlineIntent.next = 'search';
     game.go('home', { from: 'battle', rewards });
   }
@@ -881,7 +882,7 @@ export class BattleScene {
         game.go('battle', { mode: 'friend', role: 'guest', remote: msg.host, arena: msg.arena });
       });
     }
-    const choice = await showResult($overlay(), { result: res, bases, names, rewards: null, mode: 'friend', buttons: btns });
+    const choice = await showResult($overlay(), { result: res, bases, names, rewards: null, mode: 'friend', buttons: btns, cut: this.cutToNews });
     if (choice === 'rematch') {
       const me = this.cfg.sides[0];
       peer.send({ t: 'start', host: me, guest: this.params.remote, arena: this.arenaId });

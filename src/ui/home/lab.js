@@ -326,7 +326,8 @@ export function mount(el, ctx) {
       h('div', {}, icon('swords', 's'), h('span', {}, 'Win battles: +6 Lab XP')));
     how.querySelectorAll('span').forEach((s) => (s.innerHTML = rich(s.textContent)));
     const go = button('UPGRADE CARDS', () => ctx.openTab?.('cards'), 'blue sm', { icon: 'cards' });
-    return h('div', { class: 'panel sk-panel mn-labpanel' }, head, stats, subHead('LEVEL REWARDS'), road, h('div', { class: 'row wrap between gap-s' }, how, go));
+    const visit = button('VISIT THE LAB', () => ctx.visitLab?.(), 'teal sm', { icon: 'flask' });
+    return h('div', { class: 'panel sk-panel mn-labpanel' }, head, stats, subHead('LEVEL REWARDS'), road, h('div', { class: 'row wrap between gap-s' }, how, h('div', { class: 'col gap-s mn-labgo' }, go, visit)));
   }
 
   function render() {

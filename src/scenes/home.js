@@ -357,11 +357,7 @@ export class HomeScene {
     this.buckPill.dataset.tip = '*Beast Bucks*: vials, skins and skips';
     this.top = h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill);
     root.appendChild(this.top);
-    // side buttons
-    this.freeEl = h('div', { class: 'hm-mini hm-freebtn sk-panel-dark hit', 'data-tip': 'A *free vial* every 4 hours', onclick: () => this.openFree() }, h('i', { class: 'hm-mini-rays' }), vialImg('free', ''), h('div', { class: 't' }, 'FREE'));
-    this.megaEl = h('div', { class: 'hm-mini hm-megabtn sk-panel-pink hit', 'data-tip': 'Your *MEGA ultimate*: unleash it in battle', onclick: () => this.openMegas() }, icon('mega'), h('div', { class: 't' }, 'MEGA'));
-    this.labEl = h('div', { class: 'hm-mini hm-labbtn sk-panel-dark hit', 'data-tip': 'Visit the *Beast Lab*', onclick: () => game.go('lab', { visit: true }) }, animIcon('flask'), h('div', { class: 't' }, 'LAB'));
-    root.appendChild(h('div', { class: 'hm-side left' }, this.freeEl, this.megaEl, this.labEl));
+    // side buttons (right edge only: the free vial lives in the SHOP, the MEGA in CARDS, the Lab visit in LAB)
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
       button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only hm-sb hm-sb-fr', { icon: 'friends' }),
@@ -409,7 +405,6 @@ export class HomeScene {
     $ui().appendChild(root);
     // press squash / release overshoot / hover lift on everything tappable that isn't a generic button
     M.pressable(prof, { press: { sx: 0.95, sy: 0.92, y: 1 }, hover: { y: -2, sx: 1.02, sy: 1.02 } });
-    for (const el of [this.freeEl, this.megaEl, this.labEl]) M.pressable(el, { press: { sx: 1.08, sy: 0.86, y: 3 }, hover: { y: -4, sx: 1.06, sy: 1.06, r: -2 } });
     M.pressable(this.zBox, { press: { sx: 0.95, sy: 0.9, y: 2 }, hover: { y: -2, sx: 1.03, sy: 1.03 } });
     for (const s of this.slotEls) M.pressable(s.el, { press: { sx: 1.07, sy: 0.86, y: 3 }, hover: { y: -5, sx: 1.05, sy: 1.05 } });
     for (const b of this.navBtns) M.pressable(b, { press: { sx: 1.1, sy: 0.84, y: 3 }, hover: { y: -3, sx: 1.06, sy: 1.06 } });
@@ -425,7 +420,6 @@ export class HomeScene {
     const q = (s) => [...this.root.querySelectorAll(s)];
     M.enter([this.top], { from: { y: -90 }, stiffness: 260, damping: 22, fade: false });
     M.enter([this.root.querySelector('.hm-prof'), this.coinPill, this.buckPill], { from: { y: -24, sx: 0.6, sy: 0.6 }, delay: 0.12, step: 0.07, stiffness: 380, damping: 14 });
-    M.enter(q('.hm-side.left > *'), { from: { x: -110, r: -12 }, delay: 0.2, step: 0.07, stiffness: 300, damping: 16 });
     M.enter(q('.hm-side.right > *'), { from: { x: 110, r: 12 }, delay: 0.24, step: 0.07, stiffness: 300, damping: 16 });
     M.enter([this.nav], { from: { y: 110 }, stiffness: 260, damping: 22, fade: false });
     M.enter(this.navBtns, { from: { y: 40, sx: 0.5, sy: 0.5 }, delay: 0.14, step: 0.045, stiffness: 420, damping: 15 });
@@ -517,19 +511,14 @@ export class HomeScene {
     this.practiceBtn.style.display = boss && !locked && p.trophies >= (boss.minTrophies ?? 0) ? 'none' : '';
   }
 
+  /** The free vial (claimed in the SHOP) refills on a timer: light the shop dot when one is ready. */
   updateMinis() {
-    const fs = freeVialStatus();
-    this.freeEl.classList.toggle('ready', fs.ready);
-    this.freeEl.querySelector('.t').textContent = fs.ready ? `FREE${fs.count > 1 ? ' x' + fs.count : ''}` : fmtTime(fs.nextIn);
-    const mg = state.p.megas;
-    const eq = mg?.equipped && MEGAS[mg.equipped];
-    if (eq && this.megaEl.dataset.id !== mg.equipped) {
-      this.megaEl.dataset.id = mg.equipped;
-      const img = h('img', { class: 'mg', src: swarmThumb(mg.equipped, mg.owned[mg.equipped].variant, null, 96) });
-      this.megaEl.querySelector('img')?.replaceWith(img);
+    const ready = freeVialStatus().ready;
+    if (ready !== this.freeReady) {
+      const first = this.freeReady === undefined;
+      this.freeReady = ready;
+      if (!first) { this.updateBadges(); this.currentTab?.refresh?.(); }
     }
-    this.megaEl.querySelector('.t').textContent = eq ? eq.name.toUpperCase() : 'MEGA';
-    this.megaEl.classList.toggle('locked', !eq);
   }
 
   updateSlots(force = false) {
@@ -595,6 +584,9 @@ export class HomeScene {
       refresh: () => this.refresh(),
       openTab: (n) => this.setTab(n),
       openVial: (o) => this.openVial(o.type, o.slot, o.source),
+      openFree: () => this.openFree(),
+      openMegas: () => this.openMegas(),
+      visitLab: () => game.go('lab', { visit: true }),
       battle: (params) => game.go('battle', params),
       focusArena: (id) => {
         document.querySelectorAll('.modal-back').forEach((m) => m.remove());
@@ -672,7 +664,8 @@ export class HomeScene {
   openVial(type, slot = null, source = 'slot') {
     if (slot !== null && slot !== undefined) takeVial(slot);
     state.save();
-    game.go('vialopen', { type, slot, source, back: 'home' });
+    // opened from a tab (shop, pass...): come back to that tab
+    game.go('vialopen', { type, slot, source, back: 'home', backParams: this.tab && this.tab !== 'battle' ? { tab: this.tab } : {} });
   }
   tapSlot(i) {
     const e = state.p.vials.slots[i];

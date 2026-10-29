@@ -8,7 +8,7 @@ import { cardEl } from '../cards.js';
 import { audio } from '../../core/audio.js';
 import { mulberry32, hashString, todayKey } from '../../core/util.js';
 import {
-  state, upgradeInfo, shopOffers, shopBought, markBought, spendBucks, spendCoins, addCoins, grantReward, refreshDaily,
+  state, upgradeInfo, shopOffers, shopBought, markBought, spendBucks, spendCoins, addCoins, grantReward, refreshDaily, freeVialStatus,
 } from '../../game/state.js';
 import { cardDef, isSpell, RARITIES } from '../../data/cards.js';
 import { VIALS } from '../../data/vials.js';
@@ -19,7 +19,7 @@ import { entranceArt } from '../entranceArt.js';
 import { ownsEntrance, equipEntrance, equippedEntrance } from '../../game/state.js';
 import { game } from '../../game/game.js';
 import {
-  screenShell, secHead, timerChip, midnightMs, vialArt, rewardArt, rewardLabel, showRewards, confirmBox, deny,
+  screenShell, secHead, timerChip, countdown, midnightMs, vialArt, rewardArt, rewardLabel, showRewards, confirmBox, deny,
   refreshCtx, fmt, fmtN, bannerEl, swarmImg, cmdFullImg, cmdSkinOwned,
 } from './common.js';
 
@@ -144,6 +144,20 @@ export function mount(el, ctx) {
         refreshCtx(ctx);
         showRewards(got, { title: 'DAILY GIFT!' }).then(() => shell.render());
       }, 'yellow pulse', { icon: 'gift' }));
+    return tile;
+  }
+
+  // the free vial: refills every few hours (stacks up to a few), opens instantly
+  function freeVialTile() {
+    const fs = freeVialStatus();
+    const tile = h('div', { class: `mn-gift mn-freevial panel sk-panel-dark ${fs.ready ? 'ready' : 'waiting'}` },
+      h('div', { class: 'px-rays mn-gift-rays' }),
+      h('div', { class: 'mn-gift-art' }, vialArt('free')),
+      h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.6)', zIndex: 1 } },
+        h('span', { class: 't-d outline t-lg c-green' }, 'FREE VIAL'),
+        h('b', { class: 'mn-gift-n' }, fs.ready ? (fs.count > 1 ? `${fs.count} vials waiting` : 'Ready to open!') : 'Refilling...'),
+        fs.ready ? h('span', { class: 't-xs c-muted' }, 'A new one every 4 hours') : h('span', { class: 't-xs c-muted' }, 'Next in ', countdown(Date.now() + fs.nextIn * 1000, 'c-gold'))),
+      fs.ready ? button('OPEN', () => ctx.openFree?.(), 'green pulse', { icon: 'vial' }) : h('div', { class: 'mn-soldtag t-d outline' }, icon('clock', 's'), 'SOON'));
     return tile;
   }
 
@@ -344,7 +358,7 @@ export function mount(el, ctx) {
     const hero = heroTile(off);
     if (hero) inner.appendChild(hero);
     // daily deals
-    inner.appendChild(h('div', { class: 'mn-shopsec' }, h('div', { class: 'mn-sec-row mn-dealhead' }, secHead('DAILY DEALS', 'gold'), timerChip(midnightMs(), 'Refresh in')), giftTile(off),
+    inner.appendChild(h('div', { class: 'mn-shopsec' }, h('div', { class: 'mn-sec-row mn-dealhead' }, secHead('DAILY DEALS', 'gold'), timerChip(midnightMs(), 'Refresh in')), giftTile(off), freeVialTile(),
       h('div', { class: 'mn-offers' }, ...off.cards.map(cardTile))));
     // featured
     const feat = featuredOffers();
@@ -367,5 +381,5 @@ export function mount(el, ctx) {
 /** Shop notification count (free gift waiting). */
 export function shopBadge() {
   refreshDaily();
-  return state.p.shop.freeClaimed || shopBought('free') ? 0 : 1;
+  return (state.p.shop.freeClaimed || shopBought('free') ? 0 : 1) + (freeVialStatus().ready ? 1 : 0);
 }

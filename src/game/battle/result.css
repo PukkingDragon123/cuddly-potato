@@ -3,131 +3,46 @@
    live 3D Commanders, BREAKING NEWS sting, BEAST NEWS studio + report board.
    ========================================================================= */
 
-/* ---------------- final blow (over the 3D base collapse) */
+/* ---------------- final blow: a short clean beat, then TV static cuts to the news */
 .cfb { position: absolute; inset: 0; z-index: 48; pointer-events: none; overflow: hidden; }
-.cfb-vig { position: absolute; inset: 0; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 35%, rgba(4, 2, 16, 0.75) 100%); animation: fadeIn 0.3s both; }
-.cfb-lines {
-  position: absolute; left: 50%; top: 50%; width: 200vmax; aspect-ratio: 1; translate: -50% -50%; opacity: 0.55;
-  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.0) 0 3deg, rgba(255, 255, 255, 0.16) 3deg 3.6deg, transparent 3.6deg 7deg);
-  -webkit-mask-image: radial-gradient(circle, transparent 0 22%, #000 46%); mask-image: radial-gradient(circle, transparent 0 22%, #000 46%);
-  animation: cfbLines 0.18s steps(2) infinite, fadeIn 0.4s both;
-}
-@keyframes cfbLines { to { rotate: 3deg; } }
-.cfb-bar { position: absolute; left: 0; right: 0; height: 9vh; background: #030109; }
-.cfb-bar.t { top: 0; animation: cBarT 0.45s cubic-bezier(.2, 1, .3, 1) both; }
-.cfb-bar.b { bottom: 0; animation: cBarB 0.45s cubic-bezier(.2, 1, .3, 1) both; }
-.cfb-tag {
-  position: absolute; left: calc(var(--safe-l) + 4%); top: calc(9vh + 10px); display: flex; align-items: center; gap: 0.4em;
-  font-family: var(--font-d); font-size: clamp(14px, 1em, 20px); letter-spacing: 0.2em; color: #fff; text-shadow: var(--outline-thin);
-  animation: fadeIn 0.2s 0.2s both, cfbBlink 0.8s steps(2) 0.2s infinite;
-}
+.cfb-vig { position: absolute; inset: 0; background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 40%, rgba(4, 2, 16, 0.6) 100%); animation: fadeIn 0.25s both; }
 .recdot { width: calc(var(--px) * 3.5); height: auto; image-rendering: pixelated; flex: none; }
 @keyframes cfbBlink { 50% { opacity: 0.35; } }
 .cfb-stamp {
-  position: absolute; left: 50%; top: 42%; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; opacity: 0;
-  font-family: var(--font-d); line-height: 0.88; text-align: center; white-space: nowrap;
+  position: absolute; left: 50%; top: 40%; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; opacity: 0;
+  font-family: var(--font-d); line-height: 0.9; text-align: center; white-space: nowrap; max-width: 94vw;
 }
-.cfb-stamp b { font-size: clamp(30px, 9vmin, 64px); color: #fff; letter-spacing: 0.12em; text-shadow: var(--outline); }
+.cfb-stamp b { font-size: clamp(26px, 8vmin, 56px); color: #fff; letter-spacing: 0.1em; text-shadow: var(--outline); }
 .cfb-stamp span {
-  font-size: clamp(52px, 17vmin, 132px); letter-spacing: 0.02em;
+  font-size: clamp(44px, 14.5vmin, 112px); letter-spacing: 0.02em;
   background: linear-gradient(#fff 0 25%, #ffd84a 25% 58%, #ff6a1a 58%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(calc(var(--px) * 1.2) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.2) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3) 0 #5a1a00) drop-shadow(-3px 0 0 rgba(255, 40, 120, 0.7)) drop-shadow(3px 0 0 rgba(40, 200, 255, 0.7));
+  filter: drop-shadow(calc(var(--px) * 1.2) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.2) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3) 0 #5a1a00);
 }
 .cfb.loss .cfb-stamp span { background: linear-gradient(#fff 0 25%, #ff8a9a 25% 58%, #c8102e 58%); -webkit-background-clip: text; background-clip: text; }
-.cfb.hit .cfb-stamp { animation: cfbStamp 0.5s cubic-bezier(.2, 1.7, .35, 1) both; }
-@keyframes cfbStamp { 0% { opacity: 0; scale: 3.2; } 40% { opacity: 1; scale: 0.9; } 100% { opacity: 1; scale: 1; } }
+.cfb.hit .cfb-stamp { animation: cfbStamp 0.32s cubic-bezier(.2, 1.5, .35, 1) both; }
+@keyframes cfbStamp { 0% { opacity: 0; scale: 1.5; } 55% { opacity: 1; scale: 0.97; } 100% { opacity: 1; scale: 1; } }
 .cfb-flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
-.cfb.hit .cfb-flash { animation: cfbFlash 0.4s ease-out both; }
-@keyframes cfbFlash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
-.cfb.hit { animation: cfbShake 0.42s steps(7) both; }
-@keyframes cfbShake { 0% { translate: 0 0; } 20% { translate: -8px 5px; } 40% { translate: 7px -5px; } 60% { translate: -5px 3px; } 80% { translate: 3px -2px; } 100% { translate: 0 0; } }
-.cfb.out { opacity: 0; transition: opacity 0.5s; }
-/* engineer J: impact frame, cracked lens, pixel debris off the stamp */
-.cfb-tag b { font-weight: 400; color: #ffd84a; letter-spacing: 0.1em; }
-.cfb-impact { position: absolute; inset: 0; background: #fff; mix-blend-mode: difference; opacity: 0; }
-.cfb.hit .cfb-impact { animation: cfbImpact 0.13s steps(1) both; }
-@keyframes cfbImpact { 0% { opacity: 1; } 50% { opacity: 0.85; background: #ffd84a; } 100% { opacity: 0; } }
-.cfb-crack { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; }
-.cfb.hit .cfb-crack { animation: cfbCrack 1.4s 0.03s ease-out both; }
-@keyframes cfbCrack { 0% { opacity: 0; } 8% { opacity: 1; } 70% { opacity: 0.8; } 100% { opacity: 0; } }
-.cfb-chunks { position: absolute; left: 50%; top: 42%; }
-.cfb-chunks > i { position: absolute; left: 0; top: 0; opacity: 0; }
-.cfb-chunks canvas { display: block; height: auto; image-rendering: pixelated; translate: -50% -50%; }
-.cfb.hit .cfb-chunks > i { animation: cfbChunk var(--d) cubic-bezier(.2, .6, .5, 1) 0.05s both; }
-.cfb.hit .cfb-chunks canvas { animation: cfbChunkR var(--d) linear 0.05s both; }
-@keyframes cfbChunk { 0% { opacity: 1; transform: none; } 35% { opacity: 1; transform: translate(var(--dx), var(--dy)); } 100% { opacity: 0; transform: translate(calc(var(--dx) * 1.3), calc(var(--dy) + var(--fall))); } }
-@keyframes cfbChunkR { to { rotate: var(--rot); } }
+.cfb.hit .cfb-flash { animation: cfbFlash 0.22s ease-out both; }
+@keyframes cfbFlash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+.cfb.out { opacity: 0; transition: opacity 0.3s; }
+/* TV static: the feed changes channel to BEAST NEWS */
+.cfb-static { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; }
+.cfb.tv .cfb-static { animation: cfbStatic 0.42s steps(6) both; }
+@keyframes cfbStatic { 0% { opacity: 0; } 25% { opacity: 0.85; } 100% { opacity: 0.95; } }
+.cfb.tv .cfb-stamp { animation: cfbStampOut 0.2s steps(3) both; }
+@keyframes cfbStampOut { from { opacity: 1; } to { opacity: 0; scale: 1 0.1; } }
 
-/* ---------------- result root */
-.cres { position: absolute; inset: 0; z-index: 50; overflow: hidden; pointer-events: auto; --gold: #ffd84a; --news: #e0263f; --news-d: #8a0f22; }
-
-/* ---------------- 1. verdict */
-.cres-verdict { position: absolute; inset: 0; z-index: 1; }
-.cv-bg { position: absolute; inset: 0; animation: fadeIn 0.3s both; }
-.r-win .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #ffcf4a 0%, #ff8a2a 18%, #7a1e8a 48%, #1a0a3a 78%, #07041a 100%); }
-.r-loss .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #4a5a8a 0%, #2a2a5a 30%, #120f30 70%, #050412 100%); }
-.r-draw .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #b07aff 0%, #5a3aa8 30%, #1a1040 75%, #07041a 100%); }
-.cv-rays.px-rays { top: 66%; --rs: 130vmax; --ro: 0.4; }
-.r-loss .cv-rays.px-rays { --ro: 0.12; }
-.cv-spots { position: absolute; inset: 0; pointer-events: none; }
-.cv-spots::before, .cv-spots::after {
-  content: ''; position: absolute; top: -10%; width: 34%; height: 130%; transform-origin: 50% 0;
-  background: linear-gradient(rgba(255, 250, 220, 0.42), rgba(255, 250, 220, 0.0) 85%); clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
-  mix-blend-mode: screen;
-}
-.cv-spots::before { left: 4%; animation: cvSpot 3.2s ease-in-out infinite alternate; }
-.cv-spots::after { right: 4%; animation: cvSpot 2.7s ease-in-out infinite alternate-reverse; }
-@keyframes cvSpot { from { rotate: -22deg; } to { rotate: 14deg; } }
-.cv-rain {
-  position: absolute; inset: -20% 0 0; pointer-events: none; opacity: 0.55;
-  background: repeating-linear-gradient(100deg, transparent 0 22px, rgba(160, 190, 255, 0.35) 22px 23px, transparent 23px 41px);
-  -webkit-mask-image: repeating-linear-gradient(transparent 0 18px, #000 18px 46px); mask-image: repeating-linear-gradient(transparent 0 18px, #000 18px 46px);
-  animation: cvRain 0.45s linear infinite;
-}
-@keyframes cvRain { to { transform: translateY(64px); } }
-.cres-stage { position: absolute; inset: 0; pointer-events: none; }
-.cres-stage > canvas, .cn-cam > canvas { position: absolute; inset: 0; display: block; image-rendering: auto; }
-.cv-head {
-  position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + 9vh); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1);
-  pointer-events: none;
-}
-.landscape .cv-head { top: calc(var(--safe-t) + 8vh); }
-.cv-crown { width: clamp(44px, 11vmin, 76px); height: auto; animation: cvCrown 0.5s cubic-bezier(.2, 1.8, .4, 1) 0.55s both, cvBob 1.4s ease-in-out 1.1s infinite; filter: drop-shadow(0 0 10px rgba(255, 216, 74, 0.8)); }
-.r-loss .cv-crown { filter: drop-shadow(0 0 10px rgba(120, 140, 255, 0.6)); }
-@keyframes cvCrown { 0% { opacity: 0; transform: translateY(-40px) scale(0.3) rotate(-20deg); } 100% { opacity: 1; transform: none; } }
-@keyframes cvBob { 50% { translate: 0 -5px; } }
-.cv-title { display: flex; font-family: var(--font-d); font-size: clamp(60px, 17vmin, 132px); line-height: 0.86; letter-spacing: 0.01em; }
-.landscape .cv-title { font-size: clamp(56px, 19vh, 120px); }
-.cv-title span {
-  display: inline-block; animation: cvLetter 0.42s cubic-bezier(.2, 1.9, .35, 1) both; animation-delay: calc(var(--i) * 60ms + 80ms);
-  background: linear-gradient(#fffbe8 0 26%, #ffd84a 26% 58%, #ff9a1a 58%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(calc(var(--px) * 1.3) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.3) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3.5) 0 #4a1400) drop-shadow(0 0 calc(var(--px) * 7) rgba(255, 210, 80, 0.7));
-}
-.r-loss .cv-title span { background: linear-gradient(#ffffff 0 26%, #ff8a9a 26% 58%, #c8102e 58%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(calc(var(--px) * 1.3) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.3) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3.5) 0 #2a0010); }
-.r-draw .cv-title span { background: linear-gradient(#ffffff 0 26%, #d8c0ff 26% 58%, #8a5aff 58%); -webkit-background-clip: text; background-clip: text; }
-@keyframes cvLetter { 0% { opacity: 0; transform: translateY(-1.2em) scale(2.2); } 55% { opacity: 1; transform: translateY(0.06em) scale(0.9, 1.1); } 100% { opacity: 1; transform: none; } }
-.cv-sub {
-  margin-top: calc(var(--u) * 0.8); padding: 0 0.7em; font-family: var(--font-d); font-size: clamp(18px, 1.5em, 30px); letter-spacing: 0.12em; color: #fff; text-shadow: var(--outline-thin);
-  max-width: 92vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  animation: cvSub 0.4s cubic-bezier(.2, 1.6, .4, 1) 0.7s both;
-}
-@keyframes cvSub { 0% { opacity: 0; transform: scaleX(0.1); } 100% { opacity: 1; transform: none; } }
-.cv-bar { position: absolute; left: 0; right: 0; height: calc(5.5vh + 4px); background: #030109; display: flex; align-items: center; justify-content: flex-end; z-index: 2; }
-.cv-bar.t { top: 0; animation: cBarT 0.35s cubic-bezier(.2, 1, .3, 1) both; }
-.cv-bar.b { bottom: 0; animation: cBarB 0.35s cubic-bezier(.2, 1, .3, 1) both; }
-.cv-skip { margin-right: calc(var(--safe-r) + var(--u) * 3); font-family: var(--font-d); font-size: clamp(12px, 0.85em, 16px); letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.6); animation: fadeIn 0.3s 1.5s both, nextBob 1.2s steps(2) 1.8s infinite; }
-.cv-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; animation: cvFlash 0.45s ease-out both; z-index: 3; }
 .r-loss .cv-flash { background: #000; }
 @keyframes cvFlash { from { opacity: 0.9; } to { opacity: 0; } }
 
 /* ---------------- 2. BREAKING NEWS sting */
 .cres-sting { position: absolute; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; }
-.cs-band { position: absolute; left: -30%; right: -30%; top: 50%; height: 140vmax; translate: 0 -50%; rotate: -12deg; transform: translateX(-130%); }
+.cs-band { position: absolute; left: -30%; right: -30%; top: 50%; height: 140vmax; translate: 0 -50%; transform: translateX(-130%); }
 .cs-band.a { background: linear-gradient(90deg, var(--news-d), var(--news) 30%, var(--news) 70%, #ff4a62); animation: csBand 0.8s cubic-bezier(.6, 0, .25, 1) both; }
 .cs-band.b { height: 24vmax; background: #fff; box-shadow: 0 0 0 calc(var(--px) * 2) var(--ink); animation: csBand 0.8s cubic-bezier(.6, 0, .25, 1) 0.06s both; }
 @keyframes csBand { 0% { transform: translateX(-130%); } 38%, 58% { transform: translateX(0); } 100% { transform: translateX(130%); } }
 .cs-txt {
-  position: absolute; left: 50%; top: 50%; translate: -50% -50%; rotate: -12deg; display: flex; align-items: baseline; gap: 0.25em; white-space: nowrap;
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; display: flex; align-items: baseline; gap: 0.25em; white-space: nowrap;
   font-family: var(--font-d); font-size: clamp(44px, 14vmin, 104px); line-height: 1; letter-spacing: 0.03em;
   animation: csTxt 0.8s cubic-bezier(.2, 1.4, .3, 1) 0.06s both;
 }
