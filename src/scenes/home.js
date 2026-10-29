@@ -32,6 +32,7 @@ import {
   equipMega, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
 } from '../game/state.js';
 import { game } from '../game/game.js';
+import { batchStatic } from '../core/staticBatch.js';
 import { ONLINE_ENABLED } from '../ui/home/friend.js';
 
 const TABS = [
@@ -179,6 +180,9 @@ export class HomeScene {
     for (const z of I.zones) if (z.index > best || (this.unlockTarget >= 0 && z.index >= this.unlockTarget)) I.setLocked(z.id, true);
     this.I = I;
     this.populate();
+    // merge the island's still props into a few draws per zone; anything that later moves is
+    // handed back to normal rendering automatically (core/staticBatch.js)
+    try { this.batch = batchStatic(I.root, { probe: (dt, t) => I.update(dt, t) }); } catch (e) { console.warn('static batching skipped', e); }
     return I;
   }
 
@@ -900,6 +904,7 @@ export class HomeScene {
 
   updateIsland(dt) {
     this.I.update(dt, this.t);
+    this.batch?.check();
     const cam = this.camera;
     // camera: fly between zones, then gently sway
     if (this.fly) {

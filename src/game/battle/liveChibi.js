@@ -136,10 +136,9 @@ export class LiveChibi {
     // drawing buffer and stalls on the GPU): draw into its bottom-left S x S corner
     if (r.getPixelRatio() !== 1) r.setPixelRatio(1);
     const sz = r.getSize(_sz);
-    if (Math.min(sz.x, sz.y) < S * 0.75) { r.setSize(Math.max(S, sz.x), Math.max(S, sz.y), false); r.getSize(sz); }
-    // while card thumbnails (128 wide) are being made, draw a little smaller and scale up
-    // rather than resizing the shared canvas back and forth every frame
-    const R = Math.min(S, sz.x, sz.y);
+    // (that canvas only ever grows, so this resizes at most once)
+    if (sz.x < S || sz.y < S) { r.setSize(Math.max(S, sz.x), Math.max(S, sz.y), false); r.getSize(sz); }
+    const R = S;
     r.setViewport(0, 0, R, R);
     r.setClearColor(0x000000, 0);
     // bust framing (head + chest, arms in when they go up), with a punchy zoom

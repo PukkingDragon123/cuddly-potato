@@ -85,7 +85,7 @@ export function chibiHandURL(rot = [0.3, 0.6, Math.PI + 0.5]) {
   tilt.rotation.set(rot[0], rot[1], rot[2]); // finger up-left like a cursor, thumb + knuckles toward the camera
   holder.add(tilt);
   const url0 = engine.renderThumb(holder, { size: 72, yaw: 0, pitch: 0.15, zoom: 0.9 });
-  const src = engine.thumbRenderer?.domElement;
+  const src = engine.thumbCanvas;
   let url = url0;
   if (src) url = outlined(toCanvas(src, 72, 72), 2, 2).toDataURL();
   cache.set(key, url);

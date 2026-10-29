@@ -67,7 +67,7 @@ function renderFrame(job) {
     spin.rotation.y = (job.f / N) * Math.PI * 2;
     holder.add(spin);
     engine.renderThumb(holder, opts);
-    const src = engine.thumbRenderer?.domElement;
+    const src = engine.thumbCanvas;
     if (src) job.canvas.getContext('2d').drawImage(src, job.f * job.size, 0, job.size, job.size);
     spin.remove(job.food);
   }

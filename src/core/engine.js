@@ -544,6 +544,23 @@ class Engine {
   // Thumbnails: rendered with a small dedicated renderer (3-point studio
   // lighting, same tone mapping), returned as data URLs and cached by callers.
   renderThumb(obj, opts = {}) {
+    return this.drawThumb(obj, opts).toDataURL('image/png');
+  }
+  /**
+   * Same as renderThumb, but resolves to a blob: URL. The canvas is snapshotted at once and
+   * the PNG is encoded off the main thread (toDataURL encodes synchronously: several ms per
+   * card on a phone, for every card art on a screen).
+   */
+  renderThumbAsync(obj, opts = {}) {
+    const c = this.drawThumb(obj, opts);
+    if (typeof c.toBlob !== 'function') return Promise.resolve(c.toDataURL('image/png'));
+    return new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : null), 'image/png'));
+  }
+  /**
+   * Draw obj with the thumbnail studio (lights, framing). Returns `engine.thumbCanvas`: a 2D
+   * canvas of exactly the requested size holding the image (until the next thumbnail).
+   */
+  drawThumb(obj, opts = {}) {
     const size = opts.size ?? 128;
     if (!this.thumbRenderer) {
       const c = document.createElement('canvas');
@@ -565,11 +582,13 @@ class Engine {
     }
     const r = this.thumbRenderer;
     const w = opts.w ?? size, hgt = opts.h ?? size;
-    // resizing a WebGL canvas reallocates (and syncs) its drawing buffer: only when it changes
+    // the WebGL canvas only ever grows (a resize reallocates its drawing buffer and stalls the
+    // GPU pipeline; thumbnails of many sizes, and the live ULT Commander, share it): each image
+    // is drawn into its bottom-left corner and copied out at its exact size
     if (r.getPixelRatio() !== 1) r.setPixelRatio(1);
     const cur = r.getSize(_tsz);
-    if (cur.x !== w || cur.y !== hgt) r.setSize(w, hgt, false);
-    else r.setViewport(0, 0, w, hgt);
+    if (cur.x < w || cur.y < hgt) { r.setSize(Math.max(cur.x, w), Math.max(cur.y, hgt), false); r.getSize(cur); }
+    r.setViewport(0, 0, w, hgt);
     r.setClearColor(0x000000, 0);
     this.thumbCam.aspect = w / hgt;
     this.thumbCam.updateProjectionMatrix();
@@ -604,10 +623,15 @@ class Engine {
     } finally {
       for (const m of swapped) m.envMap = this.envMap;
       Object.values(GRADE).forEach((v, i) => { [v.x, v.y, v.z, v.w] = saved[i]; });
+      r.setViewport(0, 0, cur.x, cur.y);
     }
-    const url = r.domElement.toDataURL('image/png');
     this.thumbScene.remove(holder);
-    return url;
+    const out = this.thumbCanvas ?? (this.thumbCanvas = document.createElement('canvas'));
+    if (out.width !== w || out.height !== hgt) { out.width = w; out.height = hgt; }
+    const g = out.getContext('2d');
+    g.clearRect(0, 0, w, hgt);
+    g.drawImage(r.domElement, 0, cur.y - hgt, w, hgt, 0, 0, w, hgt);
+    return out;
   }
 }
 

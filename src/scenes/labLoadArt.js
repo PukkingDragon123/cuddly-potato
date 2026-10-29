@@ -478,7 +478,7 @@ export async function commanderFrames(W = 60, H = 66) {
       c.setHand('R', name.startsWith('stir') ? 'fist' : 'open');
       c.face.redraw?.();
       engine.renderThumb(c.root, { w: W * 2, h: H * 2, yaw: 0.22, pitch: 0.1, zoom: 1, lift: 0 });
-      const src = engine.thumbRenderer.domElement;
+      const src = engine.thumbCanvas;
       // 2x render -> pixel sprite: nearest downsample keeps it crisp
       const [cv, g] = cnv(W, H);
       g.imageSmoothingEnabled = true;

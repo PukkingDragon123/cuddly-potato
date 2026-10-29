@@ -8,10 +8,16 @@ src/
   main.js              boot, fonts, settings, route by URL (?scene=, ?dev=)
   core/
     engine.js          renderer + EffectComposer (bloom, output), quality presets, loop, current scene, shake,
-                       hitstop, raycast / rayToZPlane / toScreen, renderThumb (3D -> data URL), addLights
+                       hitstop, raycast / rayToZPlane / toScreen, renderThumb (3D -> data URL; renderThumbAsync -> blob URL),
+                       addLights; adaptive quality governor (shadow refresh, then resolution; ?gov=0 off), shader
+                       precompile on scene change, frees the old scene's GPU buffers / shadow maps, engine.cover() for
+                       opaque UI (skips drawing the 3D)
     voxel.js           VoxGrid (sparse grid, per-voxel AO, glow voxels, build), Mats (toy plastic, glow HDR), variants
     chibi.js, face.js  chibi characters (Jimmy, Nolan, Juan, NPCs) with pixel faces and pose animations
     particles.js       instanced particles + fx presets (burst, shatter, cash, foam, slime, confetti, shockwave...)
+    staticBatch.js     batchStatic(root): merges still meshes / small instanced props into one draw per grid cell +
+                       material (Beast Island); watches every node and hands anything that changes back to normal rendering
+    perfHud.js         ?dev=perf overlay (fps, frame ms, draw calls, tris, GPU memory counts, governor level)
     audio.js           recorded SFX (audio.play, src/assets/sfx/<id>-<n>.ogg|mp3, lazy-decoded after the first tap,
                        synthesized fallback) + music loops (audio.music) + jingles; CREDITS.md lists every source
     tween.js, util.js  animation helpers, rng, colour + math helpers

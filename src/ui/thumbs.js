@@ -23,6 +23,25 @@ export function swarmThumb(id, variant = 'base', skin = null, size = 160, opts =
   return url;
 }
 
+/** swarmThumb, PNG-encoded off the main thread (resolves to a blob: URL); shares its cache. */
+const pendingThumbs = new Map();
+export function swarmThumbAsync(id, variant = 'base', skin = null, size = 160, opts = {}) {
+  const key = `s|${id}|${variant}|${skin}|${size}|${opts.pose ?? ''}`;
+  if (cache.has(key)) return Promise.resolve(cache.get(key));
+  if (pendingThumbs.has(key)) return pendingThumbs.get(key);
+  const rig = createSwarm(id, { variant, skin });
+  rig.setState('idle');
+  if (opts.pose === 'attack') rig.attack(0.5);
+  for (let i = 0; i < 6; i++) rig.update(opts.pose === 'attack' ? 0.05 : 0.016);
+  const p = engine.renderThumbAsync(rig.root, { w: size, h: Math.round(size * 1.25), yaw: opts.yaw ?? 0.62, pitch: 0.16, zoom: opts.zoom ?? 0.82, lift: -0.02 }).then((url) => {
+    pendingThumbs.delete(key);
+    if (url) cache.set(key, url);
+    return url;
+  });
+  pendingThumbs.set(key, p);
+  return p;
+}
+
 /** Head-and-shoulders portrait of a chibi character. */
 export function charPortrait(charId, opts = {}) {
   const key = `c|${charId}|${opts.eyes}|${opts.mouth}|${opts.mood}|${opts.size}|${opts.full}|${JSON.stringify(opts.override ?? null)}`;
@@ -321,7 +340,7 @@ export function lazyImg(key, gen, cls = '', opts = {}) {
 /** Card art for any card id (Swarm or spell). */
 export function cardArtImg(id, variant = 'base', skin = null, size = 160, cls = '', opts = {}) {
   if (SPELLS[id]) return lazyImg(`sp|${id}|${size}`, () => spellThumbAsync(id, size), cls, opts);
-  return lazyImg(`s|${id}|${variant}|${skin}|${size}`, () => swarmThumb(id, variant, skin, size), cls, opts);
+  return lazyImg(`s|${id}|${variant}|${skin}|${size}`, () => swarmThumbAsync(id, variant, skin, size), cls, opts);
 }
 
 // --------------------------------------------------------------------------- arena dioramas + lab skins
