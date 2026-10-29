@@ -383,12 +383,13 @@ class AudioSys {
     }
     return out;
   }
-  tone({ type = 'triangle', f0 = 440, f1, dur = 0.1, vol = 0.2, attack = 0.004, hold = 0, delay = 0, dest, vibrato = 0, vibRate = 6, detune = 0, curve = 'exp', lp = 0, q = 0.7, pan = 0 }) {
+  tone({ type = 'triangle', wave = null, f0 = 440, f1, dur = 0.1, vol = 0.2, attack = 0.004, hold = 0, delay = 0, dest, vibrato = 0, vibRate = 6, detune = 0, curve = 'exp', lp = 0, q = 0.7, pan = 0 }) {
     const c = this.ctx;
     if (!c) return;
     const t = c.currentTime + 0.005 + delay;
     const o = c.createOscillator();
-    o.type = type;
+    if (wave) o.setPeriodicWave(wave);
+    else o.type = type;
     o.detune.value = detune;
     o.frequency.setValueAtTime(f0, t);
     if (f1 && f1 !== f0) {
@@ -447,6 +448,77 @@ class AudioSys {
   chime(f, dur = 0.4, vol = 0.08, delay = 0, pan = 0) {
     this.tone({ type: 'sine', f0: f, dur, vol, attack: 0.003, delay, pan });
     this.tone({ type: 'triangle', f0: f * 2, dur: dur * 0.5, vol: vol * 0.28, attack: 0.002, delay, pan });
+  }
+
+  // -------------------------------------------------------------------------
+  // 8-bit voices: chiptune "talking" babble (Animal Crossing / Undertale style).
+  // A voice profile = { base (Hz), duty (pulse width 0.125/0.25/0.5), range
+  // (semitones), speed (1 = normal), wobble (vibrato depth, robots), drop }.
+
+  /** Band-limited pulse wave with the given duty cycle (cached). */
+  _pulse(duty = 0.5) {
+    const c = this.ctx;
+    if (!c) return null;
+    this._pw = this._pw ?? new Map();
+    const k = Math.round(duty * 1000);
+    if (!this._pw.has(k)) {
+      const N = 24, re = new Float32Array(N), im = new Float32Array(N);
+      for (let n = 1; n < N; n++) re[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+      this._pw.set(k, c.createPeriodicWave(re, im, { disableNormalization: false }));
+    }
+    return this._pw.get(k);
+  }
+  /**
+   * Speak `syll` 8-bit syllables in voice `v`. o: { syll, emph, ask (rising
+   * end), delay, vol, gap }. Returns false when muted / not unlocked.
+   */
+  voice(v = {}, o = {}) {
+    const c = this.ctx;
+    if (!c || this.muted) return false;
+    const now = c.currentTime;
+    const key = 'voice|' + (v.base ?? 0);
+    if (o.gap && this._vLast?.[key] && now - this._vLast[key] < o.gap) return false;
+    (this._vLast = this._vLast ?? {})[key] = now;
+    const wave = this._pulse(v.duty ?? 0.5);
+    const base = v.base ?? 300, range = v.range ?? 7, speed = v.speed ?? 1;
+    const scale = [0, 2, 4, 5, 7, 9, 12];
+    const n = Math.max(1, Math.min(4, o.syll ?? 1));
+    let t = o.delay ?? 0;
+    for (let i = 0; i < n; i++) {
+      let semi = scale[Math.floor(Math.random() * scale.length)] * (range / 12);
+      if (o.emph) semi -= 3;
+      if (o.ask && i === n - 1) semi += range * 0.7;
+      const f0 = base * Math.pow(2, semi / 12);
+      const dur = (0.045 + Math.random() * 0.03) / speed;
+      const f1 = f0 * (v.drop ? 0.82 : 0.97 + Math.random() * 0.06);
+      this.tone({ wave, f0, f1, dur, vol: (o.vol ?? 1) * (o.emph ? 0.06 : 0.045), attack: 0.002, delay: t, vibrato: v.wobble ? f0 * v.wobble : 0, vibRate: 32, curve: 'lin', lp: 5200 });
+      t += dur + 0.012 / speed;
+    }
+    return true;
+  }
+  /** Babble a whole line (speech bubbles): one syllable per ~3 letters, spread over `span` seconds. */
+  babble(v, text = '', span = 0.6) {
+    const letters = String(text).replace(/[^A-Za-z0-9]/g, '').length;
+    const n = Math.max(2, Math.min(10, Math.round(letters / 3)));
+    const ask = /\?\s*$/.test(text);
+    for (let i = 0; i < n; i++) this.voice(v, { syll: 1, delay: (i / n) * span, ask: ask && i === n - 1, emph: /!\s*$/.test(text) && i === n - 1 });
+  }
+  /** Little 8-bit creature voice for troops / bosses: kind = spawn | hit | death | taunt. */
+  critter(id = '', kind = 'spawn', size = 1, o = {}) {
+    if (!this.ctx || this.muted) return false;
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    const base = (260 + (h % 9) * 38) / Math.sqrt(Math.max(0.6, size));
+    const v = { base, duty: [0.125, 0.25, 0.5][h % 3], range: 5 + (h % 5), wobble: h % 4 === 0 ? 0.02 : 0, speed: 1.15 };
+    const now = this.ctx.currentTime;
+    this._cLast = this._cLast ?? {};
+    const k = kind + (o.side ?? '');
+    if (this._cLast[k] && now - this._cLast[k] < (kind === 'hit' ? 0.35 : 0.12)) return false;
+    this._cLast[k] = now;
+    if (kind === 'death') return this.voice({ ...v, drop: true, speed: 0.8 }, { syll: 2, vol: 0.9 * (o.vol ?? 1) });
+    if (kind === 'hit') return this.voice({ ...v, drop: true, speed: 1.6 }, { syll: 1, vol: 0.55 * (o.vol ?? 1) });
+    if (kind === 'taunt') return this.voice({ ...v, speed: 0.9 }, { syll: 3, emph: true, vol: o.vol ?? 1 });
+    return this.voice(v, { syll: 2, ask: true, vol: 0.8 * (o.vol ?? 1) });
   }
 
   // -------------------------------------------------------------------------

@@ -1383,6 +1383,8 @@ export class BattleView {
       case 'spawn': {
         const a = new UnitActor(this, ev.unit);
         this.actors.set(ev.unit.id, a);
+        // 8-bit creature voice: bosses taunt, troops chirp as they arrive
+        audio.critter(ev.unit.type, ev.unit.boss ? 'taunt' : 'spawn', ev.unit.size, { side: ev.unit.side, vol: ev.unit.side === 0 ? 1 : 0.8 });
         if (a.landed) {
           const p = new THREE.Vector3(ev.unit.x, 0.3, ev.unit.z);
           const col = seriesColor(ev.unit.type);
@@ -1424,6 +1426,7 @@ export class BattleView {
       case 'hit': {
         const a = this.actors.get(ev.unit.id);
         if (!a || a.hidden) break;
+        if (ev.crit || ev.unit.boss) audio.critter(ev.unit.type, 'hit', ev.unit.size, { side: ev.unit.side });
         if (ev.kind === 'shield') {
           // blocked by ARMOR: the bubble flares, a steel ping instead of a number
           a.shieldPing();
@@ -1490,6 +1493,7 @@ export class BattleView {
         break;
       }
       case 'death': {
+        audio.critter(ev.unit.type, 'death', ev.unit.size, { side: ev.unit.side });
         const a = this.actors.get(ev.unit.id);
         if (a) {
           const big = ev.unit.size > 1.5 || ev.unit.boss;

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
+import { voiceOf, DEFAULT_VOICE } from '../data/characters.js';
 import { iconURL as pixIconURL, iconAnim, animKindOf } from './icons.js';
 import { injectSkins } from './skin.js';
 import { injectPixShapes } from './pixshapes.js';
@@ -378,6 +379,9 @@ export function speech(target, text, dur = 2.2, opts = {}) {
   const b = { el, inner, target, t: 0, dur, offsetY: opts.offsetY ?? 0, w: 0, hh: 0, out: false };
   speechBubbles.push(b);
   audio.play('bubblePop', { gap: 0.08 });
+  // 8-bit babble in the speaker's voice (a Chibi target knows its character)
+  const vdef = opts.voice ?? (target?.def ? voiceOf(target.def) : opts.char ? voiceOf(opts.char) : DEFAULT_VOICE);
+  if (opts.voice !== false) audio.babble(vdef, String(text).replace(/\*/g, ''), Math.min(1.1, 0.25 + String(text).length * 0.03));
   return { close: () => { if (b.t < b.dur - 0.18) b.t = b.dur - 0.18; } };
 }
 

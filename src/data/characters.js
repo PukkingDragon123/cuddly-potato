@@ -99,6 +99,28 @@ export const CHARACTERS = {
   },
 };
 
+// 8-bit voices (audio.voice profiles): base pitch Hz, pulse duty, range in semitones
+export const VOICES = {
+  jimmy: { base: 220, duty: 0.5, range: 7 },
+  jimmyBoss: { base: 170, duty: 0.5, range: 6, speed: 0.9 },
+  nolan: { base: 300, duty: 0.25, range: 9, speed: 1.15 },
+  juan: { base: 190, duty: 0.125, range: 8 },
+  recruit: { base: 250, duty: 0.5, range: 5, wobble: 0.03 },
+  labTech: { base: 400, duty: 0.25, range: 8 },
+  cashier: { base: 380, duty: 0.125, range: 9, speed: 1.1 },
+  stocker: { base: 270, duty: 0.25, range: 6 },
+  guard: { base: 150, duty: 0.5, range: 4, speed: 0.85 },
+  fan: { base: 460, duty: 0.25, range: 10, speed: 1.25 },
+  anchor: { base: 360, duty: 0.5, range: 7, speed: 1.1 },
+};
+export const DEFAULT_VOICE = { base: 320, duty: 0.25, range: 7 };
+/** Voice profile for a character id / def / name (falls back to a neutral NPC voice). */
+export function voiceOf(who) {
+  if (!who) return DEFAULT_VOICE;
+  const id = typeof who === 'string' ? who : who.char ?? who.id ?? who.def?.id ?? Object.values(CHARACTERS).find((d) => d.name === who.name)?.id;
+  return VOICES[id] ?? DEFAULT_VOICE;
+}
+
 export function speaker(id) {
   const c = CHARACTERS[id];
   return { name: c?.name ?? id, color: c?.color };

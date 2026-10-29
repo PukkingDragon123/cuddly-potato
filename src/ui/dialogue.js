@@ -20,7 +20,7 @@ import { h, rich, button, hudBands, $overlay } from './ui.js';
 import { audio } from '../core/audio.js';
 import { engine } from '../core/engine.js';
 import { Chibi } from '../core/chibi.js';
-import { CHARACTERS } from '../data/characters.js';
+import { CHARACTERS, voiceOf } from '../data/characters.js';
 import { Stage3D } from './stage3d.js';
 import { ensureSkin } from './skin.js';
 
@@ -240,6 +240,7 @@ export function say(who, text, opts = {}) {
   let finished = false;
   const cps = opts.speed ?? 52; // characters per second (words pop at the same reading pace)
   const voice = who?.voice ?? 1;
+  const v8 = voiceOf(charDefOf(who)?.def ?? who);
   let clock = cont ? -0.08 : -0.32; // beat before the first word (the panel lands first)
   let talkUntil = 0, tNow = 0;
   let raf = 0, lastTick = performance.now();
@@ -249,8 +250,9 @@ export function say(who, text, opts = {}) {
     if (len) {
       talk(true);
       talkUntil = tNow + Math.min(0.42, 0.05 + len * 0.045);
-      audio.play('blip', { pitch: voice * (wd.emph ? 0.84 : 0.94 + Math.random() * 0.16), gap: 0.05 });
-      if (len > 5) setTimeout(() => typing && audio.play('blip', { pitch: voice * (0.9 + Math.random() * 0.2), gap: 0.05 }), 70);
+      // 8-bit voice: one chiptune syllable per ~3 letters, pitched per character
+      const vp = { ...v8, base: v8.base * voice };
+      audio.voice(vp, { syll: Math.min(3, Math.ceil(len / 3)), emph: wd.emph, ask: /\?/.test(wd.text) });
     }
     if (wd.emph) {
       audio.play('pop', { pitch: 1.25 + Math.random() * 0.2, gap: 0.08, vol: 0.55 });
