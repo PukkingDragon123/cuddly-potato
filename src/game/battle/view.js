@@ -1499,6 +1499,7 @@ export class BattleView {
           if (ev.unit.type === 'feastablesPanther' || ev.unit.type === 'chocoChomper') fx.chocolate(p.clone().setY(0.6), { count: 30 });
           if (SWARMS[ev.unit.type]?.series === 'food') fx.groceries(p.clone().setY(0.5), { count: 6 });
           audio.play(big ? 'explode' : 'death', { pitch: 0.8 + Math.random() * 0.4, gap: 0.03 });
+          if (big) audio.play('vineBoom', { gap: 2.5, vol: ev.unit.boss ? 1 : 0.7 });
           if (big) {
             engine.shake(0.5);
             engine.hitstop(0.08);
@@ -2348,7 +2349,7 @@ export class BattleView {
       case 'complain':
         this.perform(side, 'angry', 1.4, 'angry', 'shout');
         if (ch) speech(ch, 'This is SO unfair!!', 1.8);
-        audio.play('error');
+        audio.play('bruh');
         for (const a of this.actors.values()) if (a.u.side !== side && Math.abs(a.u.x - ev.x) < 7) speech(a.rig.root, '😤', 1.2);
         break;
       case 'luckyFail':

@@ -206,6 +206,8 @@ export async function labCollapse(view, side) {
     audio.play('boom', { pitch: 0.55 });
     audio.play('explode', { pitch: 0.45 });
     audio.play('shatter', { pitch: 0.7 });
+    audio.play('vineBoom', { gap: 0 });
+    audio.play('gasp', { delay: 0.5 });
     clk.at(0.12, () => audio.play('crunch', { pitch: 0.5 }));
     clk.at(0.26, () => audio.play('thud', { pitch: 0.6 }));
 
@@ -217,6 +219,7 @@ export async function labCollapse(view, side) {
       const from = ch.root.position.clone();
       const to = V3(bx + out * rnd(3.2, 4), 0, 1.6);
       const peak = Math.max(from.y + 2.4, H + 2.5);
+      audio.play('slideWhistle', { delay: 0.12 });
       clk.anim(1.15, (k) => {
         const x = THREE.MathUtils.lerp(from.x, to.x, k), z = THREE.MathUtils.lerp(from.z, to.z, k);
         const y = (1 - k) * (1 - k) * from.y + 2 * (1 - k) * k * (peak * 1.2) + k * k * 0;
@@ -235,6 +238,7 @@ export async function labCollapse(view, side) {
           hpx.hit(V3(ch.root.position.x, 0.4, ch.root.position.z), 'heavy', 1.2, out);
           audio.play('thud', { pitch: 0.9 });
           audio.play('boing', { pitch: 0.7 });
+          audio.play('oof', { delay: 0.06 });
           engine.shake(0.3);
           clk.at(1.1, () => { ch.play('cry'); ch.expr('cry', 'sad'); ch.face?.fx('tears', true); });
       });

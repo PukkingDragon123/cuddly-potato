@@ -1,11 +1,17 @@
-// Procedural WebAudio sound effects + tiny chiptune sequencer.
+// Game audio: recorded sound effects + music loops, with the old procedural
+// WebAudio voices kept as an instant fallback.
 //
-// Mix: every SFX goes through the sfx bus (gentle 12 kHz roll-off), the music
-// through the music bus (soft slap-back delay for space); both meet in the
-// master, then a glue compressor and a brick-wall-ish limiter so stacked
-// battle sounds never clip. Voices use soft waveforms (sine / triangle, or
-// squares and saws only behind a low-pass) and click-free envelopes: a short
-// linear attack, optional hold, exponential decay to -80 dB, then stop.
+// Samples: every file in src/assets/sfx/ (<id>-<n>.mp3 (one format: every browser decodes mp3), CC0 recordings,
+// see src/assets/sfx/CREDITS.md) is emitted by Vite as a hashed asset. Nothing
+// is fetched before the first user gesture (unlock); then the common UI and
+// combat sounds decode first, everything else trickles in behind them. A call
+// to play() for a sound that is not decoded yet uses its synthesized version
+// (and bumps that sound to the front of the queue), so nothing ever waits.
+//
+// Mix: every SFX goes through the sfx bus (gentle 16 kHz roll-off), the music
+// through the music bus; both meet in the master, then a glue compressor and
+// a brick-wall-ish limiter so stacked battle sounds never clip. Recorded
+// music loops play dry; the chiptune fallback gets a soft slap-back delay.
 import { rand } from './util.js';
 
 const NOTE = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
@@ -20,6 +26,82 @@ const nhz = (n) => hz(midi(n));
 /** Parse "A4 . C5 E5 - D5" into steps (null = rest, '-' = tie/rest). */
 const seq = (s) => s.trim().split(/\s+/).map((t) => (t === '.' || t === '-' ? null : midi(t)));
 
+// ---------------------------------------------------------------------------
+// Sample library (Vite turns each file into a hashed asset URL; nothing loads yet)
+const SFX_URLS = import.meta.glob('../assets/sfx/*.mp3', { query: '?url&no-inline', import: 'default', eager: true });
+const MUSIC_URLS = import.meta.glob('../assets/sfx/music/*.mp3', { query: '?url&no-inline', import: 'default', eager: true });
+
+/** id -> [{ ogg, mp3 }, ...] (variants in file order) */
+function indexFiles(urls, re) {
+  const lib = {};
+  for (const [path, url] of Object.entries(urls)) {
+    const m = re.exec(path);
+    if (!m) continue;
+    const [, id, n, ext] = m;
+    const vars = (lib[id] ??= []);
+    const i = n ? parseInt(n, 10) - 1 : 0;
+    (vars[i] ??= {})[ext] = url;
+  }
+  for (const id in lib) lib[id] = lib[id].filter(Boolean);
+  return lib;
+}
+const LIB = indexFiles(SFX_URLS, /\/([A-Za-z0-9_]+)-(\d+)\.(ogg|mp3)$/);
+const MUSIC_LIB = indexFiles(MUSIC_URLS, /\/([A-Za-z0-9_]+)()\.(ogg|mp3)$/);
+
+/**
+ * Per-sound mix: [volume, random pitch spread (±), max simultaneous voices].
+ * Files are levelled at build time; these trims make frequent sounds sit back
+ * and the big moments (base down, MEGA, ultimate, victory) hit hard.
+ */
+const MIX = {
+  // UI
+  click: [1.2, 0.03, 3], tap: [0.79, 0.04, 3], pop: [0.73, 0.06, 4], deny: [0.35, 0.02, 2], error: [0.39, 0, 1],
+  bigPop: [0.91, 0.04, 3], bubble: [0.16, 0.1, 4], bubblePop: [0.31, 0.06, 3], blip: [0.38, 0.04, 3], tick: [0.26, 0.05, 3],
+  countTick: [0.18, 0.03, 3], cardPick: [0.12, 0.06, 2], emote: [0.68, 0.03, 2], go: [0.57, 0.02, 2], countdown: [0.47, 0, 2],
+  bell: [0.61, 0.02, 2], alarm: [0.35, 0, 1], horn: [0.82, 0, 1],
+  // movement
+  whoosh: [0.19, 0.08, 4], swing: [0.16, 0.1, 4], flick: [0.18, 0.06, 2], slosh: [0.18, 0.06, 2], fizz: [0.29, 0.05, 2],
+  // combat (frequent: subtle)
+  hit: [0.26, 0.1, 6], hitHeavy: [0.3, 0.08, 4], bite: [0.76, 0.1, 4], chomp: [0.18, 0.08, 3], zap: [0.16, 0.08, 3],
+  shoot: [0.34, 0.08, 5], laser: [0.25, 0.06, 4], explode: [0.44, 0.06, 4], boom: [0.5, 0.05, 3], death: [0.23, 0.1, 5],
+  crunch: [0.39, 0.08, 3], splat: [0.36, 0.08, 3], slime: [0.19, 0.06, 2], spawn: [1.09, 0.08, 4], thud: [0.67, 0.06, 4],
+  kick: [0.34, 0.05, 3], roar: [0.41, 0.03, 2], growl: [0.25, 0.04, 2], squeak: [0.2, 0.05, 3], boing: [0.3, 0.04, 2],
+  drum: [0.67, 0.02, 2], freeze: [0.31, 0.03, 2], heal: [0.28, 0.02, 2], magic: [0.32, 0.03, 3], shatter: [0.5, 0.07, 4],
+  cheer: [0.4, 0.03, 2], engine: [0.35, 0.02, 1], tear: [0.19, 0.06, 2],
+  // rewards
+  coin: [0.31, 0.03, 5], chaching: [0.33, 0.02, 2], upgrade: [0.32, 0.01, 2], levelUp: [0.41, 0, 2], crown: [0.43, 0, 1],
+  fanfare: [0.74, 0, 1],
+  // vial opening
+  pour: [0.22, 0.04, 2], rattle: [0.22, 0.06, 3], latch: [0.31, 0.05, 3], cork: [0.63, 0.05, 2], flare: [0.29, 0.02, 2],
+  heartbeat: [0.42, 0, 2], lightsOut: [0.45, 0, 1], shimmer: [0.28, 0.02, 2], reveal: [0.34, 0.02, 2], stamp: [0.63, 0.04, 2],
+  // memes + announcer (big moments: loud)
+  vineBoom: [0.88, 0.02, 1], airhorn: [0.85, 0, 1], bruh: [0.48, 0.02, 1], oof: [0.51, 0.04, 1], wow: [0.47, 0.02, 1],
+  scratch: [0.49, 0, 1], sadTrombone: [0.58, 0, 1], wahwah: [0.45, 0, 1], laugh: [0.36, 0.02, 1], gasp: [0.39, 0.02, 1],
+  groan: [0.38, 0.02, 1], crickets: [0.37, 0, 1], rimshot: [1.2, 0, 1], drumroll: [0.29, 0, 1], applause: [0.36, 0.02, 1],
+  slideWhistle: [0.4, 0.03, 1], fight: [0.68, 0, 1],
+  emGoodLuck: [0.42, 0.01, 1], emThanks: [0.36, 0.02, 1], emWellPlayed: [0.39, 0.02, 1],
+  emWow: [0.4, 0.02, 1], emGrr: [0.32, 0.03, 1], emLetsGo: [0.66, 0, 1], laughShort: [0.38, 0.02, 1],
+  // cinematic stingers (vsIntro.js / result.js)
+  vsRiser: [0.3, 0, 1], vsSlam: [0.62, 0, 1], vsCrack: [0.97, 0.03, 1], vsSting: [0.48, 0, 1], news: [0.46, 0, 1], slowmo: [0.39, 0, 1],
+};
+// Ids that share another id's recordings (their own MIX entry still applies), and ids that pick one of several sounds.
+const ALIAS = { airhorn: 'horn', emLetsGo: 'horn', emWow: 'wow', emGrr: 'growl', countTick: 'tick' };
+const POOL = { emOops: ['oof', 'wahwah', 'bruh'], emEasy: ['rimshot', 'laughShort'] };
+const MIX_DEFAULT = [0.6, 0.02, 2];
+const VOICE = [0.72, 0, 1]; // announcer lines (v*)
+// Decoded first (in this order), with all their variants; the rest load one variant up front, the others on first use.
+const PRIORITY = ['click', 'tap', 'pop', 'deny', 'cardPick', 'whoosh', 'hit', 'spawn', 'thud', 'death', 'swing', 'shoot', 'bite', 'chomp',
+  'hitHeavy', 'explode', 'boom', 'zap', 'laser', 'magic', 'coin', 'go', 'fight', 'bubblePop', 'blip', 'tick', 'countdown', 'crunch', 'splat',
+  'shatter', 'upgrade', 'levelUp', 'chaching', 'emote', 'bigPop', 'vineBoom', 'horn', 'vsRiser', 'vsSlam', 'vsCrack', 'vsSting'];
+// Synthesized stand-ins for sample-only ids (used until the file has decoded, or if it fails to load).
+const FALLBACK = { vineBoom: 'boom', airhorn: 'horn', fight: 'go', bruh: 'error', oof: 'deny', wow: 'emote', scratch: 'swing', sadTrombone: 'error',
+  wahwah: 'error', laugh: 'cheer', gasp: 'whoosh', groan: 'error', rimshot: 'drum', drumroll: 'drum', applause: 'cheer', slideWhistle: 'boing',
+  emGoodLuck: 'emote', emThanks: 'emote', emWellPlayed: 'cheer', emOops: 'error', emWow: 'emote', emGrr: 'growl', emEasy: 'emote', emLetsGo: 'horn' };
+const MAX_VOICES = 40;
+
+let CAN_OGG = false;
+try { CAN_OGG = typeof Audio !== 'undefined' && !!new Audio().canPlayType('audio/ogg; codecs="vorbis"'); } catch (e) { /* no media element */ }
+
 class AudioSys {
   constructor() {
     this.ctx = null;
@@ -30,16 +112,27 @@ class AudioSys {
     this.trackName = null;
     this.lastPlay = {};
     this.out = null;
+    // sample engine state
+    this.fmt = CAN_OGG ? 'ogg' : 'mp3';
+    this.bufs = {}; // id -> [AudioBuffer | undefined]
+    this.loading = {}; // `${id}#${i}` -> Promise
+    this.failed = {}; // `${id}#${i}` -> true
+    this.lastVar = {};
+    this.voices = []; // { id, src, gain, end }
+    this.musicBufs = new Map(); // name -> AudioBuffer (last few)
+    this.queue = [];
+    this.inflight = 0;
   }
 
   unlock() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted') this.ctx.resume();
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    this.build(new AC());
+    this.build(new AC({ latencyHint: 'interactive' }));
+    this.preload();
     if (this.pendingMusic) {
       const p = this.pendingMusic;
       this.pendingMusic = null;
@@ -68,16 +161,16 @@ class AudioSys {
     lim.attack.value = 0.001;
     lim.release.value = 0.08;
     this.master.connect(glue).connect(lim).connect(c.destination);
-    // sfx bus: take the fizz off the top end
+    // sfx bus: take the fizz off the very top
     this.sfxBus = c.createGain();
     this.sfxBus.gain.value = this.sfxVol;
     const sfxTone = c.createBiquadFilter();
     sfxTone.type = 'lowpass';
-    sfxTone.frequency.value = 12000;
+    sfxTone.frequency.value = 16000;
     sfxTone.Q.value = 0.5;
     this.sfxBus.connect(sfxTone).connect(this.master);
     this.out = this.sfxBus;
-    // music bus: dry + a soft filtered slap-back delay
+    // music bus: the chiptune fallback gets a soft filtered slap-back delay; recorded loops + jingles play dry
     this.musicBus = c.createGain();
     this.musicBus.gain.value = this.musicVol;
     const musicTone = c.createBiquadFilter();
@@ -100,6 +193,11 @@ class AudioSys {
     musicTone.connect(dly);
     dly.connect(dlp).connect(fb).connect(dly);
     dlp.connect(wet).connect(musicTrim);
+    this.musicDry = c.createGain();
+    this.musicDry.gain.value = this.musicVol;
+    const dryTrim = c.createGain();
+    dryTrim.gain.value = 0.42;
+    this.musicDry.connect(dryTrim).connect(this.master);
     // noise buffer
     const len = c.sampleRate * 2;
     this.noiseBuf = c.createBuffer(1, len, c.sampleRate);
@@ -112,6 +210,7 @@ class AudioSys {
     this.musicVol = music;
     if (this.sfxBus) this.sfxBus.gain.value = sfx;
     if (this.musicBus) this.musicBus.gain.value = music;
+    if (this.musicDry) this.musicDry.gain.value = music;
   }
   setMuted(m) {
     this.muted = m;
@@ -119,7 +218,148 @@ class AudioSys {
   }
 
   // -------------------------------------------------------------------------
-  // primitives
+  // sample loading
+  /** Queue every sound: the common ones (all variants) first, then one variant of the rest. */
+  preload() {
+    const seen = new Set();
+    const add = (id, all) => {
+      const vars = LIB[id];
+      if (!vars) return;
+      const n = all ? vars.length : 1;
+      for (let i = 0; i < n; i++) if (!seen.has(id + '#' + i)) { seen.add(id + '#' + i); this.queue.push([id, i]); }
+    };
+    for (const id of PRIORITY) add(id, true);
+    for (const id of Object.keys(LIB)) add(id, false);
+    this._pump();
+  }
+  _pump() {
+    while (this.inflight < 4 && this.queue.length) {
+      const [id, i] = this.queue.shift();
+      if (this.bufs[id]?.[i] || this.loading[id + '#' + i] || this.failed[id + '#' + i]) continue;
+      this.inflight++;
+      this._loadVar(id, i).finally(() => {
+        this.inflight--;
+        // give the main thread a breather between decodes
+        setTimeout(() => this._pump(), 16);
+      });
+    }
+  }
+  async _decode(urls) {
+    const order = this.fmt === 'ogg' ? ['ogg', 'mp3'] : ['mp3', 'ogg'];
+    let err;
+    for (const f of order) {
+      if (!urls[f]) continue;
+      try {
+        const res = await fetch(urls[f]);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.arrayBuffer();
+        const buf = await new Promise((ok, no) => {
+          // a decoder that never answers must not stall the queue
+          const to = setTimeout(() => no(new Error('decode timeout')), 8000);
+          const p = this.ctx.decodeAudioData(data, (b) => { clearTimeout(to); ok(b); }, (e) => { clearTimeout(to); no(e); });
+          if (p && p.catch) p.catch(no);
+        });
+        if (f !== this.fmt) this.fmt = f; // the preferred format did not decode here: use the other one from now on
+        return buf;
+      } catch (e) {
+        err = e;
+      }
+    }
+    throw err ?? new Error('no source');
+  }
+  _loadVar(id, i) {
+    const key = id + '#' + i;
+    if (this.loading[key]) return this.loading[key];
+    const urls = LIB[id]?.[i];
+    if (!urls || !this.ctx) return Promise.resolve(null);
+    const p = this._decode(urls)
+      .then((buf) => {
+        (this.bufs[id] ??= [])[i] = buf;
+        return buf;
+      })
+      .catch(() => {
+        this.failed[key] = true;
+        return null;
+      });
+    this.loading[key] = p;
+    return p;
+  }
+  /** A decoded variant of id (avoiding an immediate repeat), or null; asks for the missing ones. */
+  _pick(id) {
+    const vars = LIB[id];
+    if (!vars) return null;
+    const have = this.bufs[id] ?? [];
+    let missing = false;
+    const ready = [];
+    for (let i = 0; i < vars.length; i++) {
+      if (have[i]) ready.push(i);
+      else if (!this.failed[id + '#' + i]) missing = true;
+    }
+    if (missing) {
+      // jump the queue: this sound is wanted now
+      for (let i = vars.length - 1; i >= 0; i--) if (!have[i] && !this.loading[id + '#' + i]) this.queue.unshift([id, i]);
+      this._pump();
+    }
+    if (!ready.length) return null;
+    let k = ready[(Math.random() * ready.length) | 0];
+    if (ready.length > 1 && k === this.lastVar[id]) k = ready[(ready.indexOf(k) + 1 + ((Math.random() * (ready.length - 1)) | 0)) % ready.length];
+    this.lastVar[id] = k;
+    return have[k];
+  }
+  /** True when id has a recorded sample (decoded or not). */
+  has(id) {
+    return !!(LIB[ALIAS[id] ?? id] || POOL[id]);
+  }
+
+  _voice(id, buf, o, mix) {
+    const c = this.ctx;
+    const t = c.currentTime + 0.003 + Math.max(0, o.delay ?? 0);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const spread = mix[1];
+    src.playbackRate.value = Math.max(0.1, (o.pitch ?? 1) * (1 + (Math.random() * 2 - 1) * spread));
+    const g = c.createGain();
+    g.gain.value = Math.max(0, (o.vol ?? 1) * mix[0] * (0.9 + Math.random() * 0.1));
+    let out = this.sfxBus;
+    if (o.bus === 'music') out = this.musicDry;
+    if (o.pan && c.createStereoPanner) {
+      const p = c.createStereoPanner();
+      p.pan.value = Math.max(-1, Math.min(1, o.pan));
+      p.connect(out);
+      out = p;
+    }
+    src.connect(g).connect(out);
+    src.start(t);
+    const end = t + buf.duration / src.playbackRate.value;
+    const v = { id, src, g, end };
+    // voice caps: per sound, then overall (the oldest gets a quick fade)
+    const same = this.voices.filter((x) => x.id === id && x.end > c.currentTime);
+    if (same.length >= mix[2]) this._kill(same[0]);
+    this.voices = this.voices.filter((x) => x.end > c.currentTime);
+    if (this.voices.length >= MAX_VOICES) this._kill(this.voices[0]);
+    this.voices.push(v);
+    src.onended = () => {
+      const i = this.voices.indexOf(v);
+      if (i >= 0) this.voices.splice(i, 1);
+      try { g.disconnect(); } catch (e) { /* gone */ }
+    };
+    return v;
+  }
+  _kill(v) {
+    const t = this.ctx.currentTime;
+    try {
+      v.g.gain.cancelScheduledValues(t);
+      v.g.gain.setValueAtTime(v.g.gain.value, t);
+      v.g.gain.linearRampToValueAtTime(0, t + 0.03);
+      v.src.stop(t + 0.035);
+    } catch (e) { /* already stopped */ }
+    v.end = 0;
+    const i = this.voices.indexOf(v);
+    if (i >= 0) this.voices.splice(i, 1);
+  }
+
+  // -------------------------------------------------------------------------
+  // primitives (synth fallback + the little procedural stingers other modules build)
   /** Click-free gain envelope: linear attack, optional hold, exponential decay to silence at t + dur. */
   _env(t, dur, vol, attack, hold, dest) {
     const c = this.ctx;
@@ -210,15 +450,41 @@ class AudioSys {
   }
 
   // -------------------------------------------------------------------------
+  /**
+   * Play a sound effect. Options: pitch (playback rate), vol, gap (min seconds
+   * between two plays of this id), delay (seconds), pan (-1..1).
+   * Returns true when something was played.
+   */
   play(name, o = {}) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx || this.muted) return false;
     // simple rate-limit for spammy sounds
     const now = this.ctx.currentTime;
     const minGap = o.gap ?? 0.03;
-    if (this.lastPlay[name] && now - this.lastPlay[name] < minGap) return;
-    const fn = SFX[name];
-    if (!fn) return;
+    if (this.lastPlay[name] && now - this.lastPlay[name] < minGap) return false;
+    let sid = ALIAS[name] ?? name;
+    const pool = POOL[name];
+    if (pool) sid = pool[(Math.random() * pool.length) | 0];
+    if (LIB[sid] && !this.forceSynth) {
+      const buf = this._pick(sid);
+      if (buf) {
+        this.lastPlay[name] = now;
+        this._voice(sid, buf, o, (pool ? MIX[sid] : MIX[name] ?? MIX[sid]) ?? (name[0] === 'v' && name[1] <= 'Z' ? VOICE : MIX_DEFAULT));
+        return true;
+      }
+    }
+    const fn = SFX[name] ?? SFX[FALLBACK[name]];
+    if (!fn) return false;
     this.lastPlay[name] = now;
+    if (o.delay > 0) {
+      const { delay, ...rest } = o;
+      setTimeout(() => this._synth(fn, rest), delay * 1000);
+      return true;
+    }
+    this._synth(fn, o);
+    return true;
+  }
+  _synth(fn, o) {
+    if (!this.ctx || this.muted) return;
     const vol = o.vol ?? 1;
     if (vol !== 1) {
       const g = this.ctx.createGain();
@@ -234,7 +500,7 @@ class AudioSys {
   }
 
   // -------------------------------------------------------------------------
-  // Music sequencer
+  // Music: recorded loops (Kenney "Music Loops", CC0) with the chiptune sequencer as fallback
   music(name) {
     if (!this.ctx) {
       this.pendingMusic = name;
@@ -242,26 +508,68 @@ class AudioSys {
     }
     if (this.trackName === name) return;
     this.stopMusic();
-    const tr = TRACKS[name];
     this.trackName = name;
-    if (!tr) return;
     const bus = this.ctx.createGain();
     bus.gain.value = 0.0001;
-    bus.gain.exponentialRampToValueAtTime(1, this.ctx.currentTime + 0.8);
-    bus.connect(this.musicBus);
-    const state = { tr, bus, step: 0, next: this.ctx.currentTime + 0.08, stepDur: 60 / tr.bpm / 2 };
+    const state = { name, bus };
     this.track = state;
+    if (MUSIC_LIB[name]?.[0]) {
+      bus.connect(this.musicDry);
+      this._loadMusic(name).then((buf) => {
+        if (this.track !== state) return;
+        if (!buf) return this._synthTrack(state);
+        const t = this.ctx.currentTime + 0.03;
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(bus);
+        src.start(t);
+        state.src = src;
+        bus.gain.setValueAtTime(0.0001, t);
+        bus.gain.exponentialRampToValueAtTime(1, t + 0.9);
+      });
+      return;
+    }
+    this._synthTrack(state);
+  }
+  _synthTrack(state) {
+    const tr = TRACKS[state.name];
+    if (!tr) return;
+    state.bus.disconnect();
+    state.bus.connect(this.musicBus);
+    state.bus.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    state.bus.gain.exponentialRampToValueAtTime(1, this.ctx.currentTime + 0.8);
+    Object.assign(state, { tr, step: 0, next: this.ctx.currentTime + 0.08, stepDur: 60 / tr.bpm / 2 });
     state.timer = setInterval(() => this._schedule(state), 30);
     this._schedule(state);
+  }
+  _loadMusic(name) {
+    const hit = this.musicBufs.get(name);
+    if (hit) {
+      // refresh LRU order
+      this.musicBufs.delete(name);
+      this.musicBufs.set(name, hit);
+      return Promise.resolve(hit);
+    }
+    return this._decode(MUSIC_LIB[name][0])
+      .then((buf) => {
+        this.musicBufs.set(name, buf);
+        // keep the decoded PCM of the last three tracks only (a 30 s stereo loop is ~10 MB)
+        while (this.musicBufs.size > 3) this.musicBufs.delete(this.musicBufs.keys().next().value);
+        return buf;
+      })
+      .catch(() => null);
   }
   stopMusic() {
     if (this.track) {
       const s = this.track;
-      clearInterval(s.timer);
+      if (s.timer) clearInterval(s.timer);
+      const t = this.ctx.currentTime;
       try {
-        s.bus.gain.cancelScheduledValues(this.ctx.currentTime);
-        s.bus.gain.setValueAtTime(Math.max(0.0001, s.bus.gain.value), this.ctx.currentTime);
-        s.bus.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.4);
+        s.bus.gain.cancelScheduledValues(t);
+        s.bus.gain.setValueAtTime(Math.max(0.0001, s.bus.gain.value), t);
+        s.bus.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+        s.src?.stop(t + 0.45);
       } catch (e) { /* ignore */ }
       setTimeout(() => s.bus.disconnect(), 600);
     }
@@ -270,19 +578,23 @@ class AudioSys {
   }
   /** Play a one-off jingle over (ducked) music. */
   jingle(name) {
-    if (!this.ctx) return;
+    if (!this.ctx || this.muted) return;
+    const id = 'jingle_' + name;
+    const buf = LIB[id] ? this._pick(id) : null;
     const j = JINGLES[name];
-    if (!j) return;
+    if (!buf && !j) return;
+    const len = buf ? buf.duration : j.len;
     if (this.track) {
       const g = this.track.bus.gain;
       const t = this.ctx.currentTime;
       g.cancelScheduledValues(t);
       g.setValueAtTime(Math.max(0.0001, g.value), t);
       g.exponentialRampToValueAtTime(0.15, t + 0.1);
-      g.setValueAtTime(0.15, t + j.len);
-      g.exponentialRampToValueAtTime(1, t + j.len + 0.8);
+      g.setValueAtTime(0.15, t + len);
+      g.exponentialRampToValueAtTime(1, t + len + 0.8);
     }
-    j.play(this);
+    if (buf) this._voice(id, buf, { bus: 'music' }, [2.4, 0, 1]);
+    else j.play(this);
   }
 
   _schedule(s) {

@@ -56,6 +56,8 @@ export const EMOTES = [
   { icon: 'megaphone', text: "LET'S GO!", color: '#7cff3a', wind: 'stretch', windMood: 'focus', act: 'fistPump', mood: 'determined', vox: '!', fx: 'bolt', dur: 1.5 },
 ];
 const EMOTE_WIND = 0.75;
+// reaction stings, by EMOTES index (src/core/audio.js: recorded CC0 clips)
+const EMOTE_SFX = ['emGoodLuck', 'emThanks', 'emWellPlayed', 'emOops', 'emWow', 'emGrr', 'emEasy', 'emLetsGo'];
 const EMOTE_CD = 4.5;
 
 /**
@@ -765,6 +767,8 @@ export class BattleHUD {
     const em = EMOTES[i];
     if (!em) return;
     audio.play('emote', { pitch: si === 0 ? 1 : 0.85 });
+    // the reaction lands after the wind-up: a meme sting per emote (rival's a touch quieter)
+    audio.play(EMOTE_SFX[i] ?? 'emote', { delay: EMOTE_WIND, vol: si === 0 ? 1 : 0.8 });
     this.view.emoteAct?.(si, em, EMOTE_WIND);
     if (si === 0) {
       this.live?.emote(em, EMOTE_WIND);
@@ -799,10 +803,12 @@ export class BattleHUD {
       case 'doubleEnergy':
         bigBanner('2X POWER!', 'Last minute - spend it fast!', { dur: 1.6, color: '#ffd84a' });
         audio.play('bell');
+        audio.play('vHurry', { delay: 0.35 });
         break;
       case 'overtime':
         bigBanner('OVERTIME!', 'Hit their base to win!', { dur: 1.8, color: '#ffb84a' });
         audio.play('alarm');
+        audio.play('vSuddenDeath', { delay: 0.45 });
         break;
       case 'labUp': {
         const sd = this.sides[ev.side];

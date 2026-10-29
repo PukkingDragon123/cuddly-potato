@@ -2,8 +2,8 @@
 
 **An unofficial fan-made mobile strategy game** in the spirit of Clash Royale, with Battle Cats-style side-view
 lane battles, starring high-res voxel versions of the **MrBeast Lab Swarms** toys. Not affiliated with MrBeast,
-Beast Industries or Moose Toys. Every model, face, icon, sound and song is generated in code: no external art or
-audio assets.
+Beast Industries or Moose Toys. Every model, face and icon is generated in code: no external art. Sound effects
+and music loops are CC0 recordings (Kenney + Freesound CC0, see `src/assets/sfx/CREDITS.md`).
 
 Built with **Three.js** and **Vite** in plain JavaScript. Runs in any modern browser, on phones (portrait or
 landscape) and desktop.

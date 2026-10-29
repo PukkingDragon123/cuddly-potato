@@ -136,6 +136,7 @@ export function playSigCutscene(view, ev) {
     P.burst(hp, { tex: 'diamond', count: 14, speed: 5, size: 0.22, color: [C, W], glow: 2, life: 0.5, drag: 2 });
     engine.shake(0.35);
     audio.play('explode', { pitch: 1.3, vol: 0.5 });
+    audio.play('vineBoom', { vol: 0.85 });
   };
   ctl.skip = () => {
     if (ctl.done) return;

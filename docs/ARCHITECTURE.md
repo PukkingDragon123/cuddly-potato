@@ -1,7 +1,7 @@
 # MrBeast Swarmers - Architecture
 
 Vanilla JS (ES modules) + Three.js, bundled by Vite. No framework. All art is generated in code: voxel models
-(`VoxGrid`), pixel-art faces/icons/UI skins drawn on tiny canvases, procedural audio.
+(`VoxGrid`), pixel-art faces/icons/UI skins drawn on tiny canvases. Audio is CC0 recordings (src/assets/sfx/).
 
 ```
 src/
@@ -12,7 +12,8 @@ src/
     voxel.js           VoxGrid (sparse grid, per-voxel AO, glow voxels, build), Mats (toy plastic, glow HDR), variants
     chibi.js, face.js  chibi characters (Jimmy, Nolan, Juan, NPCs) with pixel faces and pose animations
     particles.js       instanced particles + fx presets (burst, shatter, cash, foam, slime, confetti, shockwave...)
-    audio.js           procedural SFX (audio.play) + music tracks (audio.music) + jingles
+    audio.js           recorded SFX (audio.play, src/assets/sfx/<id>-<n>.ogg|mp3, lazy-decoded after the first tap,
+                       synthesized fallback) + music loops (audio.music) + jingles; CREDITS.md lists every source
     tween.js, util.js  animation helpers, rng, colour + math helpers
   data/                pure data: swarms, spells, cards (unified catalogue), commanders, vials, arenas (+ trophy
                        road, bosses, quests, secrets, ghost opponents), labs (base, POWER, BASE_UPGRADES tiers,

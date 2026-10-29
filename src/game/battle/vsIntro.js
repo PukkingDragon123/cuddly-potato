@@ -51,6 +51,8 @@ const SND = {
     a.tone({ type: 'triangle', f0: 392, dur: 0.4, vol: 0.05 });
   }),
 };
+// recorded versions (src/core/audio.js) win; the procedural voices above are the fallback
+for (const [k, id] of Object.entries({ riser: 'vsRiser', slam: 'vsSlam', crack: 'vsCrack', sting: 'vsSting' })) { const f = SND[k]; SND[k] = (...a) => (audio.ctx && !audio.muted && audio.play(id)) || f(...a); }
 
 // The diagonal seam between the panels (normalised screen coords, y down).
 function layout(portrait) {

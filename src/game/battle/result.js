@@ -62,6 +62,8 @@ const SND = {
   }),
   tickRoll: (p = 1) => audio.play('countTick', { pitch: p, gap: 0.04 }),
 };
+// recorded versions (src/core/audio.js) win; the procedural voices above are the fallback
+for (const [k, id] of Object.entries({ news: 'news', swoosh: 'whoosh', slowmo: 'slowmo' })) { const f = SND[k]; SND[k] = (...a) => (audio.ctx && !audio.muted && audio.play(id)) || f(...a); }
 
 /** A pausable sequence clock: wait(ms) resolves early once skip() is called. */
 function clock() {

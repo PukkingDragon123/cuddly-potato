@@ -190,7 +190,7 @@ export class BattleScene {
     }
     if (this.netMode) await this.friendHandshake();
     bigBanner(this.mode === 'boss' ? 'BOSS FIGHT!' : 'BATTLE!', '', { dur: 0.9, color: '#ffd84a' });
-    audio.play('go');
+    audio.play('fight');
     if (!(this.netMode && this.params.role === 'guest')) this.sim.paused = false;
     this.ready = true;
     if (this.ai && this.mode === 'ranked' && Math.random() < 0.5) setTimeout(() => !this.ended && this.hud.showEmote(1, 0), 1500);

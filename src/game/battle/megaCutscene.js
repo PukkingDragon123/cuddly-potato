@@ -192,6 +192,8 @@ export function playMegaCutscene(view, ev) {
       audio.play('explode', { pitch: 0.5 });
       audio.play('roar', { pitch: 0.45 });
       audio.play('fanfare');
+      audio.play('vineBoom');
+      audio.play('airhorn', { delay: 0.35, vol: side === 0 ? 1 : 0.75 });
       rig.baseScale = def?.size ?? 3.4;
       rig.attack(0.9);
       rig.boing(0.8);
