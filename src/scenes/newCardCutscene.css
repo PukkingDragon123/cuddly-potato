@@ -39,9 +39,9 @@ body.landscape .vo-cut-panel { left: auto; right: calc(var(--safe-r) + var(--u) 
 .vo-cut-kicker span {
   display: inline-block; padding: 0.05em 0.7em 0.1em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); letter-spacing: 0.08em; color: var(--ink, #15121f);
   background: linear-gradient(#fff6b0 0 22%, var(--gold) 22% 76%, #d8861a 76%); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--u) * 3) rgba(255, 216, 74, 0.7);
-  transform: translateY(110%) skewX(-12deg); transition: transform 0.35s cubic-bezier(.2, 1.4, .4, 1);
+  transform: translateY(110%); transition: transform 0.35s cubic-bezier(.2, 1.4, .4, 1);
 }
-.vo-cut-panel.in .vo-cut-kicker span { transform: skewX(-12deg); }
+.vo-cut-panel.in .vo-cut-kicker span { transform: none; }
 
 .vo-cut-name {
   display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; font-family: var(--font-d); line-height: 0.92; letter-spacing: 0.02em;
@@ -52,7 +52,7 @@ body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; fon
 .vo-cut-word { display: inline-flex; white-space: nowrap; }
 .vo-cut-l1 { display: inline-block; opacity: 0; }
 .vo-cut-panel.in .vo-cut-l1 { animation: voCutLetter 0.32s cubic-bezier(.2, 1.5, .4, 1) both; }
-@keyframes voCutLetter { 0% { opacity: 0; transform: translateY(-40%) scale(3.2) rotate(-12deg); filter: blur(2px); } 100% { opacity: 1; transform: none; filter: none; } }
+@keyframes voCutLetter { 0% { opacity: 0; transform: translateY(-40%) scale(3.2); filter: blur(2px); } 100% { opacity: 1; transform: none; filter: none; } }
 .vo-cut-name.hit { animation: voCutHit 0.4s ease-out; }
 @keyframes voCutHit { 0% { transform: scale(1.12); filter: brightness(2); } 100% { transform: none; filter: none; } }
 .vo-cut.r-rare .vo-cut-name { color: #ffd2a0; }

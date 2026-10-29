@@ -97,7 +97,8 @@ export function affordBtn(b) {
 /** Deny: decaying wobble (complements the shake-x class). */
 export function denyBtn(b) {
   if (!b?.isConnected) return;
-  seq(b, 'rotate', [0, -5, 4, -2.5, 1.2, 0], { duration: 0.42 });
+  // sideways shake (never tilt text)
+  seq(b, 'translate', [0, -5, 4, -2.5, 1.2, 0], { duration: 0.42 });
 }
 
 if (typeof window !== 'undefined' && !window.__btnFx) {

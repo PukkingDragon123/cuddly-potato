@@ -89,7 +89,7 @@
 .vsx-vs .s { rotate: 6deg; translate: 0 0.06em; }
 .vsx.vs-in .vsx-vs { animation: vsxVs 0.42s cubic-bezier(.2, 1.6, .35, 1) both, vsxBuzz 0.12s steps(2) 0.5s infinite; }
 .vsx.out .vsx-vs { animation: vsxVsOut 0.26s ease-in both; }
-@keyframes vsxVs { 0% { opacity: 0; transform: scale(4) rotate(-12deg); } 45% { opacity: 1; transform: scale(0.85) rotate(3deg); } 100% { opacity: 1; transform: none; } }
+@keyframes vsxVs { 0% { opacity: 0; transform: scale(4); } 45% { opacity: 1; transform: scale(0.85); } 100% { opacity: 1; transform: none; } }
 @keyframes vsxBuzz { 0% { translate: -50% -52%; } 50% { translate: calc(-50% + 1px) calc(-52% - 1px); } 100% { translate: calc(-50% - 1px) -52%; } }
 @keyframes vsxVsOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(2.2); } }
 
@@ -105,15 +105,15 @@
 .vsx.portrait.slam .vsx-info.s1 { animation-name: vsxInfoL; }
 .vsx.portrait.slam .vsx-info.s0 { animation-name: vsxInfoR; }
 .vsx.out .vsx-info { animation: fadeOut 0.18s both !important; }
-@keyframes vsxInfoL { 0% { opacity: 0; transform: translateX(-60px) skewX(-12deg); } 100% { opacity: 1; transform: none; } }
-@keyframes vsxInfoR { 0% { opacity: 0; transform: translateX(60px) skewX(12deg); } 100% { opacity: 1; transform: none; } }
+@keyframes vsxInfoL { 0% { opacity: 0; transform: translateX(-60px); } 100% { opacity: 1; transform: none; } }
+@keyframes vsxInfoR { 0% { opacity: 0; transform: translateX(60px); } 100% { opacity: 1; transform: none; } }
 .vsx-tag {
   font-family: var(--font-d); font-size: clamp(13px, 0.95em, 18px); letter-spacing: 0.12em; line-height: 1; color: #fff; padding: 0 0.3em; text-shadow: var(--outline-thin);
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
 .vsx-nm {
   font-family: var(--font-d); font-size: clamp(30px, 2.5em, 54px); line-height: 0.92; letter-spacing: 0.03em; color: #fff; text-shadow: var(--outline), 0 0 calc(var(--px) * 6) rgba(255, 255, 255, 0.35);
-  max-width: 100%; white-space: nowrap; transform: skewX(-6deg); font-size: calc(clamp(30px, 2.5em, 54px) * var(--nk, 1));
+  max-width: 100%; white-space: nowrap; transform: none; font-size: calc(clamp(30px, 2.5em, 54px) * var(--nk, 1));
 }
 .vsx-pills { display: flex; gap: calc(var(--u) * 0.8); flex-wrap: wrap; }
 .vsx-info.s0.vsx-info .vsx-pills { justify-content: inherit; }

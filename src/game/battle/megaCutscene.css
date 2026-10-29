@@ -52,8 +52,8 @@
 .mc-title.go { animation: mc-slam 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) forwards; }
 .mc-title.go span { animation: mc-shine 1.4s 0.3s linear infinite; }
 @keyframes mc-slam {
-  0% { opacity: 0; transform: scale(3) rotate(-6deg); filter: blur(6px); }
-  60% { opacity: 1; transform: scale(0.92) rotate(1deg); filter: none; }
+  0% { opacity: 0; transform: scale(3); filter: blur(6px); }
+  60% { opacity: 1; transform: scale(0.92); filter: none; }
   100% { opacity: 1; transform: none; }
 }
 @keyframes mc-shine { 50% { filter: brightness(1.35) drop-shadow(0 0 10px var(--mc)); } }

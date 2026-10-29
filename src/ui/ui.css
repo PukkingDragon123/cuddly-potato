@@ -235,7 +235,7 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
 @keyframes badgeBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(calc(var(--px) * -1.5)); } }
 .new-tag {
   position: absolute; z-index: 3; font-family: var(--font-d); font-size: 0.75em; padding: 0.1em 0.35em; color: #fff; background: var(--red);
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #ff9aa4, 0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.7); text-shadow: var(--outline-thin); transform: rotate(-8deg);
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #ff9aa4, 0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.7); text-shadow: var(--outline-thin); transform: none;
   animation: tagZap 1.6s steps(1) infinite;
 }
 @keyframes tagZap { 0%, 88% { filter: none; } 90% { filter: brightness(1.5); } 94% { filter: none; } 96% { filter: brightness(1.4); } }
@@ -704,7 +704,7 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
 .modal { animation: modalIn 0.42s cubic-bezier(.2, 1.5, .4, 1) backwards; }
 @keyframes modalIn { 0% { transform: translateY(calc(var(--u) * 8)) scale(0.6, 0.5); opacity: 0; } 55% { transform: translateY(0) scale(1.05, 0.96); opacity: 1; } 78% { transform: scale(0.98, 1.03); } 100% { transform: none; } }
 .modal-head .ribbon { animation: signDrop 0.55s 0.1s cubic-bezier(.3, 1.7, .5, 1) both, neonHum 7s 0.7s steps(1) infinite; transform-origin: 50% 0; }
-@keyframes signDrop { 0% { transform: translateY(calc(var(--u) * -8)) rotate(-6deg); opacity: 0; } 60% { transform: translateY(0) rotate(3deg); opacity: 1; } 100% { transform: none; } }
+@keyframes signDrop { 0% { transform: translateY(calc(var(--u) * -8)); opacity: 0; } 60% { transform: translateY(0); opacity: 1; } 100% { transform: none; } }
 .modal-close { animation: popIn 0.35s 0.25s cubic-bezier(.2, 1.6, .4, 1) both; }
 .toast > .pi { animation: pillIcon 0.5s 0.12s cubic-bezier(.3, 1.8, .5, 1) both; }
 
@@ -860,13 +860,13 @@ img.pia.pia-hover { animation-play-state: paused; }
 /* name plate: a chunky skewed tab in the speaker colour */
 .dlg-name {
   position: absolute; left: calc(var(--px) * 4); top: 0; translate: 0 -58%; z-index: 2;
-  padding: 0.02em 0.7em 0.1em; transform: skewX(-8deg); white-space: nowrap;
+  padding: 0.02em 0.7em 0.1em; transform: none; white-space: nowrap;
   font-family: var(--font-d); font-size: clamp(21px, 1.75em, 32px); line-height: 1; letter-spacing: 0.05em; color: #fff; text-shadow: var(--outline-thin);
   background: linear-gradient(color-mix(in srgb, var(--spk) 45%, #fff) 0 calc(var(--px) * 1), var(--spk) calc(var(--px) * 1) 58%, color-mix(in srgb, var(--spk) 72%, #0a0820) 58%);
   box-shadow: 0 0 0 var(--px) var(--ink), 0 calc(var(--px) * 1.5) 0 var(--px) rgba(8, 6, 28, 0.4);
   border-radius: calc(var(--px) * 1.5);
 }
-.dlg-name > span { display: inline-block; transform: skewX(8deg); }
+.dlg-name > span { display: inline-block; transform: none; }
 .dialogue:not(.cont) .dlg-name { animation: dlgName 0.36s cubic-bezier(.2, 1.6, .4, 1) 0.1s both; }
 @keyframes dlgName { 0% { opacity: 0; translate: -12px -58%; } 100% { opacity: 1; translate: 0 -58%; } }
 
@@ -1051,3 +1051,6 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 .gcard .cost::before { inset: -14%; clip-path: none; background: var(--ic-energy) center / 100% 100% no-repeat; image-rendering: pixelated; }
 .gcard .cost::after { display: none; }
 @media (max-resolution: 1.99dppx) { .gcard .cost::before { image-rendering: auto; } }
+
+/* House rule: text is never tilted or skewed (no rotate/skew on text, ever). */
+.t-d, .t-b, .outline, h1, h2, h3, [class*="name"], [class*="title"], [class*="slam"], [class*="label"], [class*="tag"], [class*="kicker"], [class*="banner"] { font-style: normal; }

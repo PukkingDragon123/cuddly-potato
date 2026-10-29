@@ -28,7 +28,7 @@ export function canAdd() {
 
 const ID = { x: 0, y: 0, sx: 1, sy: 1, r: 0 };
 const KEYS = ['x', 'y', 'sx', 'sy', 'r'];
-const tf = (p) => `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px) rotate(${p.r.toFixed(2)}deg) scale(${p.sx.toFixed(4)}, ${p.sy.toFixed(4)})`;
+const tf = (p) => `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px) scale(${p.sx.toFixed(4)}, ${p.sy.toFixed(4)})`;
 
 /**
  * Damped spring from `from` to `to` (both poses). Returns { frames, dur } with

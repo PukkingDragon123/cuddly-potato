@@ -93,7 +93,7 @@
 .hm-mini.ready { animation: readyBob 0.9s ease-in-out infinite; --liq: #7aff4a; --liq2: #1d9a3a; filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.75)); }
 .hm-mini.ready::after { height: 55%; }
 .hm-mini.ready .t { color: var(--green-l); }
-@keyframes readyBob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(calc(var(--px) * -2)) rotate(2deg); } }
+@keyframes readyBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(calc(var(--px) * -2)); } }
 
 /* ---------------------------------------------------------------- bottom dock */
 .hm-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2); }

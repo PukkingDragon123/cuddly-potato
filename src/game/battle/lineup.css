@@ -339,7 +339,7 @@ body.touch .cf .key { display: none; }
 .bh-nextc img { position: absolute; inset: 6% 6% 20%; width: 88%; height: 74%; object-fit: contain; }
 .bh-nextc b { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 2.8); color: #ffe27a; text-shadow: var(--outline-thin); background: rgba(8, 6, 24, 0.8); }
 .bh-nextc.enter { animation: nextIn 0.35s cubic-bezier(.2, 1.5, .4, 1); }
-@keyframes nextIn { 0% { transform: translateY(40%) rotate(-12deg) scale(0.5); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes nextIn { 0% { transform: translateY(40%) scale(0.5); opacity: 0; } 100% { transform: none; opacity: 1; } }
 
 /* ECHO pending */
 .bh-echo {
@@ -397,12 +397,12 @@ body.landscape .bh-float { padding-bottom: calc(var(--u) * 1.2); }
 .uc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; animation: ucFlash 0.45s 0.18s ease-out both; }
 @keyframes ucFlash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
 .uc-band {
-  position: absolute; left: -10%; right: -10%; top: 50%; height: clamp(120px, 24vh, 230px); translate: 0 -50%; transform: skewY(-7deg);
+  position: absolute; left: -10%; right: -10%; top: 50%; height: clamp(120px, 24vh, 230px); translate: 0 -50%; transform: none;
   background: radial-gradient(ellipse 60% 140% at 30% 50%, color-mix(in srgb, var(--uc) 85%, #fff) 0%, transparent 60%), linear-gradient(90deg, rgba(5, 3, 12, 0.95), color-mix(in srgb, var(--uc) 70%, #120c24) 45%, rgba(5, 3, 12, 0.95));
   box-shadow: 0 calc(var(--px) * -2) 0 #fff, 0 calc(var(--px) * -4) 0 var(--uc), 0 calc(var(--px) * 2) 0 #fff, 0 calc(var(--px) * 4) 0 var(--uc), 0 0 40px color-mix(in srgb, var(--uc) 70%, transparent);
   animation: ucBand var(--dur) cubic-bezier(.2, .9, .3, 1) both;
 }
-@keyframes ucBand { 0% { transform: skewY(-7deg) scaleY(0); } 12% { transform: skewY(-7deg) scaleY(1.15); } 18%, 84% { transform: skewY(-7deg) scaleY(1); opacity: 1; } 100% { transform: skewY(-7deg) scaleY(0) translateX(20%); opacity: 0; } }
+@keyframes ucBand { 0% { transform: scaleY(0); } 12% { transform: scaleY(1.15); } 18%, 84% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(0) translateX(20%); opacity: 0; } }
 .uc-lines {
   position: absolute; inset: 0; overflow: hidden; opacity: 0.6;
   background: linear-gradient(90deg, transparent 0 35%, rgba(255, 255, 255, 0.9) 35% 100%) 0 0 / 180px 100%;
@@ -413,12 +413,12 @@ body.landscape .bh-float { padding-bottom: calc(var(--u) * 1.2); }
 @keyframes ucLines { to { background-position: -360px 0; } }
 .ult-cut.s1 .uc-lines { animation-direction: reverse; }
 .uc-hero {
-  position: absolute; left: 14%; bottom: -12%; height: 150%; width: auto; max-width: 48%; object-fit: contain; transform: skewY(7deg);
+  position: absolute; left: 14%; bottom: -12%; height: 150%; width: auto; max-width: 48%; object-fit: contain; transform: none;
   filter: drop-shadow(calc(var(--px) * 2) 0 0 #fff) drop-shadow(calc(var(--px) * -2) 0 0 #fff) drop-shadow(0 0 16px var(--uc));
   animation: ucHero var(--dur) cubic-bezier(.2, .9, .3, 1) both;
 }
 @keyframes ucHero { 0% { translate: -70vw 0; } 22% { translate: 0 0; scale: 1.08; } 30% { scale: 1; } 84% { translate: 3vw 0; opacity: 1; } 100% { translate: 60vw 0; opacity: 0; } }
-.uc-txt { position: absolute; right: 13%; top: 50%; translate: 0 -50%; transform: skewY(7deg); display: flex; flex-direction: column; align-items: flex-end; text-align: right; max-width: 54%; }
+.uc-txt { position: absolute; right: 13%; top: 50%; translate: 0 -50%; transform: none; display: flex; flex-direction: column; align-items: flex-end; text-align: right; max-width: 54%; }
 .uc-txt small {
   text-transform: uppercase; font-family: var(--font-d); font-size: clamp(13px, 3.4vw, 24px); letter-spacing: 0.18em; color: var(--ink); padding: 0 0.6em; background: var(--uc); box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px #fff; white-space: nowrap;
   animation: ucKick var(--dur) ease-out both;
@@ -431,11 +431,11 @@ body.landscape .bh-float { padding-bottom: calc(var(--u) * 1.2); }
 .uc-txt em { margin-top: 4px; font-family: var(--font-b); font-style: normal; font-size: clamp(12px, 3vw, 20px); color: #fff6b8; text-shadow: var(--outline-thin); animation: ucKick var(--dur) ease-out both; }
 @keyframes ucKick { 0%, 14% { opacity: 0; translate: 40px 0; } 24%, 84% { opacity: 1; translate: 0 0; } 100% { opacity: 0; } }
 @keyframes ucSlam { 0%, 18% { opacity: 0; scale: 3; } 28% { opacity: 1; scale: 0.9; } 34% { scale: 1.04; } 40%, 84% { scale: 1; opacity: 1; } 100% { opacity: 0; scale: 1.2; } }
-.ult-cut.s1 .uc-band { background: linear-gradient(90deg, rgba(12, 3, 5, 0.95), color-mix(in srgb, var(--uc) 55%, #24060c) 55%, rgba(12, 3, 5, 0.95)); transform: skewY(7deg); animation-name: ucBand1; }
-@keyframes ucBand1 { 0% { transform: skewY(7deg) scaleY(0); } 12% { transform: skewY(7deg) scaleY(1.15); } 18%, 84% { transform: skewY(7deg) scaleY(1); opacity: 1; } 100% { transform: skewY(7deg) scaleY(0) translateX(-20%); opacity: 0; } }
-.ult-cut.s1 .uc-hero { left: auto; right: 14%; transform: skewY(-7deg); animation-name: ucHero1; }
+.ult-cut.s1 .uc-band { background: linear-gradient(90deg, rgba(12, 3, 5, 0.95), color-mix(in srgb, var(--uc) 55%, #24060c) 55%, rgba(12, 3, 5, 0.95)); transform: none; animation-name: ucBand1; }
+@keyframes ucBand1 { 0% { transform: scaleY(0); } 12% { transform: scaleY(1.15); } 18%, 84% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(0) translateX(-20%); opacity: 0; } }
+.ult-cut.s1 .uc-hero { left: auto; right: 14%; transform: none; animation-name: ucHero1; }
 @keyframes ucHero1 { 0% { translate: 70vw 0; } 22% { translate: 0 0; } 84% { translate: -3vw 0; opacity: 1; } 100% { translate: -60vw 0; opacity: 0; } }
-.ult-cut.s1 .uc-txt { right: auto; left: 13%; align-items: flex-start; text-align: left; transform: skewY(-7deg); }
+.ult-cut.s1 .uc-txt { right: auto; left: 13%; align-items: flex-start; text-align: left; transform: none; }
 .ult-cut.s1 .uc-txt small { color: #fff; }
 
 @media (prefers-reduced-motion: reduce) {

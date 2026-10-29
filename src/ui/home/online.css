@@ -149,7 +149,7 @@ body.landscape .ol-entry { width: calc(var(--u) * 15.5); height: calc(var(--u) *
 .ol-vs-tr .pi { width: 1em; height: 1em; }
 .ol-vs-mid { position: relative; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); }
 .ol-vs-vs { font-family: var(--font-d); font-size: calc(var(--u) * 18); line-height: 0.85; color: #ffd84a; text-shadow: var(--outline), 0 0 calc(var(--u) * 4) rgba(255, 216, 74, 0.8); animation: olVs 0.5s 0.4s cubic-bezier(.3, 2, .5, 1) both, olShake 0.12s 0.9s 4; }
-@keyframes olVs { from { opacity: 0; transform: scale(3) rotate(-20deg); } }
+@keyframes olVs { from { opacity: 0; transform: scale(3); } }
 @keyframes olShake { 50% { translate: calc(var(--px) * 2) calc(var(--px) * -1); } }
 .ol-vs-arena { font-family: var(--font-d); font-size: calc(var(--u) * 3.4); color: #fff; padding: 0.05em 0.6em; background: rgba(0, 0, 0, 0.5); box-shadow: 0 0 0 var(--px) var(--ink); white-space: nowrap; animation: olFade 0.3s 0.8s both; }
 .ol-vs-count { font-family: var(--font-d); font-size: calc(var(--u) * 12); color: #fff; text-shadow: var(--outline); animation: olFade 0.3s 0.9s both; }

@@ -42,6 +42,21 @@
 .cfb.hit { animation: cfbShake 0.42s steps(7) both; }
 @keyframes cfbShake { 0% { translate: 0 0; } 20% { translate: -8px 5px; } 40% { translate: 7px -5px; } 60% { translate: -5px 3px; } 80% { translate: 3px -2px; } 100% { translate: 0 0; } }
 .cfb.out { opacity: 0; transition: opacity 0.5s; }
+/* engineer J: impact frame, cracked lens, pixel debris off the stamp */
+.cfb-tag b { font-weight: 400; color: #ffd84a; letter-spacing: 0.1em; }
+.cfb-impact { position: absolute; inset: 0; background: #fff; mix-blend-mode: difference; opacity: 0; }
+.cfb.hit .cfb-impact { animation: cfbImpact 0.13s steps(1) both; }
+@keyframes cfbImpact { 0% { opacity: 1; } 50% { opacity: 0.85; background: #ffd84a; } 100% { opacity: 0; } }
+.cfb-crack { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; }
+.cfb.hit .cfb-crack { animation: cfbCrack 1.4s 0.03s ease-out both; }
+@keyframes cfbCrack { 0% { opacity: 0; } 8% { opacity: 1; } 70% { opacity: 0.8; } 100% { opacity: 0; } }
+.cfb-chunks { position: absolute; left: 50%; top: 42%; }
+.cfb-chunks > i { position: absolute; left: 0; top: 0; opacity: 0; }
+.cfb-chunks canvas { display: block; height: auto; image-rendering: pixelated; translate: -50% -50%; }
+.cfb.hit .cfb-chunks > i { animation: cfbChunk var(--d) cubic-bezier(.2, .6, .5, 1) 0.05s both; }
+.cfb.hit .cfb-chunks canvas { animation: cfbChunkR var(--d) linear 0.05s both; }
+@keyframes cfbChunk { 0% { opacity: 1; transform: none; } 35% { opacity: 1; transform: translate(var(--dx), var(--dy)); } 100% { opacity: 0; transform: translate(calc(var(--dx) * 1.3), calc(var(--dy) + var(--fall))); } }
+@keyframes cfbChunkR { to { rotate: var(--rot); } }
 
 /* ---------------- result root */
 .cres { position: absolute; inset: 0; z-index: 50; overflow: hidden; pointer-events: auto; --gold: #ffd84a; --news: #e0263f; --news-d: #8a0f22; }
@@ -90,7 +105,7 @@
 }
 .r-loss .cv-title span { background: linear-gradient(#ffffff 0 26%, #ff8a9a 26% 58%, #c8102e 58%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(calc(var(--px) * 1.3) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.3) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3.5) 0 #2a0010); }
 .r-draw .cv-title span { background: linear-gradient(#ffffff 0 26%, #d8c0ff 26% 58%, #8a5aff 58%); -webkit-background-clip: text; background-clip: text; }
-@keyframes cvLetter { 0% { opacity: 0; transform: translateY(-1.2em) scale(2.2) rotate(-10deg); } 55% { opacity: 1; transform: translateY(0.06em) scale(0.9, 1.1); } 100% { opacity: 1; transform: none; } }
+@keyframes cvLetter { 0% { opacity: 0; transform: translateY(-1.2em) scale(2.2); } 55% { opacity: 1; transform: translateY(0.06em) scale(0.9, 1.1); } 100% { opacity: 1; transform: none; } }
 .cv-sub {
   margin-top: calc(var(--u) * 0.8); padding: 0 0.7em; font-family: var(--font-d); font-size: clamp(18px, 1.5em, 30px); letter-spacing: 0.12em; color: #fff; text-shadow: var(--outline-thin);
   max-width: 92vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

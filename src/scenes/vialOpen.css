@@ -33,7 +33,7 @@
 .vo-title .ribbon { font-size: calc(var(--u) * 7.5); padding: 0 calc(var(--u) * 6); min-width: 0; }
 .vo-title-sub { gap: calc(var(--u) * 3); font-family: var(--font-d); font-size: calc(var(--u) * 5); text-shadow: var(--outline-thin); white-space: nowrap; }
 .vo-title-sub .pi { width: 1.1em; height: 1.1em; }
-.vo-src { padding: 0.05em 0.4em; background: linear-gradient(#ff8ac4 0 18%, var(--pink) 18% 78%, #b8125e 78%); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 4) rgba(255, 46, 136, 0.7); transform: rotate(-3deg); }
+.vo-src { padding: 0.05em 0.4em; background: linear-gradient(#ff8ac4 0 18%, var(--pink) 18% 78%, #b8125e 78%); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 4) rgba(255, 46, 136, 0.7); transform: none; }
 .vo-title.vo-out { animation: voTitleOut 0.3s ease-in forwards; }
 @keyframes voTitleOut { to { transform: translateY(-60%); opacity: 0; } }
 body.landscape .vo-title { top: calc(var(--safe-t) + var(--u) * 2.2); }
@@ -109,9 +109,9 @@ body.landscape .vo-reveal, body.landscape .vo-cur { animation-name: voPanelInL; 
   position: absolute; z-index: 5; right: calc(var(--u) * -3); top: calc(var(--u) * -3); padding: 0.05em 0.35em 0.12em;
   font-family: var(--font-d); font-size: calc(var(--u) * 6.4); color: #fff; background: linear-gradient(#ff8a90 0 14%, var(--red) 14% 76%, #a01a2a 76%); text-shadow: var(--outline-thin);
   box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * -2) 0 #a01a2a, 0 calc(var(--px) * 2) 0 var(--px) rgba(0, 0, 0, 0.4), 0 0 calc(var(--px) * 5) rgba(255, 60, 80, 0.8);
-  transform: rotate(10deg); animation: voStamp 0.34s cubic-bezier(.2, 1.6, .4, 1) both;
+  transform: none; animation: voStamp 0.34s cubic-bezier(.2, 1.6, .4, 1) both;
 }
-@keyframes voStamp { 0% { transform: rotate(-20deg) scale(3); opacity: 0; } 100% { transform: rotate(10deg) scale(1); opacity: 1; } }
+@keyframes voStamp { 0% { transform: scale(3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
 .vo-info { display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * 0.6); min-width: 0; flex: 1 1 auto; }
 .vo-tags { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 1.6); }
@@ -146,7 +146,7 @@ body.landscape .vo-reveal, body.landscape .vo-cur { animation-name: voPanelInL; 
 /* shiny variants */
 .vo-shiny-tag {
   font-family: var(--font-d); font-size: calc(var(--u) * 4.6); padding: 0.02em 0.45em 0.1em; color: var(--ink); white-space: nowrap;
-  box-shadow: 0 0 0 var(--px) var(--ink); animation: voStamp 0.4s cubic-bezier(.2, 1.6, .4, 1) both; transform: rotate(-4deg);
+  box-shadow: 0 0 0 var(--px) var(--ink); animation: voStamp 0.4s cubic-bezier(.2, 1.6, .4, 1) both; transform: none;
   background: linear-gradient(90deg, #ff9ad8, #9ff2ff, #fff27a, #c8a8ff, #ff9ad8); background-size: 300% 100%;
 }
 .vo-shiny-tag.sh-gold { background: linear-gradient(90deg, #ffb21a, #fff2a0, #ffd23f, #ffb21a); background-size: 300% 100%; }
@@ -229,7 +229,7 @@ body.landscape .vo-sum-grid { grid-template-columns: repeat(auto-fill, minmax(ca
 }
 .vo-sum-new {
   position: absolute; right: calc(var(--u) * -1.4); top: calc(var(--u) * -1.6); z-index: 4; padding: 0 0.25em 0.08em;
-  font-family: var(--font-d); font-size: calc(var(--u) * 3.6); background: var(--red); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.8); text-shadow: var(--outline-thin); transform: rotate(8deg);
+  font-family: var(--font-d); font-size: calc(var(--u) * 3.6); background: var(--red); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 3) rgba(255, 60, 80, 0.8); text-shadow: var(--outline-thin);
 }
 .vo-sum-up { position: absolute; left: calc(var(--u) * -1.4); top: calc(var(--u) * -1.6); z-index: 4; width: calc(var(--u) * 5.4); height: calc(var(--u) * 5.4); animation: upBob 0.8s ease-in-out infinite; }
 .vo-sum-empty { text-align: center; font-family: var(--font-d); font-size: calc(var(--u) * 6); padding: calc(var(--u) * 4); text-shadow: var(--outline-thin); }
@@ -282,7 +282,7 @@ body.landscape .vo-shake { left: auto; right: calc(var(--safe-r) + var(--u) * 3)
 /* upgraded tag on the title + summary */
 .vo-uptag, .vo-sum-upg {
   --tc: #ff9a2e;
-  display: inline-flex; align-items: center; gap: 0.2em; padding: 0.05em 0.45em; color: #fff; text-shadow: var(--outline-thin); transform: rotate(-3deg);
+  display: inline-flex; align-items: center; gap: 0.2em; padding: 0.05em 0.45em; color: #fff; text-shadow: var(--outline-thin); transform: none;
   background: linear-gradient(color-mix(in srgb, var(--tc) 45%, #fff 55%) 0 20%, var(--tc) 20% 76%, color-mix(in srgb, var(--tc) 60%, #000 40%) 76%);
   box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 5) var(--tc);
 }
