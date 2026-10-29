@@ -268,7 +268,7 @@ export function mount(el, ctx) {
     const m = 8;
     // beside his head when there is room on the right (clear of the sign and the CRT), else above it
     const room = st.right - (ax + hw * 0.5) - 12 - m;
-    const side = room >= Math.min(150, st.width * 0.34);
+    const side = room >= Math.min(170, st.width * 0.4);
     bubbleEl.style.maxWidth = side ? room + 'px' : '';
     bubbleEl.classList.toggle('side', side);
     const w = bubbleEl.offsetWidth, hh = bubbleEl.offsetHeight;

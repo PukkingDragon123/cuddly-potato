@@ -182,7 +182,7 @@ export async function createPassStage(o = {}) {
   const hemi = new THREE.HemisphereLight(0xeef6ff, 0xb8a890, 1.5);
   const sun = new THREE.DirectionalLight(0xfff2de, 2.2);
   sun.castShadow = true;
-  const ext = 15;
+  const ext = 11;
   Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 70 });
   sun.shadow.mapSize.set(engine.shadowRes ?? 2048, engine.shadowRes ?? 2048);
   sun.shadow.bias = -0.0006;
@@ -324,6 +324,8 @@ export async function createPassStage(o = {}) {
   const mkChar = (id, opts = {}) => {
     const ch = new Chibi(CHARACTERS[id], { scale: opts.scale ?? 0.95 });
     ch.play('idle');
+    // only the big parts cast shadows (hands, face and accessories stay out of the shadow pass)
+    ch.root.traverse((o) => { if (o.isMesh) o.castShadow = o.parent === ch.torso || o.parent === ch.head || o.parent === ch.legL || o.parent === ch.legR; });
     scene.add(ch.root);
     const c = { id, ch, home: new THREE.Vector3(), radius: 0.9, t: Math.random() * 5, update: opts.update ?? null, far: false };
     chars.push(c);
@@ -529,7 +531,7 @@ export async function createPassStage(o = {}) {
     const a = view.w / Math.max(1, view.h);
     // portrait: higher and steeper (the path runs up the screen); landscape: lower and closer
     const k = clamp((a - 0.6) / 1.4, 0, 1);
-    return { fov: 34 - k * 4, dist: 23 - k * 8.5, pitch: (54 - k * 4) * Math.PI / 180, width: 6.8 + k * 3 };
+    return { fov: 34 - k * 4, dist: 23 - k * 5, pitch: (54 - k * 6) * Math.PI / 180, width: 7.9 + k * 2 };
   }
   function placeCamera(dt) {
     const R = rig();

@@ -434,11 +434,48 @@ function iceConeSignGrid() {
   return g;
 }
 
-function bagGrid(col) {
+function conesGrid() {
   const g = new VoxGrid();
-  g.box(-3, 0, -2, 2, 6, 1, col);
-  g.box(-2, 7, -1, 1, 7, 0, shade(col, -0.2));
-  g.box(-1, 2, 2, 0, 4, 2, 0xffffff);
+  for (const [cx, cz] of [[-3, 0], [3, 1]]) {
+    g.box(cx - 2, 0, cz - 2, cx + 2, 0, cz + 2, 0x2a2a34);
+    for (let y = 1; y <= 7; y++) {
+      const r = y < 3 ? 1 : 0;
+      g.box(cx - r, y, cz - r, cx + r, y, cz + r, y === 3 || y === 5 ? 0xffffff : PAL.orange);
+    }
+  }
+  return g;
+}
+function wetFloorGrid() {
+  // yellow A-frame sign with a slipping pixel figure
+  const g = new VoxGrid();
+  for (let y = 0; y <= 11; y++) {
+    const z = Math.round((11 - y) * 0.25);
+    for (let x = -3; x <= 3; x++) { g.set(x, y, z, PAL.yellow); g.set(x, y, -z - 1, PAL.yellow); }
+  }
+  for (const [x, y] of [[0, 9], [0, 8], [-1, 7], [0, 7], [1, 6], [0, 6], [-1, 5], [1, 5], [-2, 4], [2, 3], [-1, 3]]) g.set(x, y, Math.round((11 - y) * 0.25) + 1, PAL.ink);
+  return g;
+}
+function boxStackGrid(seed) {
+  const g = new VoxGrid();
+  const cols = [0xc89a5a, 0xb8884a, 0xd8aa6a];
+  const boxes = [[-4, 0, -3, 3, 4, 3], [-3, 5, -2, 2, 8, 2], [0, 0, 4, 4, 3, 7]];
+  boxes.forEach(([x0, y0, z0, x1, y1, z1], k) => {
+    const c = cols[(k + seed) % 3];
+    g.box(x0, y0, z0, x1, y1, z1, c);
+    g.box(x0, y1, Math.floor((z0 + z1) / 2), x1, y1, Math.floor((z0 + z1) / 2), 0x8a6a3a);
+    g.box(x0 + 1, y0 + 1, z1 + 1, x0 + 2, y0 + 2, z1 + 1, [PAL.pink, PAL.blue, PAL.green][(k + seed) % 3]);
+  });
+  return g;
+}
+function bagPileGrid() {
+  const g = new VoxGrid();
+  const cols = [PAL.pink, PAL.blue, PAL.yellow];
+  for (const [x, z, k] of [[-3, -1, 0], [2, 0, 1], [-1, 3, 2]]) {
+    const c = cols[k];
+    g.box(x - 2, 0, z - 1, x + 2, 6, z + 1, c);
+    g.box(x - 1, 7, z, x + 1, 7, z, shade(c, -0.25));
+    g.box(x - 1, 2, z + 2, x, 3, z + 2, 0xffffff);
+  }
   return g;
 }
 
@@ -633,19 +670,21 @@ export async function buildPassWorld(L) {
     for (const side of [-1, 1]) {
       if (R(ci + side * 7) < 0.25) { ci++; continue; }
       const col = carCols[ci++ % carCols.length];
-      put(still, G('car' + col, () => carGrid(col)), side * (10.2 + R(ci) * 0.6), 0, z, side < 0 ? 0 : Math.PI, 1, { recv: false });
+      put(still, G('car' + col, () => carGrid(col)), side * (10.2 + R(ci) * 0.6), 0, z, side < 0 ? 0 : Math.PI, 1, { cast: false });
     }
   }
   // lamp posts, planters, bushes and trees on the lot edges
-  for (let z = lot.z0 + 2; z > doorZ + 5; z -= 9) {
-    put(still, G('lamp', lampGrid), -6.6, 0, z, 0);
-    put(still, G('lamp', lampGrid), 6.6, 0, z - 4.5, Math.PI);
+  // lamp posts between the stops, either side of the stands
+  for (let i = lot.from; i < lot.to; i++) {
+    const z = (tz[i] + tz[i + 1]) / 2, side = i % 2 ? 1 : -1;
+    if (i % 2 === 0 && i !== lot.from + 2) put(still, G('lamp', lampGrid), X(z) - 3.45, 0, z, 0);
+    if (i % 2 === 1 && i !== lot.from + 3) put(still, G('lamp', lampGrid), X(z) + 3.45, 0, z, Math.PI);
   }
   for (let z = L.zStart + 10; z > doorZ + 3; z -= 4.6) {
     for (const side of [-1, 1]) {
       const x = side * (16 + R(z * 3 + side) * 2.5);
-      if (R(z + side) < 0.3) put(still, G('tree' + (z & 1), () => leafyTreeGrid({ seed: 1 + (z & 1), h: 12, r: 8 })), x, 0, z, R(z) * 6);
-      else put(still, G('bush', () => bushGrid({ w: 7, h: 4, d: 5 })), x, 0, z, R(z) * 6);
+      if (R(z + side) < 0.3) put(still, G('tree' + (z & 1), () => leafyTreeGrid({ seed: 1 + (z & 1), h: 12, r: 8 })), x, 0, z, R(z) * 6, 1, { cast: false });
+      else put(still, G('bush', () => bushGrid({ w: 7, h: 4, d: 5 })), x, 0, z, R(z) * 6, 1, { cast: false });
     }
   }
   // start gate + pylon sign + cart corrals + loose carts
@@ -663,13 +702,16 @@ export async function buildPassWorld(L) {
     text(g, 'CARTS', -21, 14, 0, '+x', 0xffffff, { center: true });
     return g;
   });
-  for (const [x, z, ry] of [[6.3, tz[lot.from + 2] + 1.2, -0.05], [-6.0, tz[lot.from + 5] - 1, 0.08]]) {
-    put(still, corral, x, 0, z, ry);
-    for (let k = 0; k < 4; k++) put(still, cartGeo, x - 1.4 + k * 0.85, 0, z, ry + Math.PI);
+  // cart corrals run along the stands (rotated with the path), stray carts here and there
+  for (const [i, side] of [[lot.from + 2, 1], [lot.from + 5, -1]]) {
+    const z = tz[i];
+    put(still, corral, X(z) + side * 4.35, 0, z, Math.PI / 2);
+    for (let k = 0; k < 4; k++) put(still, cartGeo, X(z) + side * 4.35, 0, z - 1.3 + k * 0.85, -Math.PI / 2);
   }
-  put(still, cartFull, 4.6, 0, tz[lot.from + 4] - 1.4, 2.2);
-  put(still, cartGeo, -4.4, 0, tz[lot.from + 1] - 0.6, 0.7);
-  put(still, cartGeo, -4.9, 0, tz[lot.from + 6] + 1.6, -2.4);
+  put(still, cartFull, X(tz[lot.from + 4]) + 3.6, 0, tz[lot.from + 4] + 0.2, 2.2);
+  put(still, cartGeo, X(tz[lot.from + 6]) - 3.6, 0, tz[lot.from + 6] + 0.4, -2.4);
+  put(still, G('cones', conesGrid), X(tz[lot.from + 3]) + 3.4, 0, tz[lot.from + 3] - 1.4, 0.4);
+  put(still, G('cones', conesGrid), X(tz[lot.from + 6]) + 3.3, 0, tz[lot.from + 6] - 1.6, -0.3);
   // sidewalk curb + planters in front of the store
   put(still, G('curb', () => curbGrid(600)), -30, 0, doorZ + 4.2, 0, 1, { cast: false });
   for (const x of [-11, -6.4, 6.4, 11]) put(still, G('plant' + (x > 0 ? 1 : 2), () => plantGrid(x > 0 ? 1 : 2)), x, 0, doorZ + 1.6, 0);
@@ -742,16 +784,32 @@ export async function buildPassWorld(L) {
   for (let i = prod.from; i <= prod.to; i++) {
     const z = tz[i], px = X(z);
     const j = i - prod.from;
-    // market stalls alternate sides, crates and bins across from them
+    // market stalls line the stands, alternating sides; fruit bins and crates across from them
     const out = j % 2 ? 1 : -1;
-    put(still, prodGeo, px + out * 5.0 + out * 0.4, 0, z - 0.6, out > 0 ? -Math.PI / 2 : Math.PI / 2);
+    put(still, prodGeo, px + out * 3.8, 0, z, out > 0 ? -Math.PI / 2 : Math.PI / 2);
     const inn = -out;
     const fruit = [PAL.red, PAL.orange, PAL.yellow, 0x7cd64a, 0x9a4ad0][j % 5];
-    if (j % 2) put(still, G('melons', melonBinGrid), px + inn * 4.4, 0, z + 0.4, 0.2 * j);
-    else put(still, G('bananas', bananaGrid), px + inn * 4.4, 0, z + 0.3, 0.1);
-    put(still, G('crate' + fruit, () => crateGrid(fruit)), px + inn * 4.0, 0, z - 1.7, 0.3);
+    if (j % 2) put(still, G('melons', melonBinGrid), px + inn * 3.55, 0, z + 0.2, 0.2 * j);
+    else put(still, G('bananas', bananaGrid), px + inn * 3.5, 0, z + 0.2, 0.1);
+    put(still, G('crate' + fruit, () => crateGrid(fruit)), px + inn * 3.4, 0, z - 1.25, 0.3);
   }
   await yieldFrame();
+
+  // little props in the stand columns between some stops
+  const gapAt = (id, k) => { const Z = Zs[id], i = Z.from + k; return (tz[i] + tz[i + 1]) / 2; };
+  const colX = (z, side) => X(z) + side * (SIDE + 0.05);
+  for (const [id, k, side, geoId, fn, ry] of [
+    ['produce', 5, -1, 'wetFloor', wetFloorGrid, 0.3],
+    ['cereal', 5, 1, 'boxes1', () => boxStackGrid(1), -0.2],
+    ['snacks', 5, -1, 'boxes2', () => boxStackGrid(2), 0.25],
+    ['frozen', 2, -1, 'wetFloor', wetFloorGrid, -0.25],
+    ['frozen', 5, 1, 'boxes3', () => boxStackGrid(3), 0.15],
+    ['checkout', 4, 1, 'bagPile', bagPileGrid, -0.3],
+  ]) {
+    if (!Zs[id] || Zs[id].from + k + 1 > Zs[id].to) continue;
+    const z = gapAt(id, k);
+    put(still, G(geoId, fn), colX(z, side), 0, z, ry);
+  }
 
   // ------------------------------------------------------------- aisles (cereal / snacks / frozen)
   const aisle = (Z, kind) => {
@@ -763,20 +821,20 @@ export async function buildPassWorld(L) {
     for (let k = 0; k < nShelf; k++) {
       const z = zA - step * (k + 0.5);
       if (kind === 'frozen') {
-        for (const [x, ry] of [[ax - 4.3, Math.PI / 2], [ax + 4.3, -Math.PI / 2]]) {
+        for (const [x, ry] of [[ax - 3.4, Math.PI / 2], [ax + 3.4, -Math.PI / 2]]) {
           put(still, G('freezer', freezerGrid), x, 0, z + 1.0, ry);
           put(still, G('freezer', freezerGrid), x, 0, z - 1.0, ry);
         }
       } else {
         const kk = kind === 'snacks' ? (k % 2 ? 'chocolate' : 'snacks') : kind;
         const seed = 1 + (k % 3);
-        put(still, G(`shelf_${kk}_${seed}`, () => shelfRowGrid(kk, seed)), ax - 4.3, 0, z, Math.PI / 2);
-        put(still, G(`shelf_${kk}_${seed + 1}`, () => shelfRowGrid(kk, seed + 1)), ax + 4.3, 0, z, -Math.PI / 2);
+        put(still, G(`shelf_${kk}_${seed}`, () => shelfRowGrid(kk, seed)), ax - 3.3, 0, z, Math.PI / 2);
+        put(still, G(`shelf_${kk}_${seed + 1}`, () => shelfRowGrid(kk, seed + 1)), ax + 3.3, 0, z, -Math.PI / 2);
       }
       // the next aisle over: its far shelves face back toward the path (seen over the near ones)
       for (const side of [-1, 1]) {
         const kk2 = kind === 'frozen' ? 'drinks' : kind === 'cereal' ? 'mixed' : 'snacks';
-        put(still, G(`shelfFar_${kk2}`, () => shelfFarGrid(kk2)), ax + side * 9.4, 0, z, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+        put(still, G(`shelfFar_${kk2}`, () => shelfFarGrid(kk2)), ax + side * 7.2, 0, z, side < 0 ? Math.PI / 2 : -Math.PI / 2, 1, { cast: false });
       }
     }
   };
@@ -786,24 +844,20 @@ export async function buildPassWorld(L) {
   await yieldFrame();
   aisle(Zs.frozen, 'frozen');
   // endcap displays where the path crosses between aisles
-  put(still, G('cerealTower', cerealTowerGrid), Zs.cereal.aisle - 4.6, 0, Zs.cereal.gapZ - 0.6, 0.35);
-  put(still, G('chocoTower', chocoTowerGrid), Zs.snacks.aisle + 4.4, 0, Zs.snacks.gapZ - 0.4, -0.3);
-  put(still, G('chocoTower', chocoTowerGrid), Zs.snacks.aisle - 4.2, 0, Zs.snacks.gapZ - 0.6, 0.25);
-  put(still, G('iceCone', iceConeSignGrid), Zs.frozen.aisle + 4.2, 0, Zs.frozen.gapZ - 0.4, 0, 1.5);
-  put(still, G('cerealTower', cerealTowerGrid), Zs.frozen.aisle - 4.6, 0, Zs.frozen.gapZ - 0.4, -0.4, 0.8);
+  put(still, G('cerealTower', cerealTowerGrid), X(Zs.cereal.gapZ) - 3.6, 0, Zs.cereal.gapZ - 0.3, 0.35);
+  put(still, G('chocoTower', chocoTowerGrid), X(Zs.snacks.gapZ) + 3.5, 0, Zs.snacks.gapZ - 0.2, -0.3);
+  put(still, G('chocoTower', chocoTowerGrid), X(Zs.snacks.gapZ) - 3.4, 0, Zs.snacks.gapZ - 0.4, 0.25);
+  put(still, G('iceCone', iceConeSignGrid), X(Zs.frozen.gapZ) + 3.3, 0, Zs.frozen.gapZ - 0.3, 0, 1.5);
+  put(still, G('cerealTower', cerealTowerGrid), X(Zs.frozen.gapZ) - 3.6, 0, Zs.frozen.gapZ - 0.3, -0.4, 0.8);
   await yieldFrame();
 
   // ------------------------------------------------------------- checkout
   const co = Zs.checkout;
   const coGeo = (k) => G('checkout' + k, () => checkoutGrid(k));
   let lane = 1;
-  for (let z = co.z0 + 1.2; z > co.z1 - 3; z -= 5.2) {
-    for (const x of [-9.6, -5.6, 5.6, 9.6]) put(still, coGeo(lane++ % 9 + 1), x, 0, z, x < 0 ? Math.PI / 2 : -Math.PI / 2);
-  }
-  for (let i = co.from; i <= co.to; i++) {
-    const z = tz[i];
-    const side = X(z) < 0 ? 1 : -1;
-    put(still, G('bag' + (i % 3), () => bagGrid([PAL.pink, PAL.blue, PAL.yellow][i % 3])), X(z) + side * 3.6, 0, z - 1.2, 0.4 * i, 1.4);
+  // checkout lanes either side of the path (the near counters line the stands)
+  for (let z = co.z0 + 0.6; z > co.z1 - 3; z -= 4.4) {
+    for (const x of [co.base - 7.4, co.base - 3.8, co.base + 3.8, co.base + 7.4]) put(still, coGeo(lane++ % 9 + 1), x, 0, z, x < co.base ? Math.PI / 2 : -Math.PI / 2);
   }
   await yieldFrame();
 

@@ -178,7 +178,8 @@ export function mount(el, ctx, opts = {}) {
     const pr = el.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 };
     const x = pr.left + el.offsetLeft, y0 = pr.top + el.offsetTop;
     const top = y0 + hud.offsetHeight;
-    const bot = y0 + el.offsetHeight - foot.offsetHeight;
+    // portrait: the button row spans the width, frame above it; landscape: the buttons sit in the corners
+    const bot = y0 + el.offsetHeight - (document.body.classList.contains('landscape') ? 0 : foot.offsetHeight);
     stage.setView({ x, y: top, w: el.offsetWidth, h: Math.max(80, bot - top) });
   }
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => layout()) : null;

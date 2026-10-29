@@ -82,8 +82,8 @@
 .pz-foot .btn { font-size: 1em; }
 .pz-chal-btn { position: relative; }
 .pz-chal-btn .badge { right: -0.4em; top: -0.5em; }
-.pz-mid-slot { flex: 1; display: flex; justify-content: center; min-width: 0; }
-.pz-mid-slot:empty { pointer-events: none; }
+.pz-foot > .pz-mid-slot { flex: 1; display: flex; justify-content: center; min-width: 0; pointer-events: none; }
+.pz-mid-slot > * { pointer-events: auto; }
 .pz-claimall { font-size: 1em; }
 .pz-home-btn { opacity: 0; translate: 0 30%; pointer-events: none; transition: opacity 0.2s, translate 0.25s cubic-bezier(.3, 1.6, .5, 1); }
 .pz-home-btn.show { opacity: 1; translate: 0 0; pointer-events: auto; }

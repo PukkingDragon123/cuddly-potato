@@ -370,7 +370,19 @@ export function makeRewardItem(r, opts = {}) {
     upd = null; disp = null;
   }
   const obj = fit(inner, maxH, maxW);
-  obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
+  // one shadow per item: only its biggest solid mesh joins the shadow pass (vials and figures have many parts)
+  let big = null, br = -1;
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = false;
+    o.receiveShadow = false;
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (m?.transparent || !o.visible || !o.geometry) return;
+    if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+    const r = o.geometry.boundingSphere.radius * o.getWorldScale(_size).x;
+    if (r > br) { br = r; big = o; }
+  });
+  if (big) big.castShadow = true;
   return { obj, h: obj.userData.h, update: upd ?? (() => {}), dispose: disp ?? (() => {}) };
 }
 
