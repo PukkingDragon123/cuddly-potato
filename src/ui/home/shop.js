@@ -312,7 +312,6 @@ export function mount(el, ctx) {
     }
   }
   function hideBubble() {
-    console.error('HIDE', bubbleUntil, performance.now(), new Error().stack.split('\n').slice(1, 4).join(' | '));
     bubbleUntil = 0;
     bubbleEl.classList.remove('on');
     root.classList.remove('bk-bubbling');
