@@ -33,6 +33,7 @@ const REGULATION = 180;
 const DOUBLE_AT = 120;
 const OT_LEN = 60;
 const DEPLOY_DELAY = 0.65;
+const SIG_CINEMATIC = 1.35; // Commander ultimate wind-up (sim seconds, the battle holds still)
 export const DECK_MAX = 8;
 export const HAND_SIZE = 4;
 export const HAND_MAX = 6;
@@ -492,6 +493,7 @@ export class BattleSim {
     s.mega.used = true;
     this.cinematic = MEGA.cinematic;
     this.cinematicSide = si;
+    this.cinematicKind = 'mega';
     this.emit('megaStart', { side: si, id: s.mega.id, variant: s.mega.variant, x: s.labX + s.dir * (LAB_HALF + 2.2) });
     return true;
   }
@@ -749,11 +751,30 @@ export class BattleSim {
     return true;
   }
 
+  /**
+   * Unleash the Commander's ultimate: a short cinematic wind-up (the battle
+   * freezes in sim time, like the MEGA's, so friend / replayed battles stay in
+   * step), then fireSignature() lands it.
+   */
   useSignature(si) {
     const s = this.sides[si];
-    if (!s.cmd || s.sig < 1 || this.over) return false;
+    if (!s.cmd || s.sig < 1 || this.over || this.cinematic > 0) return false;
     s.sig = 0;
     s.stats.sigs++;
+    if (this.noSigCinematic) { this.fireSignature(si); return true; }
+    this.cinematic = SIG_CINEMATIC;
+    this.cinematicSide = si;
+    this.cinematicKind = 'sig';
+    this.emit('sigStart', { side: si, id: s.cmd.signature.id });
+    return true;
+  }
+  /** Tap-to-skip: end a Commander wind-up early (the ability lands right away). */
+  skipCinematic() {
+    if (this.cinematicKind === 'sig' && this.cinematic > 0) this.cinematic = 1e-6;
+  }
+
+  fireSignature(si) {
+    const s = this.sides[si];
     const sg = s.cmd.signature;
     const pw = s.power;
     const en = 1 - si;
@@ -1354,7 +1375,8 @@ export class BattleSim {
       this.cinematic -= dt;
       if (this.cinematic <= 0) {
         this.cinematic = 0;
-        this.megaArrive(this.cinematicSide);
+        if (this.cinematicKind === 'sig') { this.cinematicKind = null; this.fireSignature(this.cinematicSide); }
+        else this.megaArrive(this.cinematicSide);
       }
       return;
     }

@@ -384,6 +384,12 @@ export class BattleScene {
       this.hud.dragEnd();
       closeDialogue();
       this.hud.setCinematic(true);
+    } else if (ev.type === 'sigStart') {
+      // Commander ultimate cinematic: the HUD tucks away until the view's camera is back
+      this.select(-1);
+      this.hud.dragEnd();
+      this.hud.setCinematic(true);
+      this.sigCine = true;
     } else if (ev.type === 'megaLand') {
       this.hud.setCinematic(false);
       this.onTut && this.onTut('megaLand');
@@ -600,6 +606,7 @@ export class BattleScene {
     // online: both pages are past loading once the clock runs - back to normal disconnect detection
     if (this.mode === 'online' && !this.netLive && this.sim.t > 0.5 && this.peer) { this.netLive = true; this.peer.silentMax = this.peer.baseSilent ?? 15000; }
     this.view.update(dt, this.sim.paused && !this.sim.over ? 0 : gdt);
+    if (this.sigCine && !this.view.cine) { this.sigCine = false; this.hud.setCinematic(false); }
     this.hud.update(dt);
     this.tutTick && this.tutTick(dt);
     if (this.sim.over && !this.ended) this.finish();
@@ -707,7 +714,7 @@ export class BattleScene {
       await until('sig');
       clearPtr();
       this.lockInput = null;
-      await wait(2);
+      await wait(3.2);
       await talk("Nice! Now smash my base!");
     }
     // the finish: no MEGA yet (those are earned on the Trophy Road)

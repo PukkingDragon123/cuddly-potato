@@ -3,7 +3,7 @@ import { engine } from '../core/engine.js';
 import { clearUI } from '../ui/ui.js';
 import { audio } from '../core/audio.js';
 import { state } from './state.js';
-import { showLoading } from '../scenes/loading.js';
+import { showLoading, prewarmLoading } from '../scenes/loading.js';
 
 // heavy scenes get the cinematic loading screen (scenes/loading.js) instead of the plain fade
 const LOADING_SCREEN = new Set(['battle', 'home', 'lab']);
@@ -68,6 +68,8 @@ export const game = {
     transitioning = false;
     // scenes may hold their entrance until the screen is actually visible
     try { if (sc && engine.current === sc) sc.shown?.(); } catch (e) { console.error(e); }
+    // the next loading screen's Commander frames render while nothing else is going on
+    if (name !== 'battle') prewarmLoading();
   },
   settings() {
     const s = state.p.settings;

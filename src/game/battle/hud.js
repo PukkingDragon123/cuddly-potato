@@ -421,6 +421,37 @@ export class BattleHUD {
     else this.floatR.appendChild(this.megaEl);
   }
 
+  /**
+   * Keep pixel art true: the ULT / MEGA octagon bezels (FN-cell canvases) get a
+   * size that is a whole number of device pixels per cell (no uneven, smeared
+   * columns), and HD icons drawn SMALLER than their bitmap downsample smoothly
+   * instead of dropping rows (nearest-neighbour downscaling distorts them);
+   * icons drawn at or above their size stay pixelated.
+   */
+  pixelFit() {
+    const dpr = window.devicePixelRatio || 1;
+    const imgs = this.root.querySelectorAll('img.pi, img.logo, img.pw-ic, .em-b img, .bh-skill img');
+    let ready = 0;
+    for (const im of imgs) if (im.naturalWidth) ready++;
+    const key = `${innerWidth}x${innerHeight}@${dpr}|${imgs.length}|${ready}|${this.landLayout}`;
+    if (key === this.fitKey) return;
+    this.fitKey = key;
+    for (const el of this.root.querySelectorAll('.bh-ult')) {
+      el.style.width = el.style.height = '';
+      const w = el.offsetWidth;
+      if (!w) continue;
+      const k = Math.max(1, Math.round((w * dpr) / FN));
+      const px = (k * FN) / dpr + 'px';
+      el.style.width = el.style.height = px;
+    }
+    for (const im of imgs) {
+      if (!im.naturalWidth) continue;
+      const w = im.offsetWidth || im.getBoundingClientRect().width;
+      if (!w) continue;
+      im.style.imageRendering = w * dpr < im.naturalWidth * 0.98 ? 'auto' : 'pixelated';
+    }
+  }
+
   /** % position of a world x on the minimap. */
   mx(x) {
     return ((x / FIELD.VIEW_X + 1) / 2) * 100;
@@ -437,7 +468,7 @@ export class BattleHUD {
     this.modelTier = show;
     const style = this.cfg.sides[0].labStyle;
     // the player's chibi Commander (equipped skin) rides on the seat; the model rocks to keep them facing out
-    const bo = { style, size: 256, zoom: 0.7, cmd: this.cfg.sides[0].commander ?? null, cmdScale: 1.35, sway: 0.75 };
+    const bo = { style, size: 256, zoom: 0.7, cmd: this.cfg.sides[0].commander ?? null, cmdScale: 1.15, sway: 0.75 };
     try {
       const [first] = await baseSpin(show, bo);
       if (this.modelTier !== show) return;
@@ -786,8 +817,13 @@ export class BattleHUD {
           burst(this.megaEl, { color: '#ff2e88', count: 20, ring: false });
         }
         break;
+      case 'sigStart':
+        // the in-world cinematic (sigCutscene.js) carries the name slam; the live chibi on the button acts it out too
+        if (ev.side === 0 && this.sig) { burst(this.sig, { color: this.sigCol, count: 22, scale: 2, ring: false }); this.live?.action(); }
+        break;
       case 'signature':
-        this.sigCutIn(ev.side);
+        // no cinematic (e.g. a sim without one): fall back to the cut-in band
+        if (!this.view.cine?.sig) this.sigCutIn(ev.side);
         break;
       case 'megaStart':
         this.megaCutIn(ev);
@@ -871,6 +907,7 @@ export class BattleHUD {
     if (this.layoutT <= 0) {
       this.layoutT = 0.5;
       this.placeMega();
+      this.pixelFit();
       const hidden = this.root.style.display === 'none';
       plateBounds.minY = hidden ? 0 : this.twLane.getBoundingClientRect().bottom + 4;
       plateBounds.maxY = hidden ? engine.height : this.deck.getBoundingClientRect().top;

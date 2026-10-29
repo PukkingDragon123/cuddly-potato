@@ -169,48 +169,245 @@ body.landscape .tt-load { top: calc(var(--safe-t) + 7vh + var(--u) * 1); }
 .cn-back .sp { position: absolute; width: calc(var(--px) * 2); height: calc(var(--px) * 2); background: #fff6c8; box-shadow: 0 0 calc(var(--px) * 3) #ffd84a; left: var(--x); top: var(--y); opacity: 0; animation: cnSpark var(--d, 3s) var(--dl, 0s) ease-out infinite; }
 @keyframes cnSpark { 0% { opacity: 0; transform: translate(0, 0) scale(1); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.4); } }
 
-/* ================================================================== LOADING */
-.ld { position: absolute; inset: 0; z-index: 62; overflow: hidden; background: #020208; opacity: 0; transition: opacity 0.22s ease-out; pointer-events: auto; color: #fff; }
+/* ================================================================== LOADING: the lab experiment
+   A pixel lab stage (128 x 96 lab px, one lab px = --lp CSS px). Every element
+   is a pre-drawn canvas animated with transform / opacity only; instability
+   ramps are stacked keyframe animations with delays (see loading.js). */
+.ld { position: absolute; inset: 0; z-index: 62; overflow: hidden; opacity: 0; transition: opacity 0.18s ease-out; pointer-events: auto; color: #fff;
+  --lp: min(calc((100vw - 32px) / 128), calc(46vh / 96)); }
+body.landscape .ld { --lp: min(calc(54vw / 128), calc(76vh / 96)); }
 .ld.in { opacity: 1; }
-.ld.out { opacity: 0; transition: opacity 0.38s ease-in; pointer-events: none; }
-.ld-stills { position: absolute; inset: 0; z-index: 1; }
-.ld-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform-origin: var(--ox, 50%) var(--oy, 50%); will-change: transform, opacity; }
-/* each still drifts slowly (a camera move over the frozen frame) and crossfades into the next */
-.ld-still.on { animation: ldKB var(--dur, 9s) linear both, ldShow var(--dur, 9s) linear both; }
-@keyframes ldKB { from { transform: scale(var(--s0, 1.16)) translate(var(--x0, -3%), var(--y0, 1%)); } to { transform: scale(var(--s1, 1.04)) translate(var(--x1, 3%), var(--y1, -1%)); } }
-@keyframes ldShow { 0% { opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
-.ld-still.first.on { animation-name: ldKB, ldShowFirst; }
-@keyframes ldShowFirst { 0% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
-.ld .cn-back { z-index: 0; }
-.ld.has-stills .cn-back { display: none; }
-.ld-mid { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  padding: calc(var(--safe-t) + 9vh + var(--u) * 5) calc(var(--u) * 4) calc(var(--safe-b) + 9vh + var(--u) * 3); }
-body.landscape .ld-mid { padding-top: calc(var(--safe-t) + 7vh + var(--u) * 3); padding-bottom: calc(var(--safe-b) + 7vh + var(--u) * 2); }
-.ld .cn-logo { animation: ldLogo 0.7s cubic-bezier(.2, 1.4, .4, 1) both; }
+.ld.out { pointer-events: none; }
+.ld-bg { position: absolute; inset: 0; z-index: 0;
+  /* the lab wall continues off-screen: the same 8 px tiles + grout at --lp scale, darkened toward the edges */
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 46%, rgba(79, 200, 255, 0.16), transparent 70%),
+    radial-gradient(ellipse 90% 75% at 50% 50%, rgba(2, 2, 12, 0.35) 30%, rgba(2, 2, 12, 0.88)),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--lp) * 7), #0b1228 calc(var(--lp) * 7) calc(var(--lp) * 8)),
+    repeating-linear-gradient(0deg, transparent 0 calc(var(--lp) * 7), #0b1228 calc(var(--lp) * 7) calc(var(--lp) * 8)),
+    linear-gradient(#141f40, #1a284a 55%, #10183a);
+}
+.ld-shake { position: absolute; inset: 0; z-index: 1; }
+.ld-main { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: calc(var(--u) * 2);
+  padding: calc(var(--safe-t) + var(--u) * 5) 16px calc(var(--safe-b) + var(--u) * 4); }
+body.landscape .ld-main { display: grid; grid-template-columns: auto minmax(0, 40vw); grid-template-rows: 1fr auto auto 1fr; align-content: center; justify-content: center; column-gap: calc(var(--u) * 6); row-gap: calc(var(--u) * 3);
+  padding: calc(var(--safe-t) + var(--u) * 2) calc(var(--safe-r) + 16px) calc(var(--safe-b) + var(--u) * 2) calc(var(--safe-l) + 16px); }
+body.landscape .ld-stagebox { grid-column: 1; grid-row: 1 / 5; align-self: center; }
+body.landscape .ld-head { grid-column: 2; grid-row: 2; justify-self: start; font-size: 1.15em; }
+body.landscape .ld-side { grid-column: 2; grid-row: 3; font-size: 1.3em; }
+.ld-head { flex: none; }
+.ld .cn-logo { animation: ldLogo 0.6s cubic-bezier(.2, 1.4, .4, 1) both; }
 @keyframes ldLogo { from { opacity: 0; transform: scale(1.25); } to { opacity: 1; transform: none; } }
-.ld-foot { width: min(86vw, calc(var(--u) * 84)); display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * 1.4); }
+.ld-side { display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * 2.5); width: min(100%, calc(var(--u) * 86)); }
+body.landscape .ld-side { width: 100%; justify-content: center; }
+body.portrait .ld-side { display: contents; }
+body.portrait .ld-stagebox { margin-top: auto; }
+body.portrait .ld-caps { margin-bottom: auto; width: 100%; }
+body.portrait .ld-foot { width: min(100%, calc(var(--u) * 86)); }
+
+.ld-stagebox { position: relative; flex: none; width: calc(var(--lp) * 128); height: calc(var(--lp) * 96); }
+.ld-stagebox::before { /* soft lab glow behind the observation window */
+  content: ''; position: absolute; left: -12%; right: -12%; top: -12%; bottom: -14%; z-index: -1;
+  background: radial-gradient(ellipse 50% 48% at 50% 46%, rgba(120, 255, 200, 0.2), transparent 70%);
+}
+/* LAB CAM: a riveted metal observation-window frame with a blinking REC light */
+.ld-stagebox::after {
+  content: ''; position: absolute; inset: calc(var(--lp) * -3); z-index: 15; pointer-events: none;
+  box-shadow: inset 0 0 0 calc(var(--lp) * 1) #0a0e22, inset 0 0 0 calc(var(--lp) * 2) #8a9ac0, inset 0 0 0 calc(var(--lp) * 3) #4a5878, 0 0 0 calc(var(--lp) * 1) #0a0e22, 0 calc(var(--lp) * 3) calc(var(--lp) * 8) rgba(0, 0, 0, 0.6);
+}
+.ld-cam { position: absolute; z-index: 16; left: calc(var(--lp) * 2); top: calc(var(--lp) * 2.5); display: flex; align-items: center; gap: calc(var(--lp) * 1.4); padding: calc(var(--lp) * 0.6) calc(var(--lp) * 1.6);
+  font-family: var(--font-d); font-size: calc(var(--lp) * 3.6); line-height: 1; letter-spacing: 0.08em; color: #fff; background: rgba(4, 6, 20, 0.6); text-shadow: 0 calc(var(--lp) * 0.5) 0 #000; }
+.ld-cam i { width: calc(var(--lp) * 2.2); height: calc(var(--lp) * 2.2); background: #ff2e2e; box-shadow: 0 0 calc(var(--lp) * 1.6) #ff2e2e; animation: ldBlink 1s step-end infinite; }
+.ld-cam b { font-weight: 400; color: #ff7a7a; }
+.ld.boom .ld-cam { animation: ldCamGlitch 0.6s steps(3) both; }
+@keyframes ldCamGlitch { 0% { transform: translateX(calc(var(--lp) * 3)); opacity: 0.2; } 50% { transform: translateX(calc(var(--lp) * -2)); opacity: 1; } 100% { transform: none; } }
+.ld-stage { position: absolute; inset: 0; animation: ldStageIn 0.45s cubic-bezier(.2, 1.3, .4, 1) both; }
+@keyframes ldStageIn { from { opacity: 0; transform: translateY(6%) scale(0.94); } to { opacity: 1; transform: none; } }
+.ld-quake { position: absolute; inset: 0; }
+.ld-sp, .ld-strip, .ld-gauge, .ld-rack, .ld-cmd, .ld-sign { position: absolute; }
+.ld-sp canvas, .ld-strip canvas, .ld-cmd canvas, .ld-cloud canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.ld-strip { overflow: hidden; }
+.ld-wall { box-shadow: 0 0 0 calc(var(--lp) * 1) #0a0e22, 0 calc(var(--lp) * 2) calc(var(--lp) * 6) rgba(0, 0, 0, 0.6); }
+.ld-bench { z-index: 3; }
+.ld-sign { z-index: 4; }
+.ld-sign > span { position: absolute; display: block; font-family: var(--font-d); color: #1a1a24; line-height: 1; letter-spacing: 0.02em; }
+.ld-sign-t { font-size: calc(var(--lp) * 3.3); }
+.ld-sign-n { color: #ff3a3a !important; text-align: center; perspective: 200px; }
+.ld-sign-n b { position: absolute; inset: 0; font-weight: 400; text-shadow: 0 0 calc(var(--lp) * 2) rgba(255, 60, 60, 0.6); }
+.ld-sign-n .n0 { opacity: 0; }
+
+/* glassware: liquid colours crossfade (stacked canvases); hot = white-hot flash when critical */
+.ld-vessel { z-index: 5; transform-origin: 50% 100%; }
+.ld-vessel .lq { position: absolute; left: 0; top: 0; }
+.ld-vessel .lq1 { animation: ldLq1 calc(var(--per) * 3) ease-in-out infinite; }
+.ld-vessel .lq2 { animation: ldLq2 calc(var(--per) * 3) ease-in-out infinite; }
+.ld-vessel .hot { opacity: 0; }
+@keyframes ldLq1 { 0%, 24% { opacity: 0; } 33%, 58% { opacity: 1; } 67%, 100% { opacity: 0; } }
+@keyframes ldLq2 { 0%, 58% { opacity: 0; } 67%, 91% { opacity: 1; } 100% { opacity: 0; } }
+.v-beaker { z-index: 7; }
+.ld-rod { z-index: 6; transform-origin: 50% 85%; animation: ldStir 0.9s ease-in-out infinite; }
+@keyframes ldStir { 0%, 100% { transform: rotate(-14deg) translateX(calc(var(--lp) * -3)); } 50% { transform: rotate(10deg) translateX(calc(var(--lp) * 2)); } }
+.ld-stopper { z-index: 6; animation: ldPop 0.6s ease-in-out infinite; animation-delay: 6s; }
+.ld-stopper.s-round { animation-delay: 3.5s; animation-duration: 0.45s; }
+@keyframes ldPop { 0%, 100% { transform: none; } 40% { transform: translateY(calc(var(--lp) * -2)) rotate(-8deg); } 60% { transform: translateY(calc(var(--lp) * -1)) rotate(6deg); } }
+.ld-rack { z-index: 6; }
+.ld-rack .ld-sp { top: 0; }
+.ld-rackbar { position: absolute; left: 0; right: 0; top: calc(var(--lp) * 9); height: calc(var(--lp) * 3); background: linear-gradient(#ffd27a 0 33%, #c8903a 33% 70%, #7a4a1a 70%); box-shadow: 0 0 0 calc(var(--lp) * 0.6) #120c24; }
+.ld-stand, .ld-burner { z-index: 4; }
+.ld-flame { z-index: 4; }
+.ld-flame canvas { animation: ldLoop 0.3s steps(4) infinite; }
+.v-round { z-index: 5; }
+.ld-gauge { z-index: 2; }
+.ld-gauge > .ld-sp { left: 0; top: 0; }
+.ld-needle { transform: rotate(-125deg); animation: ldNeedle 10s linear forwards, ldNeedleMax 0.22s linear 10s infinite; }
+@keyframes ldLoop { to { transform: translateX(-100%); } }
+@keyframes ldFrames { to { transform: translateX(var(--to)); } }
+
+/* the Commander */
+.ld-cmd { z-index: 2; }
+.ld-cmd-in { position: absolute; inset: 0; transform-origin: 50% 90%; }
+.ld-cmd .fr { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; }
+.ld-cmd.ready .fr-stir1 { animation: ldIn 0.2s both, ldOff 0s 5s forwards; }
+.ld-cmd.ready .fr-stir2 { animation: ldFlip 0.9s step-end infinite, ldOff 0s 5s forwards; }
+.ld-cmd.ready .fr-nervous { animation: ldOn 0s 5s forwards; }
+@keyframes ldFlip { 0% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes ldOff { to { opacity: 0; } }
+@keyframes ldOn { to { opacity: 1; } }
+@keyframes ldIn { from { opacity: 0; transform: translateY(8%); } to { opacity: 1; transform: none; } }
+
+/* bubbles / sparks / smoke: each fx layer fades in at its instability level */
+.ld-fx { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.ld-fx.lv1 { opacity: 0; animation: ldOn 0.6s 2.4s forwards; }
+.ld-fx.lv2 { opacity: 0; animation: ldOn 0.6s 4.8s forwards; }
+.ld-fx.lv3 { opacity: 0; animation: ldOn 0.6s 7.2s forwards; }
+.ld-bub { animation: ldBub 1.2s linear infinite backwards; }
+@keyframes ldBub { 0% { opacity: 0; transform: none; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--wx), var(--rise)); } }
+.ld-spk { animation: ldSpk 0.6s ease-out infinite backwards; }
+@keyframes ldSpk { 0% { opacity: 1; transform: none; } 65% { opacity: 1; transform: translate(var(--dx), var(--dy)); } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + var(--fall))); } }
+.ld-smk { animation: ldSmk var(--d) ease-out var(--dl) infinite backwards; }
+.ld-smk canvas { animation: ldFrames var(--d) steps(5, end) var(--dl) infinite backwards; }
+@keyframes ldSmk { 0% { opacity: 0; transform: none; } 15% { opacity: 0.95; } 100% { opacity: 0; transform: translate(var(--wx), var(--rise)); } }
+
+/* captions + destination + pressure bar + tip */
+.ld-caps { position: relative; height: calc(var(--u) * 5.5); font-family: var(--font-d); font-size: calc(var(--u) * 4.4); text-align: center; color: #b8ffe4; text-shadow: var(--outline-thin), 0 0 calc(var(--u) * 2) rgba(46, 242, 200, 0.6); }
+body.landscape .ld-caps { text-align: left; font-size: calc(var(--u) * 4.6); }
+body.landscape .ld-dest .n { font-size: calc(var(--u) * 7.5); }
+.ld-caps .c { position: absolute; left: 0; right: 0; top: 0; white-space: nowrap; opacity: 0; animation: ldCap 1.9s calc(var(--i) * 1.75s) both; }
+.ld-caps .c:nth-last-child(3) { animation-name: ldCapLast; animation-duration: 0.4s; color: #ffd84a; }
+.ld-caps .c.crit, .ld-caps .c.ok { animation: none; opacity: 0; }
+@keyframes ldCap { 0% { opacity: 0; transform: translateY(40%); } 12%, 86% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-40%); } }
+@keyframes ldCapLast { 0% { opacity: 0; transform: scale(1.4); } 100% { opacity: 1; transform: none; } }
+.ld-foot { display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * 1.6); }
 .ld-dest { display: flex; flex-direction: column; align-items: flex-start; font-family: var(--font-d); text-shadow: var(--outline-thin); animation: ldDest 0.6s 0.1s cubic-bezier(.2, 1, .3, 1) both; }
 .ld-dest .k { font-size: calc(var(--u) * 3); letter-spacing: 0.3em; color: var(--ac, #9ff2ff); }
 .ld-dest .n { font-size: calc(var(--u) * 6.4); line-height: 0.9; letter-spacing: 0.04em; }
 @keyframes ldDest { from { opacity: 0; transform: translateX(calc(var(--u) * -5)); } to { opacity: 1; transform: none; } }
-.ld-bar { position: relative; height: calc(var(--u) * 2.6); background: rgba(4, 6, 24, 0.85); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(0, 0, 0, 0.6), 0 0 calc(var(--u) * 2) rgba(79, 200, 255, 0.25); overflow: hidden; }
-.ld-bar > i {
-  position: absolute; inset: 0; transform-origin: 0 50%; transform: scaleX(0.04); transition: transform 7s cubic-bezier(.08, .7, .2, 1);
-  background: var(--tx-bubbles-tube, none) 0 0 / calc(48 * var(--px)) calc(12 * var(--px)), linear-gradient(#b8fff0 0 30%, #2ef2c8 30% 72%, #0e9a8a 72%);
-  box-shadow: 0 0 calc(var(--px) * 4) rgba(46, 242, 200, 0.7);
-}
-.ld-bar > i::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 22%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent); animation: ldShine 1.1s linear infinite; }
-@keyframes ldShine { from { transform: translateX(-100%); } to { transform: translateX(480%); } }
-.ld.run .ld-bar > i { transform: scaleX(0.9); }
-.ld.done .ld-bar > i { transform: scaleX(1); transition-duration: 0.2s; }
+.ld-gaugebar { display: flex; align-items: center; gap: calc(var(--u) * 1.4); }
+.ld-gaugebar > b { font-family: var(--font-d); font-weight: 400; font-size: calc(var(--u) * 2.8); letter-spacing: 0.14em; color: #ffd84a; text-shadow: var(--outline-thin); }
+.ld-bar { position: relative; flex: 1; height: calc(var(--u) * 3); background: #04061a; box-shadow: 0 0 0 calc(var(--px) * 1) var(--ink), inset 0 calc(var(--px) * 1) 0 rgba(0, 0, 0, 0.6), 0 0 0 calc(var(--px) * 2.2) #5a6688, 0 0 0 calc(var(--px) * 3.2) var(--ink); overflow: hidden; }
+.ld-bar > i { position: absolute; inset: 0; transform-origin: 0 50%; transform: scaleX(0.04); animation: ldFill 11s cubic-bezier(.12, .55, .3, 1) forwards;
+  background: var(--tx-bubbles-tube, none) 0 0 / calc(48 * var(--px)) calc(12 * var(--px)), linear-gradient(#d8ffe8 0 22%, #4af07a 22% 64%, #1a9a4a 64%); }
+.ld-bar > i.hot { background: var(--tx-bubbles-tube, none) 0 0 / calc(48 * var(--px)) calc(12 * var(--px)), linear-gradient(#ffe0c8 0 22%, #ff5a3a 22% 64%, #a81e1e 64%); opacity: 0; animation: ldFill 11s cubic-bezier(.12, .55, .3, 1) forwards, ldOn 5s 3s linear forwards; }
+.ld-bar > em { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - var(--px)), rgba(4, 6, 26, 0.85) calc(10% - var(--px)) 10%); }
+@keyframes ldFill { from { transform: scaleX(0.04); } to { transform: scaleX(1); } }
 .ld-tip { display: flex; gap: 0.5em; align-items: baseline; font-size: 0.78em; line-height: 1.25; color: #e4ecff; text-shadow: var(--outline-thin); animation: fadeIn 0.6s 0.3s both; }
 .ld-tip > b { flex: none; font-family: var(--font-d); font-weight: 400; font-size: 1.15em; letter-spacing: 0.12em; color: #ffd84a; }
 .ld-tip > b::after { content: ':'; }
 .ld-tip .hl { color: #9ff2ff; font-weight: 700; }
 
+/* red alarm creeping in at the edges */
+.ld-alarm { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 55%, rgba(255, 30, 40, 0.55)); animation: ldAlarm 0.9s ease-in-out 6.5s infinite backwards; }
+@keyframes ldAlarm { 0%, 100% { opacity: 0; } 50% { opacity: 0.85; } }
+.ld-flash { position: absolute; inset: 0; z-index: 9; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 50%, #ffffff, #fff4c8 45%, #ffb04a); }
+
+/* ---------------------------------------------------------------- CRITICAL (done() called) */
+.ld.crit .ld-quake { animation: ldJ3_4 0.18s linear infinite !important; }
+.ld.crit .ld-vessel, .ld.crit .ld-cmd-in, .ld.crit .ld-rack, .ld.crit .ld-gauge { animation: ldCrit 0.15s linear infinite !important; }
+.ld.crit .ld-vessel .hot { animation: ldBlink 0.14s step-end infinite; }
+@keyframes ldBlink { 50% { opacity: 0.85; } }
+.ld.crit .ld-needle { animation: ldNeedleMax 0.07s linear infinite !important; }
+.ld.crit .ld-fx { opacity: 1; animation: none; }
+.ld.crit .ld-cmd .fr { animation: none !important; opacity: 0; }
+.ld.crit .ld-cmd .fr-panic { opacity: 1; }
+.ld.crit .ld-alarm { animation: ldAlarm 0.28s ease-in-out infinite; }
+.ld.crit .ld-caps .c { animation: none; opacity: 0; }
+.ld.crit .ld-caps .c.crit { opacity: 1; color: #ff5a5a; animation: ldCritCap 0.2s steps(2) infinite; }
+@keyframes ldCritCap { 50% { transform: scale(1.06) rotate(-1.5deg); } }
+.ld.crit .ld-bar > i { animation-duration: 0.3s; }
+.ld.crit .ld-bar > i.hot { animation: ldFill 0.3s forwards, ldBlink 0.14s step-end infinite; opacity: 1; }
+.ld.crit .ld-stopper { animation: ldPop 0.16s ease-in-out infinite !important; }
+
+/* ---------------------------------------------------------------- BOOM */
+.ld-boom, .ld-debris, .ld-after, .ld-remains { position: absolute; inset: 0; pointer-events: none; }
+.ld-boom { z-index: 12; }
+.ld-debris { z-index: 13; }
+.ld-after { z-index: 11; }
+.ld-remains { z-index: 5; opacity: 0; }
+.ld-blast { opacity: 0; }
+.ld-deb, .ld-bspk, .ld-after { opacity: 0; }
+.ld.boom .ld-shake { animation: ldQuake 0.9s linear; }
+.ld.boom .ld-flash { animation: ldFlash 0.55s ease-out forwards; }
+@keyframes ldFlash { 0% { opacity: 1; } 30% { opacity: 0.7; } 100% { opacity: 0; } }
+.ld.boom .ld-alarm { animation: none; opacity: 0; }
+.ld.boom .ld-vessel, .ld.boom .ld-stopper, .ld.boom .ld-rod, .ld.boom .ld-rack, .ld.boom .ld-flame, .ld.boom .ld-fx, .ld.boom .ld-stand { animation: none !important; opacity: 0; }
+.ld.boom .ld-remains { opacity: 1; }
+.ld.boom .ld-blast { opacity: 1; animation: ldBlastFade 1s forwards; }
+.ld.boom .ld-blast canvas { animation: ldFrames 0.8s steps(7, end) forwards; }
+.ld.boom .ld-blast.b2, .ld.boom .ld-blast.b2 canvas { animation-delay: 0.07s; }
+.ld.boom .ld-blast.b3, .ld.boom .ld-blast.b3 canvas { animation-delay: 0.13s; }
+@keyframes ldBlastFade { 0% { opacity: 1; transform: scale(0.7); } 12% { transform: scale(1.05); } 80% { opacity: 1; transform: scale(1.12); } 100% { opacity: 0; transform: scale(1.15); } }
+.ld.boom .ld-deb { opacity: 1; animation: ldDebX var(--d) linear var(--dl) forwards; }
+.ld-deb > i { display: block; }
+.ld.boom .ld-deb > i { animation: ldDebY var(--d) var(--dl) forwards; }
+.ld-deb canvas { display: block; image-rendering: pixelated; }
+.ld.boom .ld-deb canvas { animation: ldDebR var(--d) linear var(--dl) forwards; }
+.ld-deb.big canvas { scale: 2; }
+@keyframes ldDebX { 0% { transform: none; } 100% { transform: translateX(var(--dx)); } }
+@keyframes ldDebY { 0% { transform: none; animation-timing-function: cubic-bezier(.2, .7, .4, 1); } 30% { transform: translateY(var(--up)); animation-timing-function: cubic-bezier(.5, 0, .9, .5); } 100% { transform: translateY(var(--down)); } }
+@keyframes ldDebR { to { transform: rotate(var(--rot)); } }
+.ld.boom .ld-bspk { opacity: 1; animation: ldBspk 0.5s ease-out both; }
+@keyframes ldBspk { 0% { opacity: 1; transform: scale(1.4); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.6); } }
+.ld.boom .ld-after { opacity: 1; }
+.ld.boom .ld-cmd .fr { animation: none !important; opacity: 0; }
+.ld.boom .ld-cmd .fr-soot { opacity: 1; }
+.ld.boom .ld-cmd-in { animation: ldBlown 1.1s cubic-bezier(.2, .8, .3, 1) both !important; }
+@keyframes ldBlown {
+  0% { transform: translateY(calc(var(--lp) * -14)) rotate(-12deg) scale(0.9, 1.15); }
+  28% { transform: translateY(calc(var(--lp) * -4)) rotate(6deg) scale(1.05, 0.95); }
+  42% { transform: translateY(0) rotate(-3deg) scale(1.12, 0.86); }
+  56% { transform: translateY(calc(var(--lp) * -1.5)) rotate(2deg) scale(0.96, 1.05); }
+  70%, 100% { transform: rotate(var(--sway, 0deg)); }
+}
+.ld.boom .ld-gauge { animation: ldGaugeFly 1s cubic-bezier(.3, .6, .5, 1) forwards !important; }
+@keyframes ldGaugeFly { 0% { transform: none; } 30% { transform: translate(calc(var(--lp) * -6), calc(var(--lp) * -14)) rotate(-60deg); } 100% { transform: translate(calc(var(--lp) * -16), calc(var(--lp) * 70)) rotate(-300deg); } }
+.ld.boom .ld-needle { animation: ldSpin 0.5s linear 2 !important; }
+@keyframes ldSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ld.boom .ld-sign-n .n1 { animation: ldNumOut 0.35s 0.25s ease-in forwards; }
+.ld.boom .ld-sign-n .n0 { animation: ldNumIn 0.4s 0.5s cubic-bezier(.2, 1.6, .4, 1) forwards; }
+@keyframes ldNumOut { to { opacity: 0; transform: translateY(80%) rotate(30deg); } }
+@keyframes ldNumIn { from { opacity: 0; transform: scale(2.4); } to { opacity: 1; transform: none; } }
+.ld.boom .ld-caps .c.crit { opacity: 0; animation: none; }
+.ld.boom .ld-caps .c.ok { animation: ldCapLast 0.4s 0.5s both; color: #ffd84a; }
+
+.ld-kaboom { position: absolute; left: 50%; top: 24%; z-index: 20; pointer-events: none; font-family: var(--font-d); font-size: calc(var(--lp) * 24); line-height: 1; white-space: nowrap; color: #fff6c0; opacity: 0;
+  translate: -50% -50%; rotate: -8deg;
+  text-shadow: 0 calc(var(--lp) * 1.2) 0 #ff9a1a, 0 calc(var(--lp) * 2.4) 0 #c8261e, calc(var(--lp) * 0.8) 0 0 var(--ink), calc(var(--lp) * -0.8) 0 0 var(--ink), 0 calc(var(--lp) * 3.2) 0 var(--ink), 0 calc(var(--lp) * -0.8) 0 var(--ink), 0 0 calc(var(--lp) * 8) rgba(255, 160, 40, 0.8); }
+.ld.boom .ld-kaboom { animation: ldKaboom 1.15s cubic-bezier(.2, 1.4, .4, 1) 0.05s both; }
+@keyframes ldKaboom { 0% { opacity: 0; transform: scale(0.2); } 18% { opacity: 1; transform: scale(1.25); } 32% { transform: scale(0.95); } 44%, 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1) translateY(-20%); } }
+
+/* ---------------------------------------------------------------- the smoke clears onto the new scene */
+.ld-clear { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+.ld-cloud { position: absolute; left: var(--x); top: var(--y); width: 46vmax; height: 46vmax; translate: -50% -50%; overflow: hidden; opacity: 0; }
+.ld-cloud canvas { width: 600%; height: 100%; }
+.ld.out .ld-bg, .ld.out .ld-shake, .ld.out .ld-flash { opacity: 0; transition: opacity 0.12s linear 0.08s; }
+.ld.out .ld-cloud { animation: ldCloud 0.9s calc(var(--i) * 0.025s) ease-out both; }
+.ld.out .ld-cloud canvas { animation: ldFrames 0.9s steps(5, end) calc(var(--i) * 0.025s) both; --to: -83.33%; }
+@keyframes ldCloud { 0% { opacity: 1; transform: scale(0.9); } 45% { opacity: 1; } 100% { opacity: 0; transform: scale(1.35) translateY(-8%); } }
+
 @media (prefers-reduced-motion: reduce) {
-  .cn-grain, .cn-leak, .cn-streak, .cn-logo .sweep::before, .cn-logo.reveal *, .cn-back .gl, .cn-back .sp, .ld-still.on, .tt-start { animation: none !important; }
-  .ld-still.on, .cn-logo.reveal * { opacity: 1; }
+  .cn-grain, .cn-leak, .cn-streak, .cn-logo .sweep::before, .cn-logo.reveal *, .cn-back .gl, .cn-back .sp, .tt-start { animation: none !important; }
+  .cn-logo.reveal * { opacity: 1; }
+  .ld-quake, .ld-vessel, .ld-cmd-in, .ld-rack, .ld-gauge, .ld.boom .ld-shake { animation: none !important; }
 }
 /* narrow portrait screens: tuck the bolt over the end of the lettering so it never clips */
 body.portrait .cn-logo:not(.sm) .bolt { width: calc(var(--u) * 15); height: calc(var(--u) * 15); right: calc(var(--u) * -1.5); top: calc(var(--u) * -9); }

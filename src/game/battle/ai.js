@@ -40,7 +40,7 @@ export class BattleAI {
 
   update(dt) {
     const sim = this.sim;
-    if (sim.over || sim.paused || this.hold) return;
+    if (sim.over || sim.paused || this.hold || sim.cinematic > 0) return;
     this.thinkT -= dt;
     if (this.thinkT > 0) return;
     this.thinkT = (1.05 - this.d * 0.7) * (0.7 + this.r() * 0.6);

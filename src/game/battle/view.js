@@ -19,6 +19,9 @@ import { createSwarm } from '../../models/swarmModels.js';
 import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
+import { playSigCutscene } from './sigCutscene.js';
+import { pixTexture } from './pixfx.js';
+import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMat } from './spellVfx.js';
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
@@ -159,17 +162,6 @@ const shadowTex = () => pixelTex('shadow', 32, (ctx, s) => {
     ctx.fillStyle = `rgba(10,8,30,${d < 0.55 ? 0.5 : 0.36})`;
     ctx.fillRect(x, y, 1, 1);
   }
-});
-/** Spell aim reticle: a dashed pixel octagon, corner brackets and a crosshair. */
-const reticleTex = () => pixelTex('reticle2', 32, (ctx, s) => {
-  const px = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
-  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const dx = (x + 0.5 - s / 2) / (s / 2), dy = (y + 0.5 - s / 2) / (s / 2), d = octD(dx, dy);
-    const a = Math.atan2(dy, dx), seg = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 16);
-    if (d <= 1 && d > 0.8 && seg % 2 === 0) px(x, y, d > 0.9 ? '#ffffff' : '#cfe0ff');
-  }
-  for (let k = -3; k <= 3; k++) if (Math.abs(k) > 0) { px(15 + (k > 0 ? 1 : 0) + k, 15, '#ffffff'); px(15, 15 + k, '#ffffff'); }
-  px(15, 15, '#ffffff');
 });
 /** Dithered fill for the aim area. */
 const fillTex = () => pixelTex('aimfill', 32, (ctx, s) => {
@@ -390,11 +382,12 @@ class UnitActor {
       if (this.view.sim.sides[u.side].buffs.immortal > 0) fx.sparkle(tp, { count: 1, color: 0xffe27a, speed: 0.8 });
       if (u.buffs.growT > 0) fx.sparkle(tp, { count: 1, colors: [0x5fdc4a, 0xd4ff9a], speed: 0.8 });
       this.buffFx(p);
+      unitMagic(this, p);
     }
     this.updateShield(dt, p);
     // frozen ice block
     if (u.state === 'frozen' && !this.iceMesh) {
-      this.iceMesh = new THREE.Mesh(this.view.iceGeo, this.view.iceMat);
+      this.iceMesh = new THREE.Mesh(this.view.iceGeo, this.warp ? warpIceMat(this.view.iceMat) : this.view.iceMat);
       this.view.scene.add(this.iceMesh);
     }
     if (this.iceMesh) {
@@ -403,6 +396,7 @@ class UnitActor {
         audio.play('shatter', { pitch: 1.4, vol: 0.5, gap: 0.05 });
         this.view.scene.remove(this.iceMesh);
         this.iceMesh = null;
+        this.warp = false;
       } else {
         const s = Math.max(rig.height, 0.6) * 1.1;
         this.iceMesh.scale.set(s * 0.9, s, s * 0.9);
@@ -903,15 +897,18 @@ export class BattleView {
   setAim(spellId, x) {
     if (!spellId) {
       if (this.aimRing) {
-        this.scene.remove(this.aimRing);
+        this.scene.remove(this.aimRing, this.aimIcon);
         this.aimRing = null;
+        this.aimIcon = null;
+        this.aimSpell = null;
       }
       return;
     }
     const sp = SPELLS[spellId];
     if (!this.aimRing) {
       // pixel-art reticle decal + dithered fill + a dotted voxel guide beam (no plain ring / disc meshes)
-      this.aimRing = new THREE.Mesh(PLANE, decalMat(reticleTex(), new THREE.Color(sp.color), 0.95));
+      // (crafted 48-px reticle: stepped dashes, inward chevrons, crosshair - pixfx.js)
+      this.aimRing = new THREE.Mesh(PLANE, decalMat(pixTexture('reticle'), new THREE.Color(sp.color), 0.95));
       this.aimRing.renderOrder = 3;
       const disc = new THREE.Mesh(PLANE, decalMat(fillTex(), new THREE.Color(sp.color), 0.32));
       disc.position.y = -0.005;
@@ -923,9 +920,28 @@ export class BattleView {
         dot.position.y = 0.4 + k * 0.55;
         this.aimRing.add(dot);
       }
-      this.scene.add(this.aimRing);
+      // the spell's own pixel icon hovers over the centre
+      this.aimIcon = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, fog: false, toneMapped: false }));
+      this.aimIcon.renderOrder = 9;
+      this.scene.add(this.aimRing, this.aimIcon);
+    }
+    // re-tint for whichever spell is being aimed (the reticle is reused)
+    if (this.aimSpell !== spellId) {
+      this.aimSpell = spellId;
+      const c = new THREE.Color(sp.color);
+      this.aimRing.material.color.copy(c);
+      this.aimRing.children[0].material.color.copy(c);
+      for (const ch of this.aimRing.children.slice(1)) ch.material.color.copy(c).multiplyScalar(1.6);
+      const tex = new THREE.TextureLoader().load(iconURL(sp.icon ?? 'star'));
+      tex.magFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.aimIcon.material.map?.dispose();
+      this.aimIcon.material.map = tex;
+      this.aimIcon.material.needsUpdate = true;
     }
     const r = Math.max(0.8, sp.radius || 1.2);
+    this.aimIcon.position.set(clamp(x, -FIELD.VIEW_X, FIELD.VIEW_X), 2.3 + Math.sin(this.t * 4) * 0.12, 0.2);
+    this.aimIcon.scale.setScalar(0.9);
     this.aimRing.scale.set(r * 2, 1, Math.min(r, FIELD.LANE_HALF) * 2);
     this.aimRing.position.set(clamp(x, -FIELD.VIEW_X, FIELD.VIEW_X), 0.06, 0);
   }
@@ -982,6 +998,9 @@ export class BattleView {
       if (this.cine?.done) this.cine = null;
       this.updateCamera(dt);
     }
+    // 2D pixel-art particles (ultimate cinematic, magic spells)
+    updateMagic(this, gdt);
+    this.pixfx?.update(dt, this.camera);
   }
 
   engineToScreen(v) {
@@ -1359,6 +1378,9 @@ export class BattleView {
         }
         break;
       }
+      case 'buff':
+        magicBuff(this, ev);
+        break;
       case 'giant': {
         // Titan Serum: the troop gulps green serum and balloons to 1.5x
         const a = this.actors.get(ev.unit.id);
@@ -1567,7 +1589,15 @@ export class BattleView {
       case 'impact':
         this.impactFx(ev);
         break;
+      case 'sigStart':
+        // Commander ultimate wind-up cinematic (the sim holds still until 'signature')
+        if (this.cine?.sig && !this.cine.done) this.cine.finish(); // a back-to-back ultimate cuts straight in
+        if (!this.cine || this.cine.done) {
+          try { this.cine = playSigCutscene(this, ev); } catch (e) { console.error('ultimate cinematic failed', e); this.cine = null; }
+        }
+        break;
       case 'signature':
+        if (this.cine?.sig) this.cine.land(ev);
         this.signatureFx(ev);
         break;
       case 'skill':
@@ -1989,6 +2019,8 @@ export class BattleView {
         break;
       }
       default:
+        // the magic lab spells (Rage Potion, Iron Skin Hex, Titan Serum, Plasma Fireball, Tesla Storm, Overcharge Bolt, Time Warp)
+        magicSpellFx(this, ev);
         break;
     }
   }
@@ -2057,6 +2089,10 @@ export class BattleView {
         audio.play('laser', { pitch: 1.4 });
         engine.shake(0.6);
         engine.hitstop(0.08);
+        break;
+      case 'fire':
+      case 'shock':
+        magicImpact(this, ev);
         break;
       default:
         groundImpact(p, { radius: ev.radius });
