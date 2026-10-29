@@ -585,7 +585,7 @@ export class HomeScene {
   ctx() {
     return {
       refresh: () => this.refresh(),
-      openTab: (n) => this.setTab(n),
+      openTab: (n, o) => this.setTab(n, false, o),
       openVial: (o) => this.openVial(o.type, o.slot, o.source),
       openFree: () => this.openFree(),
       openMegas: () => this.openMegas(),
@@ -601,7 +601,7 @@ export class HomeScene {
     };
   }
 
-  async setTab(id, instant = false) {
+  async setTab(id, instant = false, opts = {}) {
     const prevIdx = TABS.findIndex((t) => t.id === this.tab);
     const idx = TABS.findIndex((t) => t.id === id);
     const homeIdx = TABS.findIndex((t) => t.id === 'battle');
@@ -636,7 +636,7 @@ export class HomeScene {
     try {
       const mod = await loadOpt(`../ui/home/${id}.js`);
       if (this.tab !== id || this.tabEl !== el) return;
-      this.currentTab = mod.mount(el, this.ctx());
+      this.currentTab = mod.mount(el, this.ctx(), opts);
     } catch (e) {
       console.warn('tab unavailable', id, e);
       el.appendChild(h('div', { class: 'hm-soon' }, icon(TABS[idx].icon, 'xl'), h('div', { class: 't-d outline t-xl' }, TABS[idx].label), h('div', { class: 'c-muted' }, 'Coming soon!')));

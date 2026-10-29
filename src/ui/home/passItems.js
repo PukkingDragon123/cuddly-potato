@@ -20,7 +20,7 @@ import { CMD_SKINS, SWARM_SKINS, BANNERS } from '../../data/season.js';
 import { cardDef, isSpell } from '../../data/cards.js';
 import { state } from '../../game/state.js';
 
-const GOLD = 0xffc21a, GOLD_D = 0xc8901a, GOLD_L = 0xffe680, GOLD_DD = 0x8a5c10;
+const GOLD = 0xffc21a, GOLD_D = 0xc8901a, GOLD_L = 0xffe680;
 const RARITY = { common: 0x8fb4e8, rare: 0xff9a2e, epic: 0xc063ff, legendary: 0x3ff2c8, mythic: 0xff2e88 };
 const geo = (id, fn, scale = 0.05, pivot = 'bottom') => {
   const g = aoGeometry('pzi:' + id, fn, { scale, pivot, jitter: 0.03 });
@@ -115,16 +115,20 @@ const gemSets = {
 };
 
 function bannerGrid(cols) {
+  // a hanging banner on a T-stand (crossbar on top, swallowtail at the bottom), striped in the banner's colours
   const g = new VoxGrid();
-  g.box(-9, 0, 0, -8, 28, 1, 0xd7dde6);
-  g.box(-10, 29, -1, -7, 30, 2, GOLD);
-  // flag with diagonal stripes in the banner colours and a swallowtail
-  for (let x = -7; x <= 10; x++) for (let y = 13; y <= 27; y++) {
-    if (x > 6 && Math.abs(y - 20) < (x - 6) * 1.6) continue;
-    const c = cols[Math.floor(((x + y + 40) / 3)) % cols.length];
-    g.set(x, y, 0, c).set(x, y, 1, shade(c, -0.12));
+  g.box(-1, 0, -1, 0, 30, 0, 0xd7dde6);
+  g.box(-4, 0, -3, 3, 1, 2, 0x8a93a8);
+  g.box(-10, 30, 0, 9, 31, 1, GOLD);
+  g.set(-11, 30, 0, GOLD_L).set(10, 30, 0, GOLD_L);
+  for (let x = -8; x <= 7; x++) for (let y = 8; y <= 29; y++) {
+    const tail = 8 + Math.round(Math.abs(x + 0.5) * 0.7);
+    if (y < tail) continue;
+    const c = cols[Math.floor((y + 40) / 4) % cols.length];
+    g.set(x, y, 2, (x === -8 || x === 7) ? shade(c, -0.2) : c);
   }
-  for (let x = -7; x <= 10; x++) { g.set(x, 27, 2, 0xffffff); }
+  // a gold star in the middle
+  for (const [x, y] of [[0, 22], [-1, 21], [0, 21], [1, 21], [-2, 20], [-1, 20], [0, 20], [1, 20], [2, 20], [-1, 19], [0, 19], [1, 19], [-2, 18], [2, 18]]) g.set(x, y, 3, GOLD_L);
   return g;
 }
 

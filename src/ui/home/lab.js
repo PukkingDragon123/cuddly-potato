@@ -31,7 +31,7 @@ function unlockInfo(c, ctx) {
     const b = BOSSES[id];
     return { text: `Beat the *${b?.name ?? id}* boss challenge${b ? ` (${fmt(b.minTrophies)} trophies)` : ''}.`, action: { label: 'BOSS', icon: 'boss', fn: () => openBoss(id, ctx) } };
   }
-  if (kind === 'quest') return { text: `Finish *${c.name}'s* quest chain on Beast Island.`, action: { label: 'QUESTS', icon: 'quest', fn: () => ctx.openTab?.('pass') } };
+  if (kind === 'quest') return { text: `Finish *${c.name}'s* quest chain on Beast Island.`, action: { label: 'QUESTS', icon: 'quest', fn: () => ctx.openTab?.('pass', { sub: 'quests' }) } };
   if (kind === 'season') return { text: 'Unlock on the free *Food Season Pass* track (tier 4).', action: { label: 'PASS', icon: 'calorie', fn: () => ctx.openTab?.('pass') } };
   return { text: 'Your starter Commander.' };
 }

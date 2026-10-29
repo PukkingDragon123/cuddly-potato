@@ -135,12 +135,14 @@ function clothGrid() {
   return g;
 }
 function padlockGrid() {
+  // steel padlock (reads on the gold stands), dark keyhole, pink shine
   const g = new VoxGrid();
-  for (let y = 8; y <= 13; y++) for (const x of [-3, 2]) g.set(x, y, 0, 0xd7dde6);
-  for (let x = -3; x <= 2; x++) g.set(x, 14, 0, 0xd7dde6);
-  g.box(-5, 0, -1, 4, 8, 1, (x, y) => (y === 8 || y === 0 ? GOLD_D : GOLD));
+  for (let y = 8; y <= 13; y++) for (const x of [-3, 2]) g.set(x, y, 0, 0xb8c0cc);
+  for (let x = -3; x <= 2; x++) g.set(x, 14, 0, 0xb8c0cc);
+  g.box(-5, 0, -1, 4, 8, 1, (x, y) => (y === 8 || y === 0 ? 0x5a6276 : x === -5 || x === 4 ? 0x8a93a8 : 0xd7dde6));
   g.box(-1, 2, 2, 0, 5, 2, INK);
   g.set(-1, 6, 2, INK).set(0, 6, 2, INK);
+  g.set(-4, 7, 2, 0xffffff).set(-3, 7, 2, 0xffffff);
   return g;
 }
 /** Pixel sparkle sprite texture (4-point star). */
@@ -176,7 +178,7 @@ export async function createPassStage(o = {}) {
   const camera = new THREE.PerspectiveCamera(40, engine.aspect, 0.5, 150);
   scene.background = new THREE.Color(0x9fdcff);
   scene.fog = new THREE.Fog(0x9fdcff, 30, 70);
-  const owned = { geos: [], mats: [], tex: [] };
+  const owned = { mats: [] };
 
   // lights: sky fill, a warm key sun from the camera side (its shadow box follows the camera), cool rim
   const hemi = new THREE.HemisphereLight(0xeef6ff, 0xb8a890, 1.5);
@@ -340,22 +342,40 @@ export async function createPassStage(o = {}) {
     return new THREE.Vector3(L.pathX(z) + side * (SIDE + 0.05), 0, z);
   };
   const place = (c, pos, ry) => { c.ch.root.position.copy(pos); c.ch.root.rotation.y = ry; c.home.copy(pos); };
-  // Jimmy leans on a full shopping cart in the parking lot
-  const jimmy = mkChar('jimmy', { scale: 0.85 });
+  // Jimmy pushes a full shopping cart back and forth in front of the START gate
+  const jimmy = mkChar('jimmy', { scale: 0.9 });
   const cart = makeCart({ full: true });
   scene.add(cart.root);
-  place(jimmy, between(zoneFrom('lot') + 1, -1).add(_v.set(0, 0, -0.45)), 0.25);
-  cart.root.position.copy(jimmy.home).add(_v.set(0.22, 0, 0.82));
-  cart.root.rotation.y = -Math.PI / 2 + 0.25;
-  jimmy.update = (dt) => { jimmy.t -= dt; if (jimmy.t < 0) { jimmy.t = 4.5 + Math.random() * 3; jimmy.ch.react(['thumbsUp', 'fistPump', 'wave', 'lookAround'][Math.floor(Math.random() * 4)]); } };
-  // hands on the cart handle between reactions
-  jimmy.post = () => {
-    const c = jimmy.ch;
-    if (c.anim !== 'idle') return;
-    c.armL.rotation.x = c.armR.rotation.x = -1.05;
-    c.armL.rotation.z = -0.32; c.armR.rotation.z = 0.32;
-    c.elbowL.rotation.x = c.elbowR.rotation.x = -0.35;
-  };
+  place(jimmy, new THREE.Vector3(L.pathX(2.6) - 3.6, 0, 2.6), Math.PI / 2);
+  {
+    let px = jimmy.home.x, ph = 0;
+    jimmy.update = (dt) => {
+      ph += dt * 0.45;
+      const x = jimmy.home.x + Math.sin(ph) * 0.75;
+      const v = (x - px) / Math.max(dt, 1e-4);
+      px = x;
+      const p = jimmy.ch.root.position;
+      p.x = x;
+      const moving = Math.abs(v) > 0.08;
+      if (moving && jimmy.ch.anim === 'idle') jimmy.ch.play('walk');
+      if (!moving && jimmy.ch.anim === 'walk') jimmy.ch.play('idle');
+      jimmy.ch.speed = 0.55;
+      const face = v >= 0 ? Math.PI / 2 : -Math.PI / 2;
+      jimmy.ch.root.rotation.y = damp(jimmy.ch.root.rotation.y, face, 5, dt);
+      const ry = jimmy.ch.root.rotation.y;
+      cart.root.position.set(p.x + Math.sin(ry) * 1.0, 0, p.z + Math.cos(ry) * 1.0);
+      cart.root.rotation.y = ry - Math.PI / 2;
+      for (const w of cart.wheels) w.rotation.z -= v * dt * 6;
+    };
+    // both hands on the handle
+    jimmy.post = () => {
+      const c = jimmy.ch;
+      if (c.anim !== 'walk' && c.anim !== 'idle') return;
+      c.armL.rotation.x = c.armR.rotation.x = -1.2;
+      c.armL.rotation.z = -0.28; c.armR.rotation.z = 0.28;
+      c.elbowL.rotation.x = c.elbowR.rotation.x = -0.3;
+    };
+  }
   // the Super Fan cheers you on in Produce
   const fan = mkChar('fan', { scale: 0.85 });
   place(fan, between(zoneFrom('produce') + 2, 1), -0.35);
@@ -399,13 +419,13 @@ export async function createPassStage(o = {}) {
 
   // ------------------------------------------------------------- state
   const view = { x: 0, y: 0, w: engine.width, h: engine.height };
-  const cam = { z: 0, vz: 0, fly: null, drag: null, fx: 0, shake: 0 };
+  const cam = { z: 0, vz: 0, fly: null, drag: null, fx: 0, shake: 0, lift: 0 };
   // cam.z is the point at the centre of the free area; a framed stop sits FRAME units below it
-  const FRAME = 2.2;
+  let FRAME = 2.2; // less in landscape (set from the rig)
   const zMax = -1.5, zMin = L.tz[N - 1] - 0.6;
-  let tier = -1, premium = null, t = 0, chaseT = 0, chase = 1, disposed = false;
+  let tier = -1, t = 0, chaseT = 0, chase = 1, disposed = false;
   let juanIdx = -1;
-  const START_Z = -0.9; // where Juan waits before tier 1 (just past the START gate)
+  const START_Z = -2.3; // where Juan waits before tier 1 (past the START gate, clear of its banner)
   const stopPos = (i) => (i < 0 ? _v.set(L.pathX(START_Z), 0.12, START_Z) : _v.set(nodes[i].x, nodes[i].y + 0.3, nodes[i].z));
 
   function standState(i, track) {
@@ -439,10 +459,8 @@ export async function createPassStage(o = {}) {
   /** Re-read the profile: tier, claims, premium. */
   function refresh(instant = false) {
     const nt = Math.min(passTier(), N);
-    const np = !!state.p.pass.premium;
     const tierChanged = nt !== tier;
     tier = nt;
-    premium = np;
     for (const node of nodes) {
       const k = padKind(node.i);
       if (k !== node.padKind) {
@@ -477,7 +495,7 @@ export async function createPassStage(o = {}) {
     juan.ch.root.position.copy(p);
     juan.ch.root.rotation.y = 0;
     juan.home.copy(p);
-    juan.ch.play(idx >= N - 1 ? 'idle' : 'idle');
+    juan.ch.play('idle');
   }
   /** Juan walks (runs, if far) from his old stop to the new one along the path; the camera tags along. */
   function walkJuan(idx) {
@@ -490,13 +508,19 @@ export async function createPassStage(o = {}) {
     juan.ch.play(dist > 8 ? 'run' : 'walk');
   }
 
+  // what the scene underneath (the island) draws: never freed by this stage
+  const keepGPU = new Set();
+  engine.current?.scene?.traverse((ob) => {
+    if (ob.geometry) keepGPU.add(ob.geometry);
+    const ms = Array.isArray(ob.material) ? ob.material : ob.material ? [ob.material] : [];
+    for (const m of ms) if (m.map) keepGPU.add(m.map);
+  });
+
   // ------------------------------------------------------------- items (built near the camera only)
   let buildBudget = 0;
-  const dbg = { built: 0, dropped: 0, last: '' };
   function ensureItem(s) {
     if (s.item || buildBudget <= 0) return;
     buildBudget--;
-    dbg.built++; dbg.last = 'build ' + s.i + s.track;
     const r = PASS_TIERS[s.i][s.track];
     s.item = makeRewardItem(r, { big: s.i === N - 1 && s.track === 'premium' });
     s.item.obj.rotation.y = (s.track === 'premium' ? -0.5 : 0.5);
@@ -519,9 +543,9 @@ export async function createPassStage(o = {}) {
   }
   function dropItem(s) {
     if (!s.item || s.fly) return;
-    dbg.dropped++; dbg.last = 'drop ' + s.i + s.track + ' ' + new Error().stack.split('\n').slice(1, 4).join('|');
     s.item.obj.removeFromParent();
-    s.item.obj.traverse((o) => { if (o.isMesh && o.geometry && !o.geometry.userData?.voxels) o.geometry.dispose?.(); });
+    // free its GPU buffers (cached geometry re-uploads if it is ever drawn again), but not the island's
+    s.item.obj.traverse((o) => { if (o.isMesh && o.geometry && !keepGPU.has(o.geometry)) o.geometry.dispose(); });
     s.item.dispose();
     s.item = null;
   }
@@ -531,10 +555,11 @@ export async function createPassStage(o = {}) {
     const a = view.w / Math.max(1, view.h);
     // portrait: higher and steeper (the path runs up the screen); landscape: lower and closer
     const k = clamp((a - 0.6) / 1.4, 0, 1);
-    return { fov: 34 - k * 4, dist: 23 - k * 5, pitch: (54 - k * 6) * Math.PI / 180, width: 7.9 + k * 2 };
+    return { fov: 34 - k * 4, dist: 23 - k * 5, pitch: (54 - k * 6) * Math.PI / 180, width: 7.5 + k * 2, frame: 2.2 - k * 1.1 };
   }
   function placeCamera(dt) {
     const R = rig();
+    FRAME = R.frame;
     const W2 = engine.width, H2 = engine.height;
     if (camera.fov !== R.fov || camera.aspect !== W2 / H2) {
       camera.fov = R.fov;
@@ -542,13 +567,16 @@ export async function createPassStage(o = {}) {
     }
     // fit the stands across the free area in tall views
     const halfV = Math.tan((R.fov * Math.PI) / 360);
-    const needDist = (R.width / 2) / (halfV * (view.w / view.h)) * (view.h / H2);
-    const dist = Math.max(R.dist, Math.min(30, needDist * Math.cos(R.pitch * 0.35)));
+    const needDist = (R.width / 2) / (halfV * (W2 / H2));
+    const dist = Math.max(R.dist, Math.min(30, needDist));
     // the camera follows the path's sideways bends (centred on the framed stop)
     const fx = L.pathX(cam.z + FRAME * 0.6) * 0.9;
     cam.fx = dt > 0 ? damp(cam.fx, fx, 3, dt) : fx;
     const fy = cam.z < L.tz[N - 1] + 3 ? 0.4 : 0;
-    camera.position.set(cam.fx, fy + Math.sin(R.pitch) * dist, cam.z + Math.cos(R.pitch) * dist);
+    // the opening sweep starts as a high crane shot and settles into the walking view
+    const lift = cam.lift ?? 0;
+    const pitch = R.pitch + lift * 0.22, d = dist * (1 + lift * 0.55);
+    camera.position.set(cam.fx, fy + Math.sin(pitch) * d, cam.z + Math.cos(pitch) * d);
     camera.lookAt(cam.fx, fy + 0.4, cam.z);
     if (cam.shake > 0) {
       cam.shake = Math.max(0, cam.shake - dt * 2.2);
@@ -632,7 +660,8 @@ export async function createPassStage(o = {}) {
       f.t += dt / f.dur;
       const k = easeIO(Math.min(1, f.t));
       cam.z = f.z0 + (f.z1 - f.z0) * k;
-      if (f.t >= 1) { cam.fly = null; f.then?.(); }
+      if (f.crane) cam.lift = (1 - k) * (1 - k);
+      if (f.t >= 1) { cam.fly = null; cam.lift = 0; f.then?.(); }
     } else if (cam.drag) {
       cam.z = damp(cam.z, cam.drag.z, 22, dt);
     } else if (cam.follow && juan.walk) {
@@ -754,6 +783,13 @@ export async function createPassStage(o = {}) {
       }
     } else {
       ch.root.rotation.y = damp(ch.root.rotation.y, 0, 5, dt);
+      // now and then Juan does something on his stop (a victory dance once the pass is done)
+      juan.t -= dt;
+      if (juan.t < 0 && ch.anim === 'idle' && !ch.face.talking) {
+        juan.t = 6 + Math.random() * 4;
+        const pool = juanIdx >= N - 1 ? ['victory', 'celebrate', 'dance'] : ['wave', 'thumbsUp', 'lookAround', 'peace'];
+        ch.react(pool[Math.floor(Math.random() * pool.length)]);
+      }
     }
   }
 
@@ -826,7 +862,7 @@ export async function createPassStage(o = {}) {
   placeCamera(0);
 
   const stage = {
-    scene, camera, layout: L, nodes, juan, dbg,
+    scene, camera, layout: L, nodes, juan,
     update,
     get viewTier() {
       let bi = -1, bd = Infinity;
@@ -844,6 +880,7 @@ export async function createPassStage(o = {}) {
     flyToZ(z, dur = 1.1, then) { flyTo(z - FRAME, dur, then); },
     /** Opening move: start a little behind and sweep up the path to Juan. */
     intro() {
+      FRAME = rig().frame;
       if (pendingWalk !== null) {
         const target = pendingWalk;
         pendingWalk = null;
@@ -854,11 +891,13 @@ export async function createPassStage(o = {}) {
         return;
       }
       const z1 = clamp(tierZ(juanIdx) - FRAME, zMin, zMax);
-      cam.z = clamp(z1 + 16, zMin, zMax);
+      cam.z = clamp(z1 + 14, zMin, zMax);
+      cam.lift = 1;
       placeCamera(0);
-      flyTo(z1, 1.5);
+      flyTo(z1, 1.7);
+      cam.fly.crane = true;
     },
-    dragStart(y) { cam.fly = null; cam.follow = false; cam.vz = 0; cam.drag = { y0: y, z0: cam.z, z: cam.z, hist: [[performance.now(), cam.z]] }; },
+    dragStart(y) { cam.fly = null; cam.lift = 0; cam.follow = false; cam.vz = 0; cam.drag = { y0: y, z0: cam.z, z: cam.z, hist: [[performance.now(), cam.z]] }; },
     dragMove(y) {
       const d = cam.drag;
       if (!d) return;
@@ -882,6 +921,7 @@ export async function createPassStage(o = {}) {
     },
     wheel(dy) {
       cam.fly = null;
+      cam.lift = 0;
       cam.follow = false;
       // wheel up = forward, like scrolling up a map
       cam.vz += clamp(dy, -240, 240) * 0.09;
@@ -906,15 +946,17 @@ export async function createPassStage(o = {}) {
       nodeBatch?.dispose();
       for (const n of nodes) for (const tr of ['free', 'premium']) { const s = n.stands[tr]; s.fly = null; dropItem(s); }
       for (const c of chars) { c.ch.face?.texture?.dispose?.(); c.ch.facePlane?.material?.dispose?.(); }
-      // free the GPU copies of everything this stage drew (shared caches re-upload if drawn again)
+      // free the GPU copies of everything this stage drew, except what the scene underneath (the island)
+      // still uses (shared caches re-upload on their own if something draws them again)
+      const keep = keepGPU;
       const geos = new Set(), texs = new Set();
       scene.traverse((ob) => {
         if (ob.geometry) geos.add(ob.geometry);
         const ms = Array.isArray(ob.material) ? ob.material : ob.material ? [ob.material] : [];
         for (const m of ms) if (m.map) texs.add(m.map);
       });
-      for (const g of geos) g.dispose();
-      for (const tx of texs) if (tx !== sparkTex) tx.dispose();
+      for (const g of geos) if (!keep.has(g)) g.dispose();
+      for (const tx of texs) if (!keep.has(tx)) tx.dispose();
       sun.shadow.map?.dispose();
       W.dispose();
       for (const m of owned.mats) m.dispose();

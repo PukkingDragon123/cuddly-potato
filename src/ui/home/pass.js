@@ -106,12 +106,13 @@ export function mount(el, ctx, opts = {}) {
   const hud = h('div', { class: 'pz-hud' });
   const foot = h('div', { class: 'pz-foot' });
   const tags = h('div', { class: 'pz-tags' });
+  const fxLayer = h('div', { class: 'pz-fx' }); // confetti falls from under the season plate, never over its text
   const curtain = h('div', { class: 'pz-curtain' },
     h('div', { class: 'pz-cur-in' },
       h('div', { class: 'pz-cur-cart' }, icon('cart', 'xl')),
       h('div', { class: 'pz-cur-t t-d' }, ...SEASON.name.split(' ').map((w) => h('span', {}, w))),
       h('div', { class: 'pz-cur-s t-d' }, 'Opening Beast Mart')));
-  const root = h('div', { class: 'pz-root' }, touch, tags, hud, foot, curtain);
+  const root = h('div', { class: 'pz-root' }, touch, tags, fxLayer, hud, foot, curtain);
   el.appendChild(root);
 
   // ------------------------------------------------------------- HUD (season, clock, Calorie bar, premium)
@@ -138,8 +139,9 @@ export function mount(el, ctx, opts = {}) {
     const max = tier >= N;
     const into = max ? SEASON.calPerTier : state.p.calories - tier * SEASON.calPerTier;
     hudTier.textContent = String(tier);
-    hudNext.textContent = max ? '-' : String(tier + 1);
+    hudNext.replaceChildren(max ? icon('check') : String(tier + 1));
     hudNext.parentElement.classList.toggle('done', max);
+    hudNext.parentElement.querySelector('small').textContent = max ? 'DONE' : 'NEXT';
     xpBar.set(max ? 1 : into / SEASON.calPerTier, max ? 'PASS COMPLETE' : `${fmtN(Math.max(0, into))} / ${SEASON.calPerTier} CAL`);
     if (!xpBar.querySelector('.pz-cal')) xpBar.appendChild(icon('calorie', 'pz-cal'));
     premSlot.replaceChildren(state.p.pass.premium
@@ -162,9 +164,10 @@ export function mount(el, ctx, opts = {}) {
     chalBtn.querySelector('.badge')?.remove();
     if (badge > 0) chalBtn.appendChild(h('div', { class: 'badge' }, badge > 9 ? '9+' : String(badge)));
     const n = passClaimCount();
-    midSlot.replaceChildren(n > 1 ? button(`CLAIM ALL (${n})`, claimAll, 'green sm pulse pz-claimall', { icon: 'gift' })
+    const cta = n > 1 ? button(`CLAIM ALL (${n})`, claimAll, 'green sm pulse pz-claimall', { icon: 'gift' })
       : n === 1 ? button('1 READY', () => { const r = firstReady(); if (r) stage?.flyToTier(r.i, 0.9, () => openCard(r.i, r.track)); }, 'green sm pz-claimall', { icon: 'gift', sound: 'tap' })
-        : null);
+        : null;
+    midSlot.replaceChildren(...(cta ? [cta] : []));
   }
   function firstReady() {
     for (let i = 0; i < Math.min(passTier(), PASS_TIERS.length); i++) for (const tr of ['free', 'premium']) if (passClaimable(i, tr)) return { i, track: tr };
@@ -178,6 +181,7 @@ export function mount(el, ctx, opts = {}) {
     const pr = el.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 };
     const x = pr.left + el.offsetLeft, y0 = pr.top + el.offsetTop;
     const top = y0 + hud.offsetHeight;
+    fxLayer.style.top = hud.offsetHeight + 'px';
     // portrait: the button row spans the width, frame above it; landscape: the buttons sit in the corners
     const bot = y0 + el.offsetHeight - (document.body.classList.contains('landscape') ? 0 : foot.offsetHeight);
     stage.setView({ x, y: top, w: el.offsetWidth, h: Math.max(80, bot - top) });
@@ -262,7 +266,7 @@ export function mount(el, ctx, opts = {}) {
         act);
     };
     const status = reached ? (passClaimable(i, 'free') || passClaimable(i, 'premium') ? 'READY' : 'REACHED')
-      : i === tier ? `${fmtN(Math.max(0, need))} CAL TO GO` : `${fmtN((i + 1) * SEASON.calPerTier)} CAL`;
+      : `${fmtN(Math.max(0, need))} CAL TO GO`;
     const el2 = h('div', { class: `pz-card ${isMilestoneTier(i) ? 'ms' : ''} ${reached ? 'reached' : ''}` },
       h('div', { class: 'pz-card-head' },
         h('b', { class: 'pz-card-tier t-d' }, `TIER ${i + 1}`),
@@ -341,7 +345,7 @@ export function mount(el, ctx, opts = {}) {
     stage.shake(0.35);
     const kind = rewardDef(r).type;
     flyArt(scr, r, kind);
-    confetti(root, { count: isMilestoneTier(i) || isBigReward(r) ? 56 : 30 });
+    confetti(fxLayer, { count: isMilestoneTier(i) || isBigReward(r) ? 56 : 30 });
     refreshCtx(ctx);
     renderAll();
     if (got.every((g) => SMALL.has(g.kind))) {
@@ -376,7 +380,7 @@ export function mount(el, ctx, opts = {}) {
     audio.play('chaching');
     stage.shake(0.5);
     pos.forEach((p, k) => setTimeout(() => { const a = h('div', { class: 'pz-anchor', style: { left: p.x + 'px', top: p.y + 'px' } }); $overlay().appendChild(a); burst(a, { ring: false, count: 14, scale: 1.8 }); setTimeout(() => a.remove(), 1000); }, k * 70));
-    confetti(root, { count: 60 });
+    confetti(fxLayer, { count: 60 });
     refreshCtx(ctx);
     renderAll();
     // merge currencies so the popup stays readable
@@ -408,7 +412,7 @@ export function mount(el, ctx, opts = {}) {
     stage?.shake(0.6);
     stage?.cheer('victory');
     juanSays('Gold stands!');
-    confetti(root, { count: 70, colors: ['#ffd84a', '#fff27a', '#ffffff', '#ff7ac0'] });
+    confetti(fxLayer, { count: 70, colors: ['#ffd84a', '#fff27a', '#ffffff', '#ff7ac0'] });
     renderAll();
     const hd = premSlot.firstElementChild;
     if (hd) { burst(hd, { ring: false, count: 30, colors: ['#ffd84a', '#ffffff', '#ff7ac0'] }); bump(hd); }

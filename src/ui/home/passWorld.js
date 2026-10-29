@@ -617,7 +617,7 @@ export async function buildPassWorld(L) {
   const Zs = Object.fromEntries(L.zones.map((z) => [z.id, z]));
 
   // ------------------------------------------------------------- floors
-  const asphalt = pixTex(32, 32, (c, w, h) => speckle(c, w, h, 0x3c404c, [0x464a56, 0x34373f, 0x4e525e], 0.22, 4));
+  const asphalt = pixTex(32, 32, (c, w, h) => speckle(c, w, h, 0x5a5f6e, [0x666b7a, 0x4e5260, 0x72778a], 0.22, 4));
   const tiles = pixTex(32, 32, (c) => {
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
       const chk = ((x >> 4) + (y >> 4)) & 1;
@@ -630,9 +630,8 @@ export async function buildPassWorld(L) {
   const vaultTex = pixTex(32, 32, (c) => {
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
       const inlay = (x & 15) === 0 || (y & 15) === 0;
-      const dia = Math.abs((x & 15) - 8) + Math.abs((y & 15) - 8) === 5;
       const chk = ((x >> 4) + (y >> 4)) & 1;
-      c.fillStyle = hex(inlay ? 0xd8a838 : dia ? 0xb8862a : hash3(x, y, 5) < 0.1 ? (chk ? 0x584628 : 0x463a26) : chk ? 0x4e3e22 : 0x3e3220);
+      c.fillStyle = hex(inlay ? 0xd8a838 : hash3(x, y, 5) < 0.08 ? (chk ? 0x5a4828 : 0x483a24) : chk ? 0x4e3e22 : 0x3e3220);
       c.fillRect(x, y, 1, 1);
     }
   });
@@ -673,10 +672,9 @@ export async function buildPassWorld(L) {
       put(still, G('car' + col, () => carGrid(col)), side * (10.2 + R(ci) * 0.6), 0, z, side < 0 ? 0 : Math.PI, 1, { cast: false });
     }
   }
-  // lamp posts, planters, bushes and trees on the lot edges
   // lamp posts between the stops, either side of the stands
   for (let i = lot.from; i < lot.to; i++) {
-    const z = (tz[i] + tz[i + 1]) / 2, side = i % 2 ? 1 : -1;
+    const z = (tz[i] + tz[i + 1]) / 2;
     if (i % 2 === 0 && i !== lot.from + 2) put(still, G('lamp', lampGrid), X(z) - 3.45, 0, z, 0);
     if (i % 2 === 1 && i !== lot.from + 3) put(still, G('lamp', lampGrid), X(z) + 3.45, 0, z, Math.PI);
   }
@@ -711,6 +709,11 @@ export async function buildPassWorld(L) {
   put(still, cartFull, X(tz[lot.from + 4]) + 3.6, 0, tz[lot.from + 4] + 0.2, 2.2);
   put(still, cartGeo, X(tz[lot.from + 6]) - 3.6, 0, tz[lot.from + 6] + 0.4, -2.4);
   put(still, G('cones', conesGrid), X(tz[lot.from + 3]) + 3.4, 0, tz[lot.from + 3] - 1.4, 0.4);
+  // a few cars parked along the path (the rest of the lot is further out)
+  for (const [k, side, col] of [[0, 1, 0xe8343c], [3, -1, 0x29b6f6], [6, 1, 0xffd23f]]) {
+    const z = (tz[lot.from + k] + tz[lot.from + k + 1]) / 2;
+    put(still, G('car' + col, () => carGrid(col)), X(z) + side * 4.35, 0, z, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+  }
   put(still, G('cones', conesGrid), X(tz[lot.from + 6]) + 3.3, 0, tz[lot.from + 6] - 1.6, -0.3);
   // sidewalk curb + planters in front of the store
   put(still, G('curb', () => curbGrid(600)), -30, 0, doorZ + 4.2, 0, 1, { cast: false });
