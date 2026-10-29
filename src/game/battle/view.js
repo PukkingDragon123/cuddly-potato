@@ -21,6 +21,8 @@ import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
 import { playSigCutscene } from './sigCutscene.js';
 import { pixTexture } from './pixfx.js';
+import { hpx } from './hitPix.js';
+import { labCollapse } from './baseFall.js';
 import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMat } from './spellVfx.js';
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
@@ -291,7 +293,7 @@ class UnitActor {
     this.plate.style.display = '';
     this.spawnT = 0;
     const p = this.rig.root.position;
-    fx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 4, scale: 0.9 * this.u.size });
+    hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 3, scale: 0.9 * this.u.size });
     this.rig.boing?.(0.45);
   }
   update(dt) {
@@ -341,6 +343,7 @@ class UnitActor {
       rig.baseScale = target * (k < 0.6 ? (k / 0.6) * 1.28 : 1.28 - ((k - 0.6) / 0.4) * 0.28);
     } else rig.baseScale = damp(rig.baseScale, target, 8, dt);
     rig.update(dt);
+    this.updateStrike(dt);
     // knockback tumble
     const tumble = u.state === 'kb' ? (u.side === 0 ? 1 : -1) * 0.55 : 0;
     rig.root.rotation.z = damp(rig.root.rotation.z, tumble, u.state === 'kb' ? 12 : 10, dt);
@@ -356,7 +359,7 @@ class UnitActor {
       this.dustT -= dt;
       if (this.dustT <= 0) {
         this.dustT = 0.35 + Math.random() * 0.3;
-        fx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 2, scale: 0.8 * u.size, color: this.view.dustColor });
+        hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 1, scale: 0.7 * u.size, vx: (u.side === 0 ? -0.6 : 0.6), spread: 0.4, color: this.view.dustColor });
       }
     }
     // HP plate: shown briefly after landing (level badge) and whenever damaged
@@ -403,6 +406,60 @@ class UnitActor {
         this.iceMesh.position.set(p.x, p.y + s / 2, p.z);
       }
     }
+  }
+  /**
+   * Attack feel on top of the rig's own swing: wind-up pull-back + forward lean,
+   * a lunge on the strike, recoil when hit, and a damage-number accumulator
+   * (one punchy number per troop every ~0.2 s instead of a pile of tiny ones).
+   */
+  updateStrike(dt) {
+    const rig = this.rig, s = Math.max(0.6, this.u.size);
+    let z = 0, lean = 0;
+    const atk = this.atk;
+    if (atk) {
+      atk.t += dt;
+      const a = atk.t / atk.dur;
+      if (a >= 1) this.atk = null;
+      else if (atk.melee) {
+        if (a < 0.45) { const k = a / 0.45; z = -0.1 * k; lean = -0.14 * k; }
+        else if (a < 0.62) { const k = (a - 0.45) / 0.17; z = -0.1 + 0.42 * Math.sin(k * Math.PI * 0.5); lean = -0.14 + 0.4 * k; }
+        else { const k = (a - 0.62) / 0.38; z = 0.32 * (1 - k) ** 2; lean = 0.26 * (1 - k) ** 2; }
+      } else {
+        // ranged: brace, then a sharp recoil on the shot
+        if (a < 0.45) lean = -0.06 * (a / 0.45);
+        else { const k = (a - 0.45) / 0.55; z = -0.16 * Math.sin(Math.min(1, k * 2.2) * Math.PI) * (1 - k * 0.5); lean = -0.06 - 0.12 * Math.sin(Math.min(1, k * 2.5) * Math.PI); }
+      }
+    }
+    this.recoil = Math.max(0, (this.recoil ?? 0) - dt * 2.2);
+    z = z * s - this.recoil;
+    rig.inner.position.z = z;
+    if (rig.gait !== 'hop') rig.inner.rotation.x = lean;
+    // damage numbers
+    if (this.dmgAcc > 0) {
+      this.dmgT -= dt;
+      if (this.dmgT <= 0) this.flushDamage();
+    }
+  }
+  /** Queue damage for the floating number (crits show at once). */
+  addDamage(n, crit, kind) {
+    this.dmgAcc = (this.dmgAcc ?? 0) + n;
+    this.dmgCrit = this.dmgCrit || crit;
+    this.dmgKind = kind;
+    if (crit) this.flushDamage();
+    else if (!(this.dmgT > 0)) this.dmgT = 0.16;
+  }
+  flushDamage() {
+    const n = Math.round(this.dmgAcc ?? 0);
+    this.dmgAcc = 0; this.dmgT = 0;
+    if (n < 1) return;
+    const p = this.rig.root.position;
+    const at = new THREE.Vector3(p.x + (Math.random() - 0.5) * 0.3, p.y + this.rig.height * 0.95 + 0.25, p.z + 0.3);
+    const crit = this.dmgCrit;
+    this.dmgCrit = false;
+    const tier = crit ? 'crit' : n >= 250 ? 'xl' : n >= 90 ? 'l' : 'm';
+    const k = { fire: 'k-fire', burn: 'k-fire', zap: 'k-zap', laser: 'k-zap', nuke: 'k-goo', sludge: 'k-goo', acid: 'k-goo', money: 'k-cash' }[this.dmgKind] ?? '';
+    floatText(at, crit ? `${n}!` : String(n), `hitn t-${tier} ${k} s${this.u.side}`, { life: crit ? 1.15 : tier === 'm' ? 0.7 : 0.9, rise: crit ? 58 : 44, spreadX: 30 });
+    if (crit) floatText(at.clone().setY(at.y + 0.55), 'CRIT', 'hitn t-tag', { life: 0.95, rise: 64, spreadX: 6 });
   }
   /** Special-card side buffs on this troop: SURGE embers, FRENZY speed sparks, HASTE wind streaks. */
   buffFx(p) {
@@ -523,6 +580,7 @@ export class BattleView {
     this.t = 0;
     this.theme = cfg.theme || 'lab';
     this.scene = cfg.scene ?? new THREE.Scene();
+    hpx.attach(this.scene); // combat pixel particles (hitPix.js)
     this.scene.background = new THREE.Color(0x8fd3ff);
     this.camera = cfg.camera ?? new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 600);
     this.listeners = new Set();
@@ -794,6 +852,7 @@ export class BattleView {
     const c = battleCamera(this.camX, width, cam.aspect, cam.fov, cam.aspect < 1 ? 0.56 : 0.6);
     cam.position.set(...c.pos);
     cam.lookAt(...c.look);
+    if (this.camFx) this.camFx(cam, c, dt);
     this.dist = c.dist;
     this.halfW = halfW;
     // the sun follows the camera so shadows stay crisp
@@ -1001,6 +1060,20 @@ export class BattleView {
     // 2D pixel-art particles (ultimate cinematic, magic spells)
     updateMagic(this, gdt);
     this.pixfx?.update(dt, this.camera);
+    hpx.update(gdt);
+    this.updateEmitters(gdt);
+  }
+  /** Short-lived particle emitters (burning rubble etc.): { t, dur, every, fn(k) }. */
+  updateEmitters(dt) {
+    if (!this.emitters?.length) return;
+    for (const e of this.emitters) {
+      e.t += dt; e.acc = (e.acc ?? 0) + dt;
+      while (e.acc >= e.every) { e.acc -= e.every; e.fn(Math.min(1, e.t / e.dur)); }
+    }
+    this.emitters = this.emitters.filter((e) => e.t < e.dur);
+  }
+  emit(dur, every, fn) {
+    (this.emitters ??= []).push({ t: 0, dur, every, fn });
   }
 
   engineToScreen(v) {
@@ -1336,11 +1409,12 @@ export class BattleView {
         break;
       case 'attack': {
         const a = this.actors.get(ev.unit.id);
+        const role = SWARMS[ev.unit.type]?.role;
         if (a) {
           a.rig.attack(Math.max(0.3, ev.dur));
+          a.atk = { t: 0, dur: Math.max(0.3, ev.dur), melee: role !== 'ranged' };
           if (SWARMS[ev.unit.type]?.traits?.kamikaze) break;
         }
-        const role = SWARMS[ev.unit.type]?.role;
         if (role !== 'ranged') audio.play('swing', { pitch: 1.4 / Math.max(0.6, ev.unit.size), gap: 0.05 });
         break;
       }
@@ -1357,25 +1431,7 @@ export class BattleView {
           audio.play('latch', { pitch: 1.8, vol: 0.45, gap: 0.08 });
           break;
         }
-        a.rig.flash(0.07);
-        a.rig.boing(-0.15);
-        const p = a.rig.root.position;
-        const at = new THREE.Vector3(p.x, p.y + a.rig.height * 0.6, p.z + 0.2);
-        const kind = ev.kind;
-        if (kind === 'melee') fx.burst(at, { count: 5, colors: [0xffffff, 0xffe27a], size: 0.06, speed: 3, life: 0.3, grav: -5 });
-        else if (kind === 'sludge') fx.slime(at, { count: 6, color: 0x8fb23a, speed: 2.5 });
-        else if (kind === 'fries') fx.burst(at, { count: 6, colors: [0xffd23f, 0xf7c873], size: 0.07, speed: 3 });
-        else if (kind === 'fire' || kind === 'burn') fx.fire(at, { count: 4 });
-        else if (kind === 'zap' || kind === 'laser') fx.sparkle(at, { count: 6, colors: [0x9ff2ff, 0xffffff, 0xff4fd8], speed: 3 });
-        else if (kind === 'money') fx.cash(at, 4, { speed: 3, ground: 0 });
-        else if (kind === 'turretBolt' || kind === 'labCannon') fx.sparkle(at, { count: 8, colors: [TEAM_LIGHT[1 - ev.unit.side], 0xffffff], speed: 3.5 });
-        else fx.burst(at, { count: 4, colors: [0xffffff], size: 0.05, speed: 2, life: 0.3 });
-        if (ev.amount >= 1 && (ev.crit || ev.amount >= 60)) floatText(at, String(ev.amount), ev.crit ? 'crit' : 'dmg', { life: ev.crit ? 1.1 : 0.8 });
-        audio.play(kind === 'melee' ? (ev.src?.size > 1.4 ? 'hitHeavy' : pick(['hit', 'bite', 'chomp'])) : kind === 'sludge' ? 'splat' : 'hit', { pitch: 0.8 + Math.random() * 0.4, gap: 0.04 });
-        if (ev.crit || (ev.src && ev.src.size > 1.6)) {
-          engine.shake(0.18);
-          engine.hitstop(0.045);
-        }
+        this.hitFx(a, ev);
         break;
       }
       case 'buff':
@@ -1421,8 +1477,12 @@ export class BattleView {
         if (a) {
           a.rig.boing(0.4);
           a.rig.flash(0.12, true);
-          fx.dust(a.rig.root.position, { count: 6, scale: 1.4 });
+          const kp = a.rig.root.position, dir = ev.unit.side === 0 ? -1 : 1;
+          hpx.dust(new THREE.Vector3(kp.x, 0, kp.z), { count: 5, scale: 1.1 * ev.unit.size, vx: dir * 2, spread: 0.8 });
+          hpx.streaks(new THREE.Vector3(kp.x, kp.y + a.rig.height * 0.5, kp.z), dir, { count: 4, h: a.rig.height * 0.6 });
+          hpx.hit(new THREE.Vector3(kp.x - dir * 0.2, kp.y + a.rig.height * 0.6, kp.z), 'heavy', 1.1, dir);
           audio.play('boing', { pitch: 1.2, gap: 0.08 });
+          audio.play('hitHeavy', { pitch: 0.8, vol: 0.7, gap: 0.08 });
         }
         break;
       }
@@ -1430,17 +1490,16 @@ export class BattleView {
         const a = this.actors.get(ev.unit.id);
         if (a) {
           const big = ev.unit.size > 1.5 || ev.unit.boss;
-          if (!a.hidden) for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 7 : 5, dirX: ev.unit.side === 0 ? -0.6 : 0.6, life: big ? 2.2 : 1.5 });
+          a.flushDamage();
           const p = a.rig.root.position.clone();
-          fx.smoke(p, { count: big ? 10 : 4, scale: big ? 1.6 : 0.8 });
-          fx.slime(p.clone().setY(0.3), { count: big ? 12 : 5, color: seriesColor(ev.unit.type), speed: 3 });
+          this.deathFx(a, ev, big);
           if (ev.unit.type === 'feastablesPanther' || ev.unit.type === 'chocoChomper') fx.chocolate(p.clone().setY(0.6), { count: 30 });
           if (SWARMS[ev.unit.type]?.series === 'food') fx.groceries(p.clone().setY(0.5), { count: 6 });
           audio.play(big ? 'explode' : 'death', { pitch: 0.8 + Math.random() * 0.4, gap: 0.03 });
           if (big) {
             engine.shake(0.5);
             engine.hitstop(0.08);
-            floatText(p.clone().setY(p.y + 1.6), 'KO!', 'crit', { life: 1.1 });
+            floatText(p.clone().setY(p.y + 1.6), 'K.O.!', 'hitn t-ko', { life: 1.2, rise: 60 });
           }
           if (ev.killerSide === 0 && Math.random() < 0.3) this.reactRich(0, pick(['laugh', 'clap', 'fistPump', 'thumbsUp', 'cheer']), 1);
           if (ev.killerSide === 1 && Math.random() < 0.3) this.reactRich(1, pick(['taunt', 'laugh', 'fistPump', 'smug']), 1);
@@ -1651,13 +1710,59 @@ export class BattleView {
     }
   }
 
+  /** Combat hit: per-kind pixel spark at the contact point, the attacker's smear, squash + recoil, numbers, hit-stop. */
+  hitFx(a, ev) {
+    const u = ev.unit, src = ev.src, kind = ev.kind ?? 'melee';
+    const p = a.rig.root.position;
+    const H = Math.max(0.4, a.rig.height);
+    const away = u.side === 0 ? -1 : 1;
+    const dir = src && !src.building && Number.isFinite(src.x) ? Math.sign(p.x - src.x) || away : away; // the way the blow travels
+    const crit = !!ev.crit;
+    const heavy = !crit && ((src && src.size > 1.45) || ev.amount >= 160);
+    const at = new THREE.Vector3(p.x - dir * Math.min(0.45, 0.24 * u.size), p.y + H * 0.55, p.z);
+    a.rig.flash(crit ? 0.1 : 0.06);
+    a.rig.boing(crit ? -0.42 : heavy ? -0.3 : -0.17);
+    a.recoil = Math.min(0.36, (a.recoil ?? 0) + (crit ? 0.26 : heavy ? 0.18 : 0.07));
+    const hk = kind === 'melee' ? (crit ? 'crit' : heavy ? 'heavy' : 'melee') : kind;
+    hpx.hit(at, hk, crit ? 1.35 : heavy ? 1.2 : 0.8 + Math.min(0.4, (ev.amount ?? 0) / 400), dir);
+    // melee: the attacker's smear arc + a little impact squash on it (the clash at the front line)
+    const sa = src && !src.building ? this.actors.get(src.id) : null;
+    if (sa && !sa.hidden && kind === 'melee') {
+      const sp = sa.rig.root.position, sdir = src.side === 0 ? 1 : -1;
+      hpx.slash(new THREE.Vector3(sp.x + sdir * 0.22 * src.size, sp.y + sa.rig.height * 0.55, sp.z), sdir, crit ? 0xffd84a : heavy ? 0xffb02e : 0xf4f8ff, Math.min(1.9, 0.7 + src.size * 0.38));
+      sa.rig.boing(-0.12);
+    }
+    if (crit || heavy) hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: crit ? 3 : 2, scale: u.size, vx: dir * 1.8, spread: 0.6 });
+    if (ev.amount >= 1) a.addDamage(ev.amount, crit, kind);
+    audio.play(kind === 'melee' ? (heavy || crit ? 'hitHeavy' : pick(['hit', 'bite', 'chomp'])) : kind === 'sludge' ? 'splat' : 'hit', { pitch: 0.8 + Math.random() * 0.4, gap: 0.04 });
+    if (crit || heavy) {
+      engine.shake(crit ? 0.2 : 0.12);
+      // hit-stop: a beat of freeze on the big ones (throttled so brawls never stutter)
+      if (!(this.lastStop > this.t - 0.35)) { this.lastStop = this.t; engine.hitstop(crit ? 0.075 : 0.045); }
+    }
+  }
+  /** KO: the voxel body breaks apart away from the killer, a pixel poof, chips, a goo splat (big ones explode). */
+  deathFx(a, ev, big) {
+    const u = ev.unit, p = a.rig.root.position.clone();
+    const dir = ev.killerSide === 0 ? 1 : ev.killerSide === 1 ? -1 : u.side === 0 ? -1 : 1;
+    const H = Math.max(0.5, a.rig.height);
+    const col = seriesColor(u.type);
+    if (!a.hidden) for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 8 : 5.5, dirX: dir * 0.9, life: big ? 2.4 : 1.6, fraction: big ? 0.85 : 1 });
+    const mid = new THREE.Vector3(p.x, p.y + H * 0.5, p.z);
+    hpx.poof(mid, { scale: Math.min(2.4, 0.75 + u.size * 0.45), color: 0xf2eef8, spark: col });
+    hpx.chips(mid, { count: big ? 10 : 5, colors: [col, 0xffffff, col], speed: big ? 6 : 4, vx: dir * 1.5 });
+    hpx.splat(mid, { color: col, scale: Math.min(1.6, 0.6 + u.size * 0.3) });
+    hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: big ? 6 : 2, scale: u.size });
+    if (big) hpx.boom(mid, { scale: Math.min(2, u.size * 0.8) });
+  }
+
   towerHitFx(ev) {
     const b = this.sim.sides[ev.side].lab;
     const obj = this.buildingObj(ev.side, ev.kind);
     obj.shakeT = 0.12;
     const frac = 1 - b.hp / b.maxHp;
-    if (ev.kind === 'lab') obj.setDamage(frac);
-    else obj.setDamage(frac);
+    // the killing blow leaves the base cracked and burning: labDestroyed() plays the collapse
+    obj.setDamage(b.hp <= 0 && !obj.fallen ? Math.min(frac, 0.95) : frac);
     const fx0 = b.x - (ev.side === 0 ? -1 : 1) * b.half;
     const p = new THREE.Vector3(fx0, rand(0.6, (obj.height ?? 3) * 0.8), rand(-0.4, 0.9));
     const chips = ev.kind === 'lab' ? (obj.style === 'mansion' ? [0xf4ead0, 0xffd23f] : [0xeaf2ff, TEAM_COLORS[ev.side], 0xff2e88]) : [0xf0f4fc, TEAM_COLORS[ev.side], 0xb8c2d6];
@@ -1694,6 +1799,7 @@ export class BattleView {
       return;
     }
     const snd = { sludge: 'splat', letters: 'whoosh', nuke: 'zap', zap: 'zap', laser: 'laser', missile: 'whoosh', fire: 'whoosh', fries: 'swing', soda: 'fizz' }[p.kind] || 'shoot';
+    hpx.muzzle(start, p.side === 0 ? 1 : -1, (PROJ_COLORS[p.kind] ?? [0xffe27a])[0], Math.min(1.4, 0.7 + (p.src?.size ?? 1) * 0.3));
     audio.play(snd, { pitch: 1 + Math.random() * 0.3, gap: 0.05 });
     if (p.kind === 'laser' || p.kind === 'zap') fx.sparkle(start, { count: 4, colors: PROJ_COLORS[p.kind], speed: 2 });
   }
@@ -1735,6 +1841,7 @@ export class BattleView {
     this.scene.remove(pr.mesh);
     this.projs.delete(p.id);
     const pos = pr.mesh.position.clone();
+    hpx.hit(pos, p.kind, p.kind === 'labCannon' || p.kind === 'missile' ? 1.4 : 1, p.side === 0 ? 1 : -1);
     const cols = PROJ_COLORS[p.kind] || [0xffffff];
     switch (p.kind) {
       case 'turretBolt':
@@ -2401,53 +2508,9 @@ export class BattleView {
   // -------------------------------------------------------------------------
   // Endgame
 
-  /** Lab destroyed: slow-mo chain explosions, the Commander tumbles off the roof. */
+  /** Base destroyed: the slow-mo collapse cinematic (baseFall.js). */
   async labDestroyed(side) {
-    const lab = this.labs[side];
-    this.autoFollow = false;
-    this.focus(lab.root.position.x + (side === 0 ? 3 : -3), 10);
-    engine.timeScale = 0.3;
-    const p = lab.root.position.clone().setY(2);
-    for (let i = 0; i < 6; i++) {
-      setTimeout(() => {
-        fx.burst(p.clone().add(new THREE.Vector3(rand(-1.5, 1.5), rand(-1, 2), rand(-1, 1))), { count: 30, colors: [0xffd23f, 0xff8a2a, 0xffffff, 0x555555], size: 0.15, speed: 8 });
-        fx.fire(p, { count: 14, radius: 3, scale: 1.4 });
-        audio.play('explode', { pitch: 0.6 + i * 0.1 });
-        engine.shake(0.6);
-      }, i * 160);
-    }
-    setTimeout(() => {
-      lab.setDamage(1);
-      for (const m of lab.meshes || []) if (m.visible) fx.shatter(m, { force: 9, life: 3, fraction: 0.6 });
-      fx.smoke(p, { count: 30, scale: 2.5, life: 2 });
-      groundHit(p.clone().setY(0), { radius: 7, color: 0xffffff });
-      if (this.theme === 'mart') fx.groceries(p, { count: 40, speed: 10 });
-      if (lab.style === 'mansion' || lab.style === 'goldVault') fx.cash(p, 120, { speed: 10 });
-      engine.shake(1);
-      engine.timeScale = 1;
-      const ch = this.cmds[side];
-      if (ch) {
-        ch.busy = true;
-        ch.play('shocked', { restart: true, dur: 0.4, then: 'sad' });
-        ch.expr('dizzy', 'shout');
-        ch.emote?.('star', 1.6);
-        const from = ch.root.position.clone();
-        const to = new THREE.Vector3(from.x + (side === 0 ? 2.5 : -2.5), 0, 1.5);
-        animate(0.9, (e, k) => {
-          ch.root.position.set(lerp(from.x, to.x, k), lerp(from.y, 0, k) + Math.sin(k * Math.PI) * 2.5, lerp(from.z, to.z, k));
-          ch.root.rotation.x = k * Math.PI * 2;
-        }, { onComplete: () => { ch.root.rotation.x = 0; ch.play('cry'); ch.expr('cry', 'sad'); ch.face?.fx('tears'); fx.dust(ch.root.position, { count: 10, scale: 2 }); } });
-      }
-      const win = this.cmds[1 - side];
-      if (win) {
-        win.busy = true;
-        win.play('victory');
-        win.expr('star', 'grin');
-        win.emote?.('sparkle', 2);
-      }
-      fx.confetti(new THREE.Vector3(this.camX, 6, 0), { count: 120, spread: 2.5 });
-    }, 1000);
-    await new Promise((r) => setTimeout(r, 2200));
+    await labCollapse(this, side);
   }
 
   /** Units of the winning side celebrate; the camera settles on the loser's side. */
@@ -2465,6 +2528,8 @@ export class BattleView {
 
   dispose() {
     this.disposed = true;
+    hpx.detach();
+    this.emitters = [];
     for (const a of this.actors.values()) a.dispose();
     this.actors.clear();
     for (const tp of this.towerPlates ?? []) tp.lab.dispose();

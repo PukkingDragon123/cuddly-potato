@@ -468,7 +468,7 @@ export class BattleHUD {
     this.modelTier = show;
     const style = this.cfg.sides[0].labStyle;
     // the player's chibi Commander (equipped skin) rides on the seat; the model rocks to keep them facing out
-    const bo = { style, size: 256, zoom: 0.7, cmd: this.cfg.sides[0].commander ?? null, cmdScale: 1.15, sway: 0.75 };
+    const bo = { style, size: 256, zoom: 0.76, cmd: this.cfg.sides[0].commander ?? null, cmdScale: 1.0, sway: 0.75 };
     try {
       const [first] = await baseSpin(show, bo);
       if (this.modelTier !== show) return;
