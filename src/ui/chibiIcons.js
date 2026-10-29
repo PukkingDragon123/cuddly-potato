@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { makeMesh } from '../core/voxel.js';
-import { buildHand, FV } from '../models/characters/parts.js';
+import { buildHand, H as FV } from '../models/characters/parts.js';
 import { CHARACTERS } from '../data/characters.js';
 import { charPortrait } from './thumbs.js';
 
@@ -73,10 +73,10 @@ export function chibiHandURL(rot = [0.3, 0.6, Math.PI + 0.5]) {
   const def = { ...CHARACTERS.recruit, gloves: 0xffffff };
   const { g } = buildHand(def, 'point', -1);
   // lab-glove cuff (pink, with a white stripe) so the hand reads at small sizes
-  for (let x = -4; x <= 3; x++) for (let y = 0; y <= 3; y++) for (let z = -4; z <= 4; z++) {
-    const e = (x === -4 || x === 3) + (z === -4 || z === 4);
+  for (let x = -2; x <= 1; x++) for (let y = 0; y <= 1; y++) for (let z = -2; z <= 2; z++) {
+    const e = (x === -2 || x === 1) + (z === -2 || z === 2);
     if (e === 2) continue;
-    if (e || y === 0 || y === 3) g.set(x, y, z, y === 2 ? 0xffffff : 0xff2e88);
+    if (e) g.set(x, y, z, y === 1 ? 0xffffff : 0xff2e88);
   }
   const mesh = makeMesh(g.build({ scale: FV, pivot: 'center' }));
   const holder = new THREE.Group();
