@@ -96,7 +96,7 @@ export const SEASON_CHALLENGES = [
   { id: 'martBattles', text: 'Battle {n} times at Beast Mart', n: 2, cal: 120, stat: 'martBattles' },
   { id: 'openVials', text: 'Open {n} vials', n: 2, cal: 100, stat: 'vialsOpened' },
   { id: 'unleashMega', text: 'Unleash your MEGA {n} times', n: 2, cal: 160, stat: 'megasUsed' },
-  { id: 'useSignature', text: 'Use your Commander signature {n} times', n: 4, cal: 110, stat: 'signatures' },
+  { id: 'useSignature', text: 'Use your Commander ULTIMATE {n} times', n: 4, cal: 110, stat: 'signatures' },
   { id: 'deployTroops', text: 'Deploy {n} troops', n: 40, cal: 110, stat: 'deployed' },
   { id: 'smashCarts', text: 'Smash {n} shopping carts', n: 6, cal: 90, stat: 'cartsSmashed' },
   { id: 'bases', text: 'Destroy {n} rival bases', n: 3, cal: 120, stat: 'basesDestroyed' },

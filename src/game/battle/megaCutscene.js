@@ -9,7 +9,7 @@ import { engine } from '../../core/engine.js';
 import { fx } from '../../core/particles.js';
 import { audio } from '../../core/audio.js';
 import { animate } from '../../core/tween.js';
-import { h, $overlay } from '../../ui/ui.js';
+import { h, icon, $overlay } from '../../ui/ui.js';
 import { createSwarm } from '../../models/swarmModels.js';
 import { MEGAS } from '../../data/megas.js';
 import { battleCamera } from '../../models/arenas/kit.js';
@@ -87,7 +87,7 @@ export function playMegaCutscene(view, ev) {
   // overlay: letterbox + title
   const top = h('div', { class: 'mc-bar top' }), bot = h('div', { class: 'mc-bar bot' });
   const flash = h('div', { class: 'mc-flash' });
-  const warn = h('div', { class: 'mc-warn' }, '⚠ MEGA CONTAINMENT BREACH ⚠');
+  const warn = h('div', { class: 'mc-warn' }, icon('alert', 's'), ' MEGA CONTAINMENT BREACH ', icon('alert', 's'));
   const title = h('div', { class: 'mc-title' }, h('small', {}, side === 0 ? 'MEGA ULTIMATE' : 'RIVAL MEGA!'), h('span', {}, (def?.name ?? 'MEGA').toUpperCase()), h('em', {}, def?.special?.name ?? ''));
   const wrap = h('div', { class: `mc-wrap s${side}`, style: { '--mc': def?.color ?? '#ff2e88', '--mb': def?.bolt ?? '#ff2e88' } }, top, bot, warn, flash, title);
   $overlay().appendChild(wrap);

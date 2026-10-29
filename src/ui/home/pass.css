@@ -185,7 +185,7 @@
 .mn-pass .ps-pod.prem::before { background: repeating-linear-gradient(90deg, #e8343c 0 calc(var(--px) * 4), #ffd84a calc(var(--px) * 4) calc(var(--px) * 8)); }
 .mn-pass .ps-pod.claimed::before { opacity: 0.5; }
 .mn-pass .ps-pod.claim { animation: psPodWant 1.6s ease-in-out infinite; }
-@keyframes psPodWant { 0%, 100% { rotate: 0deg; } 10% { rotate: -2deg; } 20% { rotate: 2deg; } 30% { rotate: 0deg; } }
+@keyframes psPodWant { 0%, 30%, 100% { translate: 0 0; } 10% { translate: 0 calc(var(--px) * -2); } 20% { translate: 0 calc(var(--px) * -1); } }
 .mn-pass .mn-ra.mystery .pi { width: 70%; height: 70%; filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 216, 74, 0.8)); }
 
 /* diner menu card popping up over a tapped dish */

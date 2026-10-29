@@ -696,7 +696,7 @@
 .ps-tierflask.next { width: calc(var(--u) * 8.6); height: calc(var(--u) * 8.6); animation: psFlaskBob 1.3s ease-in-out infinite; }
 .ps-tierflask.next img { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 74, 168, 0.8)); }
 .ps-tierflask.next b { font-size: 1.05em; }
-@keyframes psFlaskBob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(calc(var(--px) * -2)) rotate(4deg); } }
+@keyframes psFlaskBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(calc(var(--px) * -2)); } }
 /* the Calorie test tube */
 .ps-tube {
   position: relative; flex: 1 1 auto; min-width: 0; height: calc(var(--u) * 6.4); overflow: hidden;
@@ -835,7 +835,7 @@
 .ps-pod-ck { position: absolute; left: 50%; top: 44%; translate: -50% -50%; z-index: 3; pointer-events: none; width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
 .ps-pod-ck .pi { width: 100%; height: 100%; filter: drop-shadow(0 var(--px) 0 var(--ink)) drop-shadow(0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.7)); }
 .ps-pod.just .ps-pod-ck { animation: psStamp 0.42s cubic-bezier(.2, 1.5, .4, 1) both; }
-@keyframes psStamp { 0% { transform: scale(2.6) rotate(-18deg); opacity: 0; } 60% { transform: scale(0.9) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+@keyframes psStamp { 0% { transform: scale(2.6); opacity: 0; } 60% { transform: scale(0.9); opacity: 1; } 100% { transform: scale(1); } }
 .ps-pod.just { animation: jelly 0.5s cubic-bezier(.3, 1.6, .5, 1); }
 .ps-pod.plock .ps-pod-art { filter: brightness(0.62) saturate(0.6); }
 .ps-pod-lk {
@@ -1531,3 +1531,29 @@
 /* LAB: the two shortcuts stack on the right */
 .mn-labgo { align-items: stretch; flex: none; }
 .mn-freevial.waiting .mn-gift-art, .mn-freevial.waiting .mn-gift-rays { filter: grayscale(0.8) brightness(0.7); animation: none; }
+/* small horizontal tanks: a low pool so the copy never sits in the goo */
+.panel.mn-gift, .panel.mn-megabox { --liq-h: calc(var(--u) * 2.6); padding-bottom: calc(var(--u) * 3.4); }
+/* House rule: text is never tilted. These labels used to lean a few degrees. */
+.mn-ci-mega, .mn-newcard, .mn-feat-tag, .tr-here, .mn-cbonus, .ps-tk, .ps-tk.next, .mn-pass .ps-node-n, .mn-rost-eq { rotate: none !important; }
+/* ---- round 2 (M): text-size pass fixes ---- */
+/* tab badges sit on the corner, clear of the label */
+.mn-seg-b > .badge { top: calc(var(--px) * -3); right: calc(var(--px) * -3); font-size: 0.7em; }
+.mn-seg-b > span { padding-right: 0.2em; }
+/* pass lanes: three things in a row on a phone -> tighter labels */
+.mn-pass .ps-lanes { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: calc(var(--u) * 0.6); }
+.mn-pass .ps-lane-t { font-size: 0.86em; padding: 0.02em 0.35em 0.1em; gap: 0.2em; }
+.mn-pass .ps-lanes .btn { font-size: 0.72em; padding-left: 0.4em; padding-right: 0.4em; }
+/* premium pass blurb: full width under the title, never squeezed into a sliver */
+body:not(.landscape) .ps-prem:not(.on) .ps-show { width: calc(var(--u) * 22); }
+body:not(.landscape) .ps-prem:not(.on) .ps-show-i { width: calc(var(--u) * 11); height: calc(var(--u) * 11); margin-right: calc(var(--u) * -5); }
+body:not(.landscape) .ps-prem:not(.on) .ps-show-i.s1 { width: calc(var(--u) * 13); height: calc(var(--u) * 13); }
+.ps-prem { padding-bottom: calc(var(--u) * 3); }
+.ps-prem-txt .t-xs { font-size: 0.78em; }
+/* level roads */
+.mn-lvn-t { font-size: 0.78em; }
+.mn-labn-xp { font-size: 0.8em; }
+.mn-fr-intro { padding-right: calc(var(--u) * 6); }
+.mn-pk-s { font-size: 0.74em; }
+.ps-pod-n { font-size: 0.74em; }
+.ps-pod.ms .ps-pod-n { font-size: 0.8em; }
+.ps-tk small { font-size: 0.72em; }

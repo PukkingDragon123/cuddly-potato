@@ -1,5 +1,5 @@
 // LAB tab: your Commander + your Lab Level.
-//   Commander: big showcase (level, XP), signature + skills with unlock
+//   Commander: big showcase (level, XP), ULTIMATE (signature) + skills with unlock
 //   levels, perk slots (roll for coins, keep or take), outfits, level road
 //   and the roster (owned / locked + how to unlock, equip).
 //   Lab Level: badge, XP bar, what it does (Lab & turret HP/damage) and the
@@ -110,9 +110,9 @@ export function mount(el, ctx) {
     const rows = [h('div', { class: 'mn-abil sig' },
       h('div', { class: 'mn-abil-ic' }, icon(sig.icon ?? 'star')),
       h('div', { class: 'mn-abil-t' },
-        h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline mn-abil-n' }, sig.name), chip('SIGNATURE', 'sigchip')),
+        h('div', { class: 'row gap-s' }, h('b', { class: 't-d outline mn-abil-n' }, sig.name), chip('ULTIMATE', 'sigchip')),
         h('span', { class: 'mn-abil-d' }, sig.desc),
-        h('span', { class: 'mn-abil-m' }, icon('clock', 's'), `Charges up in ${sig.charge}s during battle`)))];
+        h('span', { class: 'mn-abil-m' }, icon('clock', 's'), `Charges from ${sig.charge} POWER made + damage to your base`)))];
     for (const sk of def.skills) {
       const open = lvl >= sk.level;
       rows.push(h('div', { class: `mn-abil ${open ? '' : 'lock'}` },

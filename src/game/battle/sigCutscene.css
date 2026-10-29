@@ -1,12 +1,24 @@
-/* COMMANDER ULTIMATE cinematic overlay: letterbox with pixel trim, kicker chip,
-   ability name slammed in letter by letter between pixel chevrons, skip hint. */
+/* COMMANDER ULTIMATE cutscene overlay (sigCutscene.js): letterbox with pixel
+   trim, a time-stop grade, the NAME CARD (kicker chip, ability name slammed in
+   letter by letter between pixel chevrons, tagline), the payoff stamp, skip hint.
+   Text is never rotated or skewed. */
 .sc-wrap {
   --sc: #ffd84a; --pxl: max(2px, calc(var(--px, 3px) * 0.9));
   position: absolute; inset: 0; z-index: 60; overflow: hidden; pointer-events: auto; touch-action: none; cursor: pointer;
 }
+
+/* time-stop grade: dark edges + faint scanlines while the world is frozen */
+.sc-tint {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
+  box-shadow: inset 0 0 22vmin rgba(8, 6, 30, 0.7);
+  background: repeating-linear-gradient(0deg, rgba(5, 3, 20, 0.12) 0 2px, transparent 2px 5px);
+}
+.sc-wrap.in .sc-tint { opacity: 1; }
+.sc-wrap.land .sc-tint, .sc-wrap.out .sc-tint { opacity: 0; transition-duration: 0.4s; }
+
 .sc-bar {
-  position: absolute; left: 0; right: 0; height: 12%; background: #05030c;
-  transition: transform 0.32s cubic-bezier(.2, .9, .3, 1);
+  position: absolute; left: 0; right: 0; height: 11%; background: #05030c;
+  transition: transform 0.3s cubic-bezier(.2, .9, .3, 1);
 }
 .sc-bar.top { top: 0; transform: translateY(-101%); }
 .sc-bar.bot { bottom: 0; transform: translateY(101%); }
@@ -24,34 +36,45 @@
 .sc-wrap.out .sc-bar.top { transform: translateY(-101%); }
 .sc-wrap.out .sc-bar.bot { transform: translateY(101%); }
 
-.sc-title {
-  position: absolute; left: 0; right: 0; bottom: 13.5%; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  pointer-events: none; font-family: var(--font-d); color: #fff; text-align: center; opacity: 0;
+/* ---- the NAME CARD */
+.sc-card {
+  position: absolute; left: 0; right: 0; bottom: calc(11% + 18px); display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 0 12px; pointer-events: none; font-family: var(--font-d); color: #fff; text-align: center; opacity: 0;
 }
-.sc-wrap.s1 .sc-title { bottom: auto; top: 13.5%; }
-.sc-wrap.slam .sc-title { opacity: 1; }
-.sc-wrap.out .sc-title { opacity: 0; transition: opacity 0.25s; }
+.sc-wrap.s1 .sc-card { bottom: auto; top: calc(11% + 18px); }
+.sc-wrap.slam .sc-card { opacity: 1; }
+.sc-wrap.cardout .sc-card { opacity: 0; transform: translateY(14px); transition: opacity 0.22s, transform 0.22s; }
+.sc-wrap.s1.cardout .sc-card { transform: translateY(-14px); }
 .sc-kick {
-  font-size: clamp(11px, 2.8vw, 18px); letter-spacing: 0.22em; line-height: 1; padding: 5px 12px 4px; color: #05030c;
+  font-size: clamp(11px, min(2.9vw, 4vh), 18px); letter-spacing: 0.2em; line-height: 1; padding: 6px 12px 5px; color: #05030c; white-space: nowrap;
   background: linear-gradient(#fff 0 2px, var(--sc) 2px);
   clip-path: polygon(6px 0, calc(100% - 6px) 0, calc(100% - 6px) 3px, 100% 3px, 100% calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%, 6px 100%, 6px calc(100% - 3px), 0 calc(100% - 3px), 0 3px, 6px 3px);
   transform: translateX(-120vw);
 }
-.sc-wrap.slam .sc-kick { animation: scKick 0.35s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+.sc-wrap.rival .sc-kick { background: linear-gradient(#fff 0 2px, #ff3d55 2px); color: #fff; }
+.sc-wrap.slam .sc-kick { animation: scKick 0.32s cubic-bezier(.2, 1.4, .4, 1) forwards; }
 @keyframes scKick { to { transform: none; } }
-.sc-name { display: flex; align-items: center; gap: 10px; max-width: 96vw; }
+.sc-name { display: flex; align-items: center; gap: 10px; max-width: 100%; }
 .sc-word { display: inline-flex; white-space: nowrap; }
 .sc-name b {
-  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.28em; font-weight: normal; font-size: clamp(30px, 9.5vw, 78px); line-height: 0.95; letter-spacing: 0.02em;
+  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; row-gap: 0.06em; font-weight: normal;
+  font-size: clamp(30px, min(10.5vw, 13vh), 84px); line-height: 0.95; letter-spacing: 0.03em;
 }
 .sc-name b i {
   font-style: normal; display: inline-block; color: #fff; -webkit-text-stroke: 3px #05030c; paint-order: stroke fill;
-  text-shadow: 0 4px 0 #05030c, 3px 4px 0 #05030c, -3px 4px 0 #05030c, 0 7px 0 color-mix(in srgb, var(--sc) 60%, #000);
-  opacity: 0; transform: translateY(-60%) scale(2.4);
+  text-shadow: 0 4px 0 #05030c, 3px 4px 0 #05030c, -3px 4px 0 #05030c, 0 8px 0 color-mix(in srgb, var(--sc) 70%, #000);
+  opacity: 0; transform: translateY(-70%) scale(2.6);
 }
-.sc-wrap.slam .sc-name b i { animation: scLetter 0.32s calc(0.1s + var(--i) * 0.022s) cubic-bezier(.2, 1.7, .4, 1) forwards; }
-.sc-wrap.land .sc-name b i { color: color-mix(in srgb, var(--sc) 35%, #fff); }
-@keyframes scLetter { 0% { opacity: 0; transform: translateY(-60%) scale(2.4); } 60% { opacity: 1; transform: translateY(6%) scale(0.92); } 100% { opacity: 1; transform: none; } }
+.sc-wrap.slam .sc-name b i { animation: scLetter 0.3s calc(0.08s + var(--i) * 0.024s) cubic-bezier(.2, 1.7, .4, 1) forwards; }
+.sc-wrap.slam .sc-name b i { color: color-mix(in srgb, var(--sc) 22%, #fff); }
+@keyframes scLetter { 0% { opacity: 0; transform: translateY(-70%) scale(2.6); } 60% { opacity: 1; transform: translateY(6%) scale(0.92); } 100% { opacity: 1; transform: none; } }
+.sc-tag {
+  font-size: clamp(11px, min(3.1vw, 4.2vh), 20px); letter-spacing: 0.16em; line-height: 1.1; color: var(--sc); max-width: 92vw;
+  text-shadow: 2px 2px 0 #05030c, -2px 2px 0 #05030c, 0 -2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c;
+  opacity: 0;
+}
+.sc-wrap.slam .sc-tag { animation: scTag 0.3s calc(0.2s + var(--n, 14) * 0.024s) steps(4) forwards; }
+@keyframes scTag { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
 /* pixel chevrons (stepped clip-path, not shapes) */
 .sc-chev { flex: none; width: 18px; height: 26px; background: var(--sc); filter: drop-shadow(2px 2px 0 #05030c);
   clip-path: polygon(0 0, 33% 0, 33% 12%, 50% 12%, 50% 25%, 67% 25%, 67% 38%, 84% 38%, 84% 62%, 67% 62%, 67% 75%, 50% 75%, 50% 88%, 33% 88%, 33% 100%, 0 100%, 0 88%, 17% 88%, 17% 75%, 33% 75%, 33% 62%, 50% 62%, 50% 38%, 33% 38%, 33% 25%, 17% 25%, 17% 12%, 0 12%); }
@@ -60,20 +83,66 @@
 .sc-wrap.slam .sc-name .sc-chev.l { animation-name: scChevL; }
 @keyframes scChev { 50% { translate: 5px 0; } }
 @keyframes scChevL { 50% { translate: -5px 0; } }
+.sc-wrap.port .sc-name .sc-chev { display: none; }
+
+/* ---- payoff stamp */
+.sc-pay {
+  position: absolute; left: 0; right: 0; top: 50%; display: flex; justify-content: center; pointer-events: none; opacity: 0;
+  translate: 0 -50%; font-family: var(--font-d);
+}
+.sc-pay b {
+  font-weight: normal; font-size: clamp(34px, min(13vw, 16vh), 110px); line-height: 1; letter-spacing: 0.04em; color: var(--sc); white-space: nowrap;
+  -webkit-text-stroke: 4px #05030c; paint-order: stroke fill;
+  text-shadow: 0 5px 0 #05030c, 4px 5px 0 #05030c, -4px 5px 0 #05030c, 0 10px 0 color-mix(in srgb, var(--sc) 45%, #000);
+}
+.sc-pay.go { animation: scPay 1s steps(12) forwards; }
+@keyframes scPay {
+  0% { opacity: 0; transform: scale(2.2); }
+  12% { opacity: 1; transform: scale(0.94); }
+  20% { transform: scale(1.04); }
+  28%, 74% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-18px); }
+}
 
 .sc-skip {
-  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 3%); display: flex; align-items: center; gap: 6px;
+  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 3.2%); display: flex; align-items: center; gap: 6px;
   font-family: var(--font-d); font-size: clamp(11px, 2.6vw, 15px); letter-spacing: 0.14em; color: #c8d0ff; opacity: 0; transition: opacity 0.3s 0.4s; pointer-events: none;
 }
 .sc-skip .sc-chev { width: 9px; height: 13px; filter: none; background: #c8d0ff; }
 .sc-wrap.in .sc-skip { opacity: 0.85; }
-.sc-wrap.out .sc-skip { opacity: 0; transition-delay: 0s; }
+.sc-wrap.land .sc-skip, .sc-wrap.out .sc-skip { opacity: 0; transition-delay: 0s; }
 
 .sc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 .sc-flash.go { animation: scFlash 0.45s steps(5) forwards; }
+.sc-flash.freeze { background: #dfe8ff; animation: scFlash 0.3s steps(3) forwards; }
 @keyframes scFlash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-wrap.slam .sc-name b i, .sc-wrap.slam .sc-kick { animation-duration: 0.01s; }
+  .sc-wrap.slam .sc-name b i, .sc-wrap.slam .sc-kick, .sc-wrap.slam .sc-tag, .sc-pay.go { animation-duration: 0.01s; }
   .sc-wrap.slam .sc-name .sc-chev { animation: none; }
 }
+
+/* ---- HUD ULT button (hud.js): first-battle callout on what charges it + a flash when base damage charges it */
+.bh-ult .u-tip {
+  position: absolute; bottom: calc(100% + var(--u) * 7); left: 50%; translate: -50% 0; z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 0.15em;
+  width: max-content; max-width: min(64vw, 260px); padding: 0.45em 0.7em 0.5em; pointer-events: none;
+  font-family: var(--font-d); font-size: calc(var(--u) * 2.5); line-height: 1.15; color: #fff; text-align: center; text-shadow: var(--outline-thin, 0 1px 0 #000);
+  background: linear-gradient(rgba(16, 22, 70, 0.97), rgba(6, 8, 30, 0.97));
+  box-shadow: 0 0 0 var(--px) var(--ink, #05030c), inset 0 var(--px) 0 color-mix(in srgb, var(--uc) 70%, transparent), 0 0 calc(var(--px) * 5) color-mix(in srgb, var(--uc) 50%, transparent);
+  animation: uTipIn 0.32s cubic-bezier(.2, 1.5, .4, 1);
+}
+.bh-ult .u-tip b { font-weight: normal; color: var(--uc); font-size: 1.15em; letter-spacing: 0.08em; }
+.bh-ult .u-tip span { white-space: nowrap; }
+/* pixel pointer under the callout (stepped, no triangle shape) */
+.bh-ult .u-tip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; width: calc(var(--px) * 6); height: calc(var(--px) * 3); translate: -50% 0;
+  background: var(--ink, #05030c);
+  clip-path: polygon(0 0, 100% 0, 100% 33%, 83% 33%, 83% 66%, 66% 66%, 66% 100%, 33% 100%, 33% 66%, 17% 66%, 17% 33%, 0 33%);
+}
+.bh-ult .u-tip.bye { opacity: 0; transition: opacity 0.25s; }
+@keyframes uTipIn { from { opacity: 0; transform: translateY(8px) scale(0.9); } to { opacity: 1; transform: none; } }
+.bh-ult.charge-hit { animation: uChargeHit 0.45s steps(6); }
+@keyframes uChargeHit { 0% { transform: scale(1.12); filter: brightness(2) drop-shadow(0 0 calc(var(--u) * 1.5) var(--uc)); } 100% { transform: none; } }
+.bh-ult .u-tip.ready { background: linear-gradient(color-mix(in srgb, var(--uc) 85%, #fff), color-mix(in srgb, var(--uc) 70%, #000)); color: #05030c; text-shadow: none; animation: uTipIn 0.32s cubic-bezier(.2, 1.5, .4, 1), uTipPulse 0.5s 0.32s steps(2) 4; }
+.bh-ult .u-tip.ready b { color: #fff; text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
+@keyframes uTipPulse { 50% { filter: brightness(1.35); } }

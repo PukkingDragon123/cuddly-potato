@@ -85,8 +85,8 @@
   background: linear-gradient(#fffbe8 0 30%, #ffd84a 30% 62%, #ff9a1a 62%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 0 var(--ink)) drop-shadow(calc(var(--px) * 1.2) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.2) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3) 0 #5a1a00) drop-shadow(0 0 calc(var(--px) * 6) rgba(255, 210, 80, 0.85));
 }
-.vsx-vs .v { rotate: -8deg; translate: 0 -0.06em; }
-.vsx-vs .s { rotate: 6deg; translate: 0 0.06em; }
+.vsx-vs .v { translate: 0 -0.06em; } /* never tilted: house rule */
+.vsx-vs .s { translate: 0 0.06em; }
 .vsx.vs-in .vsx-vs { animation: vsxVs 0.42s cubic-bezier(.2, 1.6, .35, 1) both, vsxBuzz 0.12s steps(2) 0.5s infinite; }
 .vsx.out .vsx-vs { animation: vsxVsOut 0.26s ease-in both; }
 @keyframes vsxVs { 0% { opacity: 0; transform: scale(4); } 45% { opacity: 1; transform: scale(0.85); } 100% { opacity: 1; transform: none; } }

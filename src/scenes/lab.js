@@ -53,7 +53,7 @@ const JIMMY_LINES = [
   'The Tiger is fine. Totally fine. Do NOT tap the glass.',
   'That MEGA tube hums at night. I sleep with the lights on now.',
   'Every Swarm is hand-shaken with love.',
-  "Don't tell Nolan, but his Belly Flop is kinda OP.",
+  "Don't tell Nolan, but his Orbital Belly Flop is kinda OP.",
   'Upgrade your base early - a tent will NOT stop a Steel Panther.',
 ];
 

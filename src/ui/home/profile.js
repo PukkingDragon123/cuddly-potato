@@ -77,7 +77,7 @@ export function openProfile(ctx) {
     const tile = (ic, label, val, cls = '') => h('div', { class: 'mn-pst ' + cls }, icon(ic, 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, label), h('b', { class: 'mn-st-v t-d outline' }, val)));
     const favEl = h('div', { class: 'mn-pst fav' },
       fav ? cardEl(fav.id, { size: 'mini', noLevel: true, cost: false }) : icon('heart', 'mn-st-ic'),
-      h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Favourite Card'), h('b', { class: 'mn-st-v t-d outline' }, fav ? cardDef(fav.id).name : '-'), fav ? h('span', { class: 'mn-st-l' }, `Deployed ${fmtN(fav.n)} times`) : h('span', { class: 'mn-st-l' }, 'Play some battles!')));
+      h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Favorite Card'), h('b', { class: 'mn-st-v t-d outline' }, fav ? cardDef(fav.id).name : '-'), fav ? h('span', { class: 'mn-st-l' }, `Deployed ${fmtN(fav.n)} times`) : h('span', { class: 'mn-st-l' }, 'Play some battles!')));
     return h('div', { class: 'mn-pstats' },
       tile('check', 'Wins', fmtN(s.wins)),
       tile('x', 'Losses', fmtN(s.losses)),

@@ -392,10 +392,11 @@ export async function showResult(parent, opts) {
     anchor.root.updateMatrixWorld(true);
     const top = new THREE.Box3().setFromObject(anchor.root).max.y + 0.1;
     const bottom = 0.2;
-    const vh = top - bottom;
+    // portrait: pull back a little so the anchor doesn't hide the studio screen
+    const vh = (top - bottom) * (portrait ? 1.22 : 1);
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     // anchor sits left of centre (the BEAST NEWS screen fills the right)
-    const off = (portrait ? 0.15 : 0.1) * vh * cam.aspect;
+    const off = (portrait ? 0.2 : 0.1) * vh * cam.aspect;
     aim.set(off, (top + bottom) / 2, 0);
     cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.12, Math.cos(0.12) * dist);
     cam.lookAt(aim);
@@ -481,7 +482,7 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     h('div', { class: 'cn-live sk-plate-dark' }, recDot(), 'LIVE'));
   const lower = h('div', { class: 'cn-lower' },
     h('div', { class: 'cn-tag sk-chip-red' }, 'BREAKING'),
-    h('div', { class: 'cn-hlw sk-plate-dark' }, headline, h('div', { class: 'cn-by' }, 'NORA NEWSLY  /  BEAST NEWS ', h('b', {}, arenaName.toUpperCase()))));
+    h('div', { class: 'cn-hlw sk-plate-dark' }, headline, h('div', { class: 'cn-by' }, 'NORA NEWSLY  /  ', h('b', {}, arenaName.toUpperCase()))));
 
   // ---- the report board
   const board = h('div', { class: 'cn-board' });

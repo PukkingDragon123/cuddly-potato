@@ -255,3 +255,11 @@ export function pix(view) {
   if (!view.pixfx) view.pixfx = new PixFx(view.scene);
   return view.pixfx;
 }
+/** A separate sprite system (the ULTIMATE cutscene keeps its own sprites moving while the battle's are frozen). */
+export function pixSystem(scene) {
+  return new PixFx(scene);
+}
+/** Register an extra sprite mask (rows of '#+-.o' / ' '), e.g. for the Commander ultimates. */
+export function defineSprite(name, rows) {
+  if (!SPRITES[name]) SPRITES[name] = rows;
+}

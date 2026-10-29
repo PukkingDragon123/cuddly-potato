@@ -63,7 +63,12 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - Swarms drop in from shattering lab vials, then march and fight on their own: tanks, ranged, splash, flyers,
   kamikazes, knockback, stun/freeze/slow/burn, chain lightning, splitting slimes and bosses.
 - **Spells** (Food Throw, $100K Drop, Slime Flood, Freeze Ray, Soda Rocket, Lab Shield) are cards too.
-- **Commanders** (Recruit, Jimmy, Nolan, Juan) have a charged signature ability, unlockable skills and perks.
+- **Commanders** (Recruit, Jimmy, Nolan, Juan) have unlockable skills, perks and a game-changing **ULTIMATE**. It
+  charges only from the POWER your side makes and from damage your base takes (a battered base charges it faster,
+  ~90-120 s into a battle otherwise), and firing it stops the whole battle for a full cutscene: *Mutant Uprising*
+  (your army mutates into giants + 3 free mutant squads), *Beast Buyout* (Jimmy buys the 3 strongest enemy troops),
+  *Orbital Belly Flop* (Nolan rides a soda rocket into orbit and lands as a meteor: board wipe + burning crater) and
+  *Tiempo Muerto* (time stops for the rival for 7 s, then their frozen troops shatter).
 - **MEGA ultimate**: equip a **MEGA-TECH Mutator** figure (Panthar, Silver-Byte, NecroClaw, Cyber Glitch, plus rare
   Metallic Gold versions, won on the Trophy Road). Its charge only fills as you deal damage, it needs at least a
   Trailer Lab base, and you get one per battle. Your Commander crackles with more and more electric energy as it

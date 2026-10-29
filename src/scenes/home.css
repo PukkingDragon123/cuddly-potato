@@ -400,3 +400,10 @@ body.landscape .hm-battle { min-width: calc(var(--u) * 38); font-size: 2em; }
   .hm-zone .arr > *, .hm-battle .pi, .hm-side-play, .hm-slot img.vt, .hm-slot-rays, .hm-slot-prog > i, .hm-slot .st, .hm-tabbtn .pi, .hm-tabbtn.on::after, .hm-tabbtn.on,
   .hm-tab, .hm-tab.hm-tab-out { animation: none !important; }
 }
+/* ---- round 2 (M): bigger, readable lobby text ---- */
+.hm-pname .bar { height: calc(var(--u) * 3.4); }
+.hm-pname .bar .lbl { font-size: 0.74em; }
+.hm-zprog > .lbl { font-size: 0.74em; }
+.hm-slot .sn { font-size: 0.74em; }
+.hm-slot.empty .st { font-size: 0.74em; }
+.hm-slot .skip { font-size: 0.8em; }

@@ -25,6 +25,17 @@ const QUALITY = {
   low: { dpr: 1, bloom: false, shadow: THREE.BasicShadowMap, shadowRes: 1024, aa: false },
 };
 const RETRO_TARGET = 360;
+// Adaptive quality governor: when frames are sustainedly slow (below ~48 fps and well
+// under what this display was seen to manage) it steps down the render resolution and
+// then refreshes the shadow map every other frame; when frames are fast again for a
+// while it steps back up (waiting longer after each failed step up, so it never
+// oscillates). ?gov=0 turns it off.
+const GOV_LEVELS = [
+  { res: 1, shadowEvery: 1 },
+  { res: 0.86, shadowEvery: 1 },
+  { res: 0.74, shadowEvery: 2 },
+  { res: 0.62, shadowEvery: 2 },
+];
 // Bloom picks pixels by their brightest channel (not luminance), so only HDR
 // glow voxels (Mats.glow renders at 2.6x) bloom while sunlit toy plastic and
 // white surfaces (max channel ~1.6) stay crisp. Scene thresholds below
@@ -88,6 +99,11 @@ class Engine {
     this.raycaster = new THREE.Raycaster();
     this.fps = 60;
     this.slowFrames = 0;
+    this.frameNo = 0;
+    this.covers = new Set();
+    // perf stats (read by the ?dev=perf overlay and tests): smoothed frame interval + JS cost, last frame's draw calls / tris
+    this.stats = { dt: 1 / 60, cpu: 0, worst: 0, calls: 0, tris: 0 };
+    this.gov = { on: true, level: 0, avg: 1 / 60, slowT: 0, okT: 0, coolT: 2, ignoreT: 2, fails: 0, holdT: 0 };
   }
 
   init() {
@@ -104,6 +120,15 @@ class Engine {
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFShadowMap;
     r.setClearColor(0x0b1230, 1);
+    // shader error checks read the program info logs, which forces every shader compile to
+    // finish synchronously (a long stall on phones); keep them for development only
+    r.debug.checkShaderErrors = !!import.meta.env?.DEV;
+    // stats cover the whole frame (shadow map + main pass + post passes), reset in frame()
+    r.info.autoReset = false;
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('gov') === '0') this.gov.on = false;
+    if (qs.getAll('dev').includes('perf')) import('./perfHud.js').then((m) => m.mountPerfHud(this)).catch(() => {});
+    if (typeof window !== 'undefined') window.__engine = this;
 
     // Environment map: glossy toy plastic + chrome / silver / gold variants.
     this.envMap = makeEnvMap(r);
@@ -203,7 +228,9 @@ class Engine {
     this.height = h;
     const dpr = window.devicePixelRatio || 1;
     const Q = QUALITY[this.quality];
-    const ratio = this.retro ? clamp(RETRO_TARGET / Math.min(w, h * 1.25), 0.25, dpr) : Math.min(dpr, Q.dpr);
+    const base = Math.min(dpr, Q.dpr);
+    // the governor scales the resolution down while frames are slow (never below 0.75 CSS px)
+    const ratio = this.retro ? clamp(RETRO_TARGET / Math.min(w, h * 1.25), 0.25, dpr) : Math.max(Math.min(base, 0.75), base * GOV_LEVELS[this.gov.level].res);
     this.pixelRatio = ratio;
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
@@ -236,12 +263,26 @@ class Engine {
     const prev = this.current;
     if (prev && prev.exit) prev.exit();
     this.current = sceneObj;
+    this.covers.clear();
     this.trauma = 0;
     this.timeScale = 1;
     this.hitstopT = 0;
     particles.attach(sceneObj.scene);
     particles.clear();
-    if (sceneObj.enter) await sceneObj.enter(params);
+    // the router's fader / loading screen covers the canvas while a scene builds: drawing the
+    // half-built scene every frame only slows the build (and the loading animation) down
+    this.holdRender = true;
+    try {
+      if (sceneObj.enter) await sceneObj.enter(params);
+      // compile the new scene's shaders now (in parallel where the GPU driver supports it),
+      // behind the loading screen, instead of stalling on the first frames
+      if (this.current === sceneObj) await this.precompile(sceneObj.scene, sceneObj.camera);
+    } finally {
+      this.holdRender = false;
+    }
+    this.gov.ignoreT = 2.5; // scene builds and first frames are not representative
+    this.gov.check = undefined;
+    this.renderer.shadowMap.needsUpdate = true;
     this.setBloom(sceneObj.bloom || {});
     this.setGrade(this.sceneGrade(sceneObj));
     // apply the current shadow resolution to every shadow-casting light
@@ -260,14 +301,98 @@ class Engine {
     this.hitstopT = Math.max(this.hitstopT, sec);
   }
 
+  /**
+   * Opaque UI covers the whole canvas (e.g. a home tab): skip drawing the 3D scene until it
+   * is uncovered (the canvas keeps showing the last frame). Cleared on every scene change.
+   */
+  cover(key, on = true) {
+    if (on) this.covers.add(key);
+    else this.covers.delete(key);
+  }
+  get covered() {
+    return this.covers.size > 0;
+  }
+
   onFrame(fn) {
     this.frameListeners.add(fn);
     return () => this.frameListeners.delete(fn);
   }
 
+  /**
+   * Compile every material in `obj` (a scene, or objects about to be added to `target`)
+   * ahead of use. Resolves when the shaders are ready (or after a safety timeout).
+   */
+  async precompile(obj, camera = this.current?.camera, target = null) {
+    const r = this.renderer;
+    if (!obj || !camera || !r?.compileAsync) return;
+    try {
+      const prev = r.getRenderTarget();
+      // the composer path renders the scene into a linear HDR target (different shader variants)
+      if (this.useComposer) r.setRenderTarget(this.composer.readBuffer);
+      let p;
+      try { p = r.compileAsync(obj, camera, target); } finally { r.setRenderTarget(prev); }
+      await Promise.race([p, new Promise((res) => setTimeout(res, 5000))]);
+    } catch (e) { /* precompiling is only an optimisation */ }
+  }
+
+  /**
+   * Adaptive quality: watch the frame interval and step the resolution / shadow refresh down
+   * while it stays slow, back up once it has been fast for a while. A step down that buys
+   * nothing (a 30 fps power-save cap, a CPU-bound moment) is undone and not retried soon.
+   */
+  govern(rawDt) {
+    const G = this.gov;
+    if (!G.on || this.retro) return;
+    if (G.coolT > 0) G.coolT -= rawDt;
+    if (G.ignoreT > 0) { G.ignoreT -= rawDt; return; }
+    // hitches (loading, tab switches, GC) are not a sustained frame rate
+    if (rawDt > 0.25 || document.hidden) return;
+    G.avg += (rawDt - G.avg) * 0.06;
+    if (G.check !== undefined) {
+      // judge the last step down once the new resolution has settled
+      G.checkT -= rawDt;
+      if (G.checkT <= 0) {
+        const gain = G.avg < G.check * 0.93;
+        G.check = undefined;
+        if (!gain) { G.holdT = 60 * ++G.fails; this.setGovLevel(G.level - 1); return; }
+      }
+    }
+    if (G.holdT > 0) G.holdT -= rawDt;
+    const slow = G.avg > 1 / 48;
+    const fast = G.avg < 1 / 56;
+    G.slowT = slow ? G.slowT + rawDt : Math.max(0, G.slowT - rawDt * 0.5);
+    G.okT = fast ? G.okT + rawDt : 0;
+    if (G.coolT > 0) return;
+    if (G.slowT > 1.5 && G.level < GOV_LEVELS.length - 1 && !(G.holdT > 0)) {
+      const before = G.avg;
+      // a step up that did not hold makes the next attempt wait longer
+      if (G.upAt !== undefined && this.time - G.upAt < 8) G.fails++;
+      this.setGovLevel(G.level + 1);
+      G.check = before;
+      G.checkT = 2;
+    } else if (G.okT > Math.min(90, 6 * 2 ** G.fails) && G.level > 0) {
+      G.upAt = this.time;
+      this.setGovLevel(G.level - 1);
+    }
+  }
+  setGovLevel(l) {
+    const G = this.gov;
+    G.level = clamp(l, 0, GOV_LEVELS.length - 1);
+    G.slowT = 0;
+    G.okT = 0;
+    G.coolT = 3;
+    G.ignoreT = 0.6; // the resize itself hitches
+    G.check = undefined;
+    this.renderer.shadowMap.autoUpdate = true;
+    this.resize();
+  }
+
   frame(now) {
+    const t0 = performance.now();
     let dt = (now - this.last) / 1000;
     this.last = now;
+    this.govern(dt);
+    this.frameNo++;
     if (dt > 0.1) dt = 0.1;
     if (dt <= 0) dt = 0.0001;
     this.fps = this.fps * 0.95 + (1 / dt) * 0.05;
@@ -295,7 +420,7 @@ class Engine {
     particles.update(gdt);
 
     const cam = cur.camera;
-    if (!cam) return;
+    if (!cam || this.holdRender || this.covers.size) return;
     // camera shake (screen-space offset along the camera's right/up axes)
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const s = this.trauma * this.trauma * (cur.shakeScale ?? 1);
@@ -310,8 +435,23 @@ class Engine {
       cam.position.add(this.shakeOffset);
       shaken = true;
     }
+    const info = this.renderer.info;
+    info.reset();
+    // under load the shadow map (a full extra pass over every caster) refreshes every other frame
+    const every = GOV_LEVELS[this.gov.level].shadowEvery;
+    const sm = this.renderer.shadowMap;
+    if (every > 1) {
+      sm.autoUpdate = false;
+      if (this.frameNo % every === 0) sm.needsUpdate = true;
+    } else sm.autoUpdate = true;
     this.render(cur.scene, cam);
     if (shaken) cam.position.sub(this.shakeOffset);
+    const S = this.stats;
+    S.calls = info.render.calls;
+    S.tris = info.render.triangles;
+    S.dt += (dt - S.dt) * 0.05;
+    S.cpu += (performance.now() - t0 - S.cpu) * 0.05;
+    S.worst = Math.max(S.worst, dt);
   }
 
   render(scene, cam) {
@@ -377,9 +517,12 @@ class Engine {
       this.thumbEnv = makeEnvMap(tr);
     }
     const r = this.thumbRenderer;
-    r.setPixelRatio(1);
     const w = opts.w ?? size, hgt = opts.h ?? size;
-    r.setSize(w, hgt, false);
+    // resizing a WebGL canvas reallocates (and syncs) its drawing buffer: only when it changes
+    if (r.getPixelRatio() !== 1) r.setPixelRatio(1);
+    const cur = r.getSize(_tsz);
+    if (cur.x !== w || cur.y !== hgt) r.setSize(w, hgt, false);
+    else r.setViewport(0, 0, w, hgt);
     r.setClearColor(0x000000, 0);
     this.thumbCam.aspect = w / hgt;
     this.thumbCam.updateProjectionMatrix();
@@ -441,6 +584,7 @@ function makeEnvMap(renderer) {
 }
 
 const _proj = new THREE.Vector3();
+const _tsz = new THREE.Vector2();
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
 export const engine = new Engine();

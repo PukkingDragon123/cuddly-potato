@@ -24,6 +24,8 @@ const TIPS = [
   'Upgrade your *BASE* in battle: more HP, a stronger zapper and faster POWER.',
   'Spells are magic: *Rage Potion* on a brawl, *Time Warp* on a big push. Timing is everything.',
   'Your *MEGA* can be unleashed once per battle from a Trailer Lab base or better.',
+  'Your Commander *ULTIMATE* charges from the POWER you make and the damage your base takes.',
+  "Save Jimmy's *Beast Buyout* for a big push: he buys the 3 strongest enemy troops!",
   'Win battles for *trophies* and *vials*. New arenas unlock new cards.',
   'Tap the people on *Beast Island*: some of them have quests for you.',
   'Every arena on Beast Island hides a *secret*. Look for the sparkles!',
@@ -32,7 +34,7 @@ const TIPS = [
   'Spells can flip a lost lane: a *Money Drop* or *Soda Rocket* at the right moment wins fights.',
   'Boss gates open on the island once you have enough trophies.',
   'Your base zaps anything that gets close. Fight near it when you are behind.',
-  'A free vial refills every 4 hours. Pop by the lobby to grab it!',
+  'A free vial refills every 4 hours. Grab it in the *SHOP*!',
 ];
 
 let stills = []; // object URLs of frozen-battle frames (newest last)
@@ -123,16 +125,17 @@ function destination(name, params) {
 
 // ======================================================================= the lab experiment
 const CAPTIONS = [
-  ['Calibrating the beakers', 'Warming up the Bunsen burner', 'Labelling the flasks (mostly)'],
+  ['Calibrating the beakers', 'Warming up the Bunsen burner', 'Labeling the flasks (mostly)'],
   ['Adding a pinch of chaos', 'Stirring counter-clockwise. Important.', 'Adding Swarm DNA'],
-  ['Hmm. That colour is new.', 'Is it supposed to fizz like that?', 'Smells like victory. And burning.'],
+  ['Hmm. That color is new.', 'Is it supposed to fizz like that?', 'Smells like victory. And burning.'],
   ['Pressure: probably fine', 'Do NOT shake the flask', 'Safety goggles? What goggles?'],
   ['Pressure: NOT fine', 'Shaking the flask anyway', 'This is fine. Everything is fine.'],
   ['Stand back. SCIENCE!', 'Somebody call Nolan', 'Okay this is a lot of bubbles'],
 ];
 const pick1 = (a) => a[Math.floor(Math.random() * a.length)];
 // instability levels: [start s, translate amp (lab px), rotate amp (deg), loop s]
-const LEVELS = [[0, 0.15, 0.6, 0.9], [2.4, 0.35, 2.2, 0.42], [4.8, 0.6, 4.5, 0.3], [7.2, 1.0, 7.5, 0.22], [9.6, 1.4, 10, 0.18]];
+// kept gentle: the experiment simmers and wobbles, it doesn't rattle the whole screen
+const LEVELS = [[0, 0.1, 0.4, 0.9], [2.4, 0.2, 1.2, 0.5], [4.8, 0.32, 2, 0.4], [7.2, 0.45, 2.8, 0.32], [9.6, 0.6, 3.5, 0.28]];
 let genCSS = null;
 /** Random jitter keyframes per instability level (generated once per page, injected as CSS). */
 function genKeyframes() {
@@ -148,8 +151,8 @@ function genKeyframes() {
     }
     css.push(`@keyframes ${name}{${st.join('')}}`);
   };
-  for (let k = 0; k < 4; k++) LEVELS.forEach(([, a, r], L) => jitter(`ldJ${k}_${L}`, a * (k === 3 ? 0.5 : 1), r * (k === 3 ? 0.25 : 1), 8, k < 3));
-  jitter('ldCrit', 2.4, 16, 10, 1);
+  for (let k = 0; k < 4; k++) LEVELS.forEach(([, a, r], L) => jitter(`ldJ${k}_${L}`, a * (k === 3 ? 0.4 : 1), k === 3 ? 0 : r, 8, k < 3));
+  jitter('ldCrit', 1.1, 5, 10, 1);
   // pressure needle: climbs from the green into the red with growing jitter, then rattles at max
   const nd = [];
   const N = 40;
@@ -164,7 +167,7 @@ function genKeyframes() {
   for (let i = 0; i <= 6; i++) nm.push(`${((i / 6) * 100).toFixed(1)}%{transform:rotate(${(i === 0 || i === 6 ? 103 : 96 + Math.random() * 18).toFixed(1)}deg)}`);
   css.push(`@keyframes ldNeedleMax{${nm.join('')}}`);
   const sh = [];
-  for (let i = 0; i <= 14; i++) { const k = 1 - i / 14; sh.push(`${((i / 14) * 100).toFixed(1)}%{transform:translate(${((Math.random() * 2 - 1) * 26 * k).toFixed(1)}px,${((Math.random() * 2 - 1) * 20 * k).toFixed(1)}px) rotate(${((Math.random() * 2 - 1) * 2.4 * k).toFixed(2)}deg)}`); }
+  for (let i = 0; i <= 10; i++) { const k = 1 - i / 10; sh.push(`${((i / 10) * 100).toFixed(1)}%{transform:translate(${((Math.random() * 2 - 1) * 8 * k).toFixed(1)}px,${((Math.random() * 2 - 1) * 6 * k).toFixed(1)}px)}`); }
   css.push(`@keyframes ldQuake{${sh.join('')}}`);
   genCSS = document.createElement('style');
   genCSS.id = 'ld-gen';
@@ -334,7 +337,7 @@ export function showLoading(name, params = {}) {
   // ---- the explosion (hidden until done())
   const boom = h('div', { class: 'ld-boom' });
   boom.append(
-    strip(A.blast, 8, 64, BENCH - 22, 'ld-blast b1', { scale: 2.1 }),
+    strip(A.blast, 8, 64, BENCH - 22, 'ld-blast b1', { scale: 1.6 }),
     strip(A.blast, 8, 18, BENCH - 22, 'ld-blast b2', { scale: 1.1 }),
     strip(A.blast, 8, 112, BENCH - 32, 'ld-blast b3', { scale: 1.2 }),
   );
@@ -343,18 +346,18 @@ export function showLoading(name, params = {}) {
     sprite(A.brokenErlen, 4, BENCH - 35), sprite(A.brokenBeaker, 53, BENCH - 21), sprite(A.brokenRound, 101, BENCH - 48));
   // debris + sparks thrown out of the blast
   const deb = h('div', { class: 'ld-debris' });
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 14; i++) {
     const s = A.debris[i % A.debris.length];
     const ox = [18, 64, 112][i % 3] + (Math.random() - 0.5) * 16, oy = BENCH - 18 - Math.random() * 18;
     const dir = ox < 64 ? -1 : ox > 64 ? 1 : Math.random() < 0.5 ? -1 : 1;
-    const big = i % 7 === 0;
-    const d = h('div', { class: `ld-deb ${big ? 'big' : ''}`, style: { left: lp(ox), top: lp(oy), '--dx': lp(dir * (20 + Math.random() * 90)), '--up': lp(-(18 + Math.random() * 46)), '--down': lp(40 + Math.random() * 80), '--rot': `${(Math.random() < 0.5 ? -1 : 1) * (240 + Math.random() * 900)}deg`, '--d': `${0.9 + Math.random() * 0.6}s`, '--dl': `${Math.random() * 0.08}s` } });
+    const big = i % 6 === 0;
+    const d = h('div', { class: `ld-deb ${big ? 'big' : ''}`, style: { left: lp(ox), top: lp(oy), '--dx': lp(dir * (14 + Math.random() * 50)), '--up': lp(-(12 + Math.random() * 26)), '--down': lp(30 + Math.random() * 50), '--rot': `${(Math.random() < 0.5 ? -1 : 1) * (180 + Math.random() * 400)}deg`, '--d': `${0.6 + Math.random() * 0.3}s`, '--dl': `${Math.random() * 0.08}s` } });
     const c = Art.copyOf(s); c.style.width = lp(s.width); c.style.height = lp(s.height);
     d.appendChild(h('i', {}, c));
     deb.appendChild(d);
   }
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2 + Math.random() * 0.3, r = 30 + Math.random() * 50;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.random() * 0.3, r = 22 + Math.random() * 30;
     deb.appendChild(sprite(A.sparks[i % 3], 61, BENCH - 25, 'ld-bspk', { style: { '--dx': lp(Math.cos(a) * r), '--dy': lp(Math.sin(a) * r * 0.7), animationDelay: `${Math.random() * 0.1}s` } }));
   }
   // soot smoke rolling off the bench and the Commander's head
@@ -413,24 +416,23 @@ export function showLoading(name, params = {}) {
       finished = true;
       clearInterval(bubT);
       el.classList.add('crit');
-      audio.play('alarm', { vol: 0.5 });
-      audio.play('rattle');
+      audio.play('rattle', { vol: 0.6 });
       return new Promise((res) => {
         // let the new scene render (and compile) a couple of frames under the card first
         let n = 0;
         const step = () => {
           if (++n < 3) { requestAnimationFrame(step); return; }
+          // a short pop, not a long demolition: crit 0.18 s, boom 0.6 s, then the smoke clears
           setTimeout(() => {
             el.classList.add('boom');
-            audio.play('explode');
-            audio.play('boom');
-            setTimeout(() => audio.play('shatter'), 60);
+            audio.play('explode', { vol: 0.7 });
+            setTimeout(() => audio.play('shatter', { vol: 0.6 }), 60);
             setTimeout(() => {
               el.classList.add('out');
-              setTimeout(res, 160);
-              setTimeout(() => { alive = false; el.remove(); }, 1300);
-            }, 1150);
-          }, 420);
+              setTimeout(res, 120);
+              setTimeout(() => { alive = false; el.remove(); }, 1000);
+            }, 600);
+          }, 180);
         };
         requestAnimationFrame(step);
       });

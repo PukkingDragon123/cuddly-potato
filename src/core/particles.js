@@ -51,6 +51,12 @@ class Layer {
   }
   update(dt) {
     const list = this.list;
+    // idle layer: nothing to simulate or upload, and no draw call (or shadow draw) at all
+    if (!list.length) {
+      if (this.mesh.count || this.mesh.visible) { this.mesh.count = 0; this.mesh.visible = false; }
+      return;
+    }
+    this.mesh.visible = true;
     let w = 0;
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
@@ -102,13 +108,23 @@ class Layer {
       col[i * 3] = p.r; col[i * 3 + 1] = p.g; col[i * 3 + 2] = p.b;
     }
     mesh.count = w;
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.instanceColor.needsUpdate = true;
+    mesh.visible = w > 0;
+    // upload only the live instances, not the whole capacity (3500 matrices = 224 KB)
+    if (w > 0) {
+      const im = mesh.instanceMatrix, ic = mesh.instanceColor;
+      im.clearUpdateRanges();
+      im.addUpdateRange(0, w * 16);
+      im.needsUpdate = true;
+      ic.clearUpdateRanges();
+      ic.addUpdateRange(0, w * 3);
+      ic.needsUpdate = true;
+    }
   }
   clear() {
     for (const p of this.list) this.free.push(p);
     this.list.length = 0;
     this.mesh.count = 0;
+    this.mesh.visible = false;
   }
 }
 

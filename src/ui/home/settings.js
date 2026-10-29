@@ -54,11 +54,11 @@ export function openSettings(ctx) {
     clear(body);
     body.append(
       subHead('SOUND'),
-      row(s.muted ? 'x' : 'sound', 'Sound', toggle(!s.muted, (on) => { s.muted = !on; audio.setMuted(!on); state.emit('settings'); if (on) audio.play('click'); }), s.muted ? 'Everything is muted' : null),
+      row(s.muted ? 'x' : 'sound', 'All Sound', toggle(!s.muted, (on) => { s.muted = !on; audio.setMuted(!on); state.emit('settings'); if (on) audio.play('click'); }), s.muted ? 'Everything is muted' : null),
       row('sound', 'Sound Effects', slider(s.sfx, (v) => { s.sfx = v; audio.setVolumes(s.sfx, s.music); }, () => { state.emit('settings'); audio.play('coin'); })),
       row('music', 'Music', slider(s.music, (v) => { s.music = v; audio.setVolumes(s.sfx, s.music); }, () => state.emit('settings'))),
       subHead('GRAPHICS'),
-      row('star', 'Quality', seg([['low', 'LOW'], ['medium', 'MED'], ['high', 'HIGH']], s.graphics ?? engine.quality, (q) => { s.graphics = q; apply(); state.emit('settings'); }), 'Lower it if battles feel slow'),
+      row('star', 'Quality', seg([['low', 'LOW'], ['medium', 'MED'], ['high', 'HIGH']], s.graphics ?? engine.quality, (q) => { s.graphics = q; apply(); state.emit('settings'); }), 'Lower it if battles lag'),
       row('paint', 'Pixel Mode', toggle(s.pixel === 'retro' || s.pixel === 'chunky', (on) => { s.pixel = on ? 'retro' : 'off'; apply(); state.emit('settings'); }), 'Chunky retro rendering'),
       row('bomb', 'Screen Shake', toggle(s.shake !== false, (on) => { s.shake = on; engine.shakeEnabled = on; state.emit('settings'); if (on) engine.shake?.(0.5); })),
       row('arrowR', 'Fullscreen', toggle(!!document.fullscreenElement, () => { fullscreenToggle(); setTimeout(render, 400); })),
@@ -69,7 +69,7 @@ export function openSettings(ctx) {
         h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Jersey 25 + Handjet'),
         h('span', { class: 'mn-disclaimer' }, icon('alert', 's'), DISCLAIMER)),
       subHead('SAVE DATA'),
-      row('skull', 'Reset all progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' }), 'Deletes your cards, trophies and everything'),
+      row('skull', 'Reset all progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' }), 'Cards, trophies, everything'),
     );
   }
 

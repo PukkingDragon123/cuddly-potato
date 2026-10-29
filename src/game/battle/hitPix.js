@@ -225,6 +225,75 @@ function buildAtlas() {
       put(px, py, 1); put(px - 1, py, 0.8); put(px + 1, py, 0.8); put(px, py - 1, 0.8); put(px, py + 1, 0.8);
     }
   });
+  // CLAW: three raked diagonal gashes of light (slash / claw attacks), drawn in, then dithered out
+  for (let f = 0; f < 4; f++) frame('claw', 32, 32, (put) => {
+    const grow = [0.55, 1, 1, 1][f], thin = [1, 1, 0.7, 0.4][f], erode = [0, 0, 0.25, 0.55][f];
+    for (let k = 0; k < 3; k++) {
+      const ox = 6 + k * 7, oy = 3 + Math.abs(k - 1) * 2, len = (k === 1 ? 26 : 21) * grow;
+      for (let s = 0; s < len; s += 0.5) {
+        const u = s / Math.max(1, len), w = Math.max(0.5, 2.4 * Math.sin(Math.PI * Math.min(1, u * 1.15)) * thin);
+        const x = ox + s * 0.42, y = oy + s;
+        for (let o = -w; o <= w; o += 0.5) {
+          if (erode && bay(Math.round(x + o), Math.round(y)) < erode * (1 - u * 0.5)) continue;
+          put(x + o, y, Math.abs(o) < w * 0.45 ? 1 : 0.7);
+        }
+      }
+    }
+    if (f === 1 || f === 2) for (let i = 0; i < 4; i++) { const px = 4 + i * 8 + f, py = 27 - (i % 2) * 3 + f; put(px, py, 0.9); put(px + 1, py, 0.6); }
+  });
+  // POW: jagged comic impact burst (punch / blunt): solid star blob -> hollow jagged outline -> bits
+  for (let f = 0; f < 4; f++) frame('pow', 32, 32, (put) => {
+    const R = [8, 12.5, 14, 14.5][f], hole = [0, 0, 0.62, 0.8][f], pts = 9;
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const dx = x + 0.5 - 16, dy = y + 0.5 - 16, a = Math.atan2(dy, dx);
+      const spike = 0.62 + 0.38 * Math.abs(((((a / (Math.PI * 2)) * pts + 0.25) % 1) + 1) % 1 * 2 - 1) + 0.08 * hsh(Math.floor((a + 4) * 3), f, 9);
+      const r = Math.max(Math.abs(dx), Math.abs(dy), (Math.abs(dx) + Math.abs(dy)) / 1.32) / (R * spike);
+      if (r > 1 || r < hole) continue;
+      if (f === 3 && bay(x, y) < 0.5) continue;
+      put(x, y, r > 0.84 ? 0.5 : r < 0.42 ? 1 : 0.82);
+    }
+  });
+  // CHOMP: two rows of pixel teeth snapping shut (bite attacks), then sparkle bits
+  for (let f = 0; f < 4; f++) frame('chomp', 32, 32, (put) => {
+    const gap = [9, 4, 0, 0][f], fade = f === 3 ? 0.5 : 0;
+    const jaw = (yBase, down) => {
+      for (let t = 0; t < 4; t++) {
+        const cx = 5 + t * 7.3;
+        for (let r = 0; r < 6; r++) {
+          const half = 3 - r * 0.5;
+          const y = down ? yBase + r : yBase - r;
+          for (let x = Math.ceil(cx - half); x <= Math.floor(cx + half); x++) {
+            if (fade && bay(x, y) < fade) continue;
+            put(x, y, x === Math.round(cx - half) || r === 5 ? 0.55 : r < 2 ? 1 : 0.85);
+          }
+        }
+      }
+      for (let x = 2; x < 30; x++) { if (!(fade && bay(x, yBase) < fade)) put(x, down ? yBase - 1 : yBase + 1, 0.45); }
+    };
+    jaw(16 - 6 - gap, true);
+    jaw(16 + 6 + gap, false);
+    if (f >= 2) for (let i = 0; i < 4; i++) { const px = i < 2 ? 1 + i * 2 : 28 + (i - 2) * 2, py = 10 + i * 4; put(px, py, 1); put(px, py + 1, 0.7); }
+  });
+  // PING: small bullet ricochet star with spray lines kicked back (+x = travel direction)
+  for (let f = 0; f < 3; f++) frame('ping', 24, 24, (put) => {
+    const c = 12, arm = [8, 6, 3][f];
+    for (let i = -arm; i <= arm; i++) { const L = Math.abs(i) < 2 ? 1 : 0.75; put(c + i, c, L); put(c, c + i * 0.8, L); }
+    if (f < 2) for (const [ax, ay] of [[-1, -0.6], [-1, 0.6], [-1, 0]]) {
+      for (let s = 3 + f * 2; s < 10 + f * 2; s++) put(c + ax * s, c + ay * s, s < 6 + f * 2 ? 0.85 : 0.55);
+    }
+  });
+  // MAGIC: a spinning diamond sparkle with orbiting twinkles (magic / energy hits)
+  for (let f = 0; f < 4; f++) frame('magic', 32, 32, (put) => {
+    const R = [5, 7, 5, 2][f];
+    for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) { const d = Math.abs(x) + Math.abs(y); if (d <= R) put(16 + x, 16 + y, d < R * 0.4 ? 1 : d < R * 0.75 ? 0.85 : 0.6); }
+    const orb = [6, 10, 13, 15][f];
+    for (let i = 0; i < 4; i++) {
+      const a = i * 1.5708 + f * 0.45 + 0.4, px = 16 + Math.cos(a) * orb, py = 16 + Math.sin(a) * orb;
+      const s = f < 3 ? 2 : 1;
+      for (let k = -s; k <= s; k++) { put(px + k, py, Math.abs(k) === s ? 0.6 : 1); put(px, py + k, Math.abs(k) === s ? 0.6 : 1); }
+    }
+    if (f === 1 || f === 2) for (let i = 0; i < 4; i++) { const a = i * 1.5708 + 1.2 - f * 0.3, r = orb * 0.6; put(16 + Math.cos(a) * r, 16 + Math.sin(a) * r, 0.8); }
+  });
   // small bits: chunky chip, ember, shard, sparkle cross, drop
   frame('chip', 6, 6, (put) => { for (let y = 1; y < 5; y++) for (let x = 1; x < 5; x++) put(x, y, x === 1 || y === 1 ? 0.95 : x === 4 || y === 4 ? 0.45 : 0.7); });
   frame('chip', 6, 6, (put) => { for (let y = 1; y < 4; y++) for (let x = 1; x < 5; x++) put(x, y, y === 1 ? 0.95 : y === 3 ? 0.45 : 0.7); put(2, 4, 0.45); });
@@ -240,7 +309,7 @@ function buildAtlas() {
   tex.minFilter = THREE.NearestFilter;
   tex.generateMipmaps = false;
   tex.colorSpace = THREE.NoColorSpace;
-  atlas = { tex, anims, canvas: cv };
+  atlas = { tex, anims, canvas: cv, single: {} };
   return atlas;
 }
 
@@ -322,15 +391,16 @@ class Layer {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = additive ? 8 : 2;
     this.list = [];
+    this.free = []; // recycled particle records (no per-spawn allocation once warm)
   }
   update(dt, _c) {
-    const L = this.list;
+    const L = this.list, F = this.free;
     let w = 0;
     const P = this.aPos.array, U = this.aUv.array, C = this.aCol.array, S = this.aSR.array;
     for (let i = 0; i < L.length; i++) {
       const p = L[i];
       p.t += dt;
-      if (p.t >= p.life) continue;
+      if (p.t >= p.life) { F.push(p); continue; }
       p.vy += p.grav * dt;
       const dr = Math.exp(-p.drag * dt);
       p.vx *= dr; p.vy *= dr; p.vz *= dr;
@@ -387,18 +457,24 @@ class HitPix {
   emit(layer, anim, o) {
     if (!this.layers || !atlas) return null;
     const Lr = this.layers[layer];
-    if (Lr.list.length >= Lr.cap) Lr.list.shift();
+    // hard cap: a full layer drops the newest cosmetic bit instead of shifting the whole list
+    if (Lr.list.length >= Lr.cap) return null;
     _col.set(o.color ?? 0xffffff);
-    const p = {
-      x: o.x, y: o.y, z: o.z ?? 0, vx: o.vx ?? 0, vy: o.vy ?? 0, vz: o.vz ?? 0,
-      grav: o.grav ?? 0, drag: o.drag ?? 0, ground: o.ground ?? -99, bounce: o.bounce ?? 0.3,
-      t: 0, life: o.life ?? 0.4, frames: atlas.anims[anim], fps: o.fps ?? 0,
-      scale: o.scale ?? 1, grow: o.grow ?? 0, flip: !!o.flip, rot: o.rot ?? 0, spin: o.spin ?? 0, snap: o.snap ?? false,
-      r: _col.r, g: _col.g, b: _col.b, alpha: o.alpha ?? 1, cool: !!o.cool, fadeIn: o.fadeIn ?? 0, fadeOut: o.fadeOut ?? 0.7,
-    };
-    if (o.frame != null) p.frames = [p.frames[o.frame % p.frames.length]];
+    const p = Lr.free.pop() ?? {};
+    p.x = o.x; p.y = o.y; p.z = o.z ?? 0; p.vx = o.vx ?? 0; p.vy = o.vy ?? 0; p.vz = o.vz ?? 0;
+    p.grav = o.grav ?? 0; p.drag = o.drag ?? 0; p.ground = o.ground ?? -99; p.bounce = o.bounce ?? 0.3;
+    p.t = 0; p.life = o.life ?? 0.4; p.fps = o.fps ?? 0;
+    const fr = atlas.anims[anim];
+    p.frames = o.frame != null ? (atlas.single[anim] ??= fr.map((f) => [f]))[o.frame % fr.length] : fr;
+    p.scale = o.scale ?? 1; p.grow = o.grow ?? 0; p.flip = !!o.flip; p.rot = o.rot ?? 0; p.spin = o.spin ?? 0; p.snap = o.snap ?? false;
+    p.r = _col.r; p.g = _col.g; p.b = _col.b; p.alpha = o.alpha ?? 1; p.cool = !!o.cool; p.fadeIn = o.fadeIn ?? 0; p.fadeOut = o.fadeOut ?? 0.7;
     Lr.list.push(p);
     return p;
+  }
+  /** 0..1 how full the busiest layer is: presets thin their extra bits out when the screen is crowded. */
+  get load() {
+    if (!this.layers) return 0;
+    return Math.max(this.layers.glow.list.length / this.layers.glow.cap, this.layers.solid.list.length / this.layers.solid.cap);
   }
 
   // ---------------------------------------------------------------- presets
@@ -407,8 +483,8 @@ class HitPix {
     const s = scale;
     const z = (pos.z ?? 0) + 0.35;
     const K = HIT_KINDS[kind] ?? HIT_KINDS.melee;
-    this.emit('solid', K.anim, { x: pos.x, y: pos.y, z, life: K.life ?? 0.22, scale: s * (K.size ?? 1), color: K.color, flip: dir < 0, fadeOut: 0.8 });
-    const n = Math.round((K.bits ?? 5) * Math.min(2, s));
+    this.emit('solid', K.anim, { x: pos.x, y: pos.y, z, life: K.life ?? 0.22, scale: s * (K.size ?? 1), color: K.color, flip: dir < 0, rot: K.tilt ? dir * K.tilt : 0, fadeOut: 0.8 });
+    const n = Math.round((K.bits ?? 5) * Math.min(2, s) * (this.load > 0.5 ? 0.4 : 1));
     for (let i = 0; i < n; i++) {
       const a = rnd(-1.1, 1.1) + (dir > 0 ? 0 : Math.PI), sp = rnd(2.5, 6) * Math.sqrt(s);
       this.emit(K.bitLayer ?? 'glow', K.bit ?? 'ember', { x: pos.x, y: pos.y, z, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + rnd(1, 3), grav: K.bitGrav ?? -14, drag: 1.5, life: rnd(0.18, 0.4), scale: rnd(0.8, 1.3) * Math.min(1.6, s), color: pickc(K.bitColors ?? [K.color, 0xffffff]), ground: 0.02, fadeOut: 0.6 });
@@ -489,6 +565,27 @@ class HitPix {
     this.emit('solid', 'splat', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.4, life: 0.3, scale: s * 0.6, color: o.color ?? 0x7cff3a, fadeOut: 0.85 });
     for (let i = 0; i < Math.round(4 * s); i++) this.emit('solid', 'drop', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.4, vx: rnd(-3, 3), vy: rnd(1.5, 4), grav: -16, ground: 0.03, life: rnd(0.35, 0.6), scale: rnd(0.8, 1.2), color: o.color ?? 0x7cff3a, fadeOut: 0.7 });
   }
+  /** Projectile trail bit: one short-lived pixel (ember / twinkle / flame / puff) left behind a shot. */
+  trail(pos, kind, tint, o = {}) {
+    const z = pos.z ?? 0;
+    if (kind === 'smoke') this.emit('solid', 'puff2', { x: pos.x, y: pos.y, z, vy: 0.4, drag: 2, life: 0.45, scale: o.scale ?? 0.32, grow: 0.8, color: tint, fadeOut: 0.4, cool: true });
+    else if (kind === 'flame') this.emit('solid', 'flame', { x: pos.x, y: pos.y, z, vy: 0.6, life: 0.22, fps: 16, scale: o.scale ?? 0.55, color: tint, fadeOut: 0.5 });
+    else this.emit('glow', kind === 'twinkle' ? 'twinkle' : 'ember', { x: pos.x + rnd(-0.03, 0.03), y: pos.y + rnd(-0.03, 0.03), z, vy: o.vy ?? 0, grav: o.grav ?? 0, life: o.life ?? 0.2, scale: o.scale ?? 1.2, color: tint, fadeOut: 0.3 });
+  }
+  /** Landing thud: a pair of dust puffs squirting out left + right along the ground (platformer-style), plus a pebble or two. */
+  landPuff(pos, o = {}) {
+    const s = o.scale ?? 1, z = (pos.z ?? 0) + 0.3, col = o.color ?? 0xf2ead8;
+    for (const d of [-1, 1]) {
+      this.emit('solid', d < 0 ? 'puff' : 'puff2', { x: pos.x + d * 0.12 * s, y: 0.1 + 0.04 * s, z, vx: d * rnd(1.5, 2) * Math.sqrt(s), vy: rnd(0.25, 0.5), drag: 4.5, life: 0.42, scale: 0.42 * s, color: col, flip: d < 0, fadeOut: 0.4, cool: true });
+      this.emit('solid', 'chip', { x: pos.x + d * 0.08, y: 0.1, z: z + 0.05, vx: d * rnd(0.8, 1.6), vy: rnd(1.6, 2.6), grav: -16, ground: 0.03, bounce: 0.3, life: 0.45, scale: 0.6, spin: d * 12, snap: true, color: o.chip ?? 0xd8c4a0, fadeOut: 0.6 });
+    }
+  }
+  /** Melee clash: a little pixel dust kick at the feet between two fighters. */
+  clash(pos, dir = 1, o = {}) {
+    const s = o.scale ?? 1;
+    this.emit('solid', 'puff2', { x: pos.x, y: 0.1 + 0.05 * s, z: (pos.z ?? 0) + 0.2, vx: dir * 0.6, vy: 0.5, drag: 3, life: 0.36, scale: 0.42 * s, color: o.color ?? 0xe8dcc0, fadeOut: 0.45, cool: true });
+    for (let i = 0; i < 2; i++) this.emit('solid', 'chip', { x: pos.x, y: 0.12, z: (pos.z ?? 0) + 0.25, vx: dir * rnd(0.5, 2) + rnd(-0.6, 0.6), vy: rnd(1.6, 3), grav: -14, ground: 0.03, life: rnd(0.3, 0.5), scale: rnd(0.6, 0.9), spin: rnd(-10, 10), snap: true, color: o.color ?? 0xd8c4a0, fadeOut: 0.6 });
+  }
   /** Horizontal speed streaks (knockback / dash), dir = travel direction. */
   streaks(pos, dir = 1, o = {}) {
     for (let i = 0; i < (o.count ?? 3); i++) this.emit('glow', 'streak', { x: pos.x - dir * rnd(0.1, 0.5), y: pos.y + rnd(-0.3, 0.3) * (o.h ?? 1), z: (pos.z ?? 0) + 0.4, vx: -dir * rnd(1.5, 3), drag: 3, life: rnd(0.14, 0.24), scale: rnd(0.8, 1.2) * (o.scale ?? 1), color: o.color ?? 0xffffff, flip: dir > 0, fadeOut: 0.4 });
@@ -500,6 +597,14 @@ const HIT_KINDS = {
   melee: { anim: 'star', color: 0xffe27a, bits: 5 },
   heavy: { anim: 'star', color: 0xffb02e, size: 1.5, bits: 8 },
   crit: { anim: 'star', color: 0xff5a3a, size: 1.8, bits: 10, life: 0.28 },
+  // per attack style (view.js picks one from the attacker): claw / slash rakes, punch POW, bite chomp, bullet ping, magic sparkle
+  claw: { anim: 'claw', color: 0xfff2c8, size: 0.85, bits: 3, life: 0.2, bitColors: [0xffffff, 0xffe27a] },
+  punch: { anim: 'pow', color: 0xffd84a, size: 0.8, bits: 4, life: 0.2, bit: 'chip', bitLayer: 'solid', bitColors: [0xffffff, 0xffd84a, 0xffa31a] },
+  bite: { anim: 'chomp', color: 0xffffff, size: 0.75, bits: 2, life: 0.24, bitColors: [0xffffff, 0xffe27a] },
+  bullet: { anim: 'ping', color: 0xfff0a0, size: 0.8, bits: 3, life: 0.14 },
+  magic: { anim: 'magic', color: 0xd08aff, size: 0.85, bits: 4, life: 0.26, bit: 'twinkle', bitGrav: -2, bitColors: [0xffffff, 0xd08aff, 0x9ff2ff] },
+  ice: { anim: 'magic', color: 0x9ff2ff, size: 0.8, bits: 4, life: 0.24, bit: 'shard', bitLayer: 'solid', bitColors: [0xffffff, 0xcff6ff, 0x9fe6ff] },
+  venom: { anim: 'splat', color: 0x62d834, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0x62d834, scale: s * 0.6 }) },
   sludge: { anim: 'splat', color: 0x8fb23a, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0x8fb23a, scale: s * 0.8 }) },
   acid: { anim: 'splat', color: 0x7cff3a, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0x7cff3a, scale: s * 0.8 }) },
   fries: { anim: 'star', color: 0xffd23f, bits: 6, bit: 'chip', bitLayer: 'solid', bitColors: [0xffd23f, 0xf7c873, 0xe8a83a] },
@@ -509,7 +614,7 @@ const HIT_KINDS = {
   laser: { anim: 'zap', color: 0xff4fd8, bits: 6, bitColors: [0xff9af0, 0xffffff] },
   nuke: { anim: 'zap', color: 0x7cff3a, bits: 6, bitColors: [0xd4ff9a, 0xffffff] },
   money: { anim: 'star', color: 0x6fdc7a, bits: 6, bit: 'chip', bitLayer: 'solid', bitColors: [0x3fbf4f, 0x6fdc7a, 0xffd23f] },
-  turretBolt: { anim: 'star', color: 0x9fe0ff, bits: 6 },
+  turretBolt: { anim: 'ping', color: 0x9fe0ff, bits: 4 },
   labCannon: { anim: 'star', color: 0xffd23f, size: 1.4, bits: 8 },
   soda: { anim: 'splat', color: 0xc8742a, bits: 0, extra: (P, pos, s) => P.splat(pos, { color: 0xe0a060, scale: s * 0.7 }) },
 };

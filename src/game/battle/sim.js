@@ -23,6 +23,7 @@ import { TOWERS, ENERGY, BASE_UPGRADES, MEGA, labPower } from '../../data/labs.j
 import { MEGAS } from '../../data/megas.js';
 import { mulberry32 } from '../../core/util.js';
 import { FIELD } from './field.js';
+import * as TT from './troopTraits.js';
 
 export const LAB_X = FIELD.LAB_X;
 export const LAB_HALF = FIELD.LAB_HALF;
@@ -33,7 +34,16 @@ const REGULATION = 180;
 const DOUBLE_AT = 120;
 const OT_LEN = 60;
 const DEPLOY_DELAY = 0.65;
-const SIG_CINEMATIC = 1.35; // Commander ultimate wind-up (sim seconds, the battle holds still)
+// Commander ULTIMATE: a full cutscene during which the whole battle is frozen
+// (sim seconds, so friend / replayed battles stay in step); the rival's is shorter.
+export const SIG_CINEMATIC = [4.4, 3.0];
+// ULTIMATE charge: ONLY from POWER your side generates (counted even while the
+// tank is full; `signature.charge` = POWER for a full meter) and damage your
+// base takes (losing SIG_HP_FULL of its max HP fills the meter on its own).
+// Base damage can fill at most SIG_DMG_CAP of each meter, so a battered base
+// gets a faster ULTIMATE, never a spammable one.
+export const SIG_HP_FULL = 0.5;
+export const SIG_DMG_CAP = 0.6;
 export const DECK_MAX = 8;
 export const HAND_SIZE = 4;
 export const HAND_MAX = 6;
@@ -115,8 +125,8 @@ export class BattleSim {
       energy: Math.min(ENERGY.max, ENERGY.start + (perks.headStart ?? 0)), overclock: 0,
       lab, turret: null,
       mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
-      cmd, cmdLevel: lvl, sig: 0.15, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
-      perks, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0 },
+      cmd, cmdLevel: lvl, sig: 0, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
+      perks, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0, stopped: 0 },
       nextGiant: null,
       stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       power: cmdPower(lvl),
@@ -203,14 +213,24 @@ export class BattleSim {
     const s = this.sides[si];
     return !this.over && !this.cinematic && !!s.mega && !s.mega.used && s.mega.charge >= 1 && s.overclock + 1 >= MEGA.minTier;
   }
-  /** Allowed deploy range [min, max] in x for a side's troops. */
+  /**
+   * Allowed deploy range [min, max] in x for a side's troops (the same rule for the player, the AI and
+   * the placement preview). Your own half up to the centre line; a Swarm of yours that has pushed past
+   * it carries the line with it (FRONT LINE: reinforce right behind your frontmost troop), but never
+   * closer than DEPLOY_FWD to the middle, i.e. never inside the rival base's zapper range.
+   */
   deployRange(si) {
     const s = this.sides[si];
-    const en = this.sides[1 - si];
     const back = s.labX + s.dir * (LAB_HALF + 0.2);
-    const front = si === 0 ? FIELD.DEPLOY_MAX : -FIELD.DEPLOY_MAX; // own half up to the centre line
-    void en;
-    return si === 0 ? [back, front] : [front, back];
+    // work in "forward" coordinates (distance past the centre line towards the rival)
+    let f = FIELD.DEPLOY_MAX;
+    for (const u of this.units) {
+      if (u.dead || u.side !== si || u.boss) continue;
+      const uf = u.x * s.dir - FIELD.DEPLOY_BEHIND;
+      if (uf > f) f = uf;
+    }
+    const front = Math.min(f, FIELD.DEPLOY_FWD) * s.dir;
+    return [Math.min(back, front), Math.max(back, front)];
   }
   clampDeploy(si, x) {
     const [a, b] = this.deployRange(si);
@@ -760,12 +780,17 @@ export class BattleSim {
     const s = this.sides[si];
     if (!s.cmd || s.sig < 1 || this.over || this.cinematic > 0) return false;
     s.sig = 0;
+    s.sigDmg = 0;
     s.stats.sigs++;
-    if (this.noSigCinematic) { this.fireSignature(si); return true; }
-    this.cinematic = SIG_CINEMATIC;
+    // the target is locked in now, so the cutscene can fly the camera to it
+    const aim = this.sigAim(si);
+    if (this.noSigCinematic) { this.fireSignature(si, aim); return true; }
+    const dur = SIG_CINEMATIC[si] ?? SIG_CINEMATIC[1];
+    this.cinematic = dur;
     this.cinematicSide = si;
     this.cinematicKind = 'sig';
-    this.emit('sigStart', { side: si, id: s.cmd.signature.id });
+    this.sigAimX = aim;
+    this.emit('sigStart', { side: si, id: s.cmd.signature.id, dur, x: aim });
     return true;
   }
   /** Tap-to-skip: end a Commander wind-up early (the ability lands right away). */
@@ -773,53 +798,170 @@ export class BattleSim {
     if (this.cinematicKind === 'sig' && this.cinematic > 0) this.cinematic = 1e-6;
   }
 
-  fireSignature(si) {
+  /** Add ULTIMATE charge (k = fraction of a full meter; the Hype Man perk speeds it up). */
+  addSigCharge(si, k, fromDamage = false) {
+    const s = this.sides[si];
+    if (!s.cmd || s.sig >= 1 || !(k > 0)) return;
+    k /= Math.max(0.3, 1 - (s.perks.hypeMan ?? 0) / 100);
+    if (fromDamage) {
+      k = Math.min(k, SIG_DMG_CAP - (s.sigDmg ?? 0));
+      if (k <= 0) return;
+      s.sigDmg = (s.sigDmg ?? 0) + k;
+    }
+    s.sig = Math.min(1, s.sig + k);
+    if (s.sig >= 1) this.emit('sigReady', { side: si });
+  }
+
+  /** Where side si's ULTIMATE lands (locked in when it starts; the cutscene flies there). */
+  sigAim(si) {
+    const s = this.sides[si];
+    const en = this.sides[1 - si];
+    const clampX = (x) => Math.max(-LAB_X + LAB_HALF + 1.2, Math.min(LAB_X - LAB_HALF - 1.2, x));
+    const fb = this.frontBuilding(si);
+    const enFace = fb ? this.faceX(fb, si) : en.labX;
+    switch (s.cmd?.signature?.id) {
+      case 'mutantUprising': {
+        const al = this.alliesOf(si).filter((u) => !u.mega);
+        if (!al.length) return clampX(s.labX + s.dir * 4.5);
+        return clampX(al.reduce((a, u) => a + u.x, 0) / al.length);
+      }
+      case 'beastBuyout': {
+        const c = this.densestEnemyX(si, 3.5);
+        return clampX(c ? c.x : enFace - s.dir * 3);
+      }
+      case 'orbitalFlop': {
+        const c = this.densestEnemyX(si, this.sides[si].cmd.signature.radius * 0.8);
+        return clampX(c ? c.x : enFace - s.dir * 1.6);
+      }
+      case 'tiempoMuerto':
+        return clampX(enFace - s.dir * 2);
+      default:
+        return clampX(this.frontEnemyX(si) ?? enFace);
+    }
+  }
+
+  /** Free ULTIMATE troops: a whole squad of `card` (count units) dropped at x. */
+  sigSquad(si, card, x, delay, opts = {}) {
+    const s = this.sides[si];
+    const n = SWARMS[card.unit ?? card.id]?.count ?? 1;
+    const out = [];
+    for (let k = 0; k < n; k++) out.push(this.spawnUnit(si, card, { x: x - s.dir * k * 0.42, z: (k - (n - 1) / 2) * 0.55, delay: delay + k * 0.05, ...opts }));
+    return out;
+  }
+
+  /** TIEMPO MUERTO keeps a stopped side's new arrivals frozen too. */
+  holdStopped(si) {
+    const left = this.sides[si].buffs.stopped;
+    for (const u of this.units) {
+      if (u.dead || u.side !== si || u.state === 'spawn' || u.mega) continue;
+      if (!u.tStop) { u.tStop = true; this.emit('timeStopped', { unit: u }); }
+      if (u.buffs.freeze < left) u.buffs.freeze = left * (u.boss ? 0.5 : 1);
+    }
+  }
+
+  fireSignature(si, aim = this.sigAim(si)) {
     const s = this.sides[si];
     const sg = s.cmd.signature;
     const pw = s.power;
     const en = 1 - si;
+    const es = this.sides[en];
     switch (sg.id) {
-      case 'beakerBarrage': {
-        const es = this.enemiesOf(si).sort((a, b) => (a.x - s.labX) * s.dir - (b.x - s.labX) * s.dir);
-        const xs = [];
-        const fb = this.frontBuilding(si);
-        const fx = this.frontEnemyX(si) ?? (fb ? this.faceX(fb, si) : this.sides[en].labX);
-        for (let k = 0; k < sg.count; k++) xs.push(es[k] ? es[k].x : fx + s.dir * (k - 2) * 1.2);
-        this.emit('signature', { side: si, id: sg.id, xs });
-        xs.forEach((x, k) => this.later(0.6 + k * 0.12, () => {
-          this.areaDamage(si, x, sg.radius, sg.dmg * pw, { kind: 'acid', building: 0.35 });
-          this.emit('impact', { x, radius: sg.radius, kind: 'acid', side: si });
-        }));
+      // RECRUIT: the whole army mutates into giants + 3 free mutant squads from the base
+      case 'mutantUprising': {
+        const mutate = (u) => {
+          if (u.dead || u.mega) return;
+          this.applyGrow(u, sg.dur, sg.hp * pw, sg.scale);
+          u.hp = u.maxHp;
+          u.buffs.rageT = Math.max(u.buffs.rageT, sg.dur);
+          u.mutant = true;
+        };
+        const mutated = this.alliesOf(si).filter((u) => !u.mega);
+        mutated.forEach(mutate);
+        // the strongest troop cards in the deck (priciest first)
+        const troops = s.deck.filter((c) => !c.spell && SWARMS[c.unit]).slice().sort((a, b) => (SWARMS[b.unit].elixir ?? 0) - (SWARMS[a.unit].elixir ?? 0));
+        const squads = [];
+        for (let k = 0; k < sg.spawn && troops.length; k++) {
+          const card = troops[k % troops.length];
+          const x = s.labX + s.dir * (LAB_HALF + 0.6 + k * 1.1);
+          const delay = 0.45 + k * 0.2;
+          const us = this.sigSquad(si, card, x, delay);
+          us.forEach(mutate);
+          squads.push({ x, unit: card.unit, count: us.length, delay });
+        }
+        this.emit('signature', { side: si, id: sg.id, x: aim, squads, mutated: mutated.map((u) => u.id) });
         break;
       }
-      case 'megaGiveaway': {
-        this.emit('signature', { side: si, id: sg.id });
-        this.later(0.8, () => {
-          for (const e of this.enemiesOf(si)) {
-            e.buffs.stun = Math.max(e.buffs.stun, sg.stun * (e.boss ? 0.4 : 1));
-            this.damage(e, sg.dmg * pw, null, { kind: 'money' });
+      // JIMMY: the strongest enemy troops switch sides; the rest get stunned in a cash storm
+      case 'beastBuyout': {
+        const value = (u) => (u.cost || 1) * 1000 + u.maxHp;
+        const pool = this.enemiesOf(si).filter((u) => !u.boss && !u.mega && u.state !== 'spawn').sort((a, b) => value(b) - value(a));
+        const bought = pool.slice(0, sg.buy);
+        const swaps = [];
+        for (const e of bought) {
+          // quietly retire the enemy troop (no death: no split / heal-on-death tricks) and re-hire it
+          e.dead = true;
+          e.hp = 0;
+          const card = { id: e.card ?? e.type, unit: e.type, level: e.level, variant: e.variant, skin: e.skin, model: e.model };
+          const u = this.spawnUnit(si, card, { x: e.x, z: e.z, delay: 0.05, hpMult: 1, dmgMult: e.dmgMult, scale: e.size / (SWARMS[e.type]?.size ?? 1) });
+          u.z = e.z;
+          u.bought = true;
+          swaps.push({ from: e.id, to: u.id, x: e.x });
+        }
+        // not enough troops on the field: hire the rest straight out of the rival's deck
+        const hires = [];
+        const rivalTroops = es.deck.filter((c) => !c.spell && SWARMS[c.unit]);
+        for (let k = bought.length; k < sg.buy && rivalTroops.length; k++) {
+          const card = rivalTroops[Math.floor(this.rand() * rivalTroops.length)];
+          const x = s.labX + s.dir * (LAB_HALF + 0.8 + (k - bought.length) * 1.2);
+          const delay = 0.5 + (k - bought.length) * 0.2;
+          hires.push({ x, unit: card.unit, delay, count: this.sigSquad(si, card, x, delay).map((u) => (u.bought = true)).length });
+        }
+        for (const e of this.enemiesOf(si)) {
+          if (e.dead || bought.includes(e)) continue;
+          e.buffs.stun = Math.max(e.buffs.stun, sg.stun * (e.boss ? 0.4 : 1));
+          this.damage(e, sg.dmg * pw, null, { kind: 'money' });
+        }
+        s.energy = Math.min(this.maxPower(si), s.energy + sg.energy);
+        this.emit('energyGain', { side: si, amount: sg.energy });
+        this.emit('signature', { side: si, id: sg.id, x: aim, swaps, hires });
+        break;
+      }
+      // NOLAN: a meteor belly flop: huge blast + field-wide quake + burning crater
+      case 'orbitalFlop': {
+        const x = aim;
+        const hit = new Set();
+        for (const e of this.enemiesOf(si)) if (Math.abs(e.x - x) <= sg.radius + e.radius) hit.add(e.id);
+        this.areaDamage(si, x, sg.radius, sg.dmg * pw, { kind: 'flop', stun: sg.stun, knock: 7, building: sg.building });
+        for (const e of this.enemiesOf(si)) {
+          if (hit.has(e.id)) continue;
+          this.damage(e, sg.quake * pw, null, { kind: 'quake' });
+          if (!e.dead) { this.knock(e, 2.5); e.buffs.stun = Math.max(e.buffs.stun, sg.quakeStun * (e.boss ? 0.4 : 1)); }
+        }
+        // the quake cracks the rival base wherever it is
+        if (es.lab.alive) this.damageBuilding(es.lab, sg.baseDmg * pw, null, { spell: true });
+        this.zones.push({ side: si, x, r: sg.radius * 0.8, t: sg.crater, slow: sg.slow, dps: sg.burn * pw, kind: 'crater' });
+        this.emit('signature', { side: si, id: sg.id, x, r: sg.radius });
+        break;
+      }
+      // JUAN: time stops for the rival; frozen enemies shatter when it restarts
+      case 'tiempoMuerto': {
+        es.buffs.stopped = sg.dur;
+        s.buffs.haste = Math.max(s.buffs.haste, sg.dur);
+        if (es.lab.alive) es.lab.frozen = Math.max(es.lab.frozen ?? 0, sg.dur);
+        this.holdStopped(en);
+        this.emit('signature', { side: si, id: sg.id, x: aim, dur: sg.dur });
+        this.later(sg.dur, () => {
+          const shattered = [];
+          es.buffs.stopped = 0;
+          for (const e of this.units) {
+            if (e.dead || e.side !== en || !e.tStop) continue;
+            e.tStop = false;
+            e.buffs.freeze = 0;
+            shattered.push(e.x);
+            this.damage(e, e.maxHp * sg.shatter * (e.boss ? 0.4 : 1), null, { kind: 'shatter' });
           }
-          s.energy = Math.min(this.maxPower(si), s.energy + sg.energy);
-          this.emit('energyGain', { side: si, amount: sg.energy });
-        });
-        break;
-      }
-      case 'bellyFlop': {
-        const x = this.frontEnemyX(si) ?? this.frontAllyX(si) + s.dir * 2;
-        const tx = Math.max(-LAB_X + 2.5, Math.min(LAB_X - 2.5, x));
-        this.emit('signature', { side: si, id: sg.id, x: tx });
-        this.later(1.0, () => {
-          this.areaDamage(si, tx, sg.radius, sg.dmg * pw, { kind: 'flop', stun: sg.stun, knock: 3, building: 0.3 });
-          this.emit('impact', { x: tx, radius: sg.radius, kind: 'flop', side: si });
-        });
-        break;
-      }
-      case 'juansTruck': {
-        this.emit('signature', { side: si, id: sg.id });
-        this.later(0.5, () => {
-          const m = { kind: 'truck', side: si, x: s.labX + s.dir * LAB_HALF, speed: 12, dmg: sg.dmg * pw, labDmg: sg.labDmg * pw, hit: new Set(), id: UID++ };
-          this.movers.push(m);
-          this.emit('moverStart', { mover: m });
+          if (es.lab.alive) { es.lab.frozen = 0; this.damageBuilding(es.lab, es.lab.maxHp * sg.baseShatter, null, { spell: true }); }
+          this.emit('timeResume', { side: si, xs: shattered });
         });
         break;
       }
@@ -924,6 +1066,7 @@ export class BattleSim {
       speedMult: opts.speedMult ?? 1, flying: !!def.traits?.flying, siege: !!def.traits?.siege, ambush: def.traits?.ambush ?? 0,
       level: card.level ?? 1,
     };
+    TT.initTraits(this, u);
     this.units.push(u);
     this.emit('spawn', { unit: u, dropped: opts.delay > 0 });
     return u;
@@ -935,6 +1078,9 @@ export class BattleSim {
       x: TURRET_X - FIELD.TURRET_HALF - 2.4, boss: true, kb: 3, scale: b.scale / (SWARMS[b.unit].size ?? 1), delay: 0,
       hpMult: b.hp / swarmStats(b.unit, b.level ?? 1).hp, dmgMult: b.dmg ?? 2, model: b.model, speedMult: 0.5,
     });
+    u.st = { ...u.st, traits: TT.bossTraits(u.st.traits, u.st.projectile) };
+    u.siege = !!u.st.traits.siege;
+    u.cloaked = false;
     u.bossId = b.id;
     u.slamT = 6;
     this.boss = u;
@@ -962,13 +1108,19 @@ export class BattleSim {
     const s = this.sides[u.side];
     const dir = s.dir;
     const reach = u.st.range + u.radius;
+    const tr = u.st.traits;
+    // MORTAR troops have a blind spot up close; BACKLINE troops pick the enemy furthest back in reach
+    const min = tr.mortar ? tr.mortar.min : -Infinity;
     let best = null, bd = Infinity;
     if (!u.siege) {
+      let far = -Infinity;
       for (const e of this.units) {
-        if (e.dead || e.side === u.side || e.state === 'spawn') continue;
+        if (e.dead || e.side === u.side || e.state === 'spawn' || TT.untargetable(e)) continue;
         const d = (e.x - u.x) * dir;
-        if (d < -(u.radius + e.radius)) continue;
-        if (d - e.radius <= reach && d < bd) { best = e; bd = d; }
+        if (d < -(u.radius + e.radius) || d < min) continue;
+        if (d - e.radius > reach) continue;
+        if (tr.backline) { if (d > far) { far = d; best = e; bd = -Infinity; } }
+        else if (d < bd) { best = e; bd = d; }
       }
     }
     const b = this.frontBuilding(u.side);
@@ -1013,6 +1165,8 @@ export class BattleSim {
         for (const e of this.units) if (!e.dead && e.side !== u.side && Math.abs(e.x - u.x) <= a.r) this.damage(e, a.dps * 0.5 * u.dmgMult, u, { kind: 'aura', silent: true });
       }
     }
+    // troop signature traits (leaps, fear, hit-and-run, auras, summons...)
+    if (TT.tickTraits(this, u, dt) || u.dead) return;
     // knockback flight
     if (u.state === 'kb') {
       u.x += u.vx * dt;
@@ -1030,8 +1184,8 @@ export class BattleSim {
 
     const dance = s.buffs.dance > 0, rally = s.buffs.rally > 0;
     const rage = b.rageT > 0 ? 1 + SPELLS.adrenaline.speedBoost : 1;
-    const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.haste > 0 ? 1.25 : 1) * rage;
-    const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.frenzy > 0 ? 1.3 : 1) * rage;
+    const spd = (1 - b.slow) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.haste > 0 ? 1.25 : 1) * rage * TT.moveMult(u);
+    const atkSpd = (1 - b.slow * 0.5) * (dance ? 1.35 : 1) * (rally ? 1.3 : 1) * (s.buffs.frenzy > 0 ? 1.3 : 1) * rage * TT.atkMult(u);
 
     if (u.mega) {
       u.life -= dt;
@@ -1084,6 +1238,8 @@ export class BattleSim {
         u.atkTarget = tgt;
         this.emit('attack', { unit: u, dur: wind / 0.5 });
       }
+    } else if (TT.holdGround(this, u)) {
+      u.state = 'idle';
     } else {
       u.state = 'walk';
       u.x += s.dir * u.st.speed * u.speedMult * spd * dt;
@@ -1110,11 +1266,15 @@ export class BattleSim {
     if (!t) return;
     const tx = t.building ? this.faceX(t, u.side) : t.x;
     if (u.st.projectile) {
-      const dist = Math.abs(tx - u.x);
-      const flight = 0.18 + dist / 13;
-      const p = { id: UID++, side: u.side, src: u, x0: u.x, x: u.x, tx, t: 0, flight, target: t, kind: u.st.projectile, height: 0.6 * u.size };
-      this.projectiles.push(p);
-      this.emit('shoot', { unit: u, proj: p });
+      const shoot = (tt, ttx) => {
+        const dist = Math.abs(ttx - u.x);
+        const flight = 0.18 + dist / 13;
+        const p = { id: UID++, side: u.side, src: u, x0: u.x, x: u.x, tx: ttx, t: 0, flight, target: tt, kind: u.st.projectile, height: 0.6 * u.size };
+        this.projectiles.push(p);
+        this.emit('shoot', { unit: u, proj: p });
+      };
+      shoot(t, tx);
+      if (u.st.traits.multishot) TT.extraShots(this, u, t, shoot);
     } else {
       this.applyHit(u, t, tx);
     }
@@ -1123,7 +1283,7 @@ export class BattleSim {
   unitDamage(u) {
     const sb = this.sides[u.side].buffs;
     let dmg = u.st.dmg * u.dmgMult * (sb.dance > 0 ? 1.5 : 1) * (sb.surge > 0 ? 1.4 : 1)
-      * (u.buffs.rageT > 0 ? 1 + SPELLS.adrenaline.dmgBoost : 1) * (u.buffs.titanT > 0 ? 1 + SPELLS.titanSerum.dmgBoost : 1);
+      * (u.buffs.rageT > 0 ? 1 + SPELLS.adrenaline.dmgBoost : 1) * (u.buffs.titanT > 0 ? 1 + SPELLS.titanSerum.dmgBoost : 1) * TT.dmgMult(this, u);
     if (u.ambush) {
       dmg *= u.ambush;
       u.ambush = 0;
@@ -1134,11 +1294,16 @@ export class BattleSim {
 
   applyHit(u, t, tx) {
     const tr = u.st.traits;
-    const dmg = this.unitDamage(u);
+    if (TT.beforeHit(this, u, t)) return; // DEVOUR swallowed it whole
+    const dmg = this.unitDamage(u) * TT.hitMult(this, u, t);
     const kind = u.st.projectile ?? 'melee';
-    if (tr.area) {
-      this.areaDamage(u.side, tx, 0.9 + u.radius * 0.5, dmg, { src: u, kind, building: 1, front: true });
-      this.emit('areaHit', { unit: u, x: tx, kind });
+    if (tr.spin) {
+      // SPIN / PULSE: everything around the troop, front and back
+      this.areaDamage(u.side, u.x, tr.spin.r + u.radius, dmg, { src: u, kind, building: 1, knock: tr.spin.knock });
+      this.emit('spin', { unit: u, x: u.x, r: tr.spin.r + u.radius });
+    } else if (tr.area) {
+      this.areaDamage(u.side, tx, tr.splash ?? 0.9 + u.radius * 0.5, dmg, { src: u, kind, building: 1, front: true });
+      this.emit('areaHit', { unit: u, x: tx, kind, r: tr.splash });
     } else if (tr.chain) {
       if (t.building) this.damageBuilding(t, dmg, u);
       const hitList = [];
@@ -1171,14 +1336,15 @@ export class BattleSim {
       this.damageBuilding(t, dmg, u);
     } else {
       this.damage(t, dmg, u, { kind });
-      if (tr.knock && !t.dead) this.knock(t, 3);
+      if (tr.knock && !t.dead) this.knock(t, typeof tr.knock === 'number' ? tr.knock : 3);
     }
+    TT.afterHit(this, u, t, tx, dmg);
   }
 
   /** Damage every enemy (units + buildings) of side si within r of x. */
   areaDamage(si, x, r, dmg, o = {}) {
     for (const e of this.units) {
-      if (e.dead || e.side === si) continue;
+      if (e.dead || e.side === si || TT.immune(e)) continue;
       if (Math.abs(e.x - x) > r + e.radius) continue;
       this.damage(e, dmg, o.src ?? null, { kind: o.kind });
       if (!e.dead && o.stun) e.buffs.stun = Math.max(e.buffs.stun, o.stun * (e.boss ? 0.4 : 1));
@@ -1200,7 +1366,7 @@ export class BattleSim {
 
   knock(e, power) {
     if (e.dead || e.state === 'spawn') return;
-    if (e.mega) return;
+    if (e.mega || e.st.traits.unstoppable || TT.immune(e)) return;
     if (e.boss || e.siege) power *= 0.3;
     const dir = this.sides[e.side].dir;
     e.state = 'kb';
@@ -1215,7 +1381,9 @@ export class BattleSim {
   damage(e, amount, src, o = {}) {
     if (e.dead) return;
     let d = amount;
-    if (e.st.traits.armor) d *= 1 - e.st.traits.armor;
+    if (e.st.traits.armor && !TT.ignoresArmor(src)) d *= 1 - e.st.traits.armor;
+    d = TT.incoming(this, e, d, src, o);
+    if (d < 0) return;
     const def = this.sides[e.side];
     if (def.perks.armorUp) d *= 1 - def.perks.armorUp / 100;
     if (src && src.st && e.flying && !src.st.projectile) d *= 0.5;
@@ -1223,9 +1391,10 @@ export class BattleSim {
     if (d <= 0) return;
     // ARMOR shields soak damage first
     if (e.shieldHp > 0) {
-      const soak = Math.min(e.shieldHp, d);
+      const sm = TT.shieldMult(src); // SHIELD-BREAKERS shred shields
+      const soak = Math.min(e.shieldHp, d * sm);
       e.shieldHp -= soak;
-      d -= soak;
+      d -= soak / sm;
       if (e.shieldHp <= 0) this.emit('shieldBreak', { unit: e });
       if (d <= 0) { if (!o.silent) this.emit('hit', { unit: e, amount: 0, kind: 'shield', src }); return; }
     }
@@ -1237,12 +1406,14 @@ export class BattleSim {
       if (!src.mega) this.addMegaCharge(src.side, Math.min(before, d) / MEGA.chargeDmg);
     }
     if (!o.silent) this.emit('hit', { unit: e, amount: Math.round(d), kind: o.kind ?? 'melee', src, crit: d >= e.maxHp * 0.3 });
+    TT.damaged(this, e, Math.min(before, d), src, o);
     if (e.hp <= 0) {
       this.kill(e, src);
       return;
     }
     if (src && src.st) {
       const tr = src.st.traits;
+      TT.hitStatus(this, src, e);
       if (tr.stun && this.rand() < tr.stun.chance) e.buffs.stun = Math.max(e.buffs.stun, tr.stun.dur * (e.boss ? 0.4 : 1));
       if (tr.freeze && this.rand() < tr.freeze.chance) e.buffs.freeze = Math.max(e.buffs.freeze, tr.freeze.dur * (e.boss ? 0.4 : 1));
       if (tr.slow) { e.buffs.slow = Math.max(e.buffs.slow, tr.slow.amt); e.buffs.slowT = tr.slow.dur; }
@@ -1263,7 +1434,6 @@ export class BattleSim {
     const ks = this.sides[killerSide];
     ks.stats.kills++;
     if (!o.silent) {
-      ks.sig = Math.min(1, ks.sig + 0.03);
       if (!src?.mega) this.addMegaCharge(killerSide, MEGA.killBonus * (e.boss ? 5 : 1));
     }
     this.emit('death', { unit: e, killerSide, silent: !!o.silent });
@@ -1279,6 +1449,7 @@ export class BattleSim {
       for (const a of this.units) if (!a.dead && a.side === e.side && Math.abs(a.x - e.x) < 2.5) this.heal(a, a.maxHp * tr.heal);
       this.emit('healBurst', { x: e.x, side: e.side });
     }
+    TT.onKilled(this, e, src, o);
     if (e.boss) this.emit('bossDown', { unit: e });
   }
 
@@ -1291,9 +1462,12 @@ export class BattleSim {
       this.emit('shieldHit', { side: b.side, kind: b.kind });
     }
     if (d <= 0) return;
+    const hp0 = b.hp;
     b.hp -= d;
     // tutorial safety net: your base can't fall below this fraction (Jimmy "goes easy")
     if (this.cfg.baseFloor && b.side === 0) b.hp = Math.max(b.hp, b.maxHp * this.cfg.baseFloor);
+    // the comeback mechanic: a hammered base charges its Commander's ULTIMATE
+    if (hp0 > b.hp) this.addSigCharge(b.side, (hp0 - Math.max(0, b.hp)) / (b.maxHp * SIG_HP_FULL), true);
     const atk = 1 - b.side;
     this.sides[atk].stats.dmg += d;
     this.sides[atk].stats.towerDmg += d;
@@ -1320,7 +1494,7 @@ export class BattleSim {
     // nearest enemy in range
     let best = null, bd = Infinity;
     for (const e of this.units) {
-      if (e.dead || e.side === b.side || e.state === 'spawn') continue;
+      if (e.dead || e.side === b.side || e.state === 'spawn' || TT.untargetable(e)) continue;
       const d = Math.abs(e.x - b.x) - e.radius;
       if (d <= b.range && d < bd) { bd = d; best = e; }
     }
@@ -1366,7 +1540,9 @@ export class BattleSim {
 
   energyRate(si) {
     const s = this.sides[si];
-    return ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
+    if (s.buffs.stopped > 0) return 0; // TIEMPO MUERTO: no POWER while time is stopped...
+    const steal = this.sides[1 - si]?.buffs.stopped > 0 ? 2 : 1; // ...and the other side gets that time
+    return steal * ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
   }
 
   tick(dt) {
@@ -1375,7 +1551,7 @@ export class BattleSim {
       this.cinematic -= dt;
       if (this.cinematic <= 0) {
         this.cinematic = 0;
-        if (this.cinematicKind === 'sig') { this.cinematicKind = null; this.fireSignature(this.cinematicSide); }
+        if (this.cinematicKind === 'sig') { this.cinematicKind = null; this.fireSignature(this.cinematicSide, this.sigAimX); }
         else this.megaArrive(this.cinematicSide);
       }
       return;
@@ -1389,9 +1565,12 @@ export class BattleSim {
       }
     }
     for (const s of this.sides) {
-      s.energy = Math.min(this.maxPower(s.i), s.energy + this.energyRate(s.i) * dt);
+      const gen = this.energyRate(s.i) * dt;
+      s.energy = Math.min(this.maxPower(s.i), s.energy + gen);
       for (let k = 0; k < s.skillCds.length; k++) if (s.skillCds[k] > 0) s.skillCds[k] -= dt;
-      if (s.cmd && s.sig < 1) s.sig = Math.min(1, s.sig + dt / (s.cmd.signature.charge * (1 - (s.perks.hypeMan ?? 0) / 100)));
+      // (the 2x / 3x POWER of the last minute + overtime doesn't speed the ULTIMATE up: no late-game spam)
+      if (s.cmd) this.addSigCharge(s.i, gen / (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) / s.cmd.signature.charge);
+      if (s.buffs.stopped > 0) this.holdStopped(s.i);
       for (const k in s.buffs) if (s.buffs[k] > 0) s.buffs[k] -= dt;
       this.updateBuilding(s.lab, dt);
     }

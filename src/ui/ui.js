@@ -29,7 +29,8 @@ export function applyScale() {
   de.setProperty('--u', u.toFixed(2) + 'px');
   de.setProperty('--px', px + 'px');
   de.setProperty('--pxs', Math.max(2, px - 1) + 'px');
-  de.setProperty('--fs', Math.max(12, Math.round(u * 3.5)) + 'px');
+  // body text: comfortably readable on a 390 px phone (16 px) and in short landscape (15 px)
+  de.setProperty('--fs', Math.max(15, Math.round(u * 4.1)) + 'px');
 }
 if (typeof window !== 'undefined') {
   injectSkins();

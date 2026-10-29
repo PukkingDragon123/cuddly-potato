@@ -43,7 +43,7 @@ export function cardStats(id, level = 1, variant = 'base') {
     if (d.boost) rows.push({ key: 'boost', icon: 'up', label: 'Stat Boost', v: `+${Math.round(d.boost * 100)}%` });
     rows.push({ key: 'kw', icon: 'magic', label: 'Keywords', v: (d.keywords ?? []).join(' / ') || 'SPECIAL' });
     rows.push({ key: 'once', icon: 'clock', label: 'Uses', v: d.exhaust ? 'Once per battle' : 'Cycles' });
-    rows.push({ key: 'cost', icon: 'energy', label: 'Energy Cost', v: String(d.elixir) });
+    rows.push({ key: 'cost', icon: 'energy', label: 'Power Cost', v: String(d.elixir) });
     return rows;
   }
   if (isSpell(id)) {
@@ -64,7 +64,7 @@ export function cardStats(id, level = 1, variant = 'base') {
     if (d.overclock) rows.push({ key: 'oc', icon: 'bolt', label: 'Overcharge', v: d.overclock + 's' });
     if (d.dur || d.rage || d.titan) rows.push({ key: 'dur', icon: 'clock', label: 'Duration', v: (d.dur ?? d.rage ?? d.titan) + 's' });
     rows.push({ key: 'radius', icon: 'range', label: 'Radius', v: d.radius ? d.radius.toFixed(1) : 'Your Lab' });
-    rows.push({ key: 'cost', icon: 'energy', label: 'Energy Cost', v: String(d.elixir) });
+    rows.push({ key: 'cost', icon: 'energy', label: 'Power Cost', v: String(d.elixir) });
     return rows;
   }
   const s = swarmStats(id, level, variant);
@@ -255,7 +255,7 @@ export function openCardInfo(id, ctx, opts = {}) {
         chip([icon(def.special ? 'cards' : spell ? 'magic' : role?.icon ?? 'swarm', 's'), def.special ? 'Special' : spell ? 'Spell' : 'Troop'], def.special ? 'special' : ''),
         series ? chip(series.name, 'ser') : null),
       h('div', { class: 'mn-ci-desc' }, def.desc ?? ''),
-      h('div', { class: 'mn-ci-where' }, icon('island', 's'), h('span', {}, ar ? `Found in ${ar.name} vials (Arena ${ar.index + 1})` : 'Special event')),
+      h('div', { class: 'mn-ci-where' }, icon('island', 's'), h('span', {}, ar ? `Found in ${ar.name} vials (Arena\u00a0${ar.index + 1})` : 'Special event')),
       !own ? h('div', { class: 'mn-ci-nf t-d outline' }, icon('lock', 's'), ' NOT FOUND YET') : null,
       own && (own.variant !== 'base') ? h('div', { class: 'mn-ci-shiny' }, icon('chrome', 's'), `${VARIANTS[own.variant].name} finish: +${Math.round(VARIANTS[own.variant].bonus * 100)}% HP & damage`) : null);
     body.appendChild(h('div', { class: 'mn-ci-top' }, cardWrap, info));

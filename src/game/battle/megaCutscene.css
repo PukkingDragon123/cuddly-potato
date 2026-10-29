@@ -100,3 +100,4 @@ body.cine .bhud, body.cine #world-ui { opacity: 0 !important; pointer-events: no
 @media (prefers-reduced-motion: reduce) {
   .mc-warn.on, .mc-title.go span, .mc-wrap.in:has(.mc-title.go)::before { animation: none !important; }
 }
+.mc-warn { display: flex; align-items: center; justify-content: center; gap: 0.3em; } .mc-warn .pi { width: 1.1em; height: 1.1em; flex: none; }

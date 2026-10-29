@@ -11,3 +11,9 @@
 .hm-mega .ds { font-size: 0.66em; color: var(--muted); line-height: 1.25; min-height: 3.6em; }
 .hm-mega .eqt { color: var(--gold); text-shadow: var(--outline-thin); }
 .hm-mega .lk .pi { width: calc(var(--u) * 6); height: calc(var(--u) * 6); }
+/* round 2 (M): readable special line + intro clear of the close button */
+.hm-megas-intro { padding: 0 calc(var(--u) * 7); line-height: 1.3; }
+.hm-mega .sp { justify-content: center; text-align: center; font-size: 0.86em; line-height: 1.15; }
+.hm-mega .sp .pi { width: 1.2em; height: 1.2em; flex: none; }
+.hm-mega .ds { font-size: 0.78em; }
+.hm-mega .sp .pi, .hm-mega .lk .pi { filter: none; } .hm-mega.locked .sp .pi { filter: grayscale(1) brightness(0.75); }

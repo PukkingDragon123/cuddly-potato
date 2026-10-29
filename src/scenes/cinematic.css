@@ -413,3 +413,24 @@ body.landscape .ld-dest .n { font-size: calc(var(--u) * 7.5); }
 body.portrait .cn-logo:not(.sm) .bolt { width: calc(var(--u) * 15); height: calc(var(--u) * 15); right: calc(var(--u) * -1.5); top: calc(var(--u) * -9); }
 body.portrait .cn-logo.sm .bolt { right: calc(var(--u) * -1); top: calc(var(--u) * -5.5); }
 body.portrait .tt-load { right: auto; left: calc(var(--safe-l) + var(--u) * 3); top: calc(var(--safe-t) + 9vh - var(--u) * 4.5); }
+
+/* ---------------------------------------------------------------- round 2 (M): a lighter, quicker pop
+   The experiment still goes bang, but it's a short comic pop (0.6 s) instead of a long demolition. */
+.ld-alarm { background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 60%, rgba(255, 30, 40, 0.3)); animation-delay: 8s; }
+.ld.boom .ld-shake { animation: ldQuake 0.4s linear; }
+.ld.boom .ld-flash { animation: ldFlash 0.32s ease-out forwards; }
+@keyframes ldFlash { 0% { opacity: 0.7; } 30% { opacity: 0.45; } 100% { opacity: 0; } }
+.ld.boom .ld-blast { animation: ldBlastFade 0.6s forwards; }
+.ld.boom .ld-blast canvas { animation: ldFrames 0.5s steps(7, end) forwards; }
+.ld.boom .ld-blast.b2, .ld.boom .ld-blast.b2 canvas { animation-delay: 0.04s; }
+.ld.boom .ld-blast.b3, .ld.boom .ld-blast.b3 canvas { animation-delay: 0.08s; }
+.ld.boom .ld-cmd-in { animation: ldBlown 0.6s cubic-bezier(.2, .8, .3, 1) both !important; }
+.ld.boom .ld-gauge { animation: ldGaugeFly 0.6s cubic-bezier(.3, .6, .5, 1) forwards !important; }
+.ld.boom .ld-needle { animation: ldSpin 0.3s linear 2 !important; }
+.ld.boom .ld-sign-n .n1 { animation: ldNumOut 0.2s 0.05s ease-in forwards; }
+.ld.boom .ld-sign-n .n0 { animation: ldNumIn 0.25s 0.18s cubic-bezier(.2, 1.6, .4, 1) forwards; }
+.ld.boom .ld-caps .c.ok { animation: ldCapLast 0.25s 0.15s both; }
+.ld.boom .ld-kaboom { animation: ldKaboom 0.62s cubic-bezier(.2, 1.4, .4, 1) 0.02s both; }
+.ld-kaboom { font-size: calc(var(--lp) * 18); }
+.ld.out .ld-cloud { animation-duration: 0.65s; }
+.ld.out .ld-cloud canvas { animation-duration: 0.65s; }

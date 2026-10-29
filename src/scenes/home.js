@@ -264,7 +264,7 @@ export class HomeScene {
         this.scene.add(ring);
         this.actors.push({ kind: 'boss', obj: rig, update: (dt) => { rig.update(dt); ring.material.opacity = 0.6 + Math.sin(this.t * 3) * 0.25; ring.scale.setScalar(1 + Math.sin(this.t * 3) * 0.03); }, zone: Z });
         const defeated = !!p.bosses?.[boss.id];
-        this.addPick(rig.root, () => this.openBoss(boss.id), { label: defeated ? `${boss.name} ✓` : boss.name, cls: 'boss', iconName: 'skull', h: rig.height + 0.6, zone: Z });
+        this.addPick(rig.root, () => this.openBoss(boss.id), { label: boss.name, cls: `boss ${defeated ? 'beaten' : ''}`, iconName: defeated ? 'check' : 'skull', h: rig.height + 0.6, zone: Z });
       }
       // secrets hidden in this zone (sparkle until found)
       for (const [sid, s] of Object.entries(SECRETS)) {
@@ -556,7 +556,7 @@ export class HomeScene {
         s.sn.innerHTML = '';
         s.sn.appendChild(h('span', { class: 'skip' }, icon('bucks'), String(skipPrice(left))));
       } else {
-        s.st.textContent = unlocking ? fmtTime(VIALS[e.type].time) : 'Tap to unlock';
+        s.st.textContent = unlocking ? fmtTime(VIALS[e.type].time) : 'UNLOCK';
         s.sn.textContent = unlocking ? VIALS[e.type].name : fmtTime(VIALS[e.type].time);
       }
     });
@@ -618,6 +618,10 @@ export class HomeScene {
       M.tabOut(oldEl, id === 'battle' ? 0 : dir).then(disposeOld);
     } else disposeOld();
     this.root.classList.toggle('tabbed', id !== 'battle');
+    // once a tab panel has slid in it hides the island completely: stop drawing it meanwhile
+    clearTimeout(this.coverT);
+    if (id === 'battle') engine.cover('homeTab', false);
+    else this.coverT = setTimeout(() => { if (this.tab !== 'battle' && !this.exited) engine.cover('homeTab', true); }, instant ? 0 : 450);
     if (id === 'battle') {
       if (!instant && changed) this.dockIntro(0.05);
       return;
@@ -710,15 +714,15 @@ export class HomeScene {
       const el = h('div', { class: `hm-mega sk-panel-dark ${own ? '' : 'locked'} ${eq ? 'eq' : ''}` },
         h('img', { src: swarmThumb(id, own?.variant ?? 'base', null, 160) }),
         h('div', { class: 'nm t-d outline' }, M.name, own?.variant === 'gold' ? h('span', { class: 'c-gold' }, ' GOLD') : null),
-        h('div', { class: 'sp' }, icon('lightning'), M.special.name),
-        h('div', { class: 'ds' }, own ? M.desc : `Unlocks on the ${M.unlock}`),
+        h('div', { class: 'sp' }, icon('lightning', 's'), h('span', {}, M.special.name)),
+        h('div', { class: 'ds' }, own ? M.desc : `Unlocks on the ${M.unlock}.`),
         own ? (eq ? h('div', { class: 'eqt t-d' }, 'EQUIPPED') : button('EQUIP', () => { equipMega(id); m.close(); this.refresh(); toast(`*${M.name}* is your MEGA ultimate!`, { icon: 'mega' }); }, 'green sm')) : h('div', { class: 'lk' }, icon('lock')));
       return el;
     }));
     const m = modal({
       title: 'MEGA ULTIMATES', color: 'pink', size: 'wide',
       body: h('div', { class: 'col' },
-        h('div', { class: 'c-muted center-t t-sm' }, 'Charge your MEGA by fighting (damage + knockouts). Once your base is a *Trailer Lab* or better, unleash it ONCE per battle: it smashes out of its containment cup and stomps the lane!'),
+        h('div', { class: 'c-muted center-t t-sm hm-megas-intro' }, 'Charge your MEGA by fighting (damage + knockouts). Once your base is a ', h('b', { class: 'c-gold' }, 'Trailer Lab'), ' or better, unleash it once per battle: it smashes out of its containment cup and stomps the lane!'),
         grid),
     });
   }
@@ -753,7 +757,7 @@ export class HomeScene {
     chibi.play('wave', { restart: true, dur: 1.2, then: 'idle' });
     audio.play('pop');
     if (!questNpc) {
-      const lines = ['This island is AMAZING. Jimmy built all of it!', 'Have you seen the Beast Tiger? It does NOT like being tapped.', 'Rumour says there are secrets hidden on every arena...', 'Upgrade your base to a Trailer Lab to unlock your MEGA in battle!'];
+      const lines = ['This island is AMAZING. Jimmy built all of it!', 'Have you seen the Beast Tiger? It does NOT like being tapped.', 'Rumor says there are secrets hidden on every arena...', 'Upgrade your base to a Trailer Lab to unlock your MEGA in battle!'];
       speech(chibi, lines[Math.floor(Math.random() * lines.length)], 3);
       return;
     }
@@ -884,7 +888,7 @@ export class HomeScene {
 
   update(dt) {
     this.t += dt;
-    if (this.I) this.updateIsland(dt);
+    if (this.I && !engine.covered) this.updateIsland(dt);
     // timers
     this.tickT = (this.tickT ?? 0) - dt;
     if (this.tickT <= 0 && this.root) {
@@ -945,6 +949,8 @@ export class HomeScene {
     try { this.currentTab?.dispose?.(); } catch (e) { /* ignore */ }
     if (this.tutPtr) this.tutPtr();
     clearTimeout(this.showT);
+    clearTimeout(this.coverT);
+    engine.cover('homeTab', false);
     // remember what the counters showed so the next visit can roll them up
     const p = state.p;
     if (p) Object.assign(shown, { coins: p.coins, bucks: p.bucks, trophies: p.trophies });

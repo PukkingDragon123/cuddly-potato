@@ -206,7 +206,7 @@ export const BOSSES = {
     desc: 'A giant monster made of shopping carts guards the checkout.', reward: { coins: 1500, calories: 300, vial: 'labPack' },
   },
   megaMech: {
-    name: 'Red Light Robot', arena: 'redlight', minTrophies: 1400, boss: 'megaTechMech', bossScale: 2.6, bossHp: 11000, bossDmg: 1.3,
+    name: 'Red Light Robot', arena: 'redlight', minTrophies: 1400, boss: 'megaTechMech', bossScale: 2.6, bossHp: 11000, bossDmg: 1.65,
     deck: ['glitchBot', 'droneFang', 'circuitShark', 'ragingRat', 'toxicPanther', 'midnightPanther', 'vexViper', 'slimeFlood'], level: 6, commander: null,
     desc: 'RED LIGHT! The giant robot doll walked off its plinth. Don\'t let it catch you moving.', reward: { coins: 2000, bucks: 80, vial: 'megaLab' },
   },
@@ -238,7 +238,7 @@ export const BOSSES = {
     desc: 'The stone guardian of the lost temple woke up covered in vines. It does not like explorers.', reward: { coins: 7000, bucks: 200, vial: 'megaLab' },
   },
   vaultWarden: {
-    name: 'Vault Warden', arena: 'laser', minTrophies: 4600, boss: 'megaTechMech', bossScale: 2.8, bossHp: 24000, bossDmg: 1.4,
+    name: 'Vault Warden', arena: 'laser', minTrophies: 4600, boss: 'megaTechMech', bossScale: 2.8, bossHp: 24000, bossDmg: 1.8,
     deck: ['laserLynx', 'vaultBot', 'glitchBot', 'droneFang', 'circuitShark', 'voltBat', 'moneyDrop', 'freezeRay'], level: 9, commander: 'juan', lab: 'goldVault',
     desc: 'The vault\'s security mech guards a billion dollars of cash. Dodge the lasers and crack the safe!', reward: { coins: 8000, bucks: 220, vial: 'cashCase' },
   },

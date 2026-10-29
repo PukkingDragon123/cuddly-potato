@@ -3,13 +3,18 @@
 // online (live 1v1 over the claude.ai room: src/net/lobby.js + roomNet.js; ranked rewards).
 //
 // Controls (Clash Royale card cycle in a Battle Cats lane):
-//   * tap a troop card: it pops out of your base and marches (or drag it onto
-//     your half); the played card goes to the back of your deck and the NEXT
-//     one slides in. Spells: tap then tap the field, or drag. SPECIAL cards:
-//     tap to play (hand / draw tricks)
+//   * Clash Royale placement: tap a card to pick it up (tap it again to put it
+//     back), then tap the battlefield to drop it there - or drag the card onto
+//     the field (drag it back onto the hand to cancel). Troops land inside your
+//     deploy zone (sim.deployRange: your half, or up to your frontmost Swarm);
+//     a hologram ghost shows where (placement.js). Spells aim anywhere. A card
+//     dropped before you can afford it waits there and deploys the moment you
+//     have the POWER. The played card goes to the back of your deck and the NEXT
+//     one slides in. SPECIAL cards: tap to play (hand / draw tricks)
 //   * tap YOUR BASE to upgrade it, tap YOUR COMMANDER to unleash the MEGA
 //   * drag the battlefield to pan, pinch / mouse-wheel to zoom, tap the minimap to jump
-//   * keys: 1-6 hand cards, Space/Enter cast the selected spell, Q signature,
+//   * keys: 1-6 pick a card (press it again to drop it at the mouse / in front of
+//     your base), Space/Enter drop the picked card, Q signature,
 //     W/E skills, O upgrade base, M / R unleash the MEGA ultimate
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
@@ -21,6 +26,8 @@ import { BattleSim } from '../game/battle/sim.js';
 import { BattleAI } from '../game/battle/ai.js';
 import { BattleView } from '../game/battle/view.js';
 import { BattleHUD, EMOTES } from '../game/battle/hud.js';
+import { Placement } from '../game/battle/placement.js';
+import { FIELD } from '../game/battle/field.js';
 import { vsIntro } from '../game/battle/vsIntro.js';
 import { showResult, finalBlow } from '../game/battle/result.js';
 import { state, battleRewards, stat } from '../game/state.js';
@@ -33,6 +40,7 @@ import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
 import { lobby } from '../net/lobby.js';
 import { commanderCfg, playerSide, deckEntry } from '../game/battle/loadout.js';
+import { prewarmBattle } from '../game/battle/prewarm.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
 const JIMMY = () => ({ name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) });
@@ -160,11 +168,14 @@ export class BattleScene {
     });
     this.hud.mount($ui());
     this.hud.setVisible(false);
+    this.plc = new Placement(this.view, this.hud, 0);
     this.view.on((ev) => this.onSimEvent(ev));
     this.view.onBaseTap = () => this.tryOverclock();
     if (params.dev) window.__battle = this;
     this.bindInput();
     audio.music(mode === 'boss' ? 'boss' : 'battle');
+    await prewarmBattle(this); // deck models + shaders now (behind the loading screen), not on each card's first deploy
+    if (this.dead) return;
     this.intro();
   }
 
@@ -229,59 +240,141 @@ export class BattleScene {
     return this.sim.handCard(0, slot);
   }
 
+  /** Pick up a hand card (-1 puts it back). Troop cards light up the deploy zone. */
   select(slot) {
     if (slot === this.sel) return;
+    if (slot >= 0) this.cancelPending();
     this.sel = slot;
     this.hud.select(slot);
     const c = slot >= 0 ? this.card(slot) : null;
-    if (c && !c.spell) this.view.showDeployZone(this.sim.deployRange(0));
-    else this.view.showDeployZone(null);
-    if (!c) { this.view.setGhost(null); this.view.setAim(null); }
-    if (c) audio.play('cardPick', { pitch: 1 + slot * 0.05 });
+    this.plc.zone(c && !c.spell);
+    this.plc.ghost(null);
+    this.view.setAim(null);
+    this.hoverX = null;
+    if (!c) { this.aimPt = null; this.view.setEdgePan(0); return; }
+    audio.play('cardPick', { pitch: 1 + slot * 0.05 });
+    if (!c.spell) this.revealZone();
+    this.onTut && this.onTut('select', slot, c.id);
+  }
+
+  /** The zone's front line is off to the left of the screen: slide the camera so the zone shows. */
+  revealZone() {
+    const v = this.view;
+    const front = this.sim.deployRange(0)[1];
+    const sx = v.xToScreen(front, 0).x;
+    if (sx < engine.width * 0.22) v.focus(front - (v.halfW ?? 6) * 0.3, 2.5);
   }
 
   pressCard(slot, e) {
     if (!this.canAct() || !this.allowed('deploy' + slot)) return;
     const c = this.card(slot);
     if (!c) return;
-    const wasSel = this.sel === slot;
+    const d = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, over: false, x: null };
     // SPECIAL cards: a tap plays them (no aiming)
     if (c.special) {
       this.select(-1);
-      this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel: false, over: false, x: null, troopTap: true, special: true };
+      this.drag = { ...d, special: true };
       return;
     }
-    // troops: a tap sends them out of the base (Battle Cats style), a drag drops them on the field
-    if (!c.spell) {
-      this.select(-1);
-      this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel: false, over: false, x: null, troopTap: true };
+    // the card waiting for POWER: tapping it takes it back
+    if (this.pending?.slot === slot) {
+      this.cancelPending();
+      audio.play('click');
+      this.drag = { ...d, swallow: true };
       return;
     }
+    // Clash Royale: touching a card picks it up; tap the field or drag it there
+    const wasSel = this.sel === slot;
     this.select(slot);
-    this.drag = { slot, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, wasSel, over: false, x: null };
+    this.drag = { ...d, wasSel };
   }
 
-  /** Preview at a screen point for the selected card; returns the world x (or null). */
-  preview(cx, cy) {
+  /** Aim the picked card at a screen point: ghost / reticle + edge pan. Returns the world x (or null). */
+  aim(cx, cy, edge = true) {
     const c = this.card(this.sel);
     if (!c) return null;
+    this.aimPt = { x: cx, y: cy, edge };
     const over = this.hud.isOverField(cx, cy);
+    const w = engine.width, band = Math.max(30, w * 0.1);
+    this.view.setEdgePan(edge && over ? (cx < band ? -1 : cx > w - band ? 1 : 0) : 0);
     if (!over) {
-      this.view.setGhost(null);
+      this.plc.ghost(null);
       this.view.setAim(null);
-      this.view.setEdgePan(0);
       return null;
     }
-    let x = this.view.screenToX(cx, cy);
-    if (x === null) return null;
-    if (c.spell) this.view.setAim(c.unit, x);
-    else {
-      x = this.sim.clampDeploy(0, x);
-      this.view.setGhost(c.unit, x, true);
+    const raw = this.view.screenToX(cx, cy);
+    if (raw === null) return null;
+    if (c.spell) {
+      const x = Math.max(-FIELD.VIEW_X, Math.min(FIELD.VIEW_X, raw));
+      this.view.setAim(c.unit, x);
+      return x;
     }
-    const w = engine.width;
-    this.view.setEdgePan(cx < w * 0.08 ? -1 : cx > w * 0.92 ? 1 : 0);
+    // troops snap into the legal zone (the same clamp the sim applies)
+    const x = this.sim.clampDeploy(0, raw);
+    this.plc.ghost(c, x, { clamped: raw > x + 0.05 });
     return x;
+  }
+  stopAim() {
+    this.aimPt = null;
+    this.view.setEdgePan(0);
+  }
+  /** Where a card goes without a pointer (keyboard): in front of your base / the densest enemies. */
+  defaultX(c) {
+    if (!c.spell) return this.sim.clampDeploy(0, this.sim.sides[0].labX + FIELD.LAB_HALF + 1.2);
+    return this.sim.densestEnemyX(0)?.x ?? this.sim.sides[1].labX;
+  }
+
+  /**
+   * Drop the card at x. Not enough POWER yet: like Clash Royale the card waits on the field (ghost +
+   * meter) and deploys the moment you can afford it; tap it in the hand to take it back.
+   */
+  placeCard(slot, x) {
+    const c = this.card(slot);
+    if (!c || !this.canAct()) return false;
+    if (x === null || x === undefined) x = this.defaultX(c);
+    const cost = this.sim.cardCost(0, slot);
+    if (this.sim.sides[0].energy >= cost) return this.deploy(slot, x);
+    const tx = c.spell ? x : this.sim.clampDeploy(0, x);
+    this.select(-1);
+    this.pending = { slot, k: this.sim.sides[0].hand[slot], x: tx, cost, card: c };
+    this.hud.queued(slot);
+    if (c.spell) this.view.setAim(c.unit, tx);
+    else this.plc.ghost(c, tx, { pending: true, cost });
+    audio.play('cardPick', { pitch: 0.75 });
+    this.onTut && this.onTut('queued', slot, c.id);
+    return true;
+  }
+  cancelPending() {
+    const p = this.pending;
+    if (!p) return;
+    this.pending = null;
+    this.hud.queued(-1);
+    if (p.card.spell) this.view.setAim(null);
+    else this.plc.ghost(null);
+  }
+  /** Per frame: the queued card deploys once affordable; aiming follows the camera (edge pan, front line). */
+  tickPlacement(dt) {
+    const p = this.pending;
+    if (p) {
+      const s = this.sim.sides[0];
+      if (s.hand[p.slot] !== p.k || this.sim.over) this.cancelPending();
+      else if (this.canAct()) {
+        p.cost = this.sim.cardCost(0, p.slot);
+        if (s.energy >= p.cost) {
+          this.pending = null;
+          this.hud.queued(-1);
+          if (!this.deploy(p.slot, p.x)) this.plc.ghost(null);
+        } else if (!p.card.spell) this.plc.ghost(p.card, this.sim.clampDeploy(0, p.x), { pending: true, cost: p.cost });
+      }
+    }
+    const a = this.aimPt;
+    if (a && this.sel >= 0) {
+      const x = this.aim(a.x, a.y, a.edge);
+      if (this.drag?.moved) this.drag.x = x;
+      else if (this.fieldPtr?.aiming) this.fieldPtr.x = x;
+      else if (!a.edge) this.hoverX = x;
+    }
+    this.plc.update(dt, this.view.edge);
   }
 
   deploy(slot, x) {
@@ -300,10 +393,10 @@ export class BattleScene {
     this.hud.cardUsed(slot, c, x);
     audio.play('pop', { pitch: 1.1 });
     if (c.spell && !c.special) bigBanner((SPELLS[c.unit]?.name ?? c.unit).toUpperCase() + '!', '', { dur: 0.7, color: '#c99aff' });
-    this.select(-1);
-    this.view.setGhost(null);
+    if (this.sel === slot) this.select(-1);
+    this.plc.ghost(null);
     this.view.setAim(null);
-    this.view.setEdgePan(0);
+    this.stopAim();
     this.onTut && this.onTut('deploy', slot, c.id);
     return true;
   }
@@ -313,14 +406,10 @@ export class BattleScene {
 
   trySignature() {
     if (!this.canAct() || !this.allowed('sig')) return;
-    const s = this.sim.sides[0];
     if (this.sim.useSignature(0)) {
       audio.play('levelUp');
       this.onTut && this.onTut('sig');
-    } else {
-      audio.play('deny');
-      this.hud.hint(`${s.cmd?.name ?? 'Commander'} is charging...`);
-    }
+    } else audio.play('deny'); // the HUD's ULT callout says what charges it
   }
   trySkill(k) {
     if (!this.canAct() || this.lockInput) return;
@@ -354,6 +443,7 @@ export class BattleScene {
     if (!this.canAct() || !this.allowed('mega')) return;
     if (this.sim.canMega(0) && this.sim.useMega(0)) {
       this.select(-1);
+      this.cancelPending();
       this.hud.dragEnd();
       this.onTut && this.onTut('mega');
     } else this.hud.megaDeny();
@@ -381,12 +471,14 @@ export class BattleScene {
     else if (ev.type === 'megaStart') {
       if (ev.side === 0) this.megasUsed = (this.megasUsed ?? 0) + 1;
       this.select(-1);
+      this.cancelPending();
       this.hud.dragEnd();
       closeDialogue();
       this.hud.setCinematic(true);
     } else if (ev.type === 'sigStart') {
       // Commander ultimate cinematic: the HUD tucks away until the view's camera is back
       this.select(-1);
+      this.cancelPending();
       this.hud.dragEnd();
       this.hud.setCinematic(true);
       this.sigCine = true;
@@ -411,7 +503,7 @@ export class BattleScene {
     const m = modal({
       title: 'PAUSED', size: 'narrow', color: 'purple',
       body: h('div', { class: 'col center' },
-        h('div', { class: 't-sm c-muted center-t' }, 'Drag cards onto the battlefield, or tap a card then tap where to drop it. Double-tap a card to drop it at your Lab.'),
+        h('div', { class: 't-sm c-muted center-t' }, 'Tap a card, then tap the battlefield to drop it there - or drag it straight on. Troops land in your glowing zone; tap a card again to put it back.'),
         button('RESUME', () => m.close(), 'green lg'),
         button(sound(), (e) => {
           state.p.settings.muted = !state.p.settings.muted;
@@ -447,7 +539,7 @@ export class BattleScene {
       }
       if (!this.ready) return;
       this.fieldPtr = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, moved: false, aiming: this.sel >= 0 };
-      if (this.sel >= 0) this.fieldPtr.x = this.preview(e.clientX, e.clientY);
+      if (this.sel >= 0) this.fieldPtr.x = this.aim(e.clientX, e.clientY);
     };
     this.onMove = (e) => {
       const pt = this.pointers.get(e.pointerId);
@@ -462,29 +554,28 @@ export class BattleScene {
       // dragging a card from the hand
       const d = this.drag;
       if (d && e.pointerId === d.id) {
-        if (d.special) return;
+        if (d.special || d.swallow || this.sel !== d.slot) return;
         if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > TAP_MOVE) {
           d.moved = true;
-          if (d.troopTap) this.select(d.slot);
           this.hud.dragStart(d.slot);
         }
         if (d.moved) {
           d.over = this.hud.isOverField(e.clientX, e.clientY);
           this.hud.dragMove(e.clientX, e.clientY, d.over);
-          d.x = this.preview(e.clientX, e.clientY);
+          d.x = this.aim(e.clientX, e.clientY);
         }
         return;
       }
       const f = this.fieldPtr;
       if (f && e.pointerId === f.id) {
         if (Math.hypot(e.clientX - f.sx, e.clientY - f.sy) > TAP_MOVE) f.moved = true;
-        if (f.aiming && this.sel >= 0) f.x = this.preview(e.clientX, e.clientY);
+        if (f.aiming && this.sel >= 0) f.x = this.aim(e.clientX, e.clientY);
         else if (f.moved) this.view.pan(e.clientX - f.lx);
         f.lx = e.clientX;
         return;
       }
-      // desktop hover preview for a selected card
-      if (e.pointerType === 'mouse' && this.sel >= 0 && !e.buttons) this.preview(e.clientX, e.clientY);
+      // desktop hover preview for a picked card
+      if (e.pointerType === 'mouse' && this.sel >= 0 && !e.buttons) this.hoverX = this.aim(e.clientX, e.clientY, false);
     };
     this.onUp = (e) => {
       this.pointers.delete(e.pointerId);
@@ -493,28 +584,31 @@ export class BattleScene {
       if (d && e.pointerId === d.id) {
         this.drag = null;
         this.hud.dragEnd();
-        this.view.setEdgePan(0);
+        this.stopAim();
+        if (d.swallow) return;
+        if (d.special) { if (e.type === 'pointerup') this.deploy(d.slot, null); return; }
+        if (this.sel !== d.slot) return;
         if (d.moved) {
-          if (d.over && d.x !== null && d.x !== undefined) this.deploy(d.slot, d.x);
-          else { this.view.setGhost(null); this.view.setAim(null); }
-          if (d.troopTap) this.select(-1);
-        } else if (d.troopTap) this.deploy(d.slot, null);
-        else if (d.wasSel) this.select(-1);
+          // dropped on the field: place it there; dragged back onto the hand: put it back
+          if (d.over && d.x !== null && d.x !== undefined && e.type === 'pointerup') this.placeCard(d.slot, d.x);
+          else this.select(-1);
+        } else if (d.wasSel) this.select(-1); // tapping the picked card again puts it back
         return;
       }
       const f = this.fieldPtr;
       if (f && e.pointerId === f.id) {
         this.fieldPtr = null;
-        this.view.setEdgePan(0);
+        this.stopAim();
         // a plain tap on your own Commander / base
         if (this.sel < 0 && !f.moved && this.canAct()) {
           const hit = this.view.hitTest(e.clientX, e.clientY);
           if (hit === 'commander') { this.tapCommander(); return; }
           if (hit === 'base') { this.tryOverclock(); return; }
         }
-        if (this.sel >= 0 && (f.aiming || !f.moved)) {
-          const x = f.x ?? this.preview(e.clientX, e.clientY);
-          if (x !== null && x !== undefined && this.hud.isOverField(e.clientX, e.clientY)) this.deploy(this.sel, x);
+        if (this.sel >= 0 && f.aiming && e.type === 'pointerup') {
+          const x = f.x ?? this.aim(e.clientX, e.clientY, false);
+          this.stopAim();
+          if (x !== null && x !== undefined && this.hud.isOverField(e.clientX, e.clientY)) this.placeCard(this.sel, x);
         }
       }
     };
@@ -528,18 +622,20 @@ export class BattleScene {
       if (k >= '1' && k <= '6') {
         const slot = +k - 1;
         const c = this.card(slot);
-        if (!c || !this.allowed('deploy' + slot)) return;
-        if (c.spell && !c.special) this.select(this.sel === slot ? -1 : slot);
-        else this.deploy(slot, null);
+        if (!c || !this.allowed('deploy' + slot) || !this.canAct()) return;
+        if (c.special) this.deploy(slot, null);
+        else if (this.pending?.slot === slot) this.cancelPending();
+        else if (this.sel === slot) this.placeCard(slot, this.hoverX);
+        else this.select(slot);
       } else if ((k === ' ' || k === 'enter') && this.sel >= 0) {
         e.preventDefault();
-        this.deploy(this.sel, null);
+        this.placeCard(this.sel, this.hoverX);
       } else if (k === 'q') this.trySignature();
       else if (k === 'w') this.trySkill(0);
       else if (k === 'e') this.trySkill(1);
       else if (k === 'o') this.tryOverclock();
       else if (k === 'm' || k === 'r') this.tryMega();
-      else if (k === 'escape') { if (this.sel >= 0) this.select(-1); else this.pauseMenu(); }
+      else if (k === 'escape') { if (this.sel >= 0) this.select(-1); else if (this.pending) this.cancelPending(); else this.pauseMenu(); }
       else if (k === 'arrowleft' || k === 'a') this.view.pan(engine.width * 0.15);
       else if (k === 'arrowright' || k === 'd') this.view.pan(-engine.width * 0.15);
     };
@@ -561,6 +657,7 @@ export class BattleScene {
     window.removeEventListener('pointercancel', this.onUp);
     c.removeEventListener('wheel', this.onWheel);
     window.removeEventListener('keydown', this.onKey);
+    this.plc?.dispose();
     this.hud?.dispose();
     this.view?.dispose();
     this.tutCleanup && this.tutCleanup();
@@ -601,12 +698,14 @@ export class BattleScene {
   update(dt, gdt) {
     if (!this.sim || !this.view?.loaded) return;
     if (this.ai && !this.sim.paused) this.ai.update(gdt);
-    this.sim.update(gdt);
+    // a Commander ULTIMATE cutscene freezes the world (engine.timeScale 0) while its sim-time clock runs on real time
+    this.sim.update(this.sim.cinematicKind === 'sig' && this.sim.cinematic > 0 ? dt : gdt);
     this.hostSync && this.hostSync.update(dt);
     // online: both pages are past loading once the clock runs - back to normal disconnect detection
     if (this.mode === 'online' && !this.netLive && this.sim.t > 0.5 && this.peer) { this.netLive = true; this.peer.silentMax = this.peer.baseSilent ?? 15000; }
     this.view.update(dt, this.sim.paused && !this.sim.over ? 0 : gdt);
     if (this.sigCine && !this.view.cine) { this.sigCine = false; this.hud.setCinematic(false); }
+    if (this.plc) this.tickPlacement(dt);
     this.hud.update(dt);
     this.tutTick && this.tutTick(dt);
     if (this.sim.over && !this.ended) this.finish();
@@ -619,9 +718,9 @@ export class BattleScene {
     const sim = this.sim;
     const J = JIMMY();
     const ch = this.view.cmds[1];
-    let remove = null;
+    let remove = null, teachIv = 0;
     const clearPtr = () => { if (remove) { remove(); remove = null; } };
-    this.tutCleanup = clearPtr;
+    this.tutCleanup = () => { clearInterval(teachIv); clearPtr(); };
     const waitFor = (fn) => new Promise((res) => {
       const prev = this.tutTick;
       this.tutTick = (dt) => {
@@ -646,28 +745,56 @@ export class BattleScene {
       }));
     };
     const slotOf = (id) => sim.sides[0].hand.findIndex((k) => sim.sides[0].deck[k].id === id);
+    // teach Clash Royale placement: the hand points at the card until it's picked up, then at the
+    // spot on the field to drop it (back to the card if it's put down again); resolves on the deploy
+    const teach = async (id, cardTip, fieldTip, spotX) => {
+      let mode = '', spot = 0;
+      const tick = () => {
+        if (this.dead) return;
+        const slot = slotOf(id);
+        const want = this.pending ? 'wait' : slot >= 0 && this.sel === slot ? 'field' : 'card';
+        if (want === mode) return;
+        mode = want;
+        clearPtr();
+        if (want === 'card') remove = pointAt(() => this.hud.slotEl(slotOf(id)), cardTip);
+        else if (want === 'field') {
+          spot = spotX();
+          if (Math.abs(spot - this.view.camX) > (this.view.halfW ?? 6) * 0.7) this.view.focus(spot, 3);
+          remove = pointAt(() => { const q = this.view.xToScreen(spot, 0.35); return { x: q.x, y: q.y }; }, fieldTip);
+        }
+      };
+      tick();
+      teachIv = setInterval(tick, 100);
+      const r = await until('deploy');
+      clearInterval(teachIv);
+      clearPtr();
+      return r;
+    };
+    // a drop spot inside your zone that is on screen right now (or just behind your front troop)
+    const zoneSpot = (behind = null) => {
+      const [a, b] = sim.deployRange(0);
+      const want = behind ?? this.view.camX + (this.view.halfW ?? 6) * 0.25;
+      return Math.max(a + 1.2, Math.min(b - 0.6, want));
+    };
     if (ch) ch.expr('happy', 'grin', 3);
     await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Lab* (a folding table under a tarp). Mine's on the RIGHT. *Smash my base to win!*");
-    // 1) tap a unit button: it pops out of the base
+    // 1) pick a card up, then drop it on the field
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
-    await talk('These are your *cards*. *Tap* a troop card and that Swarm pops out of your base and marches into battle *on its own*. Send a *Panther*!');
+    await talk('These are your *cards*. *Tap* a card to pick it up, then *tap the glowing floor* to drop that Swarm right there. Send a *Panther*!');
     this.lockInput = 'deploy';
-    remove = pointAt(() => this.hud.slotEl(Math.max(0, slotOf('panther'))), 'Tap!');
-    await until('deploy');
-    clearPtr();
+    await teach('panther', 'Tap!', 'Drop here!', () => zoneSpot());
     this.lockInput = null;
     await wait(1.8);
-    // 2) power + the card cycle
+    // 2) power + the card cycle + the deploy zone
     await talk('Cards cost *POWER* (the yellow bar) - it fills up fast! A *new card* slides in after each play. Your deck *cycles* forever!');
+    await talk("You can only drop troops in *your zone*. The *hazard tape* is the line - and it moves up with your *front Swarm*! Short on POWER? Drop it anyway: it *waits there* until you can pay.");
     // 3) the ranged unit
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
     const tslot = slotOf('cloggedToilet');
     if (tslot >= 0) {
-      await talk('Now send your *Clogged Toilet*: it shoots from behind your Panther. Tanks in front, shooters behind!');
+      await talk('Now your *Clogged Toilet*: it shoots from behind, so drop it *behind your Panther*. Tanks in front, shooters behind! Tip: you can also *drag* a card straight onto the field.');
       this.lockInput = 'deploy';
-      remove = pointAt(() => this.hud.slotEl(tslot), 'Tap!');
-      await until('deploy');
-      clearPtr();
+      await teach('cloggedToilet', 'Tap!', 'Behind!', () => zoneSpot(sim.frontAllyX(0) - 2.2));
       this.lockInput = null;
     }
     // 4) defend
@@ -683,9 +810,7 @@ export class BattleScene {
       await talk('Your Swarms are getting HANGRY! *Food Throw* heals them and makes them *BIGGER*. Tap it, then tap your troops!');
       this.noPush = false;
       this.lockInput = 'deploy' + fslot;
-      remove = pointAt(() => this.hud.slotEl(slotOf('foodThrow')), 'Spell!');
-      await until('deploy');
-      clearPtr();
+      await teach('foodThrow', 'Spell!', 'Tap here!', () => sim.frontAllyX(0));
       this.lockInput = null;
     }
     // 6) tap the base to upgrade it
@@ -708,13 +833,15 @@ export class BattleScene {
     await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
     if (!sim.over) {
       sim.sides[0].sig = 1;
-      await talk('Your *Commander* ability is charged! Tap the glowing *ULT* button for *Acid Rain Barrage*!');
+      await talk(`Your *ULTIMATE* is charged! It fills up from the *POWER* you make and from *damage to your base*. Tap the glowing *ULT* button for *${sim.sides[0].cmd?.signature?.name ?? 'your ULTIMATE'}*!`);
       this.lockInput = 'sig';
       remove = pointAt(this.hud.sig, 'Unleash!');
       await until('sig');
       clearPtr();
       this.lockInput = null;
-      await wait(3.2);
+      // let the full ULTIMATE cutscene play out first
+      await waitFor(() => !sim.cinematic && !this.view.cine);
+      await wait(1.6);
       await talk("Nice! Now smash my base!");
     }
     // the finish: no MEGA yet (those are earned on the Trophy Road)
@@ -771,6 +898,7 @@ export class BattleScene {
     const res = sim.draw ? 'draw' : sim.winner === 0 ? 'win' : 'loss';
     const win = res === 'win';
     this.select(-1);
+    this.cancelPending();
     this.hud.dragEnd();
     closeDialogue();
     this.tutCleanup && this.tutCleanup();

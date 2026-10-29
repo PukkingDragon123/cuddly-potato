@@ -32,6 +32,66 @@
 .cfb.tv .cfb-stamp { animation: cfbStampOut 0.2s steps(3) both; }
 @keyframes cfbStampOut { from { opacity: 1; } to { opacity: 0; scale: 1 0.1; } }
 
+
+/* ---------------- result root */
+.cres { position: absolute; inset: 0; z-index: 50; overflow: hidden; pointer-events: auto; --gold: #ffd84a; --news: #e0263f; --news-d: #8a0f22; }
+
+/* ---------------- 1. verdict */
+.cres-verdict { position: absolute; inset: 0; z-index: 1; }
+.cv-bg { position: absolute; inset: 0; animation: fadeIn 0.3s both; }
+.r-win .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #ffcf4a 0%, #ff8a2a 18%, #7a1e8a 48%, #1a0a3a 78%, #07041a 100%); }
+.r-loss .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #4a5a8a 0%, #2a2a5a 30%, #120f30 70%, #050412 100%); }
+.r-draw .cv-bg { background: radial-gradient(ellipse 80% 60% at 50% 66%, #b07aff 0%, #5a3aa8 30%, #1a1040 75%, #07041a 100%); }
+.cv-rays.px-rays { top: 66%; --rs: 130vmax; --ro: 0.4; }
+.r-loss .cv-rays.px-rays { --ro: 0.12; }
+.cv-spots { position: absolute; inset: 0; pointer-events: none; }
+.cv-spots::before, .cv-spots::after {
+  content: ''; position: absolute; top: -10%; width: 34%; height: 130%; transform-origin: 50% 0;
+  background: linear-gradient(rgba(255, 250, 220, 0.42), rgba(255, 250, 220, 0.0) 85%); clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  mix-blend-mode: screen;
+}
+.cv-spots::before { left: 4%; animation: cvSpot 3.2s ease-in-out infinite alternate; }
+.cv-spots::after { right: 4%; animation: cvSpot 2.7s ease-in-out infinite alternate-reverse; }
+@keyframes cvSpot { from { rotate: -22deg; } to { rotate: 14deg; } }
+.cv-rain {
+  position: absolute; inset: -20% 0 0; pointer-events: none; opacity: 0.55;
+  background: repeating-linear-gradient(100deg, transparent 0 22px, rgba(160, 190, 255, 0.35) 22px 23px, transparent 23px 41px);
+  -webkit-mask-image: repeating-linear-gradient(transparent 0 18px, #000 18px 46px); mask-image: repeating-linear-gradient(transparent 0 18px, #000 18px 46px);
+  animation: cvRain 0.45s linear infinite;
+}
+@keyframes cvRain { to { transform: translateY(64px); } }
+.cres-stage { position: absolute; inset: 0; pointer-events: none; }
+.cres-stage > canvas, .cn-cam > canvas { position: absolute; inset: 0; display: block; image-rendering: auto; }
+.cv-head {
+  position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + 9vh); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1);
+  pointer-events: none;
+}
+.landscape .cv-head { top: calc(var(--safe-t) + 8vh); }
+.cv-crown { width: clamp(44px, 11vmin, 76px); height: auto; animation: cvCrown 0.5s cubic-bezier(.2, 1.8, .4, 1) 0.55s both, cvBob 1.4s ease-in-out 1.1s infinite; filter: drop-shadow(0 0 10px rgba(255, 216, 74, 0.8)); }
+.r-loss .cv-crown { filter: drop-shadow(0 0 10px rgba(120, 140, 255, 0.6)); }
+@keyframes cvCrown { 0% { opacity: 0; transform: translateY(-40px) scale(0.3) rotate(-20deg); } 100% { opacity: 1; transform: none; } }
+@keyframes cvBob { 50% { translate: 0 -5px; } }
+.cv-title { display: flex; font-family: var(--font-d); font-size: clamp(60px, 17vmin, 132px); line-height: 0.86; letter-spacing: 0.01em; }
+.landscape .cv-title { font-size: clamp(56px, 19vh, 120px); }
+.cv-title span {
+  display: inline-block; animation: cvLetter 0.42s cubic-bezier(.2, 1.9, .35, 1) both; animation-delay: calc(var(--i) * 60ms + 80ms);
+  background: linear-gradient(#fffbe8 0 26%, #ffd84a 26% 58%, #ff9a1a 58%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(calc(var(--px) * 1.3) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.3) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3.5) 0 #4a1400) drop-shadow(0 0 calc(var(--px) * 7) rgba(255, 210, 80, 0.7));
+}
+.r-loss .cv-title span { background: linear-gradient(#ffffff 0 26%, #ff8a9a 26% 58%, #c8102e 58%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(calc(var(--px) * 1.3) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.3) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.3) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3.5) 0 #2a0010); }
+.r-draw .cv-title span { background: linear-gradient(#ffffff 0 26%, #d8c0ff 26% 58%, #8a5aff 58%); -webkit-background-clip: text; background-clip: text; }
+@keyframes cvLetter { 0% { opacity: 0; transform: translateY(-1.2em) scale(2.2); } 55% { opacity: 1; transform: translateY(0.06em) scale(0.9, 1.1); } 100% { opacity: 1; transform: none; } }
+.cv-sub {
+  margin-top: calc(var(--u) * 0.8); padding: 0 0.7em; font-family: var(--font-d); font-size: clamp(18px, 1.5em, 30px); letter-spacing: 0.12em; color: #fff; text-shadow: var(--outline-thin);
+  max-width: 92vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  animation: cvSub 0.4s cubic-bezier(.2, 1.6, .4, 1) 0.7s both;
+}
+@keyframes cvSub { 0% { opacity: 0; transform: scaleX(0.1); } 100% { opacity: 1; transform: none; } }
+.cv-bar { position: absolute; left: 0; right: 0; height: calc(5.5vh + 4px); background: #030109; display: flex; align-items: center; justify-content: flex-end; z-index: 2; }
+.cv-bar.t { top: 0; animation: cBarT 0.35s cubic-bezier(.2, 1, .3, 1) both; }
+.cv-bar.b { bottom: 0; animation: cBarB 0.35s cubic-bezier(.2, 1, .3, 1) both; }
+.cv-skip { margin-right: calc(var(--safe-r) + var(--u) * 3); font-family: var(--font-d); font-size: clamp(12px, 0.85em, 16px); letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.6); animation: fadeIn 0.3s 1.5s both, nextBob 1.2s steps(2) 1.8s infinite; }
+.cv-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; animation: cvFlash 0.45s ease-out both; z-index: 3; }
 .r-loss .cv-flash { background: #000; }
 @keyframes cvFlash { from { opacity: 0.9; } to { opacity: 0; } }
 

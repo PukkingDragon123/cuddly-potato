@@ -1,0 +1,75 @@
+/* Card placement: out-of-bounds veil, hazard-tape fence, waiting-for-POWER marker, edge-pan arrows
+   (placement.js). The layer is the HUD's first child, so every HUD panel paints over it. */
+.pl-layer { position: absolute; left: 0; top: 0; right: 0; height: var(--pl-h, 100%); pointer-events: none; overflow: hidden; z-index: 0; }
+.pl-veil, .pl-fence { display: none; }
+.pl-layer.on .pl-veil, .pl-layer.on .pl-fence { display: block; }
+
+/* everything past the front line: darkened red, ordered dither, stepped glow off the fence */
+.pl-veil {
+  position: absolute; top: 0; bottom: 0; left: var(--pl-x, 100%); right: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 40, 84, 0.34) 0 calc(var(--px) * 4), rgba(255, 40, 84, 0.2) calc(var(--px) * 4) calc(var(--px) * 9), rgba(255, 40, 84, 0.1) calc(var(--px) * 9) calc(var(--px) * 15), transparent calc(var(--px) * 15)),
+    var(--pl-dith) 0 0 / calc(var(--px) * 4) calc(var(--px) * 4),
+    rgba(36, 0, 18, 0.3);
+  image-rendering: pixelated;
+  animation: plVeilIn 0.16s steps(3) both;
+}
+.pl-layer.flip .pl-veil { left: 0; right: calc(100% - var(--pl-x, 0px)); transform: scaleX(-1); }
+@keyframes plVeilIn { from { opacity: 0; } }
+/* a column of chevrons pointing back into the zone, marching towards it */
+.pl-chev {
+  position: absolute; top: 0; bottom: 0; left: calc(var(--px) * 7); width: calc(var(--px) * 7);
+  background: var(--pl-chev) 0 0 / calc(var(--px) * 7) calc(var(--px) * 9) repeat-y; image-rendering: pixelated; opacity: 0.9;
+  animation: plChev 0.9s steps(9) infinite;
+}
+@keyframes plChev { to { background-position: 0 calc(var(--px) * 9); } }
+
+/* the front line: scrolling pixel hazard tape with an ink outline */
+.pl-fence {
+  position: absolute; top: 0; bottom: 0; left: var(--pl-x, 100%); width: calc(var(--px) * 3); translate: -50% 0;
+  background: var(--pl-tape) 0 0 / calc(var(--px) * 3) calc(var(--px) * 4) repeat-y; image-rendering: pixelated;
+  box-shadow: calc(var(--px) * -1) 0 0 #120c24, var(--px) 0 0 #120c24, 0 0 calc(var(--px) * 4) rgba(255, 210, 58, 0.45);
+  animation: plTape 0.5s steps(8) infinite;
+}
+@keyframes plTape { to { background-position: 0 calc(var(--px) * 8); } }
+/* finger past the line: the ghost snaps back, the fence flashes */
+.pl-fence.hot { box-shadow: calc(var(--px) * -1) 0 0 #120c24, var(--px) 0 0 #120c24, 0 0 calc(var(--px) * 6) rgba(255, 60, 90, 0.9); animation: plTape 0.5s steps(8) infinite, plHot 0.24s steps(2) infinite; }
+@keyframes plHot { 50% { filter: brightness(1.6); } }
+
+/* drop pin bobbing over the ghost formation */
+.pl-pin { position: absolute; left: 0; top: 0; width: calc(var(--px) * 11); height: calc(var(--px) * 11); display: none; margin: calc(var(--px) * -11) 0 0 calc(var(--px) * -5.5);
+  background: var(--pl-pin) 0 0 / 100% 100%; image-rendering: pixelated; filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(92, 208, 255, 0.7)); }
+.pl-pin.on { display: block; animation: plPin 0.5s steps(2) infinite; }
+@keyframes plPin { 50% { translate: 0 calc(var(--px) * -2); } }
+
+/* waiting for POWER: a pixel meter over the queued ghost */
+.pl-wait {
+  position: absolute; left: 0; top: 0; display: none; align-items: center; gap: calc(var(--px) * 1.5);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 2.5); translate: -50% -100%;
+  background: #1c1440; box-shadow: 0 0 0 var(--px) #ffd23a, 0 0 0 calc(var(--px) * 2) #120c24, 0 calc(var(--px) * 2.5) 0 calc(var(--px) * 1) rgba(0, 0, 0, 0.35);
+}
+.pl-wait.on { display: flex; animation: plWaitBob 0.7s steps(2) infinite; }
+@keyframes plWaitBob { 50% { margin-top: calc(var(--px) * -1); } }
+.pl-wait img { width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); image-rendering: pixelated; }
+.pl-wbar { position: relative; display: block; width: calc(var(--u) * 9); height: calc(var(--px) * 3); background: #0a0620; box-shadow: 0 0 0 var(--px) #3a2c6a; }
+.pl-wbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(#fff3a0 0 34%, #ffd23a 34% 70%, #e09a12 70%); }
+.pl-wait b { font-family: var(--font-num, inherit); color: #ffe56a; font-size: calc(var(--u) * 2.8); line-height: 1; text-shadow: var(--px) var(--px) 0 #120c24; }
+
+/* edge pan: pixel arrows while the camera slides */
+.pl-edge {
+  position: absolute; top: 46%; width: calc(var(--px) * 8); height: calc(var(--px) * 11); display: none;
+  background: var(--pl-arrow) 0 0 / 100% 100%; image-rendering: pixelated; filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(127, 210, 255, 0.8));
+}
+.pl-edge.on { display: block; animation: plEdge 0.4s steps(2) infinite; }
+.pl-edge.r { right: calc(var(--px) * 3); }
+.pl-edge.l { left: calc(var(--px) * 3); transform: scaleX(-1); }
+@keyframes plEdge { 50% { translate: calc(var(--px) * 2) 0; } }
+.pl-edge.l.on { animation-name: plEdgeL; }
+@keyframes plEdgeL { 50% { translate: calc(var(--px) * -2) 0; } }
+
+/* the hand: the dragged card never tilts (no rotated text), a queued card waits raised with an amber frame */
+.bh-drag .dg-card { rotate: none; translate: calc(-50% + var(--sway, 0px)) -78%; }
+.bh-slot.queued { transform: translateY(calc(var(--u) * -2)); z-index: 2; }
+.bh-slot.queued .cf { box-shadow: 0 0 0 var(--px) var(--ink, #120c24), 0 0 0 calc(var(--px) * 2.4) #ffd23a, 0 0 calc(var(--u) * 2.4) rgba(255, 210, 58, 0.7); animation: selPulse 0.5s steps(2) infinite; }
+body.landscape .bh-slot.sel { transform: translateY(calc(var(--u) * -0.6)) scale(1.04); }
+body.landscape .bh-slot.queued { transform: translateY(calc(var(--u) * -0.6)); }

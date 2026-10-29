@@ -11,7 +11,7 @@ import { SWARMS } from './swarms.js';
 export const MEGAS = {
   panthar: {
     name: 'Panthar', color: '#2b8cf2', bolt: '#ff2e88', unlock: 'Trophy Road: 300 trophies',
-    desc: 'The Lab Panther grown into a 9-inch armoured MEGA-TECH beast. Pounces onto the biggest crowd.',
+    desc: 'The Lab Panther grown into a 9-inch armored MEGA-TECH beast. Pounces onto the biggest crowd.',
     special: { id: 'pounce', name: 'Thunder Pounce', every: 4.5, radius: 3, dmg: 520, stun: 1.2 },
     hp: 5600, dmg: 280, atk: 1.1, range: 1.6, speed: 1.0, size: 3.4,
   },
@@ -23,7 +23,7 @@ export const MEGAS = {
   },
   necroClaw: {
     name: 'NecroClaw', color: '#7cff3a', bolt: '#b05cff', unlock: 'Trophy Road: 2,300 trophies',
-    desc: 'Bone armour, toxic glow and claws like shovels. Every slam drains life from its victims.',
+    desc: 'Bone armor, toxic glow and claws like shovels. Every slam drains life from its victims.',
     special: { id: 'drain', name: 'Soul Harvest Slam', every: 4.5, radius: 3.2, dmg: 420, heal: 0.6 },
     hp: 6400, dmg: 300, atk: 1.25, range: 1.8, speed: 0.85, size: 3.5,
   },

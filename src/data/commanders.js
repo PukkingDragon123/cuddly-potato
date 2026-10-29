@@ -1,4 +1,7 @@
-// Commanders sit on top of your Lab. Each has a charged signature ability,
+// Commanders sit on top of your Lab. Each has an ULTIMATE (`signature`): a
+// game-changing ability charged ONLY by the POWER your side generates and the
+// damage your base takes (`charge` = POWER worth of a full meter, see
+// BattleSim.addSigCharge), played as a full cinematic (sigCutscene.js); plus
 // unique skills unlocked by level, and rollable perk slots.
 
 export const COMMANDERS = {
@@ -6,9 +9,9 @@ export const COMMANDERS = {
     name: 'Lab Recruit', char: 'recruit', season: 0,
     desc: 'You! Fresh out of Beast Lab training and ready to experiment.',
     signature: {
-      id: 'beakerBarrage', name: 'Acid Rain Barrage', charge: 26, icon: 'flask',
-      desc: 'Hurls 5 bubbling beakers at the front line. Each splashes acid for area damage.',
-      dmg: 210, count: 5, radius: 1.6,
+      id: 'mutantUprising', name: 'Mutant Uprising', tagline: 'YOUR WHOLE ARMY MUTATES', charge: 72, icon: 'flask', color: '#7cff3a',
+      desc: 'Smashes a vat of MEGA serum over your side: every troop you have mutates into a GIANT for 14s (full heal, double HP, +40% damage and +30% speed) and 3 free mutant squads of your strongest troops burst out of your base.',
+      dur: 14, hp: 1, scale: 1.5, spawn: 3,
     },
     skills: [
       { id: 'labRally', level: 3, name: 'Overclock Surge', cd: 22, icon: 'speed', desc: 'Your troops gain +30% speed and attack speed for 6s.', amt: 0.3, dur: 6 },
@@ -20,9 +23,9 @@ export const COMMANDERS = {
     name: 'Jimmy', char: 'jimmy', season: 0,
     desc: 'The Beast himself. Defeat him in his Mansion rematch to recruit him.',
     signature: {
-      id: 'megaGiveaway', name: 'Million Dollar Storm', charge: 32, icon: 'bag',
-      desc: 'Cash rains over the whole battlefield! Enemies get distracted (stunned 1.6s), take damage, and you gain +3 energy.',
-      dmg: 260, stun: 1.6, energy: 3,
+      id: 'beastBuyout', name: 'Beast Buyout', tagline: 'THE RIVAL ARMY IS FOR SALE', charge: 84, icon: 'bag', color: '#ffd84a',
+      desc: "Jimmy buys the battlefield: the 3 strongest enemy troops switch to YOUR side, fully healed (not enough to buy? he hires the rest from the rival's deck). Every other enemy is stunned 3s in a cash storm and takes damage, and you get +6 POWER.",
+      buy: 3, dmg: 240, stun: 3, energy: 6,
     },
     skills: [
       { id: 'lastToLeave', level: 3, name: 'Unbreakable Circle', cd: 35, icon: 'shield', desc: 'For 4s your troops cannot drop below 1 HP.', dur: 4 },
@@ -34,9 +37,9 @@ export const COMMANDERS = {
     name: 'Nolan', char: 'nolan', season: 0,
     desc: 'Always the fall guy. Somehow that works in your favour.',
     signature: {
-      id: 'bellyFlop', name: 'Seismic Belly Flop', charge: 28, icon: 'energy',
-      desc: 'Nolan cannonballs off the Lab onto the front line: shockwave damage + 2s stun.',
-      dmg: 560, stun: 2, radius: 2.4,
+      id: 'orbitalFlop', name: 'Orbital Belly Flop', tagline: 'INCOMING FROM ORBIT', charge: 76, icon: 'energy', color: '#3fb8ff',
+      desc: 'Nolan rides a soda rocket into orbit and belly-flops back down like a meteor on the biggest enemy crowd: 1200 damage in a huge blast (2.5s stun, half damage to a base in range), a quake that hits every other enemy for 320 (1.5s stun) and cracks the rival base for 350, and a burning crater that slows enemies 55% for 10s.',
+      dmg: 1200, radius: 4.2, stun: 2.5, quake: 320, crater: 10, slow: 0.55, burn: 70, building: 0.5, quakeStun: 1.5, baseDmg: 350,
     },
     skills: [
       { id: 'complain', level: 3, name: 'Rage Shout', cd: 24, icon: 'quest', desc: 'Enemies near the front are annoyed: -45% speed for 5s.', slow: 0.45, dur: 5 },
@@ -46,11 +49,11 @@ export const COMMANDERS = {
   },
   juan: {
     name: 'Juan', char: 'juan', season: 1,
-    desc: 'FOOD SEASON Commander. Brings the truck, the ball and the party.',
+    desc: 'FOOD SEASON Commander. Brings the whistle, the ball and the party.',
     signature: {
-      id: 'juansTruck', name: 'Monster Truck Rampage', charge: 30, icon: 'truck',
-      desc: "Juan's truck rampages across the battlefield, damaging and knocking back everything it hits, then crashes into the enemy Lab.",
-      dmg: 460, labDmg: 420,
+      id: 'tiempoMuerto', name: 'Tiempo Muerto', tagline: 'TIME STOPS FOR THE RIVAL', charge: 80, icon: 'clock', color: '#ff8a2a',
+      desc: 'Juan blows the final whistle and time STOPS for the rival for 7s: every enemy troop (even new ones) and their base freeze in amber and their POWER stops, while YOU charge POWER twice as fast and your army runs 25% faster. When time restarts, every frozen enemy shatters for 40% of its max HP and the rival base cracks for 10%.',
+      dur: 7, shatter: 0.4, baseShatter: 0.1,
     },
     skills: [
       { id: 'footballKick', level: 3, name: 'Meteor Kick', cd: 20, icon: 'ball', desc: 'Juan kicks a ball straight through ALL enemies in a line for heavy damage.', dmg: 620 },
@@ -84,7 +87,7 @@ export const PERKS = {
   energySurge: { name: 'Energy Surge', desc: '+{v}% energy regen', range: [5, 18], icon: 'energy' },
   thickWalls: { name: 'Thick Walls', desc: '+{v}% Lab HP', range: [8, 28], icon: 'shield' },
   quickHands: { name: 'Turret Boost', desc: 'Guard turret deals +{v}% damage', range: [6, 20], icon: 'tower' },
-  hypeMan: { name: 'Hype Man', desc: 'Signature charges {v}% faster', range: [10, 32], icon: 'star' },
+  hypeMan: { name: 'Hype Man', desc: 'Ultimate charges {v}% faster', range: [10, 32], icon: 'star' },
   bargain: { name: 'Bargain Hunter', desc: '{v}% chance a deploy refunds 1 energy', range: [5, 20], icon: 'energy' },
   armorUp: { name: 'Lab Coat Armor', desc: 'Troops take {v}% less damage', range: [3, 11], icon: 'shield' },
   sharpTeeth: { name: 'Sharp Teeth', desc: 'Troops deal +{v}% damage', range: [4, 13], icon: 'sword' },

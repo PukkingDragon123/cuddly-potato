@@ -11,6 +11,7 @@ import { Chibi, CHIBI_HEIGHT } from '../../core/chibi.js';
 import { CHARACTERS } from '../../data/characters.js';
 import { h } from '../../ui/ui.js';
 
+const _sz = new THREE.Vector2();
 const CHARGED_POSES = ['fistPump', 'flex', 'thumbsUp', 'salute'];
 const READY_POSES = ['flex', 'fistPump', 'taunt', 'celebrate'];
 
@@ -131,9 +132,15 @@ export class LiveChibi {
     const r = engine.thumbRenderer ?? (engine.renderThumb(new THREE.Group(), { size: 4 }), engine.thumbRenderer);
     if (!r) return;
     const S = this.size;
-    r.setPixelRatio(1);
-    const sz = r.getSize(new THREE.Vector2());
-    if (sz.x !== S || sz.y !== S) r.setSize(S, S, false);
+    // share the thumbnail canvas WITHOUT resizing it every frame (a resize reallocates the
+    // drawing buffer and stalls on the GPU): draw into its bottom-left S x S corner
+    if (r.getPixelRatio() !== 1) r.setPixelRatio(1);
+    const sz = r.getSize(_sz);
+    if (Math.min(sz.x, sz.y) < S * 0.75) { r.setSize(Math.max(S, sz.x), Math.max(S, sz.y), false); r.getSize(sz); }
+    // while card thumbnails (128 wide) are being made, draw a little smaller and scale up
+    // rather than resizing the shared canvas back and forth every frame
+    const R = Math.min(S, sz.x, sz.y);
+    r.setViewport(0, 0, R, R);
     r.setClearColor(0x000000, 0);
     // bust framing (head + chest, arms in when they go up), with a punchy zoom
     const H = CHIBI_HEIGHT;
@@ -156,9 +163,10 @@ export class LiveChibi {
     } finally {
       for (const m of sw) m.envMap = engine.envMap;
       engine.setGrade(g);
+      r.setViewport(0, 0, sz.x, sz.y);
     }
     this.ctx.clearRect(0, 0, S, S);
-    this.ctx.drawImage(r.domElement, 0, 0, S, S);
+    this.ctx.drawImage(r.domElement, 0, sz.y - R, R, R, 0, 0, S, S);
   }
 
   dispose() {

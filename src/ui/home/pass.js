@@ -230,7 +230,7 @@ export function mount(el, ctx, opts = {}) {
     return h('div', { class: 'ps-prem panel sk-panel-gold' }, h('div', { class: 'px-stars' }), show,
       h('div', { class: 'ps-prem-txt' },
         h('b', { class: 't-d ps-prem-t' }, 'PREMIUM PASS'),
-        h('span', { class: 't-xs' }, `${PASS_TIERS.length} extra rewards: Golden Juan, new Swarms, the Mansion Lab and a GOLDEN MEGA!`)),
+        h('span', { class: 't-xs' }, `${PASS_TIERS.length} extra rewards, a Golden Juan outfit and a GOLDEN MEGA!`)),
       b);
   }
 

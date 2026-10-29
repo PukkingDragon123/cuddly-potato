@@ -10,13 +10,14 @@ import { audio } from '../../core/audio.js';
 import { state, upgradeInfo, currentDeck, setDeckCard, selectDeck, deckSlotCount } from '../../game/state.js';
 import { ALL_CARDS, cardDef, DECK_SIZE, DECK_PRESETS, avgElixir, RARITIES, LINEUP_UNLOCKS } from '../../data/cards.js';
 import { arenaById } from '../../data/arenas.js';
-import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmtN, swarmImg } from './common.js';
+import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmtN } from './common.js';
+import { lazyImg, swarmThumb } from '../thumbs.js';
 import { MEGAS, MEGA_IDS } from '../../data/megas.js';
 import { openCardInfo } from './cardInfo.js';
 
 const SORTS = [
   { id: 'rarity', label: 'By Rarity', short: 'Rarity', icon: 'star' },
-  { id: 'energy', label: 'By Energy', short: 'Power', icon: 'energy' },
+  { id: 'energy', label: 'By Power cost', short: 'Power', icon: 'energy' },
   { id: 'arena', label: 'By Arena', short: 'Arena', icon: 'island' },
 ];
 let sortMode = 'rarity';
@@ -190,7 +191,7 @@ export function mount(el, ctx) {
     const owned = MEGA_IDS.filter((id) => mg?.owned?.[id]).length;
     const M = eqId ? MEGAS[eqId] : MEGAS[MEGA_IDS[0]];
     const gold = eqId && mg.owned[eqId]?.variant === 'gold';
-    const art = h('div', { class: `mn-mega-art ${eqId ? '' : 'locked'}` }, swarmImg(M.id, gold ? 'gold' : 'base', null, 128));
+    const art = h('div', { class: `mn-mega-art ${eqId ? '' : 'locked'}` }, lazyImg(`s|${M.id}|${gold ? 'gold' : 'base'}|null|128`, () => swarmThumb(M.id, gold ? 'gold' : 'base', null, 128), 'smooth', { priority: true }));
     const txt = h('div', { class: 'col grow mn-mega-txt' },
       h('span', { class: 't-xs c-muted' }, 'MEGA ULTIMATE'),
       h('b', { class: 't-d outline mn-mega-n' }, eqId ? M.name + (gold ? ' (Gold)' : '') : 'None yet'),

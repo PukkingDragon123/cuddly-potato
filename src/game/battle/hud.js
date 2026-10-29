@@ -31,14 +31,13 @@ import { FIELD } from './field.js';
 import { plateBounds } from './view.js';
 import { HAND_MAX } from './sim.js';
 import { LiveChibi } from './liveChibi.js';
+import { sigColor } from './sigFx.js';
 
 const fmtT = (s) => {
   s = Math.max(0, Math.ceil(s));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 const RARITY_COL = { common: '#9fb4e8', rare: '#ff9a2e', epic: '#c063ff', legendary: '#3ff2c8', mythic: '#ff2e88' };
-// signature ability colours (cut-in band, ring)
-const SIG_COL = { beakerBarrage: '#7cff3a', megaGiveaway: '#ffd84a', bellyFlop: '#3fb8ff', juansTruck: '#ff8a2a' };
 const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const _v = new THREE.Vector3();
 
@@ -257,7 +256,7 @@ export class BattleHUD {
     this.skillEls = [];
     if (s0.cmd) {
       const sg = s0.cmd.signature;
-      this.sigCol = SIG_COL[sg.id] ?? '#ffd84a';
+      this.sigCol = sigColor(sg);
       // a LIVE 3D Commander (falls back to a static portrait if WebGL thumbs fail)
       try { this.live = new LiveChibi(cmd, { size: 256, color: this.sigCol }); } catch (e) { console.warn('live chibi failed', e); this.live = null; }
       this.sigImg = this.live ? null : charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 128, eyes: 'determined', mouth: 'grin' });
@@ -268,7 +267,7 @@ export class BattleHUD {
         e.stopPropagation();
         audio.unlock();
         const ready = this.sim.sides[0].sig >= 1 && !this.sim.over;
-        if (!ready) this.live?.poke();
+        if (!ready) { this.live?.poke(); this.showUltTip(true); }
         handlers.signature();
       });
       this.skillEls = s0.skills.map((sk, k) => {
@@ -552,6 +551,9 @@ export class BattleHUD {
       const def = cardDef(c.id);
       const sp = c.special ? SPELLS[c.unit] : null;
       slot.el.className = this.slotClass(c, i, s) + ' pfx';
+      // only the cost changed: the same card stays picked up / queued
+      if (sameCard && i === this.sel) slot.el.classList.add('sel');
+      if (sameCard && i === this.queuedSlot) slot.el.classList.add('queued');
       slot.el.style.setProperty('--sc', sp?.color ?? '#3ff2e0');
       slot.el.style.setProperty('--rc', RARITY_COL[def?.rarity] ?? RARITY_COL.common);
       slot.el.appendChild(this.cardFace(c, cost, { key: i + 1 }));
@@ -573,15 +575,15 @@ export class BattleHUD {
           const sc = Math.max(0.35, Math.min(1, from.width / Math.max(1, r.width)));
           if (d >= 0) {
             slot.el.animate([
-              { transform: `translate(${dx}px, ${dy}px) rotate(-35deg) scale(${sc})`, opacity: 0 },
-              { transform: `translate(${dx * 0.3}px, ${-r.height * 0.45}px) rotate(${8 - d * 4}deg) scale(1.12)`, opacity: 1, offset: 0.6 },
+              { transform: `translate(${dx}px, ${dy}px) scale(${sc})`, opacity: 0 },
+              { transform: `translate(${dx * 0.3}px, ${-r.height * 0.45}px) scale(1.12)`, opacity: 1, offset: 0.6 },
               { transform: 'none', opacity: 1 },
             ], { duration: 520, delay: d * 110, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'backwards' });
             setTimeout(() => sparkle(slot.el, { count: 8, colors: ['#3ff2e0', '#ffffff', '#ffd84a'], spread: 40 }), 380 + d * 110);
           } else {
             slot.el.animate([
               { transform: `translate(${dx}px, ${dy}px) scale(${sc})`, opacity: 0.6 },
-              { transform: `translate(${dx * 0.2}px, ${-r.height * 0.18}px) scale(1.06) rotate(3deg)`, opacity: 1, offset: 0.65 },
+              { transform: `translate(${dx * 0.2}px, ${-r.height * 0.18}px) scale(1.06)`, opacity: 1, offset: 0.65 },
               { transform: 'none', opacity: 1 },
             ], { duration: 380, easing: 'cubic-bezier(.3,.8,.3,1.15)' });
           }
@@ -609,6 +611,11 @@ export class BattleHUD {
   select(slot) {
     this.sel = slot;
     this.slots.forEach((s, i) => s.el.classList.toggle('sel', i === slot));
+  }
+  /** A card dropped before it was affordable waits raised in an amber frame (-1 clears). */
+  queued(slot) {
+    this.queuedSlot = slot;
+    this.slots.forEach((s, i) => s.el.classList.toggle('queued', i === slot));
   }
   slotEl(i) {
     return this.slots[i]?.el;
@@ -647,9 +654,10 @@ export class BattleHUD {
     if (!this.drag) return;
     const vx = this.dragX === null ? 0 : x - this.dragX;
     this.dragX = x;
-    this.dragTilt = Math.max(-18, Math.min(18, (this.dragTilt ?? 0) * 0.7 + vx * 0.9));
+    // the card trails the finger a little (a sway, never a tilt: no rotated text)
+    this.dragTilt = Math.max(-14, Math.min(14, (this.dragTilt ?? 0) * 0.7 - vx * 0.5));
     this.drag.style.transform = `translate(${x}px, ${y}px)`;
-    this.drag.style.setProperty('--tilt', this.dragTilt.toFixed(1) + 'deg');
+    this.drag.style.setProperty('--sway', this.dragTilt.toFixed(1) + 'px');
     this.drag.classList.toggle('over', !!overField);
     this.dragPt = { x, y, over: !!overField };
   }
@@ -688,25 +696,24 @@ export class BattleHUD {
     const sx = dp ? dp.x - r.width / 2 : r.left, sy = dp ? dp.y - r.height * 0.7 : r.top;
     const ex = tx - r.width / 2, ey = ty - r.height / 2;
     const lift = dp ? 0 : -r.height * 0.42;
-    const rot = tx > sx ? 14 : -14;
     const s0 = dp ? 0.55 : 1;
     const dur = c.special ? 560 : 520;
     const kf = c.special
       ? [
         { transform: `translate(${sx}px, ${sy}px) scale(${s0})`, opacity: 1 },
-        { transform: `translate(${sx}px, ${sy + lift}px) scale(1.2) rotate(-4deg)`, opacity: 1, offset: 0.22 },
-        { transform: `translate(${ex}px, ${ey}px) scale(1.7) rotateY(180deg)`, opacity: 0.9, offset: 0.8 },
-        { transform: `translate(${ex}px, ${ey}px) scale(2.3) rotateY(360deg)`, opacity: 0 },
+        { transform: `translate(${sx}px, ${sy + lift}px) scale(1.2)`, opacity: 1, offset: 0.22 },
+        { transform: `translate(${ex}px, ${ey}px) scale(1.7)`, opacity: 0.9, offset: 0.8 },
+        { transform: `translate(${ex}px, ${ey}px) scale(2.3)`, opacity: 0 },
       ]
       : [
         { transform: `translate(${sx}px, ${sy}px) scale(${s0})`, opacity: 1 },
-        { transform: `translate(${sx}px, ${sy + lift}px) scale(${dp ? 0.6 : 1.18}) rotate(${-rot * 0.3}deg)`, opacity: 1, offset: 0.24 },
-        { transform: `translate(${(sx + ex) / 2}px, ${Math.min(sy + lift, ey) - r.height * 0.5}px) scale(0.7) rotate(${rot}deg)`, opacity: 1, offset: 0.62 },
-        { transform: `translate(${ex}px, ${ey}px) scale(0.22) rotate(${rot * 2}deg)`, opacity: 0.4 },
+        { transform: `translate(${sx}px, ${sy + lift}px) scale(${dp ? 0.6 : 1.18})`, opacity: 1, offset: 0.24 },
+        { transform: `translate(${(sx + ex) / 2}px, ${Math.min(sy + lift, ey) - r.height * 0.5}px) scale(0.7)`, opacity: 1, offset: 0.62 },
+        { transform: `translate(${ex}px, ${ey}px) scale(0.22)`, opacity: 0.4 },
       ];
     fly.animate(kf, { duration: dur, easing: 'cubic-bezier(.45,.05,.4,1)', fill: 'forwards' }).onfinish = () => {
       fly.remove();
-      burstAt(tx, ty, { color: col, count: c.special ? 22 : 14, scale: c.special ? 3 : 2.2, colors: [col, '#ffffff', '#ffd84a'] });
+      burstAt(tx, ty, { color: col, count: c.special ? 22 : 6, scale: c.special ? 3 : 1.2, colors: [col, '#ffffff', '#ffd84a'] });
     };
     // the empty slot pulses while the next card is on its way
     sl.el.classList.remove('played');
@@ -823,7 +830,11 @@ export class BattleHUD {
           burst(this.megaEl, { color: '#ff2e88', count: 20, ring: false });
         }
         break;
+      case 'sigReady':
+        if (ev.side === 0 && this.sig) this.showUltReady();
+        break;
       case 'sigStart':
+        this.ultTip?.remove();
         // the in-world cinematic (sigCutscene.js) carries the name slam; the live chibi on the button acts it out too
         if (ev.side === 0 && this.sig) { burst(this.sig, { color: this.sigCol, count: 22, scale: 2, ring: false }); this.live?.action(); }
         break;
@@ -864,7 +875,7 @@ export class BattleHUD {
       if (!img && cmd) img = charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 256, eyes: si ? 'angry' : 'determined', mouth: 'shout', full: true, yaw: si ? 0.35 : -0.35 });
       if (si === 0) this.sigImgFull = img;
     } catch (e) { img = null; }
-    ultCutIn({ img, title: sg.name.toUpperCase() + '!', kicker: si === 0 ? `${s.cmd.name ?? 'COMMANDER'} ULTIMATE` : 'RIVAL ULTIMATE', color: si === 0 ? SIG_COL[sg.id] ?? '#ffd84a' : '#ff3d55', side: si, dur: si === 0 ? 1.25 : 0.95 });
+    ultCutIn({ img, title: sg.name.toUpperCase() + '!', kicker: si === 0 ? `${s.cmd.name ?? 'COMMANDER'} ULTIMATE` : 'RIVAL ULTIMATE', color: si === 0 ? sigColor(sg) : '#ff3d55', side: si, dur: si === 0 ? 1.25 : 0.95 });
     if (si === 0 && this.sig) { burst(this.sig, { color: this.sigCol, count: 22, scale: 2, ring: false }); this.live?.action(); }
   }
   megaCutIn(ev) {
@@ -1087,6 +1098,23 @@ export class BattleHUD {
       const k = Math.min(1, s.sig);
       const ready = k >= 1 && !sim.over;
       this.setUlt(this.sigU, k, ready ? 'ready' : 'charging', ready ? 'TAP!' : `${Math.floor(k * 100)}%`);
+      // a hit on your base charges the ULT in a chunk: the button flashes so the comeback reads
+      const jump = k - (this.sigPrev ?? k);
+      this.sigPrev = k;
+      this.sigHitT = (this.sigHitT ?? 0) - dt;
+      if (jump > 0.012 && !ready && this.sigHitT <= 0) {
+        this.sigHitT = 0.45;
+        this.sig.classList.remove('charge-hit');
+        void this.sig.offsetWidth;
+        this.sig.classList.add('charge-hit');
+      }
+      // first battle with the new ULT: explain what charges it
+      if (!this.ultTipDone && sim.t > 4 && !sim.paused && !sim.cinematic && !ready) {
+        this.ultTipDone = true;
+        let seen = false;
+        try { seen = localStorage.getItem('mbswarmers.tip.ult2') === '1'; localStorage.setItem('mbswarmers.tip.ult2', '1'); } catch (e) { seen = false; }
+        if (!seen) this.showUltTip();
+      }
       for (let i = 0; i < this.skillEls.length; i++) {
         const se = this.skillEls[i];
         const cd = Math.max(0, s.skillCds[i]);
@@ -1130,6 +1158,31 @@ export class BattleHUD {
 
   setVisible(on) {
     this.root.style.display = on ? '' : 'none';
+  }
+  /** What charges the ULTIMATE: a pixel callout over the ULT button. */
+  showUltTip(short = false) {
+    if (!this.sig) return;
+    this.ultTip?.remove();
+    clearTimeout(this.ultTipT);
+    const pct = Math.floor(Math.min(1, this.sim.sides[0].sig) * 100);
+    this.ultTip = h('div', { class: 'u-tip' },
+      h('b', {}, short ? `ULT ${pct}%` : 'ULTIMATE'),
+      h('span', {}, 'Charges from the POWER you make'),
+      h('span', {}, 'and damage to your base'));
+    this.sig.appendChild(this.ultTip);
+    const el = this.ultTip;
+    this.ultTipT = setTimeout(() => { el.classList.add('bye'); setTimeout(() => el.remove(), 300); }, short ? 2200 : 6500);
+  }
+  /** The ULTIMATE just filled: a callout pops over the button. */
+  showUltReady() {
+    this.ultTip?.remove();
+    clearTimeout(this.ultTipT);
+    const name = this.sim.sides[0].cmd?.signature?.name ?? 'ULTIMATE';
+    this.ultTip = h('div', { class: 'u-tip ready' }, h('b', {}, 'ULTIMATE READY!'), h('span', {}, name.toUpperCase()));
+    this.sig.appendChild(this.ultTip);
+    burst(this.sig, { color: this.sigCol, count: 26, scale: 1.6, ring: false });
+    const el = this.ultTip;
+    this.ultTipT = setTimeout(() => { el.classList.add('bye'); setTimeout(() => el.remove(), 300); }, 2600);
   }
   /** Tuck the HUD away while a cutscene owns the screen. */
   setCinematic(on) {

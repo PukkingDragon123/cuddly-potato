@@ -20,12 +20,14 @@ import * as Props from '../../models/props.js';
 import { makeLabBuilding } from '../../models/props/lab.js';
 import { playMegaCutscene, megaSpecialFx, megaEndFx } from './megaCutscene.js';
 import { playSigCutscene } from './sigCutscene.js';
+import { sigResolveFx, sigEventFx } from './sigFx.js';
 import { pixTexture } from './pixfx.js';
 import { hpx } from './hitPix.js';
 import { labCollapse } from './baseFall.js';
 import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMat } from './spellVfx.js';
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
+import { troopFx } from './troopFx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech, iconURL } from '../../ui/ui.js';
@@ -64,6 +66,63 @@ function simpleVox(build, scale = 0.1) {
 
 const hexOf = (css, fb = 0x7cff3a) => (typeof css === 'string' ? parseInt(css.replace('#', ''), 16) : css ?? fb);
 const seriesColor = (id) => hexOf(SERIES[SWARMS[id]?.series]?.color);
+
+// Melee look per troop: which pixel impact spark its blows leave (claw rakes, POW,
+// teeth chomp, magic sparkle). A unit def may set `hitStyle` explicitly; otherwise
+// it is read off the name (critters bite, cats claw, blades slash, the rest punch).
+const MAGIC_PROJ = new Set(['zap', 'laser', 'nuke', 'ice', 'acid', 'venom']);
+const styleCache = new Map();
+function attackStyle(type) {
+  let s = styleCache.get(type);
+  if (s) return s;
+  const d = SWARMS[type] ?? {};
+  const id = String(type).toLowerCase();
+  if (d.hitStyle) s = d.hitStyle;
+  else if (d.projectile) s = MAGIC_PROJ.has(d.projectile) ? 'magic' : 'bullet';
+  else if (/shark|croc|chomp|rat|pup|fang|rex|byte|viper|mole|imp|bat|wolf|jelly/.test(id)) s = 'bite';
+  else if (/panther|tiger|lynx|mantis|slicer|ripper|sign|mop|dasher/.test(id)) s = 'claw';
+  else if (/ghost|ufo|glitch|seedling/.test(id)) s = 'magic';
+  else s = 'punch';
+  styleCache.set(type, s);
+  return s;
+}
+// pooled projectile meshes (one free list per kind + team)
+const projPool = new Map();
+const _sv = new THREE.Vector3(), _sv2 = new THREE.Vector3();
+const _col = new THREE.Color(), _white = new THREE.Color(0xffffff);
+const _pv = new THREE.Vector3(), _pt = new THREE.Vector3(), _ws = new THREE.Vector3(), _wc = new THREE.Vector3(), _wp = new THREE.Vector3();
+/**
+ * Pop voxel meshes into at most `max` chunky cubes: every n-th voxel, each scaled
+ * up so the body still reads as a pile of toy blocks (a capped fx.shatter).
+ */
+function chunkPop(meshes, max, o = {}) {
+  let total = 0;
+  for (const m of meshes) total += m.geometry?.userData?.voxels?.length ?? 0;
+  if (!total) return;
+  const step = Math.max(1, Math.ceil(total / max));
+  const grow = Math.min(o.maxGrow ?? 2.4, Math.cbrt(step));
+  const force = o.force ?? 5, dirX = o.dirX ?? 0, life = o.life ?? 1.2;
+  for (const mesh of meshes) {
+    const vox = mesh.geometry?.userData?.voxels;
+    if (!vox?.length) continue;
+    mesh.updateMatrixWorld(true);
+    const mw = mesh.matrixWorld;
+    const vsz = (mesh.geometry.userData.voxelSize || 0.1) * mesh.getWorldScale(_ws).x * grow;
+    mesh.getWorldPosition(_wc);
+    for (let i = (Math.random() * step) | 0; i < vox.length; i += step) {
+      const v = vox[i];
+      _wp.set(v[0], v[1], v[2]).applyMatrix4(mw);
+      const dx = _wp.x - _wc.x, dy = _wp.y - _wc.y + 0.3, dz = _wp.z - _wc.z;
+      const len = Math.hypot(dx, dy, dz) || 1;
+      particles.spawn('cube', {
+        x: _wp.x, y: _wp.y, z: _wp.z,
+        vx: (dx / len) * force * rand(0.4, 1.1) + dirX * force * 0.6, vy: (dy / len) * force * rand(0.5, 1.2) + force * 0.55, vz: (dz / len) * force * rand(0.3, 0.9),
+        rvx: rand(-10, 10), rvy: rand(-10, 10), rvz: rand(-10, 10),
+        size: vsz * rand(0.85, 1.1), life: life * rand(0.7, 1.2), grav: -18, drag: 0.4, ground: 0, bounce: 0.45, color: v[3], shrinkStart: 0.6,
+      });
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Shared meshes
@@ -228,7 +287,10 @@ function placeEl(el, pos, dy = 0) {
     return;
   }
   if (el.style.display === 'none') el.style.display = '';
-  const y = Math.max(plateBounds.minY + (el.offsetHeight || 0), s.y - dy);
+  // plates keep their size: read it once (a per-frame offsetHeight read after the previous
+  // plate's transform write forces a style + layout pass for every plate, every frame)
+  const ph = el._ph || (el._ph = el.offsetHeight) || 0;
+  const y = Math.max(plateBounds.minY + ph, s.y - dy);
   el.style.transform = `translate3d(${Math.round(s.x)}px, ${Math.round(y)}px, 0)`;
 }
 
@@ -293,8 +355,9 @@ class UnitActor {
     this.plate.style.display = '';
     this.spawnT = 0;
     const p = this.rig.root.position;
-    hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: 3, scale: 0.9 * this.u.size });
-    this.rig.boing?.(0.45);
+    // a soft thud: two little dust puffs at the feet and a squash-and-settle (no blast)
+    hpx.landPuff(_pv.set(p.x, 0, p.z), { scale: 0.55 * Math.min(1.8, this.u.size) });
+    this.rig.boing?.(-0.22);
   }
   update(dt) {
     const u = this.u, rig = this.rig;
@@ -325,6 +388,12 @@ class UnitActor {
       rig.root.visible = this.glitchT <= 0 || Math.sin(this.view.t * 90) > -0.2;
       p.x += (Math.random() - 0.5) * 0.5;
     }
+    // troop traits: STEALTH (invisible until it strikes) / PHASE (intangible) shimmer
+    const cloak = !!(u.cloaked || u.phased);
+    if (cloak || this.cloaked) {
+      this.cloaked = cloak;
+      rig.root.visible = !cloak || Math.sin(this.view.t * (u.phased ? 34 : 9) + u.id) > (u.phased ? -0.1 : 0.75);
+    }
     // state
     if (this.danceT > 0) {
       this.danceT -= dt;
@@ -338,9 +407,10 @@ class UnitActor {
     this.spawnT += dt;
     const target = u.size * (u.buffs.growScale ?? 1);
     if (u.mega) rig.baseScale = damp(rig.baseScale, target, 8, dt);
-    else if (this.spawnT < 0.4) {
-      const k = this.spawnT / 0.4;
-      rig.baseScale = target * (k < 0.6 ? (k / 0.6) * 1.28 : 1.28 - ((k - 0.6) / 0.4) * 0.28);
+    else if (this.spawnT < 0.26) {
+      // land pop: grows in from 60% with a small overshoot (was a big 128% balloon)
+      const k = this.spawnT / 0.26;
+      rig.baseScale = target * (k < 0.6 ? 0.6 + (k / 0.6) * 0.5 : 1.1 - ((k - 0.6) / 0.4) * 0.1);
     } else rig.baseScale = damp(rig.baseScale, target, 8, dt);
     rig.update(dt);
     this.updateStrike(dt);
@@ -377,9 +447,9 @@ class UnitActor {
     this.statusT -= dt;
     if (this.statusT <= 0) {
       this.statusT = 0.15;
-      const tp = new THREE.Vector3(p.x, p.y + rig.height * 0.9, p.z);
-      if (u.state === 'stun') fx.sparkle(tp, { count: 2, color: 0xffd23f, speed: 1.5, life: 0.4 });
-      if (u.buffs.burnT > 0) fx.fire(new THREE.Vector3(p.x, p.y + 0.3, p.z), { count: 2, scale: 0.7 });
+      const tp = _sv.set(p.x, p.y + rig.height * 0.9, p.z);
+      if (u.state === 'stun') hpx.emit('glow', 'twinkle', { x: p.x + rand(-0.25, 0.25), y: tp.y + 0.15, z: p.z + 0.3, vy: 0.6, life: 0.4, scale: 1.1, color: 0xffd23f, fadeOut: 0.5 });
+      if (u.buffs.burnT > 0) hpx.fire(_sv2.set(p.x, p.y + 0.25, p.z + 0.2), { count: 1, scale: 0.55 * Math.min(1.5, u.size), radius: 0.3 * u.size });
       if (u.buffs.slowT > 0 && u.buffs.slow > 0) fx.slime(new THREE.Vector3(p.x, p.y + 0.2, p.z), { count: 1, speed: 0.5, color: 0x7cff3a, scale: 0.6 });
       if (this.view.sim.sides[u.side].buffs.dance > 0) fx.sparkle(tp, { count: 1, colors: [0xff4fa3, 0xffd23f, 0x5fdc4a, 0x29b6f6], speed: 1, life: 0.6 });
       if (this.view.sim.sides[u.side].buffs.immortal > 0) fx.sparkle(tp, { count: 1, color: 0xffe27a, speed: 0.8 });
@@ -395,7 +465,7 @@ class UnitActor {
     }
     if (this.iceMesh) {
       if (u.state !== 'frozen') {
-        fx.burst(this.iceMesh.position, { count: 10, colors: [0x9ff2ff, 0xffffff], size: 0.08, speed: 3 });
+        hpx.chips(this.iceMesh.position, { anim: 'shard', count: 6, colors: [0x9ff2ff, 0xffffff, 0xcff6ff], speed: 3 });
         audio.play('shatter', { pitch: 1.4, vol: 0.5, gap: 0.05 });
         this.view.scene.remove(this.iceMesh);
         this.iceMesh = null;
@@ -421,9 +491,18 @@ class UnitActor {
       const a = atk.t / atk.dur;
       if (a >= 1) this.atk = null;
       else if (atk.melee) {
-        if (a < 0.45) { const k = a / 0.45; z = -0.1 * k; lean = -0.14 * k; }
-        else if (a < 0.62) { const k = (a - 0.45) / 0.17; z = -0.1 + 0.42 * Math.sin(k * Math.PI * 0.5); lean = -0.14 + 0.4 * k; }
-        else { const k = (a - 0.62) / 0.38; z = 0.32 * (1 - k) ** 2; lean = 0.26 * (1 - k) ** 2; }
+        // anticipation (rock back), a snappy lunge, then a held follow-through that eases home
+        if (a < 0.45) { const k = a / 0.45; const e = k * k * (3 - 2 * k); z = -0.15 * e; lean = -0.2 * e; }
+        else if (a < 0.6) {
+          const k = (a - 0.45) / 0.15; z = -0.15 + 0.53 * Math.sin(k * Math.PI * 0.5); lean = -0.2 + 0.5 * k;
+          if (!atk.kicked && !this.flying) {
+            // push-off: a puff of dust kicked back from the feet
+            atk.kicked = true;
+            const p = rig.root.position, back = this.u.side === 0 ? -1 : 1;
+            hpx.dust(_sv.set(p.x + back * 0.2 * s, 0, p.z), { count: 1, scale: 0.55 * s, vx: back * 1.6, spread: 0.3, life: 0.7, color: this.view.dustColor });
+          }
+        } else if (a < 0.7) { z = 0.38; lean = 0.3; }
+        else { const k = (a - 0.7) / 0.3; const e = (1 - k) ** 2; z = 0.38 * e; lean = 0.3 * e; }
       } else {
         // ranged: brace, then a sharp recoil on the shot
         if (a < 0.45) lean = -0.06 * (a / 0.45);
@@ -446,22 +525,26 @@ class UnitActor {
     this.dmgCrit = this.dmgCrit || crit;
     this.dmgKind = kind;
     if (crit) this.flushDamage();
-    else if (!(this.dmgT > 0)) this.dmgT = 0.16;
+    else if (!(this.dmgT > 0)) this.dmgT = 0.24;
   }
   flushDamage() {
     const n = Math.round(this.dmgAcc ?? 0);
+    if (n < 1) { this.dmgAcc = 0; this.dmgT = 0; return; }
+    // de-clutter: small numbers wait their turn when another troop's number just popped
+    const v = this.view;
+    if (!this.dmgCrit && n < 90 && v.numT > v.t - 0.07 && !this.u.dead && this.u.hp > 0) { this.dmgT = 0.08; return; }
+    v.numT = v.t;
     this.dmgAcc = 0; this.dmgT = 0;
-    if (n < 1) return;
     const p = this.rig.root.position;
-    const at = new THREE.Vector3(p.x + (Math.random() - 0.5) * 0.3, p.y + this.rig.height * 0.95 + 0.25, p.z + 0.3);
+    const at = new THREE.Vector3(p.x + (Math.random() - 0.5) * 0.3, p.y + this.rig.height * 0.7 + 0.1, p.z + 0.3);
     const crit = this.dmgCrit;
     this.dmgCrit = false;
     const tier = crit ? 'crit' : n >= 250 ? 'xl' : n >= 90 ? 'l' : 'm';
     const k = { fire: 'k-fire', burn: 'k-fire', zap: 'k-zap', laser: 'k-zap', nuke: 'k-goo', sludge: 'k-goo', acid: 'k-goo', money: 'k-cash' }[this.dmgKind] ?? '';
-    floatText(at, crit ? `${n}!` : String(n), `hitn t-${tier} ${k} s${this.u.side}`, { life: crit ? 1.15 : tier === 'm' ? 0.7 : 0.9, rise: crit ? 58 : 44, spreadX: 30 });
+    floatText(at, crit ? `${n}!` : String(n), `hitn t-${tier} ${k} s${this.u.side}`, { life: crit ? 1 : tier === 'm' ? 0.6 : 0.8, rise: crit ? 46 : 32, spreadX: 22 });
     if (crit && !(this.view.critTagT > this.view.t - 0.7)) {
       this.view.critTagT = this.view.t;
-      floatText(at.clone().setY(at.y + 0.55), 'CRIT', 'hitn t-tag', { life: 0.95, rise: 64, spreadX: 6 });
+      floatText(at.clone().setY(at.y + 0.42), 'CRIT', 'hitn t-tag', { life: 0.85, rise: 50, spreadX: 6 });
     }
   }
   /** Special-card side buffs on this troop: SURGE embers, FRENZY speed sparks, HASTE wind streaks. */
@@ -563,7 +646,10 @@ class TowerPlate {
     }
     this.ghostFrac = Math.max(frac, damp(this.ghostFrac, frac, 2.5, dt));
     this.ghost.style.width = (this.ghostFrac * 100).toFixed(1) + '%';
-    if (this.zz) this.zz.style.display = b.active || !b.alive ? 'none' : '';
+    if (this.zz) {
+      const d = b.active || !b.alive ? 'none' : '';
+      if (this.zz.style.display !== d) { this.zz.style.display = d; this.el._ph = 0; } // re-measure the plate
+    }
     this.el.classList.toggle('low', frac < 0.3);
     this.el.classList.toggle('shield', b.shield > 0);
     if (!b.alive) this.el.style.display = 'none';
@@ -1062,7 +1148,7 @@ export class BattleView {
     }
     // 2D pixel-art particles (ultimate cinematic, magic spells)
     updateMagic(this, gdt);
-    this.pixfx?.update(dt, this.camera);
+    this.pixfx?.update(this.cine?.freeze ? 0 : dt, this.camera); // an ULTIMATE cutscene freezes the battle's sprites
     hpx.update(gdt);
     this.updateEmitters(gdt);
   }
@@ -1326,43 +1412,50 @@ export class BattleView {
 
   dropVial(side, unitId, x, count = 1, delay = 0.65) {
     const col = seriesColor(unitId);
-    const mesh = vialMesh(col);
-    mesh.position.set(x, 7, 0.1);
-    mesh.rotation.set(0, 0, (side === 0 ? -1 : 1) * 0.3);
-    this.scene.add(mesh);
-    const tele = new THREE.Mesh(PLANE, decalMat(shadowTex(), 0xffffff, 0.25)); // the falling vial's shadow
-    tele.position.set(x - (count > 1 ? (side === 0 ? 0.21 : -0.21) * (count - 1) : 0), 0.04, 0);
-    this.scene.add(tele);
-    this.vials.push({ mesh, tele, side, x, col, t: 0, dur: Math.max(0.3, delay - 0.05), count });
-    audio.play('whoosh', { pitch: 1.6, vol: 0.5, gap: 0.03 });
+    // pooled vial + shadow decal (a deploy allocates nothing once warm)
+    const pool = (this.vialPool ??= []);
+    const v = pool.pop() ?? { tele: new THREE.Mesh(PLANE, decalMat(shadowTex(), 0xffffff, 0.25)) };
+    v.mesh = (this.vialMeshes ??= {})[col]?.pop() ?? vialMesh(col);
+    v.mesh.castShadow = false; // the dithered decal below is its shadow
+    v.mesh.position.set(x, 7, 0.1);
+    v.mesh.rotation.set(0, 0, (side === 0 ? -1 : 1) * 0.3);
+    v.tele.position.set(x - (count > 1 ? (side === 0 ? 0.21 : -0.21) * (count - 1) : 0), 0.04, 0);
+    this.scene.add(v.mesh, v.tele);
+    Object.assign(v, { side, x, col, t: 0, dur: Math.max(0.3, delay - 0.05), count, done: false });
+    this.vials.push(v);
+    audio.play('whoosh', { pitch: 1.6, vol: 0.35, gap: 0.03 });
   }
   updateVials(dt) {
+    let w = 0;
     for (const v of this.vials) {
       v.t += dt;
       const k = Math.min(1, v.t / v.dur);
       v.mesh.position.y = 7 * (1 - k * k) + 0.05;
       v.mesh.rotation.z += dt * (v.side === 0 ? -9 : 9);
       v.mesh.rotation.y += dt * 4;
-      const r = 0.35 + k * k * 0.45;
+      const r = 0.3 + k * k * 0.35;
       v.tele.scale.set(r * 1.6, 1, r * 1.1);
-      v.tele.material.opacity = 0.25 + k * 0.7;
-      if (k >= 1 && !v.done) {
+      v.tele.material.opacity = 0.2 + k * 0.5;
+      if (k >= 1) {
+        // LANDING: a small glassy tink + a puff of dust and a splash of the troop's colour.
+        // Deliberately modest (no ground blast, no shake): the troop's own squash-land is the beat.
         v.done = true;
-        const p = new THREE.Vector3(v.x, 0.35, 0);
-        v.mesh.updateMatrixWorld(true);
-        fx.shatter(v.mesh, { force: 4, life: 0.9 });
-        fx.burst(p, { count: 14, colors: [0xffffff, 0xcff2ff, 0x9fe6ff], size: 0.06, speed: 4.5, life: 0.5 });
-        fx.slime(p, { count: 10 + v.count * 2, color: v.col, speed: 3.4 });
-        fx.bubbles(p, { count: 5, color: v.col });
-        groundHit(new THREE.Vector3(v.tele.position.x, 0.02, 0), { radius: 1.3 + v.count * 0.25, color: TEAM_COLORS[v.side] });
-        fx.dust(new THREE.Vector3(v.x, 0, 0.2), { count: 5, scale: 1.1 });
-        if (v.side === 0) engine.shake(0.07);
-        audio.play('shatter', { pitch: 1.5 + Math.random() * 0.3, vol: 0.55, gap: 0.03 });
-        audio.play('spawn', { pitch: 0.9 + Math.random() * 0.3, gap: 0.05 });
+        const p = _pv.set(v.x, 0.3, 0.25);
+        chunkPop([v.mesh], 8, { force: 2.4, life: 0.5, maxGrow: 1.5 });
+        hpx.chips(p, { anim: 'shard', count: 4, colors: [0xffffff, 0xcff2ff, 0x9fe6ff], speed: 2.6, life: 0.55, scale: 0.8 });
+        hpx.emit('solid', 'splat', { x: v.x, y: 0.32, z: 0.45, life: 0.22, scale: 0.55 + v.count * 0.03, color: _col.setHex(v.col).lerp(_white, 0.45).getHex(), fadeOut: 0.6 });
+        hpx.landPuff(_pt.set(v.tele.position.x, 0, 0.1), { scale: 1.1 + Math.min(0.5, (v.count - 1) * 0.12) });
+        audio.play('shatter', { pitch: 1.7 + Math.random() * 0.3, vol: 0.3, gap: 0.05 });
+        audio.play('spawn', { pitch: 0.9 + Math.random() * 0.3, vol: 0.7, gap: 0.05 });
         this.scene.remove(v.mesh, v.tele);
+        (this.vialMeshes[v.col] ??= []).push(v.mesh);
+        v.mesh = null;
+        (this.vialPool ??= []).push(v);
+        continue;
       }
+      this.vials[w++] = v;
     }
-    this.vials = this.vials.filter((v) => !v.done);
+    this.vials.length = w;
   }
 
   // -------------------------------------------------------------------------
@@ -1386,10 +1479,10 @@ export class BattleView {
         // 8-bit creature voice: bosses taunt, troops chirp as they arrive
         audio.critter(ev.unit.type, ev.unit.boss ? 'taunt' : 'spawn', ev.unit.size, { side: ev.unit.side, vol: ev.unit.side === 0 ? 1 : 0.8 });
         if (a.landed) {
-          const p = new THREE.Vector3(ev.unit.x, 0.3, ev.unit.z);
-          const col = seriesColor(ev.unit.type);
-          fx.slime(p, { count: 8, color: col, speed: 3 });
-          fx.bubbles(p, { count: 4, color: col });
+          // popped straight out (split / summon): a tiny colour splash + a dust puff
+          const p = _pv.set(ev.unit.x, 0.3, ev.unit.z);
+          hpx.emit('solid', 'splat', { x: p.x, y: 0.3, z: p.z + 0.35, life: 0.18, scale: 0.3, color: seriesColor(ev.unit.type), fadeOut: 0.6 });
+          hpx.dust(p, { count: 1, scale: 0.6 * Math.min(1.6, ev.unit.size), color: this.dustColor });
           if (ev.unit.boss) {
             engine.shake(0.6);
             audio.play('roar', { pitch: 0.7 });
@@ -1406,6 +1499,25 @@ export class BattleView {
         this.dropVial(ev.side, ev.id, ev.x, ev.count ?? 1);
         if (ev.side === 0) this.react(0, 'sitCheer', 'happy', 'grin', 0.6);
         break;
+      case 'ambush': {
+        // a stealth troop strikes from hiding: a violet pounce streak + sparkle on the attacker
+        const a = this.actors.get(ev.unit.id);
+        if (a && !a.hidden) {
+          const p = a.rig.root.position, dir = ev.unit.side === 0 ? 1 : -1, H = Math.max(0.5, a.rig.height);
+          hpx.streaks(_pv.set(p.x, p.y + H * 0.5, p.z), dir, { count: 3, h: H * 0.6, color: 0xc89aff });
+          hpx.hit(_pv.set(p.x + dir * 0.35, p.y + H * 0.7, p.z), 'magic', 0.9, dir);
+          a.rig.boing(0.25);
+          audio.play('swing', { pitch: 0.7, gap: 0.08 });
+        }
+        break;
+      }
+      case 'echo': {
+        // ECHO: a mirrored twin is on its way - team-coloured twinkles where it will drop
+        const x = ev.x - (ev.side === 0 ? 0.6 : -0.6);
+        hpx.sparks(_pv.set(x, 0.6, 0.3), { count: 6, colors: [TEAM_LIGHT[ev.side], 0xffffff, 0xffe27a], speed: 2.6, up: 2.5, grav: -4 });
+        if (ev.side === 0) audio.play('magic', { pitch: 1.4, vol: 0.5, gap: 0.1 });
+        break;
+      }
       case 'cycle':
         if (ev.side === 0 && ev.cost) {
           const x = this.lastDropX ?? this.sim.sides[0].labX;
@@ -1417,10 +1529,10 @@ export class BattleView {
         const role = SWARMS[ev.unit.type]?.role;
         if (a) {
           a.rig.attack(Math.max(0.3, ev.dur));
-          a.atk = { t: 0, dur: Math.max(0.3, ev.dur), melee: role !== 'ranged' };
+          a.atk = { t: 0, dur: Math.max(0.3, ev.dur), melee: role !== 'ranged' && !SWARMS[ev.unit.type]?.projectile };
           if (SWARMS[ev.unit.type]?.traits?.kamikaze) break;
         }
-        if (role !== 'ranged') audio.play('swing', { pitch: 1.4 / Math.max(0.6, ev.unit.size), gap: 0.05 });
+        if (role !== 'ranged' && !SWARMS[ev.unit.type]?.projectile) audio.play('swing', { pitch: 1.4 / Math.max(0.6, ev.unit.size), gap: 0.05 });
         break;
       }
       case 'hit': {
@@ -1500,13 +1612,13 @@ export class BattleView {
           a.flushDamage();
           const p = a.rig.root.position.clone();
           this.deathFx(a, ev, big);
-          if (ev.unit.type === 'feastablesPanther' || ev.unit.type === 'chocoChomper') fx.chocolate(p.clone().setY(0.6), { count: 30 });
-          if (SWARMS[ev.unit.type]?.series === 'food') fx.groceries(p.clone().setY(0.5), { count: 6 });
+          if (ev.unit.type === 'feastablesPanther' || ev.unit.type === 'chocoChomper') fx.chocolate(p.clone().setY(0.6), { count: 12 });
+          if (SWARMS[ev.unit.type]?.series === 'food') fx.groceries(p.clone().setY(0.5), { count: 4 });
           audio.play(big ? 'explode' : 'death', { pitch: 0.8 + Math.random() * 0.4, gap: 0.03 });
           if (big) audio.play('vineBoom', { gap: 2.5, vol: ev.unit.boss ? 1 : 0.7 });
           if (big) {
-            engine.shake(0.5);
-            engine.hitstop(0.08);
+            engine.shake(ev.unit.boss ? 0.45 : 0.32);
+            engine.hitstop(0.06);
             floatText(p.clone().setY(p.y + 1.6), 'K.O.!', 'hitn t-ko', { life: 1.2, rise: 60 });
           }
           if (ev.killerSide === 0 && Math.random() < 0.3) this.reactRich(0, pick(['laugh', 'clap', 'fistPump', 'thumbsUp', 'cheer']), 1);
@@ -1539,17 +1651,17 @@ export class BattleView {
         this.lightning(ev.unit, ev.xs);
         break;
       case 'explode': {
+        // kamikaze pop: a pixel fireball + sparks + smoke, a few voxel chunks, light ground debris
         const p = new THREE.Vector3(ev.x, 0.5, ev.unit.z);
-        fx.burst(p, { count: 30, colors: [0xffd23f, 0xfff4e0, 0xff8a2a], size: 0.12, speed: 7 });
-        fx.fire(p, { count: 16, radius: 3 });
-        groundHit(p.clone().setY(0), { radius: 3, color: 0xffd23f });
-        fx.smoke(p, { count: 10, scale: 1.4 });
+        hpx.boom(p, { scale: 1.5 });
+        hpx.hit(p, 'punch', 1.4, ev.unit.side === 0 ? 1 : -1);
+        groundHit(p.clone().setY(0), { radius: 1.6, color: 0xffd23f, sparks: 6, debris: 5, dust: 5 });
         audio.play('explode');
-        engine.shake(0.45);
-        engine.hitstop(0.06);
+        engine.shake(0.3);
+        engine.hitstop(0.05);
         const a = this.actors.get(ev.unit.id);
         if (a) {
-          for (const m of a.rig.meshes) fx.shatter(m, { force: 8 });
+          chunkPop(a.rig.meshes, 30, { force: 7, life: 1.2 });
           a.dispose();
           this.actors.delete(ev.unit.id);
         }
@@ -1633,10 +1745,16 @@ export class BattleView {
         break;
       }
       case 'heal': {
+        // heal ticks are pooled per troop and shown at most every 0.9 s (no green number spam)
         const a = this.actors.get(ev.unit.id);
-        if (a && ev.amount > 3) {
-          const p = a.rig.root.position;
-          floatText(new THREE.Vector3(p.x, p.y + a.rig.height + 0.2, p.z), `+${ev.amount}`, 'heal', { life: 0.8 });
+        if (a && ev.amount > 0) {
+          a.healAcc = (a.healAcc ?? 0) + ev.amount;
+          if (a.healAcc > 3 && !(a.healShownT > this.t - 0.9)) {
+            const p = a.rig.root.position;
+            floatText(new THREE.Vector3(p.x, p.y + a.rig.height * 0.8 + 0.1, p.z), `+${Math.round(a.healAcc)}`, 'heal hitn t-m', { life: 0.7, rise: 28 });
+            a.healAcc = 0;
+            a.healShownT = this.t;
+          }
         }
         break;
       }
@@ -1667,6 +1785,10 @@ export class BattleView {
         if (this.cine?.sig) this.cine.land(ev);
         this.signatureFx(ev);
         break;
+      case 'timeStopped':
+      case 'timeResume':
+        sigEventFx(this, ev);
+        break;
       case 'skill':
         this.skillFx(ev);
         break;
@@ -1678,11 +1800,11 @@ export class BattleView {
         if (a) {
           const p = a.rig.root.position;
           if (ev.mover.kind === 'truck') {
-            fx.burst(new THREE.Vector3(p.x, 0.6, p.z), { count: 10, colors: [0xffffff, 0xffd23f], speed: 6, size: 0.08 });
+            hpx.hit(_pv.set(p.x, 0.6, p.z), 'punch', 1.2, ev.mover.side === 1 ? -1 : 1);
             audio.play('hitHeavy', { pitch: 1.2, gap: 0.05 });
             engine.shake(0.2);
           } else {
-            fx.sparkle(new THREE.Vector3(p.x, 0.6, p.z), { count: 8, color: 0xffffff, speed: 4 });
+            hpx.hit(_pv.set(p.x, 0.6, p.z), 'melee', 0.9, ev.mover.side === 1 ? -1 : 1);
             audio.play('kick', { gap: 0.05 });
           }
         }
@@ -1714,11 +1836,17 @@ export class BattleView {
         audio.play('cheer');
         break;
       default:
+        troopFx(this, ev); // troop signature traits (troopFx.js)
         break;
     }
   }
 
-  /** Combat hit: per-kind pixel spark at the contact point, the attacker's smear, squash + recoil, numbers, hit-stop. */
+  /**
+   * Combat hit: a pixel impact spark shaped by the attack (claw rakes, POW, teeth
+   * chomp, bullet ping, magic sparkle, or the projectile's own kind), a white flash
+   * + squash-and-recoil on the victim, the attacker's smear, a dust kick where the
+   * two clash, a throttled damage number, and hit-stop + shake on the big ones only.
+   */
   hitFx(a, ev) {
     const u = ev.unit, src = ev.src, kind = ev.kind ?? 'melee';
     const p = a.rig.root.position;
@@ -1726,42 +1854,55 @@ export class BattleView {
     const away = u.side === 0 ? -1 : 1;
     const dir = src && !src.building && Number.isFinite(src.x) ? Math.sign(p.x - src.x) || away : away; // the way the blow travels
     const crit = !!ev.crit;
-    const heavy = !crit && ((src && src.size > 1.45) || ev.amount >= 160);
-    const at = new THREE.Vector3(p.x - dir * Math.min(0.45, 0.24 * u.size), p.y + H * 0.55, p.z);
-    a.rig.flash(crit ? 0.1 : 0.06);
-    a.rig.boing(crit ? -0.42 : heavy ? -0.3 : -0.17);
-    a.recoil = Math.min(0.36, (a.recoil ?? 0) + (crit ? 0.26 : heavy ? 0.18 : 0.07));
-    const hk = kind === 'melee' ? (crit ? 'crit' : heavy ? 'heavy' : 'melee') : kind;
-    hpx.hit(at, hk, crit ? 1.35 : heavy ? 1.2 : 0.8 + Math.min(0.4, (ev.amount ?? 0) / 400), dir);
-    // melee: the attacker's smear arc + a little impact squash on it (the clash at the front line)
+    const amt = ev.amount ?? 0;
+    const heavy = !crit && ((src && src.size > 1.45) || amt >= 160);
+    const at = _pt.set(p.x - dir * Math.min(0.45, 0.24 * u.size), p.y + H * 0.55, p.z);
+    a.rig.flash(crit ? 0.1 : heavy ? 0.08 : 0.06);
+    a.rig.boing(crit ? -0.42 : heavy ? -0.3 : -0.15);
+    a.recoil = Math.min(0.36, (a.recoil ?? 0) + (crit ? 0.26 : heavy ? 0.18 : 0.06));
+    const melee = kind === 'melee';
+    const style = melee && src && !src.building && src.type ? attackStyle(src.type) : null;
+    const sz = crit ? 1.35 : heavy ? 1.15 : 0.8 + Math.min(0.3, amt / 400);
+    if (melee) {
+      // the struck point gets the attack's own spark; crits / heavies add the hot star burst behind it
+      hpx.hit(at, style ?? 'punch', sz, dir);
+      if (crit || heavy) hpx.hit(at, crit ? 'crit' : 'heavy', crit ? 0.75 : 0.6, dir);
+    } else hpx.hit(at, kind, sz, dir);
+    // melee: the attacker's swing smear (claws / blades), a punch streak, and a dust kick between them
     const sa = src && !src.building ? this.actors.get(src.id) : null;
-    if (sa && !sa.hidden && kind === 'melee') {
+    if (sa && !sa.hidden && melee) {
       const sp = sa.rig.root.position, sdir = src.side === 0 ? 1 : -1;
-      hpx.slash(new THREE.Vector3(sp.x + sdir * 0.22 * src.size, sp.y + sa.rig.height * 0.55, sp.z), sdir, crit ? 0xffd84a : heavy ? 0xffb02e : 0xf4f8ff, Math.min(1.9, 0.7 + src.size * 0.38));
-      sa.rig.boing(-0.12);
+      if (style === 'claw') hpx.slash(_pv.set(sp.x + sdir * 0.22 * src.size, sp.y + sa.rig.height * 0.55, sp.z), sdir, crit ? 0xffd84a : heavy ? 0xffb02e : 0xf4f8ff, Math.min(1.9, 0.7 + src.size * 0.38));
+      else if (style === 'punch') hpx.streaks(_pv.set(sp.x + sdir * 0.3 * src.size, sp.y + sa.rig.height * 0.5, sp.z), sdir, { count: 2, h: sa.rig.height * 0.4, scale: 0.8 });
+      sa.rig.boing(-0.1);
+      if (!(sa.clashT > this.t - 0.4) && !a.flying && !sa.flying) {
+        sa.clashT = this.t;
+        hpx.clash(_pv.set((sp.x + p.x) / 2, 0, (sp.z + p.z) / 2), dir, { scale: Math.min(1.5, 0.7 + (src.size + u.size) * 0.2), color: this.dustColor });
+      }
     }
-    if (crit || heavy) hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: crit ? 3 : 2, scale: u.size, vx: dir * 1.8, spread: 0.6 });
-    if (ev.amount >= 1) a.addDamage(ev.amount, crit, kind);
-    audio.play(kind === 'melee' ? (heavy || crit ? 'hitHeavy' : pick(['hit', 'bite', 'chomp'])) : kind === 'sludge' ? 'splat' : 'hit', { pitch: 0.8 + Math.random() * 0.4, gap: 0.04 });
+    if (crit || heavy) hpx.dust(_pv.set(p.x, 0, p.z), { count: crit ? 2 : 1, scale: u.size, vx: dir * 1.8, spread: 0.6, color: this.dustColor });
+    if (amt >= 1) a.addDamage(amt, crit, kind);
+    const snd = melee ? (heavy || crit ? 'hitHeavy' : style === 'bite' ? pick(['bite', 'chomp']) : style === 'magic' ? 'zap' : 'hit') : kind === 'sludge' ? 'splat' : 'hit';
+    audio.play(snd, { pitch: 0.8 + Math.random() * 0.4, vol: crit || heavy ? 1 : 0.75, gap: 0.04 });
     if (crit || heavy) {
-      engine.shake(crit ? 0.2 : 0.12);
+      // camera shake scaled by the blow (relative to the victim's health); chip damage never shakes
+      engine.shake(Math.min(crit ? 0.22 : 0.14, 0.06 + (amt / Math.max(1, u.maxHp)) * 0.4));
       // hit-stop: a beat of freeze on the big ones (throttled so brawls never stutter)
-      if (!(this.lastStop > this.t - 0.35)) { this.lastStop = this.t; engine.hitstop(crit ? 0.075 : 0.045); }
+      if (!(this.lastStop > this.t - 0.35)) { this.lastStop = this.t; engine.hitstop(crit ? 0.07 : 0.04); }
     }
   }
-  /** KO: the voxel body breaks apart away from the killer, a pixel poof, chips, a goo splat (big ones explode). */
+  /** KO: the body pops into a capped handful of chunky voxel blocks, a cartoon pixel poof + twinkles (cute, never gory). */
   deathFx(a, ev, big) {
-    const u = ev.unit, p = a.rig.root.position.clone();
+    const u = ev.unit, p = a.rig.root.position;
     const dir = ev.killerSide === 0 ? 1 : ev.killerSide === 1 ? -1 : u.side === 0 ? -1 : 1;
     const H = Math.max(0.5, a.rig.height);
     const col = seriesColor(u.type);
-    if (!a.hidden) for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 8 : 5, dirX: dir * 0.9, life: big ? 2.2 : 1.3, fraction: big ? 0.7 : 0.55 });
-    const mid = new THREE.Vector3(p.x, p.y + H * 0.5, p.z);
-    hpx.poof(mid, { scale: Math.min(2.4, 0.75 + u.size * 0.45), color: 0xdcd6ee, spark: col });
-    hpx.chips(mid, { count: big ? 10 : 5, colors: [col, 0xffffff, col], speed: big ? 6 : 4, vx: dir * 1.5 });
-    hpx.splat(mid, { color: col, scale: Math.min(1.6, 0.6 + u.size * 0.3) });
-    hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: big ? 6 : 2, scale: u.size });
-    if (big) hpx.boom(mid, { scale: Math.min(2, u.size * 0.8) });
+    if (!a.hidden) chunkPop(a.rig.meshes, u.boss ? 60 : big ? 46 : 22, { force: big ? 6.5 : 4.2, dirX: dir * 0.8, life: big ? 1.6 : 1 });
+    const mid = _pv.set(p.x, p.y + H * 0.5, p.z);
+    hpx.poof(mid, { scale: Math.min(1.35, 0.55 + u.size * 0.3), color: 0xd6cdea, spark: 0xfff2a0 });
+    hpx.chips(mid, { anim: 'twinkle', count: big ? 6 : 3, colors: [col, 0xffffff, 0xffe27a], speed: big ? 5 : 3.5, vx: dir * 1.2, life: 0.8 });
+    hpx.dust(_pt.set(p.x, 0, p.z), { count: big ? 4 : 2, scale: Math.min(1.6, u.size), color: this.dustColor });
+    if (big) hpx.boom(mid, { scale: Math.min(1.15, u.size * 0.45), flames: 2 });
   }
 
   towerHitFx(ev) {
@@ -1774,7 +1915,7 @@ export class BattleView {
     const fx0 = b.x - (ev.side === 0 ? -1 : 1) * b.half;
     const p = new THREE.Vector3(fx0, rand(0.6, (obj.height ?? 3) * 0.8), rand(-0.4, 0.9));
     const chips = ev.kind === 'lab' ? (obj.style === 'mansion' ? [0xf4ead0, 0xffd23f] : [0xeaf2ff, TEAM_COLORS[ev.side], 0xff2e88]) : [0xf0f4fc, TEAM_COLORS[ev.side], 0xb8c2d6];
-    fx.burst(p, { count: 5, colors: chips, size: 0.11, speed: 4, vx: ev.side === 0 ? 2 : -2 });
+    hpx.chips(p, { count: 4, colors: chips, speed: 3.5, vx: ev.side === 0 ? 2 : -2 });
     if (ev.amount >= 1) floatText(p, String(ev.amount), ev.amount > 150 ? 'crit' : 'tower', { life: 0.9 });
     audio.play('crunch', { pitch: 0.7 + Math.random() * 0.3, gap: 0.08 });
     if (ev.amount > 120) engine.shake(0.22);
@@ -1794,11 +1935,13 @@ export class BattleView {
     return a ? a.rig.muzzleWorld(new THREE.Vector3()) : new THREE.Vector3(p.x0, p.height ?? 1, 0);
   }
   addProjectile(p) {
-    const mesh = projectileMesh(p.kind, p.side);
+    const key = p.kind + p.side;
+    const mesh = projPool.get(key)?.pop() ?? projectileMesh(p.kind, p.side);
+    mesh.rotation.set(0, 0, 0);
     const start = this.projStart(p);
     mesh.position.copy(start);
     this.scene.add(mesh);
-    this.projs.set(p.id, { p, mesh, start, trailT: 0 });
+    this.projs.set(p.id, { p, mesh, start, trailT: 0, key });
     if (p.tower) {
       const big = p.kind === 'labCannon';
       audio.play(big ? 'boom' : 'laser', { pitch: big ? 0.9 : 1.5 + Math.random() * 0.2, vol: big ? 0.7 : 0.45, gap: 0.05 });
@@ -1825,21 +1968,25 @@ export class BattleView {
       const arc = lob ? Math.sin(k * Math.PI) * (p.kind === 'labCannon' ? 1.2 : 1 + Math.abs(p.tx - pr.start.x) * 0.15) : 0;
       const z = pr.start.z + (tz - pr.start.z) * k;
       const m = pr.mesh;
-      const prev = m.position.clone();
+      _pv.copy(m.position);
       m.position.set(x, yLine + arc, z);
       if (p.kind === 'letters' || p.kind === 'fries') { m.rotation.x += dt * 14; m.rotation.z += dt * 9; }
       else if (p.kind === 'labCannon') { m.rotation.x += dt * 8; m.rotation.y += dt * 5; }
-      else if (m.position.distanceToSquared(prev) > 1e-8) m.lookAt(m.position.clone().add(m.position.clone().sub(prev)));
+      else if (m.position.distanceToSquared(_pv) > 1e-8) m.lookAt(_pt.copy(m.position).multiplyScalar(2).sub(_pv));
+      // pixel-art trail: one or two sprite bits every 35 ms behind the shot
       pr.trailT -= dt;
       if (pr.trailT <= 0) {
         pr.trailT = 0.035;
-        const cols = PROJ_COLORS[p.kind] || [0xffffff];
-        if (p.kind === 'missile') fx.smoke(m.position, { count: 1, scale: 0.4, life: 0.5 });
-        else if (p.kind === 'fire') fx.fire(m.position, { count: 2, radius: 0.3 });
-        else if (p.kind === 'turretBolt' || p.kind === 'labCannon') particles.spawn('glow', { x: m.position.x, y: m.position.y, z: m.position.z, size: p.kind === 'labCannon' ? 0.16 : 0.09, life: 0.22, grav: 0, color: TEAM_LIGHT[p.side] });
-        else if (['nuke', 'laser', 'zap'].includes(p.kind)) fx.sparkle(m.position, { count: 1, colors: cols, speed: 0.3, life: 0.3 });
-        else if (p.kind === 'soda') fx.bubbles(m.position, { count: 1, color: 0xffe0c0, radius: 0.05 });
-        else if (p.kind === 'sludge') fx.slime(m.position, { count: 1, color: cols[1], speed: 0.3, scale: 0.6 });
+        const cols = PROJ_COLORS[p.kind] || [0xffffff, 0xdddddd];
+        const mp = m.position;
+        switch (p.kind) {
+          case 'missile': hpx.trail(mp, 'smoke', 0xc8ccd6, { scale: 0.3 }); hpx.trail(mp, 'ember', 0xff8a2a, { scale: 1.3, life: 0.14 }); break;
+          case 'fire': hpx.trail(mp, 'flame', 0xff7a1a, { scale: 0.5 }); break;
+          case 'turretBolt': case 'labCannon': hpx.trail(mp, 'ember', TEAM_LIGHT[p.side], { scale: p.kind === 'labCannon' ? 2.2 : 1.5, life: 0.18 }); break;
+          case 'nuke': case 'laser': case 'zap': case 'ice': hpx.trail(mp, (pr.n = (pr.n ?? 0) + 1) % 2 ? 'twinkle' : 'ember', pick(cols), { scale: 1.1, life: 0.22 }); break;
+          case 'soda': case 'sludge': case 'acid': case 'venom': hpx.trail(mp, 'ember', cols[1], { scale: 1.3, life: 0.24, grav: -4 }); break;
+          default: hpx.trail(mp, 'ember', cols[0], { scale: 1, life: 0.16 });
+        }
       }
     }
   }
@@ -1848,39 +1995,38 @@ export class BattleView {
     if (!pr) return;
     this.scene.remove(pr.mesh);
     this.projs.delete(p.id);
-    const pos = pr.mesh.position.clone();
-    hpx.hit(pos, p.kind, p.kind === 'labCannon' || p.kind === 'missile' ? 1.4 : 1, p.side === 0 ? 1 : -1);
+    let pool = projPool.get(pr.key);
+    if (!pool) projPool.set(pr.key, (pool = []));
+    if (pool.length < 24) pool.push(pr.mesh);
+    const pos = _pv.copy(pr.mesh.position);
+    const dir = p.side === 0 ? 1 : -1;
+    hpx.hit(pos, p.kind, p.kind === 'labCannon' || p.kind === 'missile' ? 1.3 : 1, dir);
     const cols = PROJ_COLORS[p.kind] || [0xffffff];
     switch (p.kind) {
-      case 'turretBolt':
-        fx.burst(pos, { count: 8, colors: [TEAM_LIGHT[p.side], 0xffffff], size: 0.06, speed: 3.5, layer: 'glow', life: 0.3 });
-        break;
       case 'labCannon':
-        fx.burst(pos, { count: 16, colors: [TEAM_COLORS[p.side], TEAM_LIGHT[p.side], 0xffffff], size: 0.1, speed: 5, layer: 'glow' });
-        groundHit(pos.clone().setY(0.03), { radius: 1.2, color: TEAM_COLORS[p.side] });
+        hpx.boom(pos, { scale: 0.8, color: TEAM_COLORS[p.side] });
+        hpx.dust(_pt.set(pos.x, 0, pos.z), { count: 2, scale: 1, color: this.dustColor });
         audio.play('explode', { pitch: 1.6, vol: 0.5, gap: 0.05 });
-        engine.shake(0.1);
+        engine.shake(0.08);
         break;
       case 'nuke':
-        fx.burst(pos, { count: 18, colors: [0x7cff3a, 0xd4ff9a, 0xffffff], size: 0.1, speed: 5, layer: 'glow' });
-        groundHit(pos.clone().setY(0), { radius: 1.6, color: 0x7cff3a });
-        audio.play('explode', { pitch: 1.5, gap: 0.05 });
-        engine.shake(0.15);
+        hpx.sparks(pos, { count: 8, colors: [0x7cff3a, 0xd4ff9a, 0xffffff], speed: 4 });
+        hpx.splat(pos, { color: 0x7cff3a, scale: 0.9 });
+        audio.play('explode', { pitch: 1.5, vol: 0.7, gap: 0.05 });
+        engine.shake(0.1);
         break;
       case 'missile':
-        fx.burst(pos, { count: 14, colors: [0xffd23f, 0xff8a2a, 0x555555], size: 0.1, speed: 5 });
-        fx.smoke(pos, { count: 4 });
-        audio.play('explode', { pitch: 1.8, vol: 0.6, gap: 0.05 });
-        engine.shake(0.12);
+        hpx.boom(pos, { scale: 0.7 });
+        audio.play('explode', { pitch: 1.8, vol: 0.5, gap: 0.05 });
+        engine.shake(0.06);
         break;
       case 'letters':
-        fx.burst(pos, { count: 10, colors: [0xffffff, 0xf4f0e0, 0xff4a4a, 0x29b6f6], size: 0.07, speed: 4, flutter: 0.6 });
+        hpx.chips(pos, { count: 5, colors: [0xffffff, 0xf4f0e0, 0xff4a4a, 0x29b6f6], speed: 3 });
         break;
-      case 'soda':
-        fx.bubbles(pos, { count: 6, color: 0xffe0c0 });
-        break;
+      case 'turretBolt': case 'soda': case 'sludge': case 'acid': case 'venom':
+        break; // the hit spark (ping / splat) says it all
       default:
-        fx.burst(pos, { count: 6, colors: cols, size: 0.07, speed: 3 });
+        hpx.sparks(pos, { count: 3, colors: [cols[0], 0xffffff], speed: 3, life: 0.6 });
     }
   }
 
@@ -2218,98 +2364,8 @@ export class BattleView {
   // Commander abilities
 
   signatureFx(ev) {
-    const side = ev.side;
-    const ch = this.cmds[side];
-    // ultimate wind-up: an energy blast off the Commander's roof
-    if (ch) {
-      const p = ch.root.position;
-      const col = TEAM_LIGHT[side];
-      groundHit(new THREE.Vector3(p.x, Math.max(0.05, p.y - 0.1), p.z), { radius: 3.4, color: col });
-      groundHit(new THREE.Vector3(this.sim.sides[side].labX, 0.05, 0.4), { radius: 5, color: 0xffd84a });
-      fx.burst(new THREE.Vector3(p.x, p.y + 0.8, p.z + 0.2), { count: 40, colors: [0xffffff, col, 0xffd84a], size: 0.1, speed: 8 });
-      fx.rise(new THREE.Vector3(p.x, p.y, p.z), { count: 22, colors: [col, 0xffffff], radius: 0.9 });
-      engine.shake(0.3);
-      engine.hitstop(0.05);
-    }
-    switch (ev.id) {
-      case 'beakerBarrage': {
-        this.perform(side, 'throw', 0.9, 'determined', 'grin');
-        if (ch) speech(ch, 'Science time!', 1.6);
-        const from = this.labTop(side);
-        ev.xs.forEach((x, i) => {
-          setTimeout(() => {
-            const b = propOr('makeBeaker', pick([0x7cff3a, 0xff4fd8, 0x29b6f6])) || simpleVox((g) => g.box(-1, 0, -1, 1, 3, 1, 0x7cff3a, true));
-            b.scale.setScalar(1.6);
-            audio.play('whoosh', { pitch: 1.4, gap: 0.02 });
-            this.lob(b, from, new THREE.Vector3(x, 0.3, rand(-0.5, 0.5)), 0.6, 3, 14);
-          }, i * 120);
-        });
-        break;
-      }
-      case 'megaGiveaway': {
-        this.perform(side, 'holdUp', 1.6, 'money', 'grin');
-        if (ch) speech(ch, 'MEGA GIVEAWAY!', 2);
-        audio.play('chaching');
-        audio.play('cheer');
-        const enemyLabX = this.sim.sides[1 - side].labX;
-        for (let i = 0; i < 14; i++) {
-          setTimeout(() => {
-            const x = lerp(-LAB_X + 3, LAB_X - 3, Math.random()) * 0.5 + enemyLabX * 0.0 + rand(-6, 6);
-            fx.cash(new THREE.Vector3(x, 8, rand(-1, 1)), 18, { speed: 3, coinRatio: 0.15, spread: 1.6 });
-          }, i * 70);
-        }
-        setTimeout(() => {
-          for (const a of this.actors.values()) {
-            if (a.u.side === side) continue;
-            speech(a.rig.root, '$_$', 1.2, { offsetY: 10 });
-          }
-          engine.shake(0.3);
-        }, 800);
-        break;
-      }
-      case 'bellyFlop': {
-        if (!ch) break;
-        ch.busy = true;
-        if (side === 0 || true) speech(ch, 'CANNONBALL!!', 1.6);
-        audio.play('boing', { pitch: 0.8 });
-        const from = ch.root.position.clone();
-        const to = new THREE.Vector3(ev.x, 0, 0.5);
-        ch.play('shocked', { restart: true, dur: 0.3, then: 'bellyflop' });
-        ch.expr('shock', 'shout', 1.8);
-        animate(1.0, (e, k) => {
-          ch.root.position.set(lerp(from.x, to.x, k), lerp(from.y, to.y, k) + Math.sin(k * Math.PI) * 6, lerp(from.z, to.z, k));
-          ch.root.rotation.z = (side === 0 ? -1 : 1) * k * Math.PI * 2;
-        }, { onComplete: () => {
-          ch.root.rotation.z = 0;
-          ch.play('bellyflop');
-          ch.expr('dizzy', 'wobble', 1.5);
-          setTimeout(() => {
-            ch.play('run');
-            ch.expr('happy', 'grin');
-            const back = ch.home.clone();
-            const start = ch.root.position.clone();
-            ch.root.rotation.y = side === 0 ? -Math.PI / 2 : Math.PI / 2;
-            animate(1.2, (e, k) => {
-              ch.root.position.set(lerp(start.x, back.x, k), lerp(start.y, back.y, k) + Math.sin(k * Math.PI) * 4, lerp(start.z, back.z, k));
-            }, { onComplete: () => {
-              ch.root.position.copy(back);
-              ch.root.rotation.y = side === 0 ? 0.55 : -0.55;
-              ch.play('sit');
-              ch.busy = false;
-            } });
-          }, 900);
-        } });
-        break;
-      }
-      case 'juansTruck': {
-        this.perform(side, 'point', 1.2, 'determined', 'grin');
-        if (ch) speech(ch, 'BRING THE TRUCK!', 1.8);
-        audio.play('horn');
-        break;
-      }
-      default:
-        break;
-    }
+    // the Commander ULTIMATE lands (sigFx.js; the build-up is sigCutscene.js)
+    sigResolveFx(this, ev);
   }
 
   skillFx(ev) {
@@ -2354,7 +2410,7 @@ export class BattleView {
         this.perform(side, 'angry', 1.4, 'angry', 'shout');
         if (ch) speech(ch, 'This is SO unfair!!', 1.8);
         audio.play('bruh');
-        for (const a of this.actors.values()) if (a.u.side !== side && Math.abs(a.u.x - ev.x) < 7) speech(a.rig.root, '😤', 1.2);
+        for (const a of this.actors.values()) if (a.u.side !== side && Math.abs(a.u.x - ev.x) < 7) speech(a.rig.root, 'Hmph!', 1.2);
         break;
       case 'luckyFail':
         this.perform(side, 'shocked', 1, 'shock', 'open');

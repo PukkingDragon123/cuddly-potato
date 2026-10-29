@@ -102,6 +102,9 @@ export class TitleScene {
       return; // the painted backdrop stays: still a complete title screen
     }
     if (this.exited) { fb.dispose(); return; }
+    // compile its shaders before it is ever drawn (in parallel where the driver supports it)
+    await engine.precompile(fb.scene, fb.camera);
+    if (this.exited) { fb.dispose(); return; }
     this.fb = fb;
     this.scene = fb.scene;
     this.camera = fb.camera;

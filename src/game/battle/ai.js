@@ -9,7 +9,8 @@ import { BASE_UPGRADES } from '../../data/labs.js';
 import { FIELD } from './field.js';
 
 const tankiness = (d) => d.hp * (1 + (d.traits?.armor ?? 0));
-const dps = (d) => (d.dmg / d.atk) * (d.count ?? 1) * (d.traits?.area ? 1.4 : 1);
+const splash = (t = {}) => !!(t.area || t.spin || t.pierce || t.chain || t.deathBomb || t.trail || t.puddle);
+const dps = (d) => (d.dmg / d.atk) * (d.count ?? 1) * (splash(d.traits) ? 1.4 : 1);
 
 export class BattleAI {
   constructor(sim, si, opts = {}) {
@@ -27,6 +28,12 @@ export class BattleAI {
 
   r() {
     return this.sim.rand();
+  }
+
+  /** A drop point with difficulty-based sloppiness, clamped to the deploy zone (same rule as the player). */
+  aimX(x) {
+    const err = (1 - this.d) * 1.6;
+    return this.sim.clampDeploy(this.si, x + (this.r() - 0.5) * err);
   }
 
   hand() {
@@ -76,8 +83,9 @@ export class BattleAI {
       if (sup.length && this.r() < 0.35 + this.d * 0.5) {
         const back = Math.min(...pushing.map((u) => u.x * dir)) * dir;
         const pick = sup.sort((a, b) => dps(b.def) / b.cost - dps(a.def) / a.cost)[0];
-        void back;
-        sim.play(si, pick.slot, null);
+        // support drops in just behind the rearmost pushing troop (ranged further back)
+        const gap = (pick.def.range ?? 1) > 2 ? 1.8 : 0.9;
+        sim.play(si, pick.slot, this.aimX(back - dir * gap));
         return;
       }
     }
@@ -90,9 +98,8 @@ export class BattleAI {
       const pick = tank ?? troops.sort((a, b) => b.cost - a.cost)[Math.floor(this.r() * Math.min(2, troops.length))];
       // tanks start at the back so support can stack behind; fast units go to the bridge
       const fast = pick.def.speed >= 1.7;
-      const x = fast && !tank ? sim.clampDeploy(si, -dir * 1.2) : s.labX + dir * (FIELD.LAB_HALF + 0.5);
-      void x;
-      sim.play(si, pick.slot, null);
+      const x = fast && !tank ? -dir * 1.2 : s.labX + dir * (FIELD.LAB_HALF + 0.5);
+      sim.play(si, pick.slot, this.aimX(x));
       this.pushStarted = sim.t;
     }
   }
@@ -109,8 +116,13 @@ export class BattleAI {
     const score = (h) => {
       const d = h.def;
       let v = dps(d) / (h.cost + 1);
-      if (swarm && d.traits?.area) v *= 2.2;
-      if (tanky && (d.role === 'swarm' || dps(d) > 120)) v *= 1.8;
+      const t = d.traits ?? {};
+      if (swarm && splash(t)) v *= 2.2;
+      // tank killers: swarms, heat-up beams, executioners, shield-breakers vs armour
+      if (tanky && (d.role === 'swarm' || dps(d) > 120 || t.heatUp || t.execute || t.wrap || (t.breaker && (lead.st?.traits?.armor || lead.shieldHp > 0)))) v *= 1.8;
+      // small fry gets swallowed / stopped / leapt
+      if (!tanky && (t.devour || t.stopper || t.leap)) v *= 1.3;
+      if (t.siege) v *= 0.1;
       if (flying && (d.role === 'ranged' || d.projectile)) v *= 2;
       if (flying && !d.projectile && d.role !== 'flying') v *= 0.6;
       if (d.traits?.kamikaze && !tanky) v *= 0.4;
@@ -122,9 +134,9 @@ export class BattleAI {
     const distToFront = (lead.x - myFront.x) * dir;
     if (distToFront > 8.5 && this.r() < this.d * 0.5) return;
     const range = pick.def.range ?? 1;
-    const x = range > 2 ? myFront.x + dir * 0.4 : lead.x - dir * (1.3 + this.r() * 0.6);
-    void x;
-    sim.play(si, pick.slot, null);
+    // ranged defenders stay by the base (the zapper covers them); melee meets the attacker head-on
+    const x = range > 2 ? myFront.x + dir * (FIELD.LAB_HALF + 1.2) : lead.x - dir * (1.3 + this.r() * 0.6);
+    sim.play(si, pick.slot, this.aimX(x));
   }
 
   trySpell(enemies) {
@@ -220,9 +232,20 @@ export class BattleAI {
       }
     }
     if (s.cmd && s.sig >= 1 && sim.t > this.sigDelay) {
-      const worth = enemies.length >= 3 || near.length >= 2 || enemies.some((e) => e.boss);
-      if (worth && this.r() < 0.35 + this.d * 0.6) {
-        sim.useSignature(si);
+      // ULTIMATE: wait for the moment it swings the fight, but never sit on it for long
+      this.sigReadyAt ??= sim.t;
+      const allies0 = sim.alliesOf(si).filter((u) => !u.mega);
+      const id = s.cmd.signature.id;
+      const pricey = enemies.reduce((a, e) => a + (e.cost ?? 0), 0);
+      let worth = enemies.some((e) => e.boss) || near.length >= 2;
+      if (id === 'mutantUprising') worth ||= allies0.length >= 3 || (allies0.length >= 2 && enemies.length >= 2);
+      else if (id === 'beastBuyout') worth ||= enemies.length >= 3 || pricey >= 9;
+      else if (id === 'orbitalFlop') worth ||= (sim.densestEnemyX(si, 3.4)?.count ?? 0) >= 3;
+      else worth ||= enemies.length >= 3 || (allies0.length >= 3 && enemies.length >= 1);
+      const losing = s.lab.hp < s.lab.maxHp * 0.5 && enemies.length >= 1;
+      const stale = sim.t - this.sigReadyAt > 14 && (enemies.length + allies0.length >= 2);
+      if ((worth || losing || stale) && this.r() < 0.35 + this.d * 0.6) {
+        if (sim.useSignature(si)) this.sigReadyAt = null;
         return true;
       }
     }
