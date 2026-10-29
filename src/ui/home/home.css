@@ -1556,5 +1556,5 @@ body:not(.landscape) .ps-prem:not(.on) .ps-show-i.s1 { width: calc(var(--u) * 13
 .mn-pk-s { font-size: 0.74em; }
 .ps-pod-n { font-size: 0.74em; }
 .ps-pod.ms .ps-pod-n { font-size: 0.8em; }
-.ps-tk small { font-size: 0.72em; }
+.mn-pass .ps-tk small { font-size: 0.74em; }
 .tr-you { translate: calc(var(--u) * 7.2) -50%; }

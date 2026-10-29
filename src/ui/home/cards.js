@@ -188,7 +188,6 @@ export function mount(el, ctx) {
   function megaPanel() {
     const mg = state.p.megas;
     const eqId = mg?.equipped && MEGAS[mg.equipped] ? mg.equipped : null;
-    const owned = MEGA_IDS.filter((id) => mg?.owned?.[id]).length;
     const M = eqId ? MEGAS[eqId] : MEGAS[MEGA_IDS[0]];
     const gold = eqId && mg.owned[eqId]?.variant === 'gold';
     const art = h('div', { class: `mn-mega-art ${eqId ? '' : 'locked'}` }, lazyImg(`s|${M.id}|${gold ? 'gold' : 'base'}|null|128`, () => swarmThumb(M.id, gold ? 'gold' : 'base', null, 128), 'smooth', { priority: true }));
@@ -196,7 +195,7 @@ export function mount(el, ctx) {
       h('span', { class: 't-xs c-muted' }, 'MEGA ULTIMATE'),
       h('b', { class: 't-d outline mn-mega-n' }, eqId ? M.name + (gold ? ' (Gold)' : '') : 'None yet'),
       h('span', { class: 't-xs mn-mega-s' }, eqId ? M.special.name : `Unlocks on the ${M.unlock}`));
-    const btn = button(eqId ? 'CHANGE' : 'VIEW', () => ctx.openMegas?.(), 'purple sm', { icon: 'mega', sub: `${owned}/${MEGA_IDS.length}` });
+    const btn = button(eqId ? 'CHANGE' : 'VIEW', () => ctx.openMegas?.(), 'purple sm', { icon: 'mega' });
     return h('div', { class: 'panel sk-panel-pink mn-megabox' }, art, txt, btn);
   }
 

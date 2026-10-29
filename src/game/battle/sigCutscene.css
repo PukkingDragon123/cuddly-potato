@@ -69,8 +69,8 @@
 
 /* ---- HUD ULT button (hud.js): first-battle callout on what charges it + a flash when base damage charges it */
 .bh-ult .u-tip {
-  /* above the popped-out Commander, right-aligned with the button (it sits at the screen's right edge) */
-  position: absolute; bottom: 160%; right: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 0.15em;
+  /* portrait: beside the button, over the field (the MEGA badge owns the column above it) */
+  position: absolute; bottom: 105%; right: calc(100% + var(--u) * 0.5); z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 0.15em;
   width: max-content; max-width: min(64vw, 260px); padding: 0.45em 0.7em 0.5em; pointer-events: none;
   font-family: var(--font-d); font-size: calc(var(--u) * 2.5); line-height: 1.15; color: #fff; text-align: center; text-shadow: var(--outline-thin, 0 1px 0 #000);
   background: linear-gradient(rgba(16, 22, 70, 0.97), rgba(6, 8, 30, 0.97));
@@ -81,7 +81,7 @@
 .bh-ult .u-tip span { white-space: nowrap; }
 /* pixel pointer under the callout (stepped, no triangle shape) */
 .bh-ult .u-tip::after {
-  content: ''; position: absolute; top: 100%; right: calc(var(--us) / 2); width: calc(var(--px) * 6); height: calc(var(--px) * 3); translate: 50% 0;
+  content: ''; position: absolute; top: 100%; right: calc(var(--px) * 4); width: calc(var(--px) * 6); height: calc(var(--px) * 3);
   background: var(--ink, #05030c);
   clip-path: polygon(0 0, 100% 0, 100% 33%, 83% 33%, 83% 66%, 66% 66%, 66% 100%, 33% 100%, 33% 66%, 17% 66%, 17% 33%, 0 33%);
 }
@@ -92,3 +92,6 @@
 .bh-ult .u-tip.ready { background: linear-gradient(color-mix(in srgb, var(--uc) 85%, #fff), color-mix(in srgb, var(--uc) 70%, #000)); color: #05030c; text-shadow: none; animation: uTipIn 0.32s cubic-bezier(.2, 1.5, .4, 1), uTipPulse 0.5s 0.32s steps(2) 4; }
 .bh-ult .u-tip.ready b { color: #fff; text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
 @keyframes uTipPulse { 50% { filter: brightness(1.35); } }
+/* landscape: above the popped-out Commander, right-aligned with the button at the screen edge */
+body.landscape .bh-ult .u-tip { bottom: 160%; right: 0; }
+body.landscape .bh-ult .u-tip::after { right: calc(var(--us) / 2); translate: 50% 0; }

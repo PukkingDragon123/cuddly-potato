@@ -262,6 +262,7 @@ class Engine {
 
   async setScene(sceneObj, params) {
     const prev = this.current;
+    const prevScene = prev?.scene;
     if (prev && prev.exit) prev.exit();
     this.current = sceneObj;
     this.covers.clear();
@@ -291,6 +292,47 @@ class Engine {
       if (o.isDirectionalLight && o.castShadow) o.shadow.mapSize.set(this.shadowRes ?? 2048, this.shadowRes ?? 2048);
     });
     this.resize();
+    if (this.current === sceneObj) this.releaseGPU(prevScene, sceneObj.scene);
+  }
+
+  /**
+   * Free the GPU copies of the geometries, textures and instance buffers the previous scene
+   * used and the new one does not. Scenes drop their graphs on exit but never disposed them,
+   * so every battle / home round trip kept ~40 more buffers, ~9 more textures and the old
+   * sun's shadow map alive on the GPU. Only GPU memory is released: three re-uploads anything that is drawn again
+   * (shared caches keep working). Materials (shared shader programs) are left alone.
+   */
+  releaseGPU(oldScene, newScene) {
+    if (!oldScene || oldScene === newScene) return;
+    const TEX = ['map', 'alphaMap', 'aoMap', 'bumpMap', 'emissiveMap', 'lightMap', 'metalnessMap', 'normalMap', 'roughnessMap', 'specularMap', 'displacementMap', 'gradientMap', 'matcap'];
+    const collect = (root, geos, texs, insts, lights) => {
+      const addTex = (t) => { if (t && t.isTexture && !t.isRenderTargetTexture) texs.add(t); };
+      addTex(root.background);
+      addTex(root.environment);
+      root.traverse((o) => {
+        if (o.geometry) geos.add(o.geometry);
+        if (o.isInstancedMesh) insts.add(o);
+        if (lights && o.isLight && o.shadow?.map) lights.add(o);
+        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        for (const m of mats) {
+          for (const k of TEX) addTex(m[k]);
+          if (m.uniforms) for (const u of Object.values(m.uniforms)) addTex(u?.value);
+        }
+      });
+    };
+    try {
+      const keepG = new Set(), keepT = new Set([this.envMap, this.thumbEnv]), keepI = new Set();
+      if (newScene) collect(newScene, keepG, keepT, keepI);
+      collect(particles.group, keepG, keepT, keepI);
+      const g = new Set(), t = new Set(), i = new Set(), l = new Set(), keepL = new Set();
+      if (newScene) collect(newScene, new Set(), new Set(), new Set(), keepL);
+      collect(oldScene, g, t, i, l);
+      // each dropped scene's sun kept its shadow map (a 1024² colour + depth target, ~8 MB)
+      for (const x of l) if (!keepL.has(x)) { x.shadow.map.dispose(); x.shadow.map = null; }
+      for (const x of g) if (!keepG.has(x)) x.dispose();
+      for (const x of t) if (!keepT.has(x)) x.dispose();
+      for (const x of i) if (!keepI.has(x)) x.dispose();
+    } catch (e) { /* releasing is only an optimisation */ }
   }
 
   /** Add camera trauma (0..1). Shake magnitude grows with trauma². */

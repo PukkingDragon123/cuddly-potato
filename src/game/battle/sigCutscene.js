@@ -147,10 +147,10 @@ export function playSigCutscene(view, ev) {
   const _ht = V();
   const heroShot = (k) => {
     const c = chest();
-    const face = ch.headTop ? ch.headTop(_ht).clone().add(V(0, -H * 0.2, 0)) : V(c.x, c.y + H * 0.3, c.z);
-    const e = ease(clamp(k * 1.15, 0, 1));
-    const frame = lerp(H * 1.9, H * 0.85, e); // visible height: whole body -> head and shoulders
-    const d = Math.max(frame / (2 * TAN), fit(frame * 0.62, 0));
+    const face = ch.headTop ? ch.headTop(_ht).clone().add(V(0, -H * 0.3, 0)) : V(c.x, c.y + H * 0.25, c.z);
+    const e = ease(clamp(k * 1.1, 0, 1));
+    const frame = lerp(H * 2.4, H * 1.3, e); // visible height: whole body -> head and shoulders
+    const d = Math.max(frame / (2 * TAN), fit(H * 1.05, 0));
     const lk = V().lerpVectors(c, face, e);
     return { pos: V(lk.x + dir * d * 0.16, lk.y - frame * 0.06, lk.z + d), look: lk.add(V(0, -frame * 0.04, 0)) };
   };
@@ -382,7 +382,8 @@ const DIRECTORS = {
       tick(T, dt) {
         if (held) {
           const hp = handPos(0.02);
-          vat.position.set(hp.x, hp.y + H * 0.12, hp.z + 0.05); // held up over the head
+          const top = ch.headTop ? ch.headTop(V()).y : hp.y;
+          vat.position.set(hp.x, Math.max(hp.y, top) + H * 0.04, hp.z + 0.05); // held up over the head, clear of the face
           vat.rotation.z = Math.sin(T * 9) * 0.08;
           for (let n = E('e367', 15, dt); n > 0; n--) P.spawn({ tex: 'drop', x: hp.x + rand(-0.2, 0.2) * H, y: hp.y + H * 0.8, z: hp.z + 0.2, vy: rand(0.8, 1.6), size: H * 0.09, color: G, glow: 1.5, life: 0.5 });
           for (let n = E('e368', 9, dt); n > 0; n--) P.spawn({ tex: 'helix', x: hp.x + rand(-0.6, 0.6) * H, y: hp.y + rand(0, 0.6) * H, z: hp.z + 0.3, vy: 1, size: H * 0.22, color: G, glow: 2.2, life: 0.6 });

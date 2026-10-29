@@ -927,6 +927,7 @@ export class HomeScene {
     for (const a of this.actors) a.update?.(dt);
     // world tags
     const v = _tagV;
+    const shownTags = [];
     for (const pk of this.pickables) {
       if (!pk.tag) continue;
       pk.obj.getWorldPosition(v);
@@ -934,8 +935,18 @@ export class HomeScene {
       const s = engine.toScreen(v, cam);
       const near = cam.position.distanceTo(v) < 140;
       if (!s.visible || !near || this.tab !== 'battle') { pk.tag.style.display = 'none'; continue; }
-      pk.tag.style.display = '';
-      pk.tag.style.transform = `translate(${Math.round(s.x)}px, ${Math.round(s.y)}px)`;
+      if (pk.tag.style.display === 'none' || !pk.tagBox?.[0]) { pk.tag.style.display = ''; pk.tagBox = [pk.tag.offsetWidth, pk.tag.offsetHeight]; }
+      shownTags.push({ pk, x: s.x, y: s.y });
+    }
+    // labels never sit on top of each other: a tag overlapping one lower on screen steps up above it
+    shownTags.sort((a, b) => b.y - a.y);
+    for (let i = 0; i < shownTags.length; i++) {
+      const t = shownTags[i], [w, hh] = t.pk.tagBox;
+      for (let j = 0; j < i; j++) {
+        const o = shownTags[j], [ow, oh] = o.pk.tagBox;
+        if (Math.abs(t.x - o.x) < (w + ow) / 2 + 4 && t.y > o.y - oh - 3) t.y = o.y - oh - 3;
+      }
+      t.pk.tag.style.transform = `translate(${Math.round(t.x)}px, ${Math.round(t.y)}px)`;
     }
   }
 

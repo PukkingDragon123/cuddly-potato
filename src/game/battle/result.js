@@ -392,11 +392,11 @@ export async function showResult(parent, opts) {
     anchor.root.updateMatrixWorld(true);
     const top = new THREE.Box3().setFromObject(anchor.root).max.y + 0.1;
     const bottom = 0.2;
-    // portrait: pull back a little so the anchor doesn't hide the studio screen
-    const vh = (top - bottom) * (portrait ? 1.22 : 1);
+    // pull back a little so the anchor doesn't hide the studio screen
+    const vh = (top - bottom) * 1.22;
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     // anchor sits left of centre (the BEAST NEWS screen fills the right)
-    const off = (portrait ? 0.2 : 0.1) * vh * cam.aspect;
+    const off = 0.2 * vh * cam.aspect;
     aim.set(off, (top + bottom) / 2, 0);
     cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.12, Math.cos(0.12) * dist);
     cam.lookAt(aim);
