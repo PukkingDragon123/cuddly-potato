@@ -4,7 +4,7 @@
 //   * electric POWER 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
 //   * an 8-card deck cycling through a hand of 4 (+ the NEXT card): a played
 //     card goes to the back of the deck and the next one slides in
-//   * SPECIAL cards are card-game tricks (Slay the Spire style) that play with
+//   * (legacy) SPECIAL card-trick support below; the current card set uses only
 //     your hand: DRAW extra cards (hand up to 6), DISCARD, ECHO, COPY, cost
 //     cuts and EXHAUST (once per battle)
 //   * troops pop out of your base and march forward to fight automatically;

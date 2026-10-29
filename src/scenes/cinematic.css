@@ -390,14 +390,14 @@ body.landscape .ld-dest .n { font-size: calc(var(--u) * 7.5); }
 .ld.boom .ld-caps .c.ok { animation: ldCapLast 0.4s 0.5s both; color: #ffd84a; }
 
 .ld-kaboom { position: absolute; left: 50%; top: 24%; z-index: 20; pointer-events: none; font-family: var(--font-d); font-size: calc(var(--lp) * 24); line-height: 1; white-space: nowrap; color: #fff6c0; opacity: 0;
-  translate: -50% -50%; rotate: -8deg;
+  translate: -50% -50%;
   text-shadow: 0 calc(var(--lp) * 1.2) 0 #ff9a1a, 0 calc(var(--lp) * 2.4) 0 #c8261e, calc(var(--lp) * 0.8) 0 0 var(--ink), calc(var(--lp) * -0.8) 0 0 var(--ink), 0 calc(var(--lp) * 3.2) 0 var(--ink), 0 calc(var(--lp) * -0.8) 0 var(--ink), 0 0 calc(var(--lp) * 8) rgba(255, 160, 40, 0.8); }
 .ld.boom .ld-kaboom { animation: ldKaboom 1.15s cubic-bezier(.2, 1.4, .4, 1) 0.05s both; }
 @keyframes ldKaboom { 0% { opacity: 0; transform: scale(0.2); } 18% { opacity: 1; transform: scale(1.25); } 32% { transform: scale(0.95); } 44%, 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1) translateY(-20%); } }
 
 /* ---------------------------------------------------------------- the smoke clears onto the new scene */
 .ld-clear { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
-.ld-cloud { position: absolute; left: var(--x); top: var(--y); width: 46vmax; height: 46vmax; translate: -50% -50%; overflow: hidden; opacity: 0; }
+.ld-cloud { position: absolute; left: var(--x); top: var(--y); width: calc(46vmax * var(--s, 1)); height: calc(46vmax * var(--s, 1)); translate: -50% -50%; overflow: hidden; opacity: 0; }
 .ld-cloud canvas { width: 600%; height: 100%; }
 .ld.out .ld-bg, .ld.out .ld-shake, .ld.out .ld-flash { opacity: 0; transition: opacity 0.12s linear 0.08s; }
 .ld.out .ld-cloud { animation: ldCloud 0.9s calc(var(--i) * 0.025s) ease-out both; }

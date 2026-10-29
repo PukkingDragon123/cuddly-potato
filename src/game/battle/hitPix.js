@@ -198,10 +198,10 @@ function buildAtlas() {
   });
   // POOF: cartoon cloud burst for KOs (6 frames)
   for (let f = 0; f < 6; f++) frame('poof', 32, 32, (put) => {
-    const u = f / 5, spread = 2.4 + u * 8, br = 4.6 - u * 1.8, fade = Math.max(0, (u - 0.45) / 0.55);
-    const C = [[0, 0, 1]];
-    for (let i = 0; i < 6; i++) C.push([Math.cos(i * 1.047 + 0.4) * spread, Math.sin(i * 1.047 + 0.4) * spread * 0.85, 1]);
-    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+    const u = f / 5, spread = 5.2 + u * 6, br = 3.9 - u * 1.4, fade = Math.max(0, (u - 0.45) / 0.55);
+    const C = [[0, 0, 0.8]];
+    for (let i = 0; i < 5; i++) C.push([Math.cos(i * 1.2566 + 0.4) * spread * (i % 2 ? 1 : 0.85), Math.sin(i * 1.2566 + 0.4) * spread * 0.85, i % 2 ? 1.05 : 0.75]);
+    const field = (x, y) => {
       let best = 9, sh = 0;
       for (const [cx, cy, s] of C) {
         if (f >= 3 && cx === 0 && cy === 0) continue;
@@ -209,8 +209,16 @@ function buildAtlas() {
         const d = Math.hypot(dx, dy) / (br * s);
         if (d < best) { best = d; sh = (dx + dy) / (br * s); }
       }
-      if (best > 1 || bay(x, y) < fade) continue;
-      put(x, y, best > 0.82 ? 0.45 : sh < -0.3 ? 1 : 0.8);
+      return [best, sh];
+    };
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const [best, sh] = field(x, y);
+      if (bay(x, y) < fade) continue;
+      if (best > 1) {
+        if (fade < 0.3 && (field(x + 1, y)[0] <= 1 || field(x - 1, y)[0] <= 1 || field(x, y + 1)[0] <= 1 || field(x, y - 1)[0] <= 1)) put(x, y, 0.2);
+        continue;
+      }
+      put(x, y, best > 0.78 ? 0.5 : sh < -0.3 ? 0.95 : 0.74);
     }
     if (f >= 1 && f <= 4) for (let i = 0; i < 4; i++) {
       const a = i * 1.57 + 0.8, r = 9 + f * 2.2, px = 16 + Math.cos(a) * r, py = 16 + Math.sin(a) * r;
@@ -275,8 +283,9 @@ void main() {
   if (t.a < 0.5) discard;
   float L = t.r;
   vec3 hot = vec3(1.0, 0.97, 0.86);
-  vec3 col = L >= 0.8 ? mix(vCol.rgb, hot, (L - 0.8) / 0.2) : vCol.rgb * (0.32 + 0.85 * L);
-  float a = vCol.a;
+  // negative alpha = a "cool" particle (smoke, dust): highlights stay in the tint, no white-hot band
+  vec3 col = (L >= 0.8 && vCol.a >= 0.0) ? mix(vCol.rgb, hot, (L - 0.8) / 0.2) : vCol.rgb * (0.32 + 0.85 * L);
+  float a = abs(vCol.a);
   if (dither > 0.5) {
     if (a < bayer4(gl_FragCoord.xy / 2.0)) discard;
     gl_FragColor = vec4(col, 1.0);
@@ -303,7 +312,7 @@ class Layer {
     g.instanceCount = 0;
     this.geo = g;
     this.mat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: atlas.tex }, boost: { value: additive ? 1.6 : 1 }, dither: { value: additive ? 0 : 1 } },
+      uniforms: { map: { value: atlas.tex }, boost: { value: additive ? 1.05 : 1 }, dither: { value: additive ? 0 : 1 } },
       vertexShader: VERT, fragmentShader: FRAG,
       transparent: additive, depthWrite: !additive, depthTest: true,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -337,7 +346,7 @@ class Layer {
       P[j * 3] = p.x; P[j * 3 + 1] = p.y; P[j * 3 + 2] = p.z;
       U[j * 4] = f.u; U[j * 4 + 1] = f.v; U[j * 4 + 2] = f.w; U[j * 4 + 3] = f.h;
       const fade = k < p.fadeIn ? k / p.fadeIn : k > p.fadeOut ? 1 - (k - p.fadeOut) / (1 - p.fadeOut) : 1;
-      C[j * 4] = p.r; C[j * 4 + 1] = p.g; C[j * 4 + 2] = p.b; C[j * 4 + 3] = Math.max(0, fade) * p.alpha;
+      C[j * 4] = p.r; C[j * 4 + 1] = p.g; C[j * 4 + 2] = p.b; C[j * 4 + 3] = Math.max(0.001, fade) * p.alpha * (p.cool ? -1 : 1);
       // 90-degree snapped spin keeps the pixel grid square
       const rot = p.snap ? Math.round(p.rot / (Math.PI / 2)) * (Math.PI / 2) : p.rot;
       S[j * 3] = f.pw * TEX * sc * (p.flip ? -1 : 1); S[j * 3 + 1] = f.ph * TEX * sc; S[j * 3 + 2] = rot;
@@ -385,7 +394,7 @@ class HitPix {
       grav: o.grav ?? 0, drag: o.drag ?? 0, ground: o.ground ?? -99, bounce: o.bounce ?? 0.3,
       t: 0, life: o.life ?? 0.4, frames: atlas.anims[anim], fps: o.fps ?? 0,
       scale: o.scale ?? 1, grow: o.grow ?? 0, flip: !!o.flip, rot: o.rot ?? 0, spin: o.spin ?? 0, snap: o.snap ?? false,
-      r: _col.r, g: _col.g, b: _col.b, alpha: o.alpha ?? 1, fadeIn: o.fadeIn ?? 0, fadeOut: o.fadeOut ?? 0.7,
+      r: _col.r, g: _col.g, b: _col.b, alpha: o.alpha ?? 1, cool: !!o.cool, fadeIn: o.fadeIn ?? 0, fadeOut: o.fadeOut ?? 0.7,
     };
     if (o.frame != null) p.frames = [p.frames[o.frame % p.frames.length]];
     Lr.list.push(p);
@@ -398,7 +407,7 @@ class HitPix {
     const s = scale;
     const z = (pos.z ?? 0) + 0.35;
     const K = HIT_KINDS[kind] ?? HIT_KINDS.melee;
-    this.emit('glow', K.anim, { x: pos.x, y: pos.y, z, life: K.life ?? 0.22, scale: s * (K.size ?? 1), color: K.color, flip: dir < 0, fadeOut: 0.8 });
+    this.emit('solid', K.anim, { x: pos.x, y: pos.y, z, life: K.life ?? 0.22, scale: s * (K.size ?? 1), color: K.color, flip: dir < 0, fadeOut: 0.8 });
     const n = Math.round((K.bits ?? 5) * Math.min(2, s));
     for (let i = 0; i < n; i++) {
       const a = rnd(-1.1, 1.1) + (dir > 0 ? 0 : Math.PI), sp = rnd(2.5, 6) * Math.sqrt(s);
@@ -408,26 +417,26 @@ class HitPix {
   }
   /** Melee smear: a crescent swept in front of the attacker (dir: facing). */
   slash(pos, dir = 1, tint = 0xffffff, scale = 1) {
-    this.emit('glow', 'slash', { x: pos.x + dir * 0.32 * scale, y: pos.y, z: (pos.z ?? 0) + 0.4, life: 0.16, scale: scale * 0.85, color: tint, flip: dir < 0, fadeOut: 0.75 });
+    this.emit('solid', 'slash', { x: pos.x + dir * 0.32 * scale, y: pos.y, z: (pos.z ?? 0) + 0.4, life: 0.16, scale: scale * 0.85, color: tint, flip: dir < 0, fadeOut: 0.75 });
   }
   /** Launch flash at a muzzle (dir: shot direction). */
   muzzle(pos, dir = 1, tint = 0xffe27a, scale = 1) {
-    this.emit('glow', 'muzzle', { x: pos.x + dir * 0.14 * scale, y: pos.y, z: (pos.z ?? 0) + 0.3, life: 0.12, scale: scale * 0.8, color: tint, flip: dir < 0, fadeOut: 0.8 });
-    this.emit('solid', 'puff2', { x: pos.x + dir * 0.1, y: pos.y, z: (pos.z ?? 0) + 0.25, vx: dir * 0.8, vy: 0.5, drag: 3, life: 0.4, scale: scale * 0.35, color: 0xd8dce6, fadeOut: 0.5 });
+    this.emit('solid', 'muzzle', { x: pos.x + dir * 0.14 * scale, y: pos.y, z: (pos.z ?? 0) + 0.3, life: 0.12, scale: scale * 0.8, color: tint, flip: dir < 0, fadeOut: 0.8 });
+    this.emit('solid', 'puff2', { x: pos.x + dir * 0.1, y: pos.y, z: (pos.z ?? 0) + 0.25, vx: dir * 0.8, vy: 0.5, drag: 3, life: 0.4, scale: scale * 0.35, color: 0xd8dce6, fadeOut: 0.5, cool: true });
   }
   /** Kicked-up dust puffs rolling along the ground. */
   dust(pos, o = {}) {
     const n = o.count ?? 3, s = o.scale ?? 1;
     for (let i = 0; i < n; i++) {
       const vx = (o.vx ?? 0) + rnd(-1, 1) * (o.spread ?? 1.2);
-      this.emit('solid', i % 2 ? 'puff' : 'puff2', { x: pos.x + rnd(-0.15, 0.15) * s, y: 0.12 + rnd(0, 0.1) * s, z: (pos.z ?? 0) + rnd(-0.1, 0.3), vx, vy: rnd(0.2, 0.9), drag: 2.5, life: rnd(0.4, 0.7) * (o.life ?? 1), scale: rnd(0.4, 0.65) * s, color: o.color ?? pickc([0xe8dcc0, 0xd8c4a0, 0xf2ead8]), fadeOut: 0.5 });
+      this.emit('solid', i % 2 ? 'puff' : 'puff2', { x: pos.x + rnd(-0.15, 0.15) * s, y: 0.12 + rnd(0, 0.1) * s, z: (pos.z ?? 0) + rnd(-0.1, 0.3), vx, vy: rnd(0.2, 0.9), drag: 2.5, life: rnd(0.4, 0.7) * (o.life ?? 1), scale: rnd(0.4, 0.65) * s, color: o.color ?? pickc([0xe8dcc0, 0xd8c4a0, 0xf2ead8]), fadeOut: 0.5, cool: true });
     }
   }
   /** Rolling smoke (grey by default). */
   smoke(pos, o = {}) {
     const n = o.count ?? 4, s = o.scale ?? 1;
     for (let i = 0; i < n; i++) {
-      this.emit('solid', i % 2 ? 'puff' : 'puff2', { x: pos.x + rnd(-0.4, 0.4) * (o.radius ?? 1), y: pos.y + rnd(0, 0.4), z: (pos.z ?? 0) + rnd(-0.2, 0.5), vx: rnd(-0.6, 0.6) + (o.vx ?? 0), vy: rnd(0.6, 1.8) * (o.rise ?? 1), drag: 1.2, life: rnd(0.9, 1.6) * (o.life ?? 1), scale: rnd(0.8, 1.3) * s, grow: o.grow ?? 0.5, color: o.color ?? pickc(o.colors ?? [0x8a8698, 0x6a6678, 0xa8a4b4]), fadeOut: 0.55, fadeIn: 0.05 });
+      this.emit('solid', i % 2 ? 'puff' : 'puff2', { x: pos.x + rnd(-0.4, 0.4) * (o.radius ?? 1), y: pos.y + rnd(0, 0.4), z: (pos.z ?? 0) + rnd(-0.2, 0.5), vx: rnd(-0.6, 0.6) + (o.vx ?? 0), vy: rnd(0.6, 1.8) * (o.rise ?? 1), drag: 1.2, life: rnd(0.9, 1.6) * (o.life ?? 1), scale: rnd(0.8, 1.3) * s, grow: o.grow ?? 0.5, color: o.color ?? pickc(o.colors ?? [0x8a8698, 0x6a6678, 0xa8a4b4]), fadeOut: 0.55, fadeIn: 0.05, cool: true });
     }
   }
   /** Flickering flames licking upward. */
@@ -458,12 +467,12 @@ class HitPix {
     this.emit('glow', 'star', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.6, life: 0.12, scale: 1.2 * s, color: 0xffb02e, alpha: 0.7, fadeOut: 0.3 });
     for (let i = 0; i < (o.flames ?? 3); i++) this.emit('solid', 'boom', { x: pos.x + rnd(-0.7, 0.7) * s, y: pos.y + rnd(-0.3, 0.6) * s, z: (pos.z ?? 0) + rnd(0.2, 0.7), vy: rnd(0.3, 1.2), life: rnd(0.35, 0.55), scale: rnd(0.7, 1.1) * s, color: pickc([0xff5a1a, 0xff8a1a, 0xe8401a]), fadeOut: 0.8 });
     this.sparks(pos, { count: Math.round(10 * s), scale: 1, speed: 6 * Math.sqrt(s) });
-    this.smoke(pos.clone ? pos.clone().setY(pos.y + 0.2) : pos, { count: Math.round(5 * s), scale: 1.3 * s, radius: s, colors: [0x5a5468, 0x46404f, 0x6e687c] });
+    this.smoke(pos.clone ? pos.clone().setY(pos.y + 0.2) : pos, { count: Math.round(4 * s), scale: 0.9 * s, radius: s, colors: [0x5a5468, 0x46404f, 0x6e687c] });
   }
   /** Cartoon KO poof: cloud burst + twinkles (tint = cloud colour). */
   poof(pos, o = {}) {
     const s = o.scale ?? 1;
-    this.emit('solid', 'poof', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.45, vy: 0.4, life: 0.5, scale: 1.25 * s, color: o.color ?? 0xf2eef8, fadeOut: 0.95 });
+    this.emit('solid', 'poof', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.45, vy: 0.4, life: 0.5, scale: 1.2 * s, color: o.color ?? 0xd4cce8, fadeOut: 0.95, cool: true });
     for (let i = 0; i < 3; i++) this.emit('glow', 'twinkle', { x: pos.x + rnd(-0.5, 0.5) * s, y: pos.y + rnd(-0.2, 0.6) * s, z: (pos.z ?? 0) + 0.6, vy: rnd(0.5, 1.4), life: rnd(0.3, 0.55), scale: rnd(0.9, 1.4), color: o.spark ?? 0xffe27a, fadeOut: 0.5 });
   }
   /** Chunky debris chips (solid, bouncing). */

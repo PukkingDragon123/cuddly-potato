@@ -25,7 +25,7 @@
 @keyframes cfbBlink { 50% { opacity: 0.35; } }
 .cfb-stamp {
   position: absolute; left: 50%; top: 42%; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; opacity: 0;
-  font-family: var(--font-d); line-height: 0.88; text-align: center; white-space: nowrap; rotate: -6deg;
+  font-family: var(--font-d); line-height: 0.88; text-align: center; white-space: nowrap;
 }
 .cfb-stamp b { font-size: clamp(30px, 9vmin, 64px); color: #fff; letter-spacing: 0.12em; text-shadow: var(--outline); }
 .cfb-stamp span {
@@ -242,7 +242,7 @@
 .cn-base.s1 .bar .f { background: linear-gradient(#ffa0aa 0 22%, #f23a4a 22% 70%, #a81828 70%); }
 .cn-base .bar .pc { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 0.5em; font-family: var(--font-d); font-size: clamp(14px, 1em, 20px); text-shadow: var(--outline-thin); }
 .cn-stamp {
-  position: absolute; right: 16%; top: 50%; translate: 0 -50%; rotate: -8deg; padding: 0 0.25em; font-family: var(--font-d); font-size: clamp(13px, 0.95em, 19px); letter-spacing: 0.1em; color: #fff; text-shadow: var(--outline-thin);
+  position: absolute; right: 16%; top: 50%; translate: 0 -50%; padding: 0 0.25em; font-family: var(--font-d); font-size: clamp(13px, 0.95em, 19px); letter-spacing: 0.1em; color: #fff; text-shadow: var(--outline-thin);
   animation: cnStamp 0.3s cubic-bezier(.2, 1.8, .4, 1) both;
 }
 @keyframes cnStamp { from { opacity: 0; scale: 2.4; } }

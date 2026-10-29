@@ -85,7 +85,7 @@ export async function labCollapse(view, side) {
   const pos0 = new THREE.Vector3(), look0 = new THREE.Vector3(), want = new THREE.Vector3(), look = new THREE.Vector3();
   view.camFx = (cam, c) => {
     const t = clk.now();
-    const k = 1 - (1 - Math.min(1, t / 1.3)) ** 3;
+    const k = 1 - (1 - Math.min(1, t / 0.8)) ** 3;
     const yaw = yawDir * (0.12 + 0.26 * k + 0.035 * t);
     const dist = THREE.MathUtils.lerp(c.dist, Math.max(H * 2.6, W * 2, c.dist * (cam.aspect < 1 ? 0.62 : 0.5)), k);
     pos0.set(...c.pos); look0.set(...c.look);
@@ -124,7 +124,7 @@ export async function labCollapse(view, side) {
   // fires catch everywhere
   view.emit(0.9 * 0.22, 0.05, () => {
     const p = V3(bx + rnd(-W, W) * 0.45, rnd(0.3, H * 0.9), rnd(-0.6, 0.9));
-    hpx.fire(p, { count: 2, scale: rnd(0.9, 1.5), radius: 0.4 });
+    hpx.fire(p, { count: 1, scale: rnd(0.8, 1.2), radius: 0.4 });
   });
   // chain explosions out of the walls
   for (let i = 0; i < 5; i++) {
@@ -153,7 +153,7 @@ export async function labCollapse(view, side) {
       lab.root.scale.set(sc.x * (2 - s) ** 0.5, sc.y * s, sc.z * (2 - s) ** 0.5);
     }, () => lab.root.scale.copy(sc));
     const c = V3(bx, H * 0.45, 0.4);
-    hpx.boom(c, { scale: 2.2, flames: 5 });
+    hpx.boom(c, { scale: 2.1, flames: 3 });
     hpx.boom(V3(bx - W * 0.3, H * 0.3, 0.6), { scale: 1.3 });
     hpx.boom(V3(bx + W * 0.3, H * 0.6, 0.2), { scale: 1.2 });
     hpx.sparks(c, { count: 46, speed: 11, scale: 1.3, up: 5 });
@@ -198,7 +198,7 @@ export async function labCollapse(view, side) {
       const d = i % 2 ? 1 : -1;
       hpx.chips(V3(bx + d * 0.6, 0.15, rnd(-0.4, 1)), { count: 1, colors: [0xd8c4a0, 0x9aa6bc, 0xeaf2ff], speed: 1, vx: d * rnd(4, 9), up: 0.4 });
     }
-    hpx.smoke(V3(bx, H * 0.4, 0), { count: 16, scale: 2.4, radius: W * 0.5, rise: 2.2, life: 2, colors: [0x46404f, 0x5a5468, 0x2e2a38, 0x6e687c] });
+    hpx.smoke(V3(bx, H * 0.4, 0), { count: 12, scale: 1.5, radius: W * 0.55, rise: 2.4, life: 1.8, colors: [0x5a5468, 0x6e687c, 0x46404f, 0x8a8698] });
     if (view.theme === 'mart') fx.groceries(c, { count: 40, speed: 10 });
     if (lab.style === 'mansion' || lab.style === 'goldVault') fx.cash(c, 120, { speed: 10 });
     engine.shake(1);
@@ -247,7 +247,7 @@ export async function labCollapse(view, side) {
     view.emit(8, 0.08, (k) => {
       const p = V3(bx + rnd(-W, W) * 0.4, rnd(0.1, 0.6), rnd(-0.4, 0.9));
       if (Math.random() < 0.7 * (1 - k * 0.6)) hpx.fire(p, { count: 1, scale: rnd(0.9, 1.6), radius: 0.3 });
-      if (Math.random() < 0.35) hpx.smoke(p, { count: 1, scale: rnd(1.2, 2), rise: 1.3, colors: [0x46404f, 0x5a5468, 0x2e2a38] });
+      if (Math.random() < 0.3) hpx.smoke(p, { count: 1, scale: rnd(0.9, 1.4), rise: 1.4, colors: [0x5a5468, 0x6e687c, 0x46404f] });
       if (Math.random() < 0.25) hpx.embers(p, { count: 2 });
     });
     // ease time back to normal

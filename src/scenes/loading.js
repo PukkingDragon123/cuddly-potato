@@ -22,7 +22,7 @@ const TIPS = [
   'Tanks in front, shooters behind: let your big Swarms soak the hits.',
   'Cards cost *POWER*. Keep a little in the tank for a counter-push!',
   'Upgrade your *BASE* in battle: more HP, a stronger zapper and faster POWER.',
-  '*SPECIAL* cards are tricks: draw, discard, echo, copy. Timing is everything.',
+  'Spells are magic: *Rage Potion* on a brawl, *Time Warp* on a big push. Timing is everything.',
   'Your *MEGA* can be unleashed once per battle from a Trailer Lab base or better.',
   'Win battles for *trophies* and *vials*. New arenas unlock new cards.',
   'Tap the people on *Beast Island*: some of them have quests for you.',
@@ -191,7 +191,8 @@ function getArt() {
     sparks: [Art.spark(true), Art.spark(false), Art.spark(true, '#e0fbff', '#4fe8ff')],
     puff: Art.puffStrip(16, 6), puffGreen: Art.puffStrip(16, 6, ['#e4ffd8', '#9ad88a', '#5a8a5a'], 3), puffDark: Art.puffStrip(24, 6, ['#9a92ac', '#5a5470', '#2e2a40'], 7),
     blast: Art.blastStrip(64, 8),
-    cloud: Art.puffStrip(40, 6, ['#c4bcd4', '#8a82a0', '#4e4866'], 11),
+    cloud: Art.puffStrip(40, 6, ['#d4ccdc', '#9a92ac', '#5a5470'], 11),
+    cloud2: Art.puffStrip(40, 6, ['#e0d4c4', '#a8988a', '#5e5048'], 23),
     debris: Art.debrisSprites(L.green),
   };
   return art;
@@ -381,9 +382,9 @@ export function showLoading(name, params = {}) {
     h('div', { class: 'ld-alarm' }),
     h('div', { class: 'ld-flash' }),
     h('div', { class: 'ld-clear' }, ...CLOUDS.map(([x, y], i) => {
-      const c = Art.copyOf(A.cloud);
+      const c = Art.copyOf(i % 3 === 1 ? A.cloud2 : A.cloud);
       c.className = 'strip';
-      return h('div', { class: 'ld-cloud', style: { '--i': i, '--x': `${x}%`, '--y': `${y}%` } }, c);
+      return h('div', { class: 'ld-cloud', style: { '--i': i, '--x': `${x}%`, '--y': `${y}%`, '--s': (0.65 + ((i * 37) % 10) / 18).toFixed(2) } }, c);
     })),
   );
   app.appendChild(el);

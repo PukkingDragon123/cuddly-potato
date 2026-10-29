@@ -1750,9 +1750,9 @@ export class BattleView {
     const dir = ev.killerSide === 0 ? 1 : ev.killerSide === 1 ? -1 : u.side === 0 ? -1 : 1;
     const H = Math.max(0.5, a.rig.height);
     const col = seriesColor(u.type);
-    if (!a.hidden) for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 8 : 5.5, dirX: dir * 0.9, life: big ? 2.4 : 1.6, fraction: big ? 0.85 : 1 });
+    if (!a.hidden) for (const m of a.rig.meshes) fx.shatter(m, { force: big ? 8 : 5, dirX: dir * 0.9, life: big ? 2.2 : 1.3, fraction: big ? 0.7 : 0.55 });
     const mid = new THREE.Vector3(p.x, p.y + H * 0.5, p.z);
-    hpx.poof(mid, { scale: Math.min(2.4, 0.75 + u.size * 0.45), color: 0xf2eef8, spark: col });
+    hpx.poof(mid, { scale: Math.min(2.4, 0.75 + u.size * 0.45), color: 0xdcd6ee, spark: col });
     hpx.chips(mid, { count: big ? 10 : 5, colors: [col, 0xffffff, col], speed: big ? 6 : 4, vx: dir * 1.5 });
     hpx.splat(mid, { color: col, scale: Math.min(1.6, 0.6 + u.size * 0.3) });
     hpx.dust(new THREE.Vector3(p.x, 0, p.z), { count: big ? 6 : 2, scale: u.size });
