@@ -17,6 +17,7 @@
 //   hpx.muzzle(pos, dir, tint, scale)
 //   hpx.dust / smoke / fire / boom / poof / chips / embers / sparks / splat / streaks (pos, o)
 import * as THREE from 'three';
+import './combatFx.css';
 
 const TEX = 0.034; // world units per atlas texel (sprite pixel)
 const ATLAS = 512, CELL = 32;
@@ -116,6 +117,7 @@ function buildAtlas() {
       const d = Math.abs(x + 0.5 - 8 - sway);
       if (d > hw) continue;
       if (t < 0.12 && hsh(x, y, f) > 0.5) continue;
+      if (d > hw - 1.2 && t < 0.7 && hsh(x, y >> 1, f) > 0.55) continue; // ragged licks
       const core = d < hw * 0.45 && t > 0.45;
       put(x, y, core ? 1 : d < hw * 0.75 ? 0.75 : 0.5);
     }
@@ -123,18 +125,27 @@ function buildAtlas() {
   // PUFF: dust / smoke cloud that swells and dissolves (6 frames)
   const puff = (name, seed) => {
     const blobs = [];
-    for (let i = 0; i < 5; i++) blobs.push([(hsh(i, 1, seed) - 0.5) * 0.55, (hsh(i, 2, seed) - 0.5) * 0.45, 0.55 + hsh(i, 3, seed) * 0.4]);
+    for (let i = 0; i < 7; i++) blobs.push([(hsh(i, 1, seed) - 0.5) * 1.1, (hsh(i, 2, seed) - 0.5) * 0.8 - (i === 0 ? 0.2 : 0), 0.42 + hsh(i, 3, seed) * 0.38]);
     for (let f = 0; f < 6; f++) frame(name, 32, 32, (put) => {
-      const u = f / 5, R = 32 * (0.16 + u * 0.24), fade = Math.max(0, (u - 0.3) / 0.7);
-      for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const u = f / 5, R = 32 * (0.17 + u * 0.17), fade = Math.max(0, (u - 0.3) / 0.7);
+      const field = (x, y) => {
         let best = 9, sh = 0;
         for (const [bx, by, br] of blobs) {
-          const dx = (x + 0.5 - 16) / R - bx * (1 + u), dy = (y + 0.5 - 16) / R - by * (1 + u);
-          const d = Math.hypot(dx, dy) / br;
-          if (d < best) { best = d; sh = dx + dy; }
+          const dx = (x + 0.5 - 16) / R - bx * (1 + u * 0.6), dy = (y + 0.5 - 16) / R - by * (1 + u * 0.6);
+          const d = Math.hypot(dx, dy) / (br * (1 + u * 0.25));
+          if (d < best) { best = d; sh = (dx + dy) / br; }
         }
-        if (best > 1 || bay(x + f, y) < fade) continue;
-        put(x, y, best > 0.8 ? 0.38 : sh < -0.35 ? 0.95 : sh > 0.45 ? 0.45 : 0.7);
+        return [best, sh];
+      };
+      for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+        const [best, sh] = field(x, y);
+        if (bay(x + f, y) < fade) continue;
+        if (best > 1) {
+          // dark pixel rim around the cloud (reads on any background)
+          if (fade < 0.4 && (field(x + 1, y)[0] <= 1 || field(x - 1, y)[0] <= 1 || field(x, y + 1)[0] <= 1 || field(x, y - 1)[0] <= 1)) put(x, y, 0.22);
+          continue;
+        }
+        put(x, y, best > 0.82 ? 0.4 : sh < -0.45 ? 0.95 : sh > 0.5 ? 0.5 : 0.72);
       }
     });
   };
@@ -161,7 +172,7 @@ function buildAtlas() {
       if (a < a0 || a > a1) continue;
       const s = (a - a0) / (a1 - a0); // 0 top .. 1 bottom (sweep direction)
       if (s > lead || s < tail) continue;
-      const th = 0.2 * Math.sin(Math.PI * Math.min(1, (s - tail) / Math.max(0.05, lead - tail))) * (f === 3 ? 0.5 : 1);
+      const th = 0.27 * Math.sin(Math.PI * Math.min(1, (s - tail) / Math.max(0.05, lead - tail))) * (f === 3 ? 0.5 : 1);
       const d = 1 - r;
       if (d < 0 || d > th) continue;
       const edge = d / Math.max(0.01, th);
@@ -170,22 +181,25 @@ function buildAtlas() {
     }
     if (f >= 1) for (let i = 0; i < 4; i++) { const yy = 6 + i * 6 + f, xx = 44 + (i % 2) * 6 - f * 2; for (let k = 0; k < 5 - f; k++) put(xx + k, yy, 0.7); }
   }, 2, 1);
-  // MUZZLE: spiky launch flash pointing +x
+  // MUZZLE: spiky launch flash pointing +x (three tapered spikes + a hot diamond core)
   for (let f = 0; f < 3; f++) frame('muzzle', 32, 32, (put) => {
-    const L = [15, 11, 6][f];
-    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-      const dx = x + 0.5 - 8, dy = y + 0.5 - 16;
-      if (dx < -3) continue;
-      const a = Math.atan2(dy, Math.max(0.01, dx)), r = Math.hypot(dx, dy);
-      const spike = Math.max(Math.cos(a * 2.6) ** 6, 0) * L + 3.5 - f;
-      const main = Math.abs(dy) < (1 - dx / (L + 6)) * (3.2 - f) && dx < L + 6 && dx > -2;
-      if (r < spike * (Math.abs(a) < 1.2 ? 1 : 0.3) || main) put(x, y, r < 3.5 ? 1 : r < L * 0.55 ? 0.8 : 0.55);
+    const L = [20, 14, 7][f], cx = 7, cy = 16;
+    const spikes = [[0, L, 2.6], [-0.6, L * 0.55, 1.6], [0.6, L * 0.55, 1.6], [-1.3, L * 0.3, 1], [1.3, L * 0.3, 1]];
+    for (const [ang, len, th] of spikes) {
+      for (let r = 0; r < len; r += 0.5) {
+        const w = Math.max(0.5, th * (1 - r / len) * (1 - f * 0.25));
+        const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
+        for (let o = -w; o <= w; o += 0.5) put(x - Math.sin(ang) * o, y + Math.cos(ang) * o, r < len * 0.35 ? 1 : Math.abs(o) < w * 0.5 ? 0.85 : 0.55);
+      }
     }
+    const core = 5 - f * 1.5;
+    for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (Math.abs(x) + Math.abs(y) <= core) put(cx + x, cy + y, Math.abs(x) + Math.abs(y) <= core - 2 ? 1 : 0.8);
+    if (f < 2) for (let i = 0; i < 3; i++) put(cx + 6 + i * 5 + f * 3, cy + (i % 2 ? -5 : 5), 0.75);
   });
   // POOF: cartoon cloud burst for KOs (6 frames)
   for (let f = 0; f < 6; f++) frame('poof', 32, 32, (put) => {
-    const u = f / 5, spread = 3 + u * 8, br = 5.5 - u * 2.2, fade = Math.max(0, (u - 0.45) / 0.55);
-    const C = [[0, 0, 1.2]];
+    const u = f / 5, spread = 2.4 + u * 8, br = 4.6 - u * 1.8, fade = Math.max(0, (u - 0.45) / 0.55);
+    const C = [[0, 0, 1]];
     for (let i = 0; i < 6; i++) C.push([Math.cos(i * 1.047 + 0.4) * spread, Math.sin(i * 1.047 + 0.4) * spread * 0.85, 1]);
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
       let best = 9, sh = 0;
@@ -289,7 +303,7 @@ class Layer {
     g.instanceCount = 0;
     this.geo = g;
     this.mat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: atlas.tex }, boost: { value: additive ? 2.2 : 1 }, dither: { value: additive ? 0 : 1 } },
+      uniforms: { map: { value: atlas.tex }, boost: { value: additive ? 1.6 : 1 }, dither: { value: additive ? 0 : 1 } },
       vertexShader: VERT, fragmentShader: FRAG,
       transparent: additive, depthWrite: !additive, depthTest: true,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
@@ -420,7 +434,7 @@ class HitPix {
   fire(pos, o = {}) {
     const n = o.count ?? 4, s = o.scale ?? 1;
     for (let i = 0; i < n; i++) {
-      this.emit('glow', 'flame', { x: pos.x + rnd(-0.5, 0.5) * (o.radius ?? 1), y: pos.y + rnd(0, 0.3), z: (pos.z ?? 0) + rnd(0, 0.5), vx: rnd(-0.3, 0.3), vy: rnd(0.6, 1.6), drag: 1, life: rnd(0.4, 0.8) * (o.life ?? 1), fps: 12, scale: rnd(0.7, 1.2) * s, color: pickc(o.colors ?? [0xff5a1a, 0xff7a1a, 0xffa31a]), fadeOut: 0.6 });
+      this.emit('solid', 'flame', { x: pos.x + rnd(-0.5, 0.5) * (o.radius ?? 1), y: pos.y + rnd(0, 0.3), z: (pos.z ?? 0) + rnd(0, 0.5), vx: rnd(-0.3, 0.3), vy: rnd(0.6, 1.6), drag: 1, life: rnd(0.4, 0.8) * (o.life ?? 1), fps: 12, scale: rnd(0.7, 1.2) * s, color: pickc(o.colors ?? [0xff5a1a, 0xff7a1a, 0xffa31a]), fadeOut: 0.6 });
     }
     if (o.embers !== false) this.embers(pos, { count: Math.ceil(n / 2), scale: s });
   }
@@ -439,8 +453,10 @@ class HitPix {
   /** Explosion: fireball frames + sparks + rolling smoke. */
   boom(pos, o = {}) {
     const s = o.scale ?? 1;
-    this.emit('glow', 'boom', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.5, life: 0.5 * (o.life ?? 1), scale: 2.2 * s, color: o.color ?? 0xff7a1a, fadeOut: 0.85 });
-    for (let i = 0; i < (o.flames ?? 3); i++) this.emit('glow', 'boom', { x: pos.x + rnd(-0.7, 0.7) * s, y: pos.y + rnd(-0.3, 0.6) * s, z: (pos.z ?? 0) + rnd(0.2, 0.7), vy: rnd(0.3, 1.2), life: rnd(0.35, 0.55), scale: rnd(1, 1.6) * s, color: pickc([0xff5a1a, 0xff9a1a]), fadeOut: 0.8 });
+    this.emit('solid', 'boom', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.5, life: 0.55 * (o.life ?? 1), scale: 1.5 * s, color: o.color ?? 0xff6a1a, fadeOut: 0.8 });
+    // a hot additive core flash for the first instant
+    this.emit('glow', 'star', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.6, life: 0.12, scale: 1.2 * s, color: 0xffb02e, alpha: 0.7, fadeOut: 0.3 });
+    for (let i = 0; i < (o.flames ?? 3); i++) this.emit('solid', 'boom', { x: pos.x + rnd(-0.7, 0.7) * s, y: pos.y + rnd(-0.3, 0.6) * s, z: (pos.z ?? 0) + rnd(0.2, 0.7), vy: rnd(0.3, 1.2), life: rnd(0.35, 0.55), scale: rnd(0.7, 1.1) * s, color: pickc([0xff5a1a, 0xff8a1a, 0xe8401a]), fadeOut: 0.8 });
     this.sparks(pos, { count: Math.round(10 * s), scale: 1, speed: 6 * Math.sqrt(s) });
     this.smoke(pos.clone ? pos.clone().setY(pos.y + 0.2) : pos, { count: Math.round(5 * s), scale: 1.3 * s, radius: s, colors: [0x5a5468, 0x46404f, 0x6e687c] });
   }
@@ -461,7 +477,7 @@ class HitPix {
   /** Goo splash (tinted). */
   splat(pos, o = {}) {
     const s = o.scale ?? 1;
-    this.emit('solid', 'splat', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.4, life: 0.32, scale: s, color: o.color ?? 0x7cff3a, fadeOut: 0.85 });
+    this.emit('solid', 'splat', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.4, life: 0.3, scale: s * 0.6, color: o.color ?? 0x7cff3a, fadeOut: 0.85 });
     for (let i = 0; i < Math.round(4 * s); i++) this.emit('solid', 'drop', { x: pos.x, y: pos.y, z: (pos.z ?? 0) + 0.4, vx: rnd(-3, 3), vy: rnd(1.5, 4), grav: -16, ground: 0.03, life: rnd(0.35, 0.6), scale: rnd(0.8, 1.2), color: o.color ?? 0x7cff3a, fadeOut: 0.7 });
   }
   /** Horizontal speed streaks (knockback / dash), dir = travel direction. */
@@ -492,3 +508,5 @@ export const HIT_KIND_NAMES = Object.keys(HIT_KINDS);
 
 export const hpx = new HitPix();
 if (typeof window !== 'undefined' && import.meta.env?.DEV) window.__hpx = hpx;
+/** Dev: the sprite atlas canvas (for inspection). */
+export const hitPixAtlas = () => (atlas ?? buildAtlas()).canvas;

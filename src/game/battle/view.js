@@ -459,7 +459,10 @@ class UnitActor {
     const tier = crit ? 'crit' : n >= 250 ? 'xl' : n >= 90 ? 'l' : 'm';
     const k = { fire: 'k-fire', burn: 'k-fire', zap: 'k-zap', laser: 'k-zap', nuke: 'k-goo', sludge: 'k-goo', acid: 'k-goo', money: 'k-cash' }[this.dmgKind] ?? '';
     floatText(at, crit ? `${n}!` : String(n), `hitn t-${tier} ${k} s${this.u.side}`, { life: crit ? 1.15 : tier === 'm' ? 0.7 : 0.9, rise: crit ? 58 : 44, spreadX: 30 });
-    if (crit) floatText(at.clone().setY(at.y + 0.55), 'CRIT', 'hitn t-tag', { life: 0.95, rise: 64, spreadX: 6 });
+    if (crit && !(this.view.critTagT > this.view.t - 0.7)) {
+      this.view.critTagT = this.view.t;
+      floatText(at.clone().setY(at.y + 0.55), 'CRIT', 'hitn t-tag', { life: 0.95, rise: 64, spreadX: 6 });
+    }
   }
   /** Special-card side buffs on this troop: SURGE embers, FRENZY speed sparks, HASTE wind streaks. */
   buffFx(p) {

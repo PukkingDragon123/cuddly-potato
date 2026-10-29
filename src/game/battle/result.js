@@ -28,6 +28,7 @@ import { Chibi } from '../../core/chibi.js';
 import { CHARACTERS } from '../../data/characters.js';
 import { VIALS } from '../../data/vials.js';
 import { BASE_UPGRADES } from '../../data/labs.js';
+import { debrisSprites, copyOf } from '../../scenes/labLoadArt.js';
 import { cardDef } from '../../data/cards.js';
 import { cardArtImg } from '../../ui/thumbs.js';
 import { Stage3D } from '../../ui/stage3d.js';
@@ -189,12 +190,23 @@ function makeNewsDesk() {
 // 0. Final blow (over the 3D base collapse)
 
 export function finalBlow(parent, { win = true, view = null } = {}) {
+  // pixel debris blasted off the stamp when it lands (shards, bolts, gears, splinters)
+  const chunks = h('div', { class: 'cfb-chunks' });
+  const spr = debrisSprites();
+  for (let i = 0; i < 22; i++) {
+    const s = spr[i % spr.length], c = copyOf(s);
+    const a = (i / 22) * Math.PI * 2 + Math.random() * 0.25, r = 22 + Math.random() * 30;
+    c.style.width = `calc(var(--px) * ${s.width * 1.6})`;
+    chunks.appendChild(h('i', { style: { '--dx': `${(Math.cos(a) * r).toFixed(1)}vmin`, '--dy': `${(Math.sin(a) * r * 0.75).toFixed(1)}vmin`, '--fall': `${(14 + Math.random() * 22).toFixed(1)}vmin`, '--rot': `${Math.round((Math.random() < 0.5 ? -1 : 1) * (300 + Math.random() * 700))}deg`, '--d': `${(0.7 + Math.random() * 0.5).toFixed(2)}s` } }, c));
+  }
   const el = h('div', { class: `cfb ${win ? 'win' : 'loss'}` },
     h('i', { class: 'cfb-vig' }), h('i', { class: 'cfb-lines' }),
     h('i', { class: 'cfb-bar t' }), h('i', { class: 'cfb-bar b' }),
-    h('div', { class: 'cfb-tag' }, recDot(), 'SLOW-MO'),
+    h('div', { class: 'cfb-tag' }, recDot(), 'SLOW-MO', h('b', {}, 'x0.2')),
+    crackCanvas(),
+    chunks,
     h('div', { class: 'cfb-stamp' }, h('b', {}, win ? 'BASE' : 'YOUR BASE'), h('span', {}, win ? 'DESTROYED!' : 'HAS FALLEN!')),
-    h('i', { class: 'cfb-flash' }));
+    h('i', { class: 'cfb-flash' }), h('i', { class: 'cfb-impact' }));
   parent.appendChild(el);
   SND.slowmo();
   audio.play('heartbeat', { pitch: 0.8 });
@@ -203,15 +215,41 @@ export function finalBlow(parent, { win = true, view = null } = {}) {
     const z0 = view.zoom;
     animate(1.4, (e) => { view.zoom = z0 + (Math.max(0.7, z0 * 0.72) - z0) * e; }, { ease: 'outCubic' });
   }
+  // the stamp slams in on the collapse (baseFall.js COLLAPSE beat at 0.9 s)
   setTimeout(() => {
     if (!el.isConnected) return;
     el.classList.add('hit');
     audio.play('explode', { pitch: 0.55 });
     audio.play('stamp', { pitch: 0.7 });
-  }, 1000);
+  }, 950);
   setTimeout(() => el.classList.add('out'), 2350);
   setTimeout(() => el.remove(), 2900);
   return el;
+}
+
+/** The lens cracks on the collapse: jagged pixel fracture lines from an impact point (lower third). */
+function crackCanvas() {
+  const W = 240, H = Math.round(240 * (window.innerHeight / Math.max(1, window.innerWidth)));
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.className = 'cfb-crack';
+  const g = cv.getContext('2d');
+  const ox = W * (0.3 + Math.random() * 0.4), oy = H * (0.58 + Math.random() * 0.12);
+  const P = (x, y, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  const branch = (x, y, a, len, depth) => {
+    for (let i = 0; i < len; i++) {
+      a += (Math.random() - 0.5) * 0.5;
+      x += Math.cos(a); y += Math.sin(a);
+      if (x < 0 || y < 0 || x >= W || y >= H) return;
+      P(x, y, 'rgba(255,255,255,0.9)');
+      P(x + 1, y + 1, 'rgba(10,8,30,0.55)');
+      if (depth < 2 && Math.random() < 0.035) branch(x, y, a + (Math.random() < 0.5 ? -0.8 : 0.8), len * 0.45, depth + 1);
+    }
+  };
+  for (let i = 0; i < 9; i++) branch(ox, oy, (i / 9) * Math.PI * 2 + Math.random() * 0.4, 50 + Math.random() * 90, 0);
+  // the shattered spot at the impact point
+  for (let y = -5; y <= 5; y++) for (let x = -6; x <= 6; x++) if (Math.abs(x) + Math.abs(y) < 7 && (x * 7 + y * 3) % 3 === 0) P(ox + x, oy + y, 'rgba(255,255,255,0.75)');
+  return cv;
 }
 
 // ---------------------------------------------------------------------------

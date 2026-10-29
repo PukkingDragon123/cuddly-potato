@@ -14,7 +14,6 @@ import * as THREE from 'three';
 import { engine } from '../../core/engine.js';
 import { fx } from '../../core/particles.js';
 import { audio } from '../../core/audio.js';
-import { animate } from '../../core/tween.js';
 import { VoxGrid, makeMesh } from '../../core/voxel.js';
 import { hpx } from './hitPix.js';
 
@@ -43,6 +42,31 @@ function chunkShapes() {
   return chunkGeos;
 }
 
+/**
+ * The sequence's own clock (real time, so slow-mo / hit-stop don't stretch the
+ * choreography). Dev: window.__fxSlow = 4 plays the whole beat 4x slower.
+ */
+function makeClock(view) {
+  const tasks = [], runs = [];
+  let t = 0;
+  const off = engine.onFrame((dt) => {
+    if (view.disposed) { off(); return; }
+    t += dt / ((typeof window !== 'undefined' && window.__fxSlow) || 1);
+    for (const r of runs.slice()) {
+      const k = Math.min(1, (t - r.t0) / r.dur);
+      r.fn(k);
+      if (k >= 1) { runs.splice(runs.indexOf(r), 1); r.done?.(); }
+    }
+    for (let i = 0; i < tasks.length; i++) if (t >= tasks[i].at) { const f = tasks[i].fn; tasks.splice(i--, 1); f(); }
+  });
+  return {
+    now: () => t,
+    at: (s, fn) => tasks.push({ at: t + s, fn }),
+    anim: (dur, fn, done) => runs.push({ t0: t, dur, fn, done }),
+    slow: () => (typeof window !== 'undefined' && window.__fxSlow) || 1,
+  };
+}
+
 export async function labCollapse(view, side) {
   const lab = view.labs[side];
   if (!lab || lab.fallen) return;
@@ -55,15 +79,15 @@ export async function labCollapse(view, side) {
   view.autoFollow = false;
 
   // ---- camera: push in + slow orbit around the base (keeps going until the result screen)
-  const T0 = performance.now();
+  const clk = makeClock(view);
   const tgt = V3(bx, H * 0.42, 0);
   const yawDir = side === 0 ? -1 : 1; // swing around to look in toward the field
   const pos0 = new THREE.Vector3(), look0 = new THREE.Vector3(), want = new THREE.Vector3(), look = new THREE.Vector3();
   view.camFx = (cam, c) => {
-    const t = (performance.now() - T0) / 1000;
+    const t = clk.now();
     const k = 1 - (1 - Math.min(1, t / 1.3)) ** 3;
     const yaw = yawDir * (0.12 + 0.26 * k + 0.035 * t);
-    const dist = THREE.MathUtils.lerp(c.dist, Math.max(5.2, H * 2.5, W * 1.7), k);
+    const dist = THREE.MathUtils.lerp(c.dist, Math.max(H * 2.6, W * 2, c.dist * (cam.aspect < 1 ? 0.62 : 0.5)), k);
     pos0.set(...c.pos); look0.set(...c.look);
     want.set(tgt.x + Math.sin(yaw) * dist, tgt.y + dist * (0.26 + 0.04 * k), Math.cos(yaw) * dist);
     cam.position.copy(pos0).lerp(want, k);
@@ -74,7 +98,7 @@ export async function labCollapse(view, side) {
   // ---- 0 s: the killing blow
   engine.hitstop(0.14);
   engine.shake(0.7);
-  engine.timeScale = 0.22;
+  engine.timeScale = 0.22 / clk.slow();
   audio.play('explode', { pitch: 0.5 });
   audio.play('alarm', { vol: 0.5, pitch: 0.8 });
   const ch = view.cmds[side];
@@ -92,32 +116,30 @@ export async function labCollapse(view, side) {
   }
   // the structure shudders and sinks a little
   const r0 = lab.root.rotation.z, y0 = lab.root.position.y;
-  animate(0.9, (e) => {
+  clk.anim(0.9, (e) => {
     lab.root.rotation.z = r0 + Math.sin(e * 60) * 0.025 * e - out * 0.05 * e;
     lab.root.position.y = y0 - e * 0.15;
     lab.root.position.x = (side === 0 ? -1 : 1) * Math.abs(lab.root.position.x) + Math.sin(e * 77) * 0.05 * e;
   });
   // fires catch everywhere
-  view.emit(0.9 * 0.22, 0.02, () => {
+  view.emit(0.9 * 0.22, 0.05, () => {
     const p = V3(bx + rnd(-W, W) * 0.45, rnd(0.3, H * 0.9), rnd(-0.6, 0.9));
     hpx.fire(p, { count: 2, scale: rnd(0.9, 1.5), radius: 0.4 });
   });
   // chain explosions out of the walls
   for (let i = 0; i < 5; i++) {
-    setTimeout(() => {
-      if (view.disposed) return;
+    clk.at(0.06 + i * 0.17, () => {
       const p = V3(bx + rnd(-W, W) * 0.42, rnd(H * 0.25, H * 0.9), rnd(0.2, 1));
       hpx.boom(p, { scale: 1 + i * 0.12 });
       fx.burst(p, { count: 14, colors: [0xeaf2ff, team, 0x9aa6bc, 0xffd23f], size: 0.12, speed: 7 });
       hpx.chips(p, { count: 6, colors: [0xeaf2ff, 0x9aa6bc, team], speed: 6 });
       audio.play('explode', { pitch: 0.7 + i * 0.12, vol: 0.8 });
       engine.shake(0.35);
-    }, 60 + i * 170);
+    });
   }
 
   // ---- 0.9 s: COLLAPSE
-  setTimeout(() => {
-    if (view.disposed) return;
+  clk.at(0.9, () => {
     const prevChunk = lab.onChunk;
     lab.onChunk = (mesh) => fx.shatter(mesh, { force: 11, dirX: out * 0.5, life: 3.2, fraction: 0.8 });
     lab.setDamage(1);
@@ -126,14 +148,14 @@ export async function labCollapse(view, side) {
     lab.root.rotation.z = 0;
     lab.root.position.y = y0;
     const sc = lab.root.scale.clone();
-    animate(0.5, (e) => {
+    clk.anim(0.5, (e) => {
       const s = e < 0.35 ? 1.35 - (e / 0.35) * 0.55 : e < 0.7 ? 0.8 + ((e - 0.35) / 0.35) * 0.3 : 1.1 - ((e - 0.7) / 0.3) * 0.1;
       lab.root.scale.set(sc.x * (2 - s) ** 0.5, sc.y * s, sc.z * (2 - s) ** 0.5);
-    }, { onComplete: () => lab.root.scale.copy(sc) });
+    }, () => lab.root.scale.copy(sc));
     const c = V3(bx, H * 0.45, 0.4);
-    hpx.boom(c, { scale: 3.2, flames: 6 });
-    hpx.boom(V3(bx - W * 0.3, H * 0.3, 0.6), { scale: 1.8 });
-    hpx.boom(V3(bx + W * 0.3, H * 0.6, 0.2), { scale: 1.6 });
+    hpx.boom(c, { scale: 2.2, flames: 5 });
+    hpx.boom(V3(bx - W * 0.3, H * 0.3, 0.6), { scale: 1.3 });
+    hpx.boom(V3(bx + W * 0.3, H * 0.6, 0.2), { scale: 1.2 });
     hpx.sparks(c, { count: 46, speed: 11, scale: 1.3, up: 5 });
     fx.burst(c, { count: 60, colors: [0xeaf2ff, team, 0x9aa6bc, 0x5a6688], size: 0.14, speed: 10 });
     // heavy voxel chunks: fly, spin, bounce, then lie in the rubble
@@ -184,8 +206,8 @@ export async function labCollapse(view, side) {
     audio.play('boom', { pitch: 0.55 });
     audio.play('explode', { pitch: 0.45 });
     audio.play('shatter', { pitch: 0.7 });
-    setTimeout(() => audio.play('crunch', { pitch: 0.5 }), 120);
-    setTimeout(() => audio.play('thud', { pitch: 0.6 }), 260);
+    clk.at(0.12, () => audio.play('crunch', { pitch: 0.5 }));
+    clk.at(0.26, () => audio.play('thud', { pitch: 0.6 }));
 
     // the Commander is blasted off the roof, tumbling
     if (ch) {
@@ -195,7 +217,7 @@ export async function labCollapse(view, side) {
       const from = ch.root.position.clone();
       const to = V3(bx + out * rnd(3.2, 4), 0, 1.6);
       const peak = Math.max(from.y + 2.4, H + 2.5);
-      animate(1.15, (e, k) => {
+      clk.anim(1.15, (k) => {
         const x = THREE.MathUtils.lerp(from.x, to.x, k), z = THREE.MathUtils.lerp(from.z, to.z, k);
         const y = (1 - k) * (1 - k) * from.y + 2 * (1 - k) * k * (peak * 1.2) + k * k * 0;
         ch.root.position.set(x, Math.max(0, y), z);
@@ -203,8 +225,7 @@ export async function labCollapse(view, side) {
         ch.root.rotation.z = -out * k * Math.PI * 2;
         if (Math.random() < 0.5) hpx.streaks(V3(x, y + 0.5, z), out, { count: 1, h: 0.6, color: 0xffffff });
         if (Math.random() < 0.3) hpx.smoke(V3(x, y + 0.4, z), { count: 1, scale: 0.5, colors: [0x46404f, 0x5a5468] });
-      }, {
-        onComplete: () => {
+      }, () => {
           ch.root.rotation.set(0, side === 0 ? 0.55 : -0.55, 0);
           ch.boing?.(-0.5);
           ch.play('dizzy');
@@ -215,8 +236,7 @@ export async function labCollapse(view, side) {
           audio.play('thud', { pitch: 0.9 });
           audio.play('boing', { pitch: 0.7 });
           engine.shake(0.3);
-          setTimeout(() => { if (view.disposed) return; ch.play('cry'); ch.expr('cry', 'sad'); ch.face?.fx('tears', true); }, 1100);
-        },
+          clk.at(1.1, () => { ch.play('cry'); ch.expr('cry', 'sad'); ch.face?.fx('tears', true); });
       });
     }
     if (win) {
@@ -231,10 +251,10 @@ export async function labCollapse(view, side) {
       if (Math.random() < 0.25) hpx.embers(p, { count: 2 });
     });
     // ease time back to normal
-    setTimeout(() => {
+    clk.at(0.5, () => {
       const s0 = engine.timeScale;
-      animate(0.5, (e) => { if (engine.timeScale < 1) engine.timeScale = s0 + (1 - s0) * e; }, { onComplete: () => { engine.timeScale = 1; } });
-    }, 500);
-  }, 900);
-  await new Promise((r) => setTimeout(r, 2200));
+      clk.anim(0.5, (e) => { if (engine.timeScale < 1) engine.timeScale = s0 + (1 - s0) * e; }, () => { engine.timeScale = 1; });
+    });
+  });
+  await new Promise((r) => clk.at(2.2, r));
 }

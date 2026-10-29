@@ -1,0 +1,29 @@
+/* Combat damage numbers (view.js UnitActor.flushDamage -> floatText 'hitn ...').
+   Chunky pixel digits with an ink outline and a coloured drop; crits get a
+   spinning pixel starburst behind them and a CRIT tag; K.O. is a slammed stamp. */
+.ftext.hitn { font-family: var(--font-d); letter-spacing: 0.02em; line-height: 1; color: #fff;
+  --sh: #8a6a2a;
+  text-shadow: calc(var(--px) * 0.9) 0 0 var(--ink), calc(var(--px) * -0.9) 0 0 var(--ink), 0 calc(var(--px) * 0.9) 0 var(--ink), 0 calc(var(--px) * -0.9) 0 var(--ink),
+    0 calc(var(--px) * 1.8) 0 var(--sh), 0 calc(var(--px) * 2.6) 0 var(--ink); }
+.ftext.hitn.t-m { font-size: calc(var(--u) * 3.6); color: #fff6dc; }
+.ftext.hitn.t-l { font-size: calc(var(--u) * 4.8); color: #ffe27a; --sh: #c86a10; }
+.ftext.hitn.t-xl { font-size: calc(var(--u) * 6.2); color: #ffb02e; --sh: #a8261e; }
+.ftext.hitn.s0 { color: #ffc4cc; --sh: #8a1a3a; }
+.ftext.hitn.s0.t-xl, .ftext.hitn.s0.t-l { color: #ff8a9a; }
+.ftext.hitn.k-fire { color: #ffb05a; --sh: #b8300e; }
+.ftext.hitn.k-zap { color: #bff8ff; --sh: #2a6ad8; }
+.ftext.hitn.k-goo { color: #c8ff8a; --sh: #2a8a2a; }
+.ftext.hitn.k-cash { color: #b8ffb0; --sh: #1f7a3a; }
+.ftext.hitn.t-crit { font-size: calc(var(--u) * 7.4); color: transparent; background: linear-gradient(#fffbe0 0 22%, #ffe14a 22% 48%, #ff9a1a 48% 74%, #ff4a2a 74%); -webkit-background-clip: text; background-clip: text;
+  text-shadow: none; filter: drop-shadow(calc(var(--px) * 0.9) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -0.9) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 0.9) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -0.9) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 2) 0 #8a1a1a); }
+.ftext.hitn.t-crit::before { content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 2.3em; height: 2.3em; translate: -50% -50%;
+  background: #fff3b0; opacity: 0.9;
+  clip-path: polygon(50% 0, 58% 34%, 86% 14%, 67% 42%, 100% 50%, 67% 58%, 86% 86%, 58% 66%, 50% 100%, 42% 66%, 14% 86%, 33% 58%, 0 50%, 33% 42%, 14% 14%, 42% 34%);
+  animation: hitnBurst 0.5s steps(4) both; }
+@keyframes hitnBurst { 0% { transform: scale(0.3) rotate(0deg); opacity: 1; } 60% { opacity: 0.9; } 100% { transform: scale(1.25) rotate(45deg); opacity: 0; } }
+.ftext.hitn.t-tag { font-size: calc(var(--u) * 3.2); letter-spacing: 0.18em; color: #fff; padding: 0.1em 0.45em 0.15em; background: #e8202a;
+  text-shadow: 0 calc(var(--px) * 1) 0 #6a0a10; box-shadow: 0 0 0 calc(var(--px) * 1) var(--ink), 0 calc(var(--px) * 1.6) 0 calc(var(--px) * 1) var(--ink);
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 3) 50%, 100% 100%, 0 100%, calc(var(--px) * 3) 50%); }
+.ftext.hitn.t-ko { font-size: calc(var(--u) * 8.4); color: #fff; --sh: #ff2e88; letter-spacing: 0.04em;
+  text-shadow: calc(var(--px) * 1.2) 0 0 var(--ink), calc(var(--px) * -1.2) 0 0 var(--ink), 0 calc(var(--px) * 1.2) 0 var(--ink), 0 calc(var(--px) * -1.2) 0 var(--ink),
+    0 calc(var(--px) * 2.4) 0 #ff2e88, 0 calc(var(--px) * 3.6) 0 var(--ink), 0 0 calc(var(--u) * 3) rgba(255, 46, 136, 0.7); }
