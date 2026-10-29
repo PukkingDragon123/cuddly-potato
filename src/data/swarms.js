@@ -28,7 +28,7 @@ export const SERIES = {
   food: { id: 'food', name: 'Snack Squad', color: '#ff4fa3', desc: 'FOOD SEASON: snacks that bite back.' },
   labBrats: { id: 'labBrats', name: 'Lab Brats', color: '#9dff3a', desc: 'Lab equipment and mutated experiments.' },
   creepyCritters: { id: 'creepyCritters', name: 'Creepy Critters', color: '#8a5cff', desc: 'Bugs, snakes and night prowlers.' },
-  megaTech: { id: 'megaTech', name: 'Mega-Tech', color: '#3d8bff', desc: 'Micro Beasts in futuristic Mega-Tech armour.' },
+  megaTech: { id: 'megaTech', name: 'Mega-Tech', color: '#3d8bff', desc: 'Micro Beasts in futuristic Mega-Tech armor.' },
   fireIce: { id: 'fireIce', name: 'Fire & Ice', color: '#ff6a3d', desc: 'Lava-hot and ice-cold beasts from the Fire & Ice packs.' },
   battleFusion: { id: 'battleFusion', name: 'Battle Fusion', color: '#b45cff', desc: 'Super-mutants fused in the Lab for one thing: battle.' },
   wildlands: { id: 'wildlands', name: 'Wild Lands', color: '#2fd47a', desc: 'Jungle and reef beasts from the wildest corners of Beast Island.' },
@@ -48,7 +48,7 @@ export const SERIES = {
 //   stopper    first hit on a target stuns     fragile    explodes when any troop hits it
 //   mortar     long range, can't hit up close  splash     bigger splash radius
 //   trail      leaves burning ground           blink      teleports back from melee
-//   skirmish   hit and retreat                 breaker    ignores armour, x3 vs shields
+//   skirmish   hit and retreat                 breaker    ignores armor, x3 vs shields
 //   leap       leaps over the front line       poisonStack stacking poison
 //   stealth    untargetable until it strikes   expose     target takes +X% damage
 //   absorb     grows on every KO               deathBomb  explodes / bursts on death
@@ -173,7 +173,7 @@ export const SWARMS = {
     name: 'Circuit Shark', series: 'technoTerrors', rarity: 'rare', role: 'melee', arena: 'mart',
     elixir: 4, hp: 880, dmg: 150, atk: 1.0, range: 0.9, speed: 1.7, kb: 3, size: 1.2,
     traits: { breaker: { shield: 3 } },
-    desc: 'Shield-breaker: its 10,000-volt bites ignore armour and fry shields at triple damage.',
+    desc: 'Shield-breaker: its 10,000-volt bites ignore armor and fry shields at triple damage.',
   },
   hyperchargePanther: {
     name: 'Hypercharge Panther', series: 'technoTerrors', rarity: 'epic', role: 'melee', arena: 'mart',

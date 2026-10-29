@@ -30,13 +30,13 @@ export const COMMANDERS = {
     },
     skills: [
       { id: 'lastToLeave', level: 3, name: 'Unbreakable Circle', cd: 35, icon: 'shield', desc: 'For 4s your troops cannot drop below 1 HP.', dur: 4 },
-      { id: 'subscribeSmash', level: 5, name: 'Subscribe Meteor', cd: 30, icon: 'play', desc: 'A giant red SUBSCRIBE button slams down for massive area damage.', dmg: 720, radius: 2.4 },
+      { id: 'subscribeSmash', level: 5, name: 'Subscribe Meteor', cd: 30, icon: 'play', desc: 'A giant red SUBSCRIBE button slams down and flattens everything under it.', dmg: 720, radius: 2.4 },
     ],
     unlock: 'boss:jimmyRematch',
   },
   nolan: {
     name: 'Nolan', char: 'nolan', season: 0,
-    desc: 'Always the fall guy. Somehow that works in your favour.',
+    desc: 'Always the fall guy. Somehow that works out for you.',
     signature: {
       id: 'orbitalFlop', name: 'Orbital Belly Flop', cry: "Hold my soda.", charge: 76, icon: 'energy', color: '#3fb8ff',
       desc: "Nolan rides a soda rocket into orbit and belly flops onto the biggest enemy crowd: 1200 damage and a 2.5s stun in a wide blast (half damage to a base in range). The quake hits every other enemy for 320 with a 1.5s stun, cracks the rival base for 350 and leaves a burning crater that slows enemies 55% for 10s.",
@@ -85,7 +85,7 @@ export const CMD_LEVEL_REWARDS = {
 
 // Rollable perk pool. value range per tier.
 export const PERKS = {
-  energySurge: { name: 'Energy Surge', desc: '+{v}% energy regen', range: [5, 18], icon: 'energy' },
+  energySurge: { name: 'Power Surge', desc: '+{v}% POWER regen', range: [5, 18], icon: 'energy' },
   thickWalls: { name: 'Thick Walls', desc: '+{v}% Lab HP', range: [8, 28], icon: 'shield' },
   quickHands: { name: 'Turret Boost', desc: 'Guard turret deals +{v}% damage', range: [6, 20], icon: 'tower' },
   hypeMan: { name: 'Hype Man', desc: 'Ultimate charges {v}% faster', range: [10, 32], icon: 'star' },
