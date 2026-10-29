@@ -39,7 +39,7 @@ export const ARENAS = [
   },
   {
     id: 'island', name: 'Beast Island Paradise', trophies: 3400, theme: 'island', color: '#3ff2c8', legendary: true,
-    video: 'I Gave My 100,000,000th Subscriber An Island', desc: 'The legendary arena: a private island with a villa, a yacht and a golden Panther.',
+    video: 'I Gave My 100,000,000th Subscriber An Island', desc: 'A private island with a villa, a yacht and a golden Panther statue.',
   },
   // ---- the Northern Wilds: Beast Island's new region past the Paradise summit
   {
@@ -64,7 +64,7 @@ export const ARENAS = [
   },
   {
     id: 'space', name: 'Zero-G Space Station', trophies: 7200, theme: 'space', color: '#8f9bff', legendary: true,
-    video: 'I Spent 24 Hours In Zero Gravity', desc: 'The new legendary arena: an orbital station high above the island, with Earth spinning below.',
+    video: 'I Spent 24 Hours In Zero Gravity', desc: 'An orbital station high above the island. Earth spins below, snacks float by.',
   },
 ];
 ARENAS.forEach((a, i) => (a.index = i));
@@ -216,7 +216,7 @@ export const BOSSES = {
     desc: 'A walking glacier is marching on the outpost.', reward: { coins: 2500, bucks: 100, vial: 'hyperchrome' },
   },
   tigerUnleashed: {
-    name: 'Beast Tiger Unleashed', arena: 'reactor', minTrophies: 2300, boss: 'beastTiger', bossScale: 2.4, bossHp: 15000, bossDmg: 1.2,
+    name: 'Beast Tiger Breakout', arena: 'reactor', minTrophies: 2300, boss: 'beastTiger', bossScale: 2.4, bossHp: 15000, bossDmg: 1.2,
     deck: ['atomicSlime', 'plutoniumPup', 'reactorRex', 'frostHybrid', 'toxicPanther', 'vexViper', 'slimeFlood', 'freezeRay'], level: 7, commander: null,
     desc: 'The Beast Tiger broke out of its tank! Calm it down to earn its trust.', reward: { coins: 3000, bucks: 120, card: 'beastTiger' },
   },
@@ -255,12 +255,12 @@ export const BOSSES = {
   forgeTitan: {
     name: 'Forge Titan', arena: 'volcano', minTrophies: 6500, boss: 'magmaTitan', bossScale: 2.4, bossHp: 30000, bossDmg: 1.5,
     deck: ['magmaTitan', 'emberImps', 'fieryPanther', 'blazeHybrid', 'emberWolf', 'magmaMole', 'sodaRocket', 'foodThrow'], level: 10, commander: null,
-    desc: 'Forged in the heart of the volcano, this molten giant hits like a falling anvil.', reward: { coins: 12000, bucks: 300, vial: 'cashCase' },
+    desc: 'A molten giant from the volcano forge. It hits like a falling anvil.', reward: { coins: 12000, bucks: 300, vial: 'cashCase' },
   },
   zeroGOverlord: {
     name: 'Zero-G Overlord', arena: 'space', minTrophies: 7200, boss: 'astroPanther', bossScale: 2.6, bossHp: 34000, bossDmg: 1.5,
     deck: ['astroPanther', 'ufoGrabber', 'hyperchargePanther', 'megaTechMech', 'droneFang', 'voltBat', 'freezeRay', 'sodaRocket'], level: 10, commander: 'jimmy', lab: 'goldVault',
-    desc: 'The legendary Astro Panther rules the station. Beat it in zero gravity to become a Swarm legend!', reward: { coins: 15000, bucks: 400, card: 'astroPanther' },
+    desc: 'The Astro Panther took over the space station. Beat it in zero gravity!', reward: { coins: 15000, bucks: 400, card: 'astroPanther' },
   },
 };
 for (const [id, b] of Object.entries(BOSSES)) b.id = id;

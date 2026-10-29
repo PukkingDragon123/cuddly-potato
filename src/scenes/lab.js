@@ -54,7 +54,7 @@ const JIMMY_LINES = [
   'That MEGA tube hums at night. I sleep with the lights on now.',
   'Every Swarm is hand-shaken with love.',
   "Don't tell Nolan, but his Orbital Belly Flop is kinda OP.",
-  'Upgrade your base early - a tent will NOT stop a Steel Panther.',
+  'Upgrade your base early. A tent will NOT stop a Steel Panther.',
 ];
 
 export class LabScene {
@@ -226,7 +226,7 @@ export class LabScene {
     j.play('wave');
     j.expr('happy', 'grin');
     fx.confetti(new THREE.Vector3(j.root.position.x, 2.5, j.root.position.z), { count: 40 });
-    await this.say('Whoa, a new recruit! Welcome to the *BEAST LAB*, where we make the craziest creatures on the planet!');
+    await this.say('Whoa, a new recruit! Welcome to the *BEAST LAB*. We grow tiny monsters in test tubes here. Mostly on purpose.');
     j.play('point');
     await this.say("See the big guy in the tank? That's the *Beast Tiger*. Don't tap the glass. Seriously. He hates that.", 'side', 'smirk');
     j.play('talk');
@@ -293,11 +293,11 @@ export class LabScene {
     audio.play('heartbeat');
     this.panthar?.attack(0.7);
     fx.bubbles(new THREE.Vector3(mp.x, 1.5, mp.z + 0.8), { count: 40, color: 0xffb0e0, radius: 1, speed: 2 });
-    await this.say('That is a *MEGA-TECH MUTATOR*: Panthar. The ultimate Swarm. In battle your *MEGA* charges up as you deal damage, then BOOM - it breaks out of its tube!', 'star', 'grin');
-    await this.say('You need at least a *Trailer Lab* base to unleash one, and only ONCE per battle. Climb the *Trophy Road* to *300 trophies* and Panthar is YOURS.', 'happy', 'grin');
+    await this.say('That is a *MEGA-TECH MUTATOR*: Panthar. Nine inches of armored Panther. In battle your *MEGA* charges up as you deal damage, then BOOM: it breaks out of its tube!', 'star', 'grin');
+    await this.say('You need at least a *Trailer Lab* base to use one, and only ONCE per battle. Climb the *Trophy Road* to *300 trophies* and Panthar is YOURS.', 'happy', 'grin');
     await this.camHome(1);
     j.play('cheer', { dur: 1.2, then: 'idle' });
-    await this.say('Okay, enough lab talk! Come with me - I want to show you *BEAST ISLAND*...', 'happy', 'grin');
+    await this.say('Okay, enough lab talk! Come with me, I want to show you *BEAST ISLAND*...', 'happy', 'grin');
     state.p.tutorial = 'home';
     state.save();
     game.go('home');

@@ -82,7 +82,7 @@ export function openProfile(ctx) {
       tile('check', 'Wins', fmtN(s.wins)),
       tile('x', 'Losses', fmtN(s.losses)),
       tile('lab', 'Bases Destroyed', fmtN(s.basesDestroyed ?? 0)),
-      tile('mega', 'MEGAs Unleashed', fmtN(s.megasUsed ?? 0)),
+      tile('mega', 'MEGAs Used', fmtN(s.megasUsed ?? 0)),
       tile('trophy', 'Best Trophies', fmtN(p.bestTrophies)),
       tile('cards', 'Cards Found', `${found}/${ALL_CARDS.length}`),
       tile('swords', 'Battles', fmtN(s.battles)),

@@ -808,7 +808,7 @@ export class BattleHUD {
         if (ev.side === 0) { bump(this.energyRow, 'gain'); sparkle(this.pwrNow, { count: 10, colors: ['#ffe14a', '#ffffff'], spread: 40 }); }
         break;
       case 'doubleEnergy':
-        bigBanner('2X POWER!', 'Last minute - spend it fast!', { dur: 1.6, color: '#ffd84a' });
+        bigBanner('2X POWER!', 'Last minute: spend it fast!', { dur: 1.6, color: '#ffd84a' });
         audio.play('bell');
         audio.play('vHurry', { delay: 0.35 });
         break;
@@ -875,7 +875,7 @@ export class BattleHUD {
       if (!img && cmd) img = charPortrait(cmd.char ?? cmd.id, { override: cmd.override, size: 256, eyes: si ? 'angry' : 'determined', mouth: 'shout', full: true, yaw: si ? 0.35 : -0.35 });
       if (si === 0) this.sigImgFull = img;
     } catch (e) { img = null; }
-    ultCutIn({ img, title: sg.name.toUpperCase() + '!', kicker: si === 0 ? `${s.cmd.name ?? 'COMMANDER'} ULTIMATE` : 'RIVAL ULTIMATE', color: si === 0 ? sigColor(sg) : '#ff3d55', side: si, dur: si === 0 ? 1.25 : 0.95 });
+    ultCutIn({ img, title: sg.name.toUpperCase(), kicker: si === 0 ? `${s.cmd.name ?? 'COMMANDER'} ULTIMATE` : 'RIVAL ULTIMATE', color: si === 0 ? sigColor(sg) : '#ff3d55', side: si, dur: si === 0 ? 1.25 : 0.95 });
     if (si === 0 && this.sig) { burst(this.sig, { color: this.sigCol, count: 22, scale: 2, ring: false }); this.live?.action(); }
   }
   megaCutIn(ev) {
@@ -1178,7 +1178,7 @@ export class BattleHUD {
     this.ultTip?.remove();
     clearTimeout(this.ultTipT);
     const name = this.sim.sides[0].cmd?.signature?.name ?? 'ULTIMATE';
-    this.ultTip = h('div', { class: 'u-tip ready' }, h('b', {}, 'ULTIMATE READY!'), h('span', {}, name.toUpperCase()));
+    this.ultTip = h('div', { class: 'u-tip ready' }, h('b', {}, 'READY'), h('span', {}, name.toUpperCase()));
     this.sig.appendChild(this.ultTip);
     burst(this.sig, { color: this.sigCol, count: 26, scale: 1.6, ring: false });
     const el = this.ultTip;

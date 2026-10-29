@@ -506,7 +506,7 @@ export class BattleScene {
     const m = modal({
       title: 'PAUSED', size: 'narrow', color: 'purple',
       body: h('div', { class: 'col center' },
-        h('div', { class: 't-sm c-muted center-t' }, 'Tap a card, then tap the battlefield to drop it there - or drag it straight on. Troops land in your glowing zone; tap a card again to put it back.'),
+        h('div', { class: 't-sm c-muted center-t' }, 'Tap a card, then tap the battlefield to drop it. Or drag it straight on. Troops land in your glowing zone. Tap a card again to put it back.'),
         button('RESUME', () => m.close(), 'green lg'),
         button(sound(), (e) => {
           state.p.settings.muted = !state.p.settings.muted;
@@ -682,12 +682,12 @@ export class BattleScene {
     if (this.mode === 'online' && why === 'lost') {
       // OUR connection died: nobody wins, no trophies change
       this.noContest = true;
-      toast('Connection lost - the battle was cancelled.', { icon: 'x' });
+      toast('Connection lost. The battle was cancelled.', { icon: 'x' });
       if (this.sim instanceof RemoteSim) { this.sim.over = true; this.sim.draw = true; this.sim.winner = -1; }
       else { this.sim.over = true; this.sim.draw = true; this.sim.winner = -1; }
       return;
     }
-    toast(this.mode === 'online' ? 'Your opponent left - you win by forfeit!' : 'Your friend disconnected - you win by forfeit!', { icon: 'trophy' });
+    toast(this.mode === 'online' ? 'Your opponent left. You win by forfeit!' : 'Your friend disconnected. You win by forfeit!', { icon: 'trophy' });
     if (this.sim instanceof RemoteSim) {
       this.sim.over = true;
       this.sim.winner = 0;
@@ -709,7 +709,7 @@ export class BattleScene {
     this.view.update(dt, this.sim.paused && !this.sim.over ? 0 : gdt);
     if (this.sigCine && !this.view.cine) { this.sigCine = false; this.hud.setCinematic(false); }
     if (this.plc) this.tickPlacement(dt);
-    this.hud.update(dt);
+    this.hud?.update(dt);
     this.tutTick && this.tutTick(dt);
     if (this.sim.over && !this.ended) this.finish();
   }
@@ -789,7 +789,7 @@ export class BattleScene {
     this.lockInput = null;
     await wait(1.8);
     // 2) power + the card cycle + the deploy zone
-    await talk('Cards cost *POWER* (the yellow bar) - it fills up fast! A *new card* slides in after each play. Your deck *cycles* forever!');
+    await talk('Cards cost *POWER* (the yellow bar). It fills up fast! A *new card* slides in after each play. Your deck *cycles* forever!');
     await talk("You can only drop troops in *your zone*. The *hazard tape* is the line - and it moves up with your *front Swarm*! Short on POWER? Drop it anyway: it *waits there* until you can pay.");
     // 3) the ranged unit
     sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
@@ -802,7 +802,7 @@ export class BattleScene {
     }
     // 4) defend
     await waitFor(() => sim.enemiesOf(0).length > 0 || sim.t > 25);
-    await talk('Here come my Swarms! Keep sending yours - your base *zaps* anything close.');
+    await talk('Here come my Swarms! Keep sending yours. Your base *zaps* anything that gets close.');
     // 5) Food Throw if the lineup has it
     await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.7) || sim.t > 50);
     const fslot = slotOf('foodThrow');
@@ -836,9 +836,9 @@ export class BattleScene {
     await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
     if (!sim.over) {
       sim.sides[0].sig = 1;
-      await talk(`Your *ULTIMATE* is charged! It fills up from the *POWER* you make and from *damage to your base*. Tap the glowing *ULT* button for *${sim.sides[0].cmd?.signature?.name ?? 'your ULTIMATE'}*!`);
+      await talk(`Your *ULTIMATE* is charged. It fills up from the *POWER* you make and from *damage to your base*. Tap the glowing *ULT* button for *${sim.sides[0].cmd?.signature?.name ?? 'your ULTIMATE'}*.`);
       this.lockInput = 'sig';
-      remove = pointAt(this.hud.sig, 'Unleash!');
+      remove = pointAt(this.hud.sig, 'Tap it!');
       await until('sig');
       clearPtr();
       this.lockInput = null;
@@ -850,7 +850,7 @@ export class BattleScene {
     // the finish: no MEGA yet (those are earned on the Trophy Road)
     const jLab = sim.sides[1].lab;
     await waitFor(() => jLab.hp < jLab.maxHp * 0.5 || sim.t > 120 || sim.over);
-    if (!sim.over) await talk('Almost there! Later you can earn *MEGA-TECH* figures on the *Trophy Road* - giant ultimate monsters. Now FINISH ME!');
+    if (!sim.over) await talk('Almost there! On the *Trophy Road* you can win *MEGA-TECH* figures: giant monsters that smash out of a cup. Now FINISH ME!');
   }
 
   /** Dialogue camera (dialogue.js): while a Commander talks (game paused), push in toward them. */

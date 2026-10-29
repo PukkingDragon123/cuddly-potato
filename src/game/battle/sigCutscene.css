@@ -1,7 +1,6 @@
 /* COMMANDER ULTIMATE cutscene overlay (sigCutscene.js): letterbox with pixel
-   trim, a time-stop grade, the NAME CARD (kicker chip, ability name slammed in
-   letter by letter between pixel chevrons, tagline), the payoff stamp, skip hint.
-   Text is never rotated or skewed. */
+   trim, a time-stop grade, the ability's name as one small line, skip hint.
+   The Commander says the rest. Text is never rotated or skewed. */
 .sc-wrap {
   --sc: #ffd84a; --pxl: max(2px, calc(var(--px, 3px) * 0.9));
   position: absolute; inset: 0; z-index: 60; overflow: hidden; pointer-events: auto; touch-action: none; cursor: pointer;
@@ -36,73 +35,20 @@
 .sc-wrap.out .sc-bar.top { transform: translateY(-101%); }
 .sc-wrap.out .sc-bar.bot { transform: translateY(101%); }
 
-/* ---- the NAME CARD */
-.sc-card {
-  position: absolute; left: 0; right: 0; bottom: calc(11% + 18px); display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 0 12px; pointer-events: none; font-family: var(--font-d); color: #fff; text-align: center; opacity: 0;
+/* ---- the ability's name: one small, clean line in the letterbox (no banners, no captions) */
+.sc-title {
+  position: absolute; left: 0; right: 0; bottom: calc(11% + 14px); display: flex; justify-content: center; align-items: center; gap: 10px;
+  pointer-events: none; font-family: var(--font-d); font-size: clamp(13px, min(3.4vw, 4.6vh), 20px); letter-spacing: 0.18em; line-height: 1; color: #fff;
+  text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; opacity: 0; transform: translateY(6px);
+  transition: opacity 0.3s, transform 0.3s;
 }
-.sc-wrap.s1 .sc-card { bottom: auto; top: calc(11% + 18px); }
-.sc-wrap.slam .sc-card { opacity: 1; }
-.sc-wrap.cardout .sc-card { opacity: 0; transform: translateY(14px); transition: opacity 0.22s, transform 0.22s; }
-.sc-wrap.s1.cardout .sc-card { transform: translateY(-14px); }
-.sc-kick {
-  font-size: clamp(11px, min(2.9vw, 4vh), 18px); letter-spacing: 0.2em; line-height: 1; padding: 6px 12px 5px; color: #05030c; white-space: nowrap;
-  background: linear-gradient(#fff 0 2px, var(--sc) 2px);
-  clip-path: polygon(6px 0, calc(100% - 6px) 0, calc(100% - 6px) 3px, 100% 3px, 100% calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%, 6px 100%, 6px calc(100% - 3px), 0 calc(100% - 3px), 0 3px, 6px 3px);
-  transform: translateX(-120vw);
-}
-.sc-wrap.rival .sc-kick { background: linear-gradient(#fff 0 2px, #ff3d55 2px); color: #fff; }
-.sc-wrap.slam .sc-kick { animation: scKick 0.32s cubic-bezier(.2, 1.4, .4, 1) forwards; }
-@keyframes scKick { to { transform: none; } }
-.sc-name { display: flex; align-items: center; gap: 10px; max-width: 100%; }
-.sc-word { display: inline-flex; white-space: nowrap; }
-.sc-name b {
-  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; row-gap: 0.06em; font-weight: normal;
-  font-size: clamp(30px, min(10.5vw, 13vh), 84px); line-height: 0.95; letter-spacing: 0.03em;
-}
-.sc-name b i {
-  font-style: normal; display: inline-block; color: #fff; -webkit-text-stroke: 3px #05030c; paint-order: stroke fill;
-  text-shadow: 0 4px 0 #05030c, 3px 4px 0 #05030c, -3px 4px 0 #05030c, 0 8px 0 color-mix(in srgb, var(--sc) 70%, #000);
-  opacity: 0; transform: translateY(-70%) scale(2.6);
-}
-.sc-wrap.slam .sc-name b i { animation: scLetter 0.3s calc(0.08s + var(--i) * 0.024s) cubic-bezier(.2, 1.7, .4, 1) forwards; }
-.sc-wrap.slam .sc-name b i { color: color-mix(in srgb, var(--sc) 22%, #fff); }
-@keyframes scLetter { 0% { opacity: 0; transform: translateY(-70%) scale(2.6); } 60% { opacity: 1; transform: translateY(6%) scale(0.92); } 100% { opacity: 1; transform: none; } }
-.sc-tag {
-  font-size: clamp(11px, min(3.1vw, 4.2vh), 20px); letter-spacing: 0.16em; line-height: 1.1; color: var(--sc); max-width: 92vw;
-  text-shadow: 2px 2px 0 #05030c, -2px 2px 0 #05030c, 0 -2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c;
-  opacity: 0;
-}
-.sc-wrap.slam .sc-tag { animation: scTag 0.3s calc(0.2s + var(--n, 14) * 0.024s) steps(4) forwards; }
-@keyframes scTag { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
-/* pixel chevrons (stepped clip-path, not shapes) */
-.sc-chev { flex: none; width: 18px; height: 26px; background: var(--sc); filter: drop-shadow(2px 2px 0 #05030c);
+.sc-wrap.s1 .sc-title { bottom: auto; top: calc(11% + 14px); }
+.sc-title .sc-pip { flex: none; width: calc(var(--pxl) * 3); height: calc(var(--pxl) * 3); background: var(--sc); box-shadow: 0 0 0 var(--pxl) #05030c; }
+.sc-wrap.slam .sc-title { opacity: 0.95; transform: none; }
+.sc-wrap.cardout .sc-title { opacity: 0; transition-duration: 0.25s; }
+/* pixel chevron (stepped clip-path, not a shape) for the skip hint */
+.sc-chev { flex: none; width: 18px; height: 26px; background: var(--sc);
   clip-path: polygon(0 0, 33% 0, 33% 12%, 50% 12%, 50% 25%, 67% 25%, 67% 38%, 84% 38%, 84% 62%, 67% 62%, 67% 75%, 50% 75%, 50% 88%, 33% 88%, 33% 100%, 0 100%, 0 88%, 17% 88%, 17% 75%, 33% 75%, 33% 62%, 50% 62%, 50% 38%, 33% 38%, 33% 25%, 17% 25%, 17% 12%, 0 12%); }
-.sc-chev.l { transform: scaleX(-1); }
-.sc-wrap.slam .sc-name .sc-chev { animation: scChev 0.5s steps(4) infinite; }
-.sc-wrap.slam .sc-name .sc-chev.l { animation-name: scChevL; }
-@keyframes scChev { 50% { translate: 5px 0; } }
-@keyframes scChevL { 50% { translate: -5px 0; } }
-.sc-wrap.port .sc-name .sc-chev { display: none; }
-
-/* ---- payoff stamp */
-.sc-pay {
-  position: absolute; left: 0; right: 0; top: 50%; display: flex; justify-content: center; pointer-events: none; opacity: 0;
-  translate: 0 -50%; font-family: var(--font-d);
-}
-.sc-pay b {
-  font-weight: normal; font-size: clamp(34px, min(13vw, 16vh), 110px); line-height: 1; letter-spacing: 0.04em; color: var(--sc); white-space: nowrap;
-  -webkit-text-stroke: 4px #05030c; paint-order: stroke fill;
-  text-shadow: 0 5px 0 #05030c, 4px 5px 0 #05030c, -4px 5px 0 #05030c, 0 10px 0 color-mix(in srgb, var(--sc) 45%, #000);
-}
-.sc-pay.go { animation: scPay 1s steps(12) forwards; }
-@keyframes scPay {
-  0% { opacity: 0; transform: scale(2.2); }
-  12% { opacity: 1; transform: scale(0.94); }
-  20% { transform: scale(1.04); }
-  28%, 74% { opacity: 1; transform: none; }
-  100% { opacity: 0; transform: translateY(-18px); }
-}
 
 .sc-skip {
   position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 3.2%); display: flex; align-items: center; gap: 6px;
@@ -118,8 +64,7 @@
 @keyframes scFlash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-wrap.slam .sc-name b i, .sc-wrap.slam .sc-kick, .sc-wrap.slam .sc-tag, .sc-pay.go { animation-duration: 0.01s; }
-  .sc-wrap.slam .sc-name .sc-chev { animation: none; }
+  .sc-title { transition: none; }
 }
 
 /* ---- HUD ULT button (hud.js): first-battle callout on what charges it + a flash when base damage charges it */

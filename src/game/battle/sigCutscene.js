@@ -5,14 +5,15 @@
 // = 0: troops, projectiles, particles, the battle clock; battle.js keeps the
 // sim's cinematic clock on real time). Only the Commander and the ability move.
 //
-//   A  HERO      hard cut to the Commander standing on the roof, low angle,
-//                slow push-in; the NAME CARD slams in (big pixel letters,
-//                kicker chip, tagline); energy gathers in 2D pixel sprites
+//   A  HERO      hard cut to the Commander standing on the roof; the camera
+//                pushes in on their face as they say their battle cry (voiced
+//                word by word, mouth moving); energy gathers in 2D pixel sprites;
+//                only the ability's name, small, sits in the letterbox
 //   B  WIND-UP   over-the-shoulder across the frozen battlefield; the ability
 //                is unleashed (thrown vat / briefcase, rocket launch, whistle)
 //   C  FOLLOW    the camera tracks the ability as it crosses the field
 //   D  ARRIVAL   wide on the target as it comes in
-//   E  PAYOFF    the sim fires it: flash, the payoff word stamps in, slow-mo
+//   E  PAYOFF    the sim fires it: flash, slow-mo
 //                while the world restarts and the effect resolves (sigFx.js)
 //   R  RETURN    ease back to the battle camera, HUD returns
 //
@@ -27,7 +28,8 @@ import * as Props from '../../models/props.js';
 import { h, $overlay } from '../../ui/ui.js';
 import { battleCamera } from '../../models/arenas/kit.js';
 import { pixSystem } from './pixfx.js';
-import { SIG_COL, sigColor, PAYOFF } from './sigFx.js';
+import { SIG_COL, sigColor } from './sigFx.js';
+import { voiceOf } from '../../data/characters.js';
 import './sigCutscene.css';
 
 export { SIG_COL };
@@ -72,20 +74,12 @@ export function playSigCutscene(view, ev) {
   const fit = (w, hh) => Math.max(hh / (2 * TAN), w / (2 * TAN * cam.aspect));
 
   // ------------------------------------------------------------ overlay
-  const name = sg.name.toUpperCase();
-  let li = 0;
-  const letters = name.split(' ').map((w) => h('span', { class: 'sc-word' }, [...w].map((c) => h('i', { style: { '--i': li++ } }, c))));
-  const kicker = rival ? 'RIVAL ULTIMATE' : `${(s.cmd.name ?? 'COMMANDER').toUpperCase()} · ULTIMATE`;
-  const pay = h('div', { class: 'sc-pay' }, h('b', {}, PAYOFF[sg.id] ?? 'BOOM!'));
+  // no banners or captions: the Commander says it. Just the ability's name, small, in the letterbox.
   const wrap = h('div', { class: `sc-wrap s${side}${rival ? ' rival' : ''}${portrait ? ' port' : ''}`, style: { '--sc': col } },
     h('div', { class: 'sc-tint' }),
     h('div', { class: 'sc-bar top' }, h('i', { class: 'sc-trim' })),
     h('div', { class: 'sc-bar bot' }, h('i', { class: 'sc-trim' })),
-    h('div', { class: 'sc-card' },
-      h('small', { class: 'sc-kick' }, kicker),
-      h('div', { class: 'sc-name' }, h('span', { class: 'sc-chev l' }), h('b', {}, letters), h('span', { class: 'sc-chev r' })),
-      sg.tagline ? h('div', { class: 'sc-tag', style: { '--n': li } }, sg.tagline) : null),
-    pay,
+    h('div', { class: 'sc-title' }, h('i', { class: 'sc-pip' }), h('span', {}, sg.name.toUpperCase())),
     h('div', { class: 'sc-skip' }, 'TAP TO SKIP', h('span', { class: 'sc-chev r' })),
     h('div', { class: 'sc-flash' }));
   $overlay().appendChild(wrap);
@@ -149,16 +143,16 @@ export function playSigCutscene(view, ev) {
   const pos = V(), lk = V();
   const smPos = V(), smLook = V();
   let smInit = false;
-  // A: the Commander framed in the screen band the name card leaves free (card low for you, high for the rival)
-  const band = portrait ? 0.3 : 0.43; // screen-height share the letterbox + name card cover on the card's side
-  const avail = 1 - 0.11 - band;
-  const centerOff = 0.5 - (rival ? band + avail / 2 : 0.11 + avail / 2); // > 0: the free band is above centre
+  // A: a medium shot of the Commander that pushes in on their face while they deliver the line
+  const _ht = V();
   const heroShot = (k) => {
     const c = chest();
-    const Hf = (H * 1.3) / avail; // the Commander fills ~75% of the free band
-    const d = Math.max(Hf / (2 * TAN), fit(H * 1.5, 0)) * lerp(1.12, 0.94, outQ(k));
-    const vis = 2 * d * TAN;
-    return { pos: V(c.x + dir * H * 0.7, c.y - H * 0.2, c.z + d), look: V(c.x + dir * H * 0.1, c.y - centerOff * vis, c.z) };
+    const face = ch.headTop ? ch.headTop(_ht).clone().add(V(0, -H * 0.2, 0)) : V(c.x, c.y + H * 0.3, c.z);
+    const e = ease(clamp(k * 1.15, 0, 1));
+    const frame = lerp(H * 1.9, H * 0.85, e); // visible height: whole body -> head and shoulders
+    const d = Math.max(frame / (2 * TAN), fit(frame * 0.62, 0));
+    const lk = V().lerpVectors(c, face, e);
+    return { pos: V(lk.x + dir * d * 0.16, lk.y - frame * 0.06, lk.z + d), look: lk.add(V(0, -frame * 0.04, 0)) };
   };
   // B: low angle from below the roof edge, the Commander against the sky
   const launchShot = (k) => {
@@ -197,6 +191,30 @@ export function playSigCutscene(view, ev) {
   };
 
   // ------------------------------------------------------------ timeline
+  // ---- the battle cry: spoken word by word in the Commander's voice, mouth moving, on cutscene time
+  const words = (sg.cry ?? '').split(/\s+/).filter(Boolean);
+  const v8 = voiceOf(s.cmd.char ?? s.cmd.id);
+  const CPS = 15; // a deliberate, punchy delivery
+  let wi = 0, wClock = rival ? -0.12 : -0.3, talkLeft = 0;
+  const speak = (dt) => {
+    wClock += dt;
+    while (wi < words.length) {
+      const w = words[wi];
+      const len = w.replace(/[^A-Za-z0-9']/g, '').length;
+      const cost = Math.max(0.14, (len + 1) / CPS) + (/[.,]$/.test(words[wi - 1] ?? '') ? 0.16 : 0);
+      if (wClock < cost * (wi === 0 ? 0 : 1)) break;
+      wClock -= wi === 0 ? 0 : cost;
+      if (len) {
+        audio.voice(v8, { text: w, span: Math.max(0.12, ((len + 1) / CPS) * 1.1), pos: wi / words.length, emph: true });
+        ch.talk?.(true);
+        talkLeft = Math.min(0.45, 0.08 + len * 0.055);
+        if (wi === 0) { ch.boing?.(0.25); engine.shake(0.08); }
+      }
+      wi++;
+    }
+    talkLeft -= dt;
+    if (talkLeft <= 0) ch.talk?.(false);
+  };
   let T = 0, landT = -1, back = null, launched = false, arrived = false, cardOut = false, chargeT = 0, boltT = 0, sfxT = 0.2, slowOn = false, lastShot = '';
   let hold = PAY;
   const cut = (name) => {
@@ -235,15 +253,10 @@ export function playSigCutscene(view, ev) {
       }
       if (!launched && T >= tL) { launched = true; dirc.launch?.(); }
       if (launched) dirc.fly?.(clamp((T - tL) / (D - tL), 0, 1), dt);
-      // the name card leaves after the wind-up starts
-      if (!cardOut && T > tB + 0.15) { cardOut = true; wrap.classList.add('cardout'); }
-      if (T > (rival ? 0.12 : 0.3) && !ctl.slammed) {
-        ctl.slammed = true;
-        wrap.classList.add('slam');
-        audio.play('vsSlam', { vol: 0.8 });
-        audio.play('thud', { pitch: 0.7 });
-        engine.shake(0.25);
-      }
+      speak(dt);
+      // the small title rides along with the line, then clears for the action
+      if (T > (rival ? 0.15 : 0.35) && !ctl.slammed) { ctl.slammed = true; wrap.classList.add('slam'); audio.play('thud', { pitch: 0.7, vol: 0.6 }); }
+      if (!cardOut && T > tB + 0.1) { cardOut = true; wrap.classList.add('cardout'); }
       // charge-up energy around the Commander until the launch
       if (!launched) {
         const hp = handPos();
@@ -303,10 +316,9 @@ export function playSigCutscene(view, ev) {
     if (engine.timeScale === myTS) { engine.timeScale = myTS = 0.35; slowOn = true; }
     if (ctl.skipped) hold = 0.6;
     wrap.classList.add('land', 'cardout');
+    ch.talk?.(false);
     flash('go');
-    void pay.offsetWidth;
-    pay.classList.add('go');
-    audio.play('vsSting', { vol: 0.7 });
+    audio.play('vsSting', { vol: 0.6 });
     lastShot = 'E';
     smInit = false;
   };
@@ -323,6 +335,7 @@ export function playSigCutscene(view, ev) {
     ctl.ownsCamera = false;
     ctl.freeze = false;
     if (engine.timeScale === myTS && myTS < 1) engine.timeScale = 1;
+    ch.talk?.(false);
     dirc.cleanup?.();
     showFront();
     if (!dirc.keepsCommander) {
@@ -643,8 +656,8 @@ const DIRECTORS = {
     const { ch, H, P, X, dir, home, E } = c;
     const AM = [0xffa31a, 0xffd27a, 0xff7a1f, 0xfff2c8];
     let fx0 = null;
-    ch.play('whistle', { restart: true });
-    ch.expr('determined', 'shout', 3);
+    ch.play('point', { restart: true }); // says his line first, then blows the whistle
+    ch.expr('determined', 'grin', 3);
     const d = {
       windup() {
         audio.play('vsRiser', { vol: 0.5 });
@@ -658,8 +671,8 @@ const DIRECTORS = {
       },
       launch() {
         fx0 = home.x + dir * 1.5;
-        ch.play('point', { restart: true });
-        ch.expr('star', 'shout', 2);
+        ch.play('whistle', { restart: true });
+        ch.expr('determined', 'o', 2);
         audio.play('bell', { pitch: 1.8 });
         audio.play('horn', { pitch: 1.7, vol: 0.5 });
         audio.play('freeze', { pitch: 0.8 });

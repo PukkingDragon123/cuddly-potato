@@ -65,7 +65,7 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - **Spells** (Food Throw, $100K Drop, Slime Flood, Freeze Ray, Soda Rocket, Lab Shield) are cards too.
 - **Commanders** (Recruit, Jimmy, Nolan, Juan) have unlockable skills, perks and a game-changing **ULTIMATE**. It
   charges only from the POWER your side makes and from damage your base takes (a battered base charges it faster,
-  ~90-120 s into a battle otherwise), and firing it stops the whole battle for a full cutscene: *Mutant Uprising*
+  ~90-120 s into a battle otherwise), and firing it stops the whole battle for a full cutscene in which your Commander says their line: *Mutant Uprising*
   (your army mutates into giants + 3 free mutant squads), *Beast Buyout* (Jimmy buys the 3 strongest enemy troops),
   *Orbital Belly Flop* (Nolan rides a soda rocket into orbit and lands as a meteor: board wipe + burning crater) and
   *Tiempo Muerto* (time stops for the rival for 7 s, then their frozen troops shatter).

@@ -2417,7 +2417,7 @@ export class BattleView {
       }
       case 'complain':
         this.perform(side, 'angry', 1.4, 'angry', 'shout');
-        if (ch) speech(ch, 'This is SO unfair!!', 1.8);
+        if (ch) speech(ch, 'This is SO unfair!', 1.8);
         audio.play('bruh');
         for (const a of this.actors.values()) if (a.u.side !== side && Math.abs(a.u.x - ev.x) < 7) speech(a.rig.root, 'Hmph!', 1.2);
         break;

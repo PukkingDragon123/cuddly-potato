@@ -232,7 +232,7 @@ export function mount(el, ctx) {
       h('div', { class: 'mn-vtile-s' }, VIAL_BLURB[o.id] ?? v.desc),
       priceButton('bucks', o.price, sold, () => buy({
         key, cur: 'bucks', price: o.price, tile,
-        title: v.name.toUpperCase(), art: vialArt(o.id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens instantly - no waiting!'),
+        title: v.name.toUpperCase(), art: vialArt(o.id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens right away. No timer!'),
         async onPaid() {
           ctx.openVial?.({ type: o.id, source: 'shop' });
         },
@@ -290,7 +290,7 @@ export function mount(el, ctx) {
           sold ? h('div', { class: 'mn-soldtag t-d outline' }, icon('check', 's'), 'SOLD OUT') : (() => {
             const b = button('BUY', () => buy({
               key, cur: 'bucks', price: o.price, tile,
-              title: v.name.toUpperCase(), art: vialArt(id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens instantly - no waiting!'), yesCls: 'yellow',
+              title: v.name.toUpperCase(), art: vialArt(id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens right away. No timer!'), yesCls: 'yellow',
               async onPaid() {
                 burst(tile.querySelector('.mn-hero-art'), { color: '#ffd84a', count: 26, scale: 1.2 });
                 ctx.openVial?.({ type: id, source: 'shop' });

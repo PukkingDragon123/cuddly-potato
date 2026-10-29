@@ -15,8 +15,6 @@ import { pix, defineSprite } from './pixfx.js';
 /** Ultimate colours (cutscene name card, HUD ring); a signature's own `color` wins. */
 export const SIG_COL = { mutantUprising: '#7cff3a', beastBuyout: '#ffd84a', orbitalFlop: '#3fb8ff', tiempoMuerto: '#ff8a2a' };
 export const sigColor = (sg) => sg?.color ?? SIG_COL[sg?.id] ?? '#ffd84a';
-/** The word stamped on screen when an ultimate lands. */
-export const PAYOFF = { mutantUprising: 'MUTATE!', beastBuyout: 'SOLD!', orbitalFlop: 'SPLASHDOWN!', tiempoMuerto: 'TIME STOP!' };
 
 // extra sprites for the ultimates
 defineSprite('dollar', ['  +  ', ' ####', '# #  ', '#+#  ', ' ### ', '  #+#', '  # #', '#### ', '  +  ']);

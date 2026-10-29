@@ -375,7 +375,7 @@ export class HomeScene {
     this.zProg = bar(0, 'gold', '', { cls: 'hm-zprog' });
     this.zBox = h('div', { class: 'hm-zbox', 'data-sfx': 'tap', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
     const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
-    this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Ranked - win trophies & vials', sound: 'go' });
+    this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Win trophies & vials', sound: 'go' });
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
     this.practiceBtn = button('TRAIN', () => game.go('battle', { mode: 'practice' }), 'gray lg hm-side-play', { icon: 'sword' });
     // the wrapper breathes + lifts on hover; the button itself keeps the generic press / release
@@ -716,13 +716,13 @@ export class HomeScene {
         h('div', { class: 'nm t-d outline' }, M.name, own?.variant === 'gold' ? h('span', { class: 'c-gold' }, ' GOLD') : null),
         h('div', { class: 'sp' }, icon('lightning', 's'), h('span', {}, M.special.name)),
         h('div', { class: 'ds' }, own ? M.desc : `Unlocks on the ${M.unlock}.`),
-        own ? (eq ? h('div', { class: 'eqt t-d' }, 'EQUIPPED') : button('EQUIP', () => { equipMega(id); m.close(); this.refresh(); toast(`*${M.name}* is your MEGA ultimate!`, { icon: 'mega' }); }, 'green sm')) : h('div', { class: 'lk' }, icon('lock')));
+        own ? (eq ? h('div', { class: 'eqt t-d' }, 'EQUIPPED') : button('EQUIP', () => { equipMega(id); m.close(); this.refresh(); toast(`*${M.name}* is your MEGA now!`, { icon: 'mega' }); }, 'green sm')) : h('div', { class: 'lk' }, icon('lock')));
       return el;
     }));
     const m = modal({
       title: 'MEGA ULTIMATES', color: 'pink', size: 'wide',
       body: h('div', { class: 'col' },
-        h('div', { class: 'c-muted center-t t-sm hm-megas-intro' }, 'Charge your MEGA by fighting (damage + knockouts). Once your base is a ', h('b', { class: 'c-gold' }, 'Trailer Lab'), ' or better, unleash it once per battle: it smashes out of its containment cup and stomps the lane!'),
+        h('div', { class: 'c-muted center-t t-sm hm-megas-intro' }, 'Charge your MEGA by fighting (damage + knockouts). Once your base is a ', h('b', { class: 'c-gold' }, 'Trailer Lab'), ' or better, tap it once per battle: it smashes out of its containment cup and stomps down the lane.'),
         grid),
     });
   }
@@ -777,7 +777,7 @@ export class HomeScene {
       this.refresh();
       return;
     }
-    await say(who, `${st.text} (${st.prog}/${st.need}) - keep going!`);
+    await say(who, `${st.text} (${st.prog}/${st.need}). Keep going!`);
   }
 
   secretFound(id, pos) {
@@ -816,7 +816,7 @@ export class HomeScene {
       h('div', { class: 'nm' }, A.name.toUpperCase()),
       h('div', { class: 'vid' }, `Inspired by "${A.video}"`),
       cards.length ? h('div', { class: 'cards' }, cards.map((c, i) => { const el = cardEl(c.id, { locked: false, owned: { level: 1 }, noLevel: true }); el.style.animationDelay = `${0.8 + i * 0.12}s`; return el; })) : null,
-      button('AWESOME!', () => close(), 'yellow lg', { icon: 'star' }));
+      button('LET\'S GO!', () => close(), 'yellow lg', { icon: 'star' }));
     $overlay().appendChild(ov);
     let done;
     const close = () => { ov.remove(); done(); };

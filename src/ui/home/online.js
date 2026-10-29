@@ -77,7 +77,7 @@ export function mountOnlineEntry(host, ctx) {
     else if (type === 'matchFailed') {
       c.overlay?.remove();
       c.overlay = null;
-      notify(ctx, lobby.mode === 'searching' ? 'Your opponent did not connect - still searching...' : 'Could not connect to that player.', { icon: 'x' });
+      notify(ctx, lobby.mode === 'searching' ? 'Your opponent did not connect. Still searching...' : 'Could not connect to that player.', { icon: 'x' });
       hub?.refresh();
     }
   });

@@ -95,7 +95,7 @@ export const SEASON_CHALLENGES = [
   { id: 'useFoodThrow', text: 'Use Food Throw {n} times', n: 4, cal: 100, stat: 'castfoodThrow' },
   { id: 'martBattles', text: 'Battle {n} times at Beast Mart', n: 2, cal: 120, stat: 'martBattles' },
   { id: 'openVials', text: 'Open {n} vials', n: 2, cal: 100, stat: 'vialsOpened' },
-  { id: 'unleashMega', text: 'Unleash your MEGA {n} times', n: 2, cal: 160, stat: 'megasUsed' },
+  { id: 'unleashMega', text: 'Use your MEGA {n} times', n: 2, cal: 160, stat: 'megasUsed' },
   { id: 'useSignature', text: 'Use your Commander ULTIMATE {n} times', n: 4, cal: 110, stat: 'signatures' },
   { id: 'deployTroops', text: 'Deploy {n} troops', n: 40, cal: 110, stat: 'deployed' },
   { id: 'smashCarts', text: 'Smash {n} shopping carts', n: 6, cal: 90, stat: 'cartsSmashed' },
@@ -132,7 +132,7 @@ export const LAB_SKINS = {
   default: { name: 'Beast Lab', desc: 'The classic futuristic lab.' },
   martLab: { name: 'Beast Mart Lab', desc: 'A supermarket lab with a checkout lane.', season: 1 },
   chocoLab: { name: 'Chocolate Lab', desc: 'Built from chocolate bars. Smells amazing.', season: 1 },
-  goldVault: { name: 'Gold Vault', desc: 'Earned by true Lab legends.' },
+  goldVault: { name: 'Gold Vault', desc: 'Solid gold walls. Trophy Road, 2,700 trophies.' },
   mansion: { name: 'Beast Mansion', desc: "Jimmy's mansion, now with a Lab in the basement.", season: 1 },
 };
 

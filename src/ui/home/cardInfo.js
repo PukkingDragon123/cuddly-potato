@@ -443,7 +443,7 @@ export function openCardInfo(id, ctx, opts = {}) {
     const st = swarmStats(megaId, own.level);
     const txt = h('div', { class: 'col grow', style: { gap: 'calc(var(--u)*0.8)' } },
       h('b', { class: 't-d outline t-lg c-pink' }, mg.name),
-      h('span', { class: 't-sm' }, mg.desc ?? 'A mega-evolved form with boosted stats.'),
+      h('span', { class: 't-sm' }, mg.desc ?? 'The MEGA Serum form: bigger, tougher, hits harder.'),
       h('span', { class: 'row wrap gap-s' }, chip([icon('hp', 's'), fmt(st.hp)]), chip([icon('sword', 's'), fmt(st.dmg)]), chip([icon('energy', 's'), String(mg.elixir ?? def.elixir)])));
     let ctrl;
     if (!unlocked) {

@@ -94,7 +94,7 @@ export class Peer {
   /** Guest: take the host's code, produce the reply code. */
   async acceptOffer(code) {
     const data = JSON.parse(await decompress(code));
-    if (data.t !== 'o') throw new Error('That is a reply code - paste the HOST code here.');
+    if (data.t !== 'o') throw new Error('That is a reply code. Paste the HOST code here.');
     await this.pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
     await this.pc.setLocalDescription(await this.pc.createAnswer());
     await waitIce(this.pc);
@@ -103,7 +103,7 @@ export class Peer {
   /** Host: apply the guest's reply code. */
   async acceptAnswer(code) {
     const data = JSON.parse(await decompress(code));
-    if (data.t !== 'a') throw new Error('That is a host code - paste your friend\'s REPLY code.');
+    if (data.t !== 'a') throw new Error('That is a host code. Paste your friend\'s REPLY code.');
     await this.pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
   }
 
