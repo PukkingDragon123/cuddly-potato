@@ -99,21 +99,23 @@ export const CHARACTERS = {
   },
 };
 
-// 8-bit voices (audio.voice profiles): base pitch Hz, pulse duty, range in semitones
+// Talking voices (audio.voice profiles): base = pitch Hz, formant = vocal tract
+// scale (1 adult man, ~1.17 woman, ~1.25 kid), range = intonation semitones,
+// speed, breath (airy), retro (a pinch of chiptune buzz for the game feel).
 export const VOICES = {
-  jimmy: { base: 220, duty: 0.5, range: 7 },
-  jimmyBoss: { base: 170, duty: 0.5, range: 6, speed: 0.9 },
-  nolan: { base: 300, duty: 0.25, range: 9, speed: 1.15 },
-  juan: { base: 190, duty: 0.125, range: 8 },
-  recruit: { base: 250, duty: 0.5, range: 5, wobble: 0.03 },
-  labTech: { base: 400, duty: 0.25, range: 8 },
-  cashier: { base: 380, duty: 0.125, range: 9, speed: 1.1 },
-  stocker: { base: 270, duty: 0.25, range: 6 },
-  guard: { base: 150, duty: 0.5, range: 4, speed: 0.85 },
-  fan: { base: 460, duty: 0.25, range: 10, speed: 1.25 },
-  anchor: { base: 360, duty: 0.5, range: 7, speed: 1.1 },
+  jimmy: { base: 150, formant: 1.04, range: 7, speed: 1.05, retro: 0.12 },
+  jimmyBoss: { base: 112, formant: 0.95, range: 6, speed: 0.9, retro: 0.12, growl: 0.02 },
+  nolan: { base: 168, formant: 1.08, range: 9, speed: 1.15, retro: 0.12 },
+  juan: { base: 128, formant: 0.98, range: 8, speed: 1.05, retro: 0.12 },
+  recruit: { base: 182, formant: 1.12, range: 6, retro: 0.15 },
+  labTech: { base: 225, formant: 1.17, range: 7, breath: 0.4, retro: 0.1 },
+  cashier: { base: 235, formant: 1.18, range: 9, speed: 1.12, retro: 0.1 },
+  stocker: { base: 138, formant: 1.0, range: 5, speed: 0.95, retro: 0.12 },
+  guard: { base: 98, formant: 0.92, range: 4, speed: 0.85, retro: 0.1 },
+  fan: { base: 265, formant: 1.25, range: 10, speed: 1.22, retro: 0.12 },
+  anchor: { base: 215, formant: 1.16, range: 7, speed: 1.08, breath: 0.25, retro: 0.08 },
 };
-export const DEFAULT_VOICE = { base: 320, duty: 0.25, range: 7 };
+export const DEFAULT_VOICE = { base: 170, formant: 1.08, range: 6, retro: 0.12 };
 /** Voice profile for a character id / def / name (falls back to a neutral NPC voice). */
 export function voiceOf(who) {
   if (!who) return DEFAULT_VOICE;

@@ -250,9 +250,9 @@ export function say(who, text, opts = {}) {
     if (len) {
       talk(true);
       talkUntil = tNow + Math.min(0.42, 0.05 + len * 0.045);
-      // 8-bit voice: one chiptune syllable per ~3 letters, pitched per character
+      // talking voice: the word itself, spoken in this character's voice and fitted to the reading pace
       const vp = { ...v8, base: v8.base * voice };
-      audio.voice(vp, { syll: Math.min(3, Math.ceil(len / 3)), emph: wd.emph, ask: /\?/.test(wd.text) });
+      audio.voice(vp, { text: wd.text, span: Math.max(0.09, (len + 1) / cps * 1.15), pos: words.indexOf(wd) / words.length, emph: wd.emph, ask: /\?/.test(wd.text) });
     }
     if (wd.emph) {
       audio.play('pop', { pitch: 1.25 + Math.random() * 0.2, gap: 0.08, vol: 0.55 });

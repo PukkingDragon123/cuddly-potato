@@ -451,11 +451,28 @@ class AudioSys {
   }
 
   // -------------------------------------------------------------------------
-  // 8-bit voices: chiptune "talking" babble (Animal Crossing / Undertale style).
-  // A voice profile = { base (Hz), duty (pulse width 0.125/0.25/0.5), range
-  // (semitones), speed (1 = normal), wobble (vibrato depth, robots), drop }.
+  // Talking voices: a tiny formant speech synth (Animal Crossing style, but
+  // with real vowel shapes). The text is split into syllables; each one gets
+  // its consonant (a filtered noise burst or a formant glide) and its vowel (a
+  // glottal buzz through three resonances, F1-F3, tuned per vowel), with a
+  // natural pitch contour: phrases fall, questions rise, shouts jump up.
+  // A voice profile = { base (pitch Hz), formant (vocal tract scale: 1 adult
+  // male, ~1.15 woman, ~1.25 kid), range (intonation in semitones), speed
+  // (1 = normal), breath (0..1 aspiration), retro (0..1 chiptune buzz mixed
+  // in), growl (rough creature voice), drop (pitch falls through the word) }.
 
-  /** Band-limited pulse wave with the given duty cycle (cached). */
+  /** Glottal-pulse-like source: harmonics rolling off ~10 dB/oct (cached). */
+  _glottal() {
+    const c = this.ctx;
+    if (!c) return null;
+    if (!this._gw) {
+      const N = 40, re = new Float32Array(N), im = new Float32Array(N);
+      for (let n = 1; n < N; n++) im[n] = -1 / Math.pow(n, 1.65);
+      this._gw = c.createPeriodicWave(re, im);
+    }
+    return this._gw;
+  }
+  /** Band-limited pulse wave with the given duty cycle (cached; the retro layer). */
   _pulse(duty = 0.5) {
     const c = this.ctx;
     if (!c) return null;
@@ -468,9 +485,22 @@ class AudioSys {
     }
     return this._pw.get(k);
   }
+  /** Split text into syllables: [{ on (onset consonants), nu (vowel letters), coda }]. */
+  _sylls(text) {
+    const w = String(text).toLowerCase().replace(/[^a-z]/g, '');
+    const out = [];
+    const re = /([^aeiouy]*)([aeiouy]+)/g;
+    let m, end = 0;
+    while ((m = re.exec(w))) { out.push({ on: m[1], nu: m[2], coda: '' }); end = re.lastIndex; }
+    if (out.length && end < w.length) out[out.length - 1].coda = w.slice(end);
+    if (!out.length && w) out.push({ on: w.slice(0, -1), nu: 'u', coda: w.slice(-1) });
+    return out;
+  }
   /**
-   * Speak `syll` 8-bit syllables in voice `v`. o: { syll, emph, ask (rising
-   * end), delay, vol, gap }. Returns false when muted / not unlocked.
+   * Speak in voice `v`. o: { text (the word(s) to say), syll (count when no
+   * text), span (fit the syllables into this many seconds), pos (0..1 place in
+   * the sentence, for the falling phrase pitch), emph, ask, delay, vol, gap,
+   * dest }. Returns false when muted / not unlocked.
    */
   voice(v = {}, o = {}) {
     const c = this.ctx;
@@ -479,46 +509,165 @@ class AudioSys {
     const key = 'voice|' + (v.base ?? 0);
     if (o.gap && this._vLast?.[key] && now - this._vLast[key] < o.gap) return false;
     (this._vLast = this._vLast ?? {})[key] = now;
-    const wave = this._pulse(v.duty ?? 0.5);
-    const base = v.base ?? 300, range = v.range ?? 7, speed = v.speed ?? 1;
-    const scale = [0, 2, 4, 5, 7, 9, 12];
-    const n = Math.max(1, Math.min(4, o.syll ?? 1));
-    let t = o.delay ?? 0;
+    let syl = o.text ? this._sylls(o.text) : [];
+    if (!syl.length) {
+      const pool = ['ba', 'da', 'wa', 'me', 'lo', 'ni', 'ya', 'ho', 'ra', 'su'];
+      const n = Math.max(1, Math.min(4, o.syll ?? 1));
+      for (let i = 0; i < n; i++) syl.push(...this._sylls(pool[Math.floor(Math.random() * pool.length)]));
+    }
+    const speed = v.speed ?? 1;
+    const sylDur = 0.115 / speed;
+    let n = syl.length;
+    if (o.span) n = Math.max(1, Math.min(n, Math.floor(o.span / (sylDur * 0.62))));
+    if (n < syl.length) syl = [syl[0], ...syl.slice(1).filter((_, i) => i % Math.ceil(syl.length / n) === 0)].slice(0, n);
+    n = syl.length;
+    const each = o.span ? Math.max(0.065, Math.min(sylDur, o.span / n)) : sylDur;
+    let t = now + 0.005 + (o.delay ?? 0);
+    const range = v.range ?? 6;
+    const pos = o.pos ?? 0.3;
     for (let i = 0; i < n; i++) {
-      let semi = scale[Math.floor(Math.random() * scale.length)] * (range / 12);
-      if (o.emph) semi -= 3;
-      if (o.ask && i === n - 1) semi += range * 0.7;
-      const f0 = base * Math.pow(2, semi / 12);
-      const dur = (0.045 + Math.random() * 0.03) / speed;
-      const f1 = f0 * (v.drop ? 0.82 : 0.97 + Math.random() * 0.06);
-      this.tone({ wave, f0, f1, dur, vol: (o.vol ?? 1) * (o.emph ? 0.06 : 0.045), attack: 0.002, delay: t, vibrato: v.wobble ? f0 * v.wobble : 0, vibRate: 32, curve: 'lin', lp: 5200 });
-      t += dur + 0.012 / speed;
+      const last = i === n - 1;
+      // intonation (semitones): sentence declination + a little life, stress on the first syllable
+      let st = range * 0.35 * (1 - pos) - range * 0.15 + (Math.random() - 0.5) * range * 0.25;
+      if (i === 0) st += range * 0.12;
+      if (o.emph) st += range * 0.45;
+      let glide = -0.9;
+      if (o.ask && last) glide = range * 0.75;
+      if (v.drop) glide -= 3.5;
+      const vol = (o.vol ?? 1) * (o.emph ? 1.3 : 1);
+      t += this._syllable(v, syl[i], t, each, st, glide, vol, o.dest);
     }
     return true;
   }
-  /** Babble a whole line (speech bubbles): one syllable per ~3 letters, spread over `span` seconds. */
-  babble(v, text = '', span = 0.6) {
-    const letters = String(text).replace(/[^A-Za-z0-9]/g, '').length;
-    const n = Math.max(2, Math.min(10, Math.round(letters / 3)));
-    const ask = /\?\s*$/.test(text);
-    for (let i = 0; i < n; i++) this.voice(v, { syll: 1, delay: (i / n) * span, ask: ask && i === n - 1, emph: /!\s*$/.test(text) && i === n - 1 });
+  /** One spoken syllable starting at time t; returns its length in seconds. */
+  _syllable(v, s, t, dur, st, glide, vol, dest) {
+    const c = this.ctx;
+    const fs = v.formant ?? 1;
+    const f0 = (v.base ?? 150) * Math.pow(2, st / 12);
+    const on = s.on.slice(-2);
+    const C = on[on.length - 1] ?? '';
+    // vowel targets (Hz, adult male): F1 F2 F3
+    const VOW = { a: [760, 1250, 2500], e: [520, 1850, 2550], i: [300, 2250, 2950], o: [500, 880, 2450], u: [340, 900, 2300], y: [320, 2100, 2800] };
+    const v1 = VOW[s.nu[0]] ?? VOW.a;
+    const v2 = VOW[s.nu[s.nu.length - 1]] ?? v1;
+    // consonant onset: where the formants start + a noise burst
+    let start = v1, gap = 0, burst = null, voicedOnset = true;
+    if ('mn'.includes(C)) start = [260, 1150, 2400];
+    else if (C === 'l') start = [340, 1050, 2600];
+    else if (C === 'r') start = [420, 1200, 1700];
+    else if (C === 'w') start = [300, 650, 2200];
+    else if (C === 'y' || C === 'j') start = [280, 2200, 2900];
+    if ('ptkcqbdg'.includes(C) && C) { gap = 0.022; voicedOnset = 'bdg'.includes(C); burst = { f: C === 'p' || C === 'b' ? 1100 : C === 't' || C === 'd' ? 4200 : 2300, q: 1.1, d: 0.016, v: 0.05 }; }
+    if (C === 's' || C === 'z' || C === 'x' || (C === 'c' && 'eiy'.includes(s.nu[0]))) burst = { f: 6200, q: 1.6, d: 0.06, v: 0.03 };
+    if (on.endsWith('sh') || on.endsWith('ch')) burst = { f: 2900, q: 1.3, d: 0.06, v: 0.032 };
+    if (C === 'f' || C === 'v' || on.endsWith('th')) burst = { f: 7500, q: 0.7, d: 0.05, v: 0.016 };
+    if (C === 'h' && !on.endsWith('sh') && !on.endsWith('ch') && !on.endsWith('th')) burst = { f: 1700, q: 0.5, d: 0.05, v: 0.022 };
+    const pre = burst ? Math.max(gap, burst.d * 0.8) : gap;
+    if (burst) this.noise({ dur: burst.d, vol: burst.v * vol, type: 'bandpass', f0: burst.f * Math.sqrt(fs), q: burst.q, attack: 0.004, delay: Math.max(0, t - c.currentTime - 0.005), dest });
+    // voiced part
+    const t0 = t + (voicedOnset && !gap ? 0 : pre);
+    const d = Math.max(0.05, dur - (t0 - t));
+    const out = this._out(dest);
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 4800 * Math.min(1.3, fs);
+    lp.Q.value = 0.5;
+    lp.connect(out);
+    const env = c.createGain();
+    // high voices pass more energy through the resonators: even out loudness across characters
+    const peak = 0.085 * vol * Math.max(0.6, Math.min(1.6, Math.pow(160 / f0, 0.7)));
+    env.gain.setValueAtTime(0, t0);
+    env.gain.linearRampToValueAtTime(peak * ('mnlrwy'.includes(C) && C ? 0.55 : 1), t0 + 0.018);
+    env.gain.linearRampToValueAtTime(peak, t0 + Math.min(0.04, d * 0.4));
+    env.gain.setValueAtTime(peak, t0 + d * 0.62);
+    env.gain.exponentialRampToValueAtTime(0.0008, t0 + d);
+    env.connect(lp);
+    const osc = c.createOscillator();
+    osc.setPeriodicWave(this._glottal());
+    const fA = f0 * Math.pow(2, 0.6 / 12), fB = f0 * Math.pow(2, glide / 12);
+    osc.frequency.setValueAtTime(fA, t0);
+    osc.frequency.linearRampToValueAtTime(f0, t0 + d * 0.3);
+    osc.frequency.linearRampToValueAtTime(fB, t0 + d);
+    if (v.growl) {
+      const l = c.createOscillator(), lg = c.createGain();
+      l.type = 'square';
+      l.frequency.value = 28 + Math.random() * 10;
+      lg.gain.value = f0 * v.growl;
+      l.connect(lg).connect(osc.frequency);
+      l.start(t0);
+      l.stop(t0 + d + 0.03);
+    }
+    // three formant resonators in parallel (+ a little dry body)
+    const amps = [1, 0.62, 0.3], bws = [90, 120, 170];
+    const tgl = Math.min(0.045, d * 0.35);
+    for (let k = 0; k < 3; k++) {
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass';
+      const fq = (x) => x * fs;
+      bp.frequency.setValueAtTime(fq(start[k]), t0);
+      bp.frequency.linearRampToValueAtTime(fq(v1[k]), t0 + tgl);
+      if (v2 !== v1) bp.frequency.linearRampToValueAtTime(fq(v2[k]), t0 + d * 0.85);
+      bp.Q.value = (v1[k] * fs) / (bws[k] * Math.max(1, f0 / 180));
+      const g = c.createGain();
+      g.gain.value = amps[k] * (k === 0 ? 3.2 : 4.2);
+      osc.connect(bp).connect(g).connect(env);
+    }
+    const dry = c.createGain();
+    dry.gain.value = 0.12;
+    osc.connect(dry).connect(env);
+    if (v.retro) {
+      const r = c.createOscillator(), rg = c.createGain();
+      r.setPeriodicWave(this._pulse(v.duty ?? 0.25));
+      r.frequency.setValueAtTime(fA, t0);
+      r.frequency.linearRampToValueAtTime(fB, t0 + d);
+      rg.gain.value = 0.22 * v.retro;
+      r.connect(rg).connect(env);
+      r.start(t0);
+      r.stop(t0 + d + 0.03);
+    }
+    osc.start(t0);
+    osc.stop(t0 + d + 0.03);
+    if (v.breath) this.noise({ dur: d, vol: 0.012 * v.breath * vol, type: 'bandpass', f0: v1[1] * fs, q: 2, attack: 0.02, delay: Math.max(0, t0 - c.currentTime - 0.005), dest });
+    // coda consonant (s / t / k ...) as a short tail
+    const cd = s.coda.slice(-1);
+    if (cd && 'stkpzx'.includes(cd)) this.noise({ dur: cd === 's' || cd === 'z' ? 0.05 : 0.014, vol: 0.022 * vol, type: 'bandpass', f0: cd === 's' || cd === 'z' || cd === 'x' ? 6200 : cd === 't' ? 4200 : 2200, q: 1.3, attack: 0.003, delay: Math.max(0, t0 + d - c.currentTime - 0.01), dest });
+    return (t0 - t) + d + 0.012;
   }
-  /** Little 8-bit creature voice for troops / bosses: kind = spawn | hit | death | taunt. */
+  /** Babble a whole line (speech bubbles), spoken from the line's own words, fitted into ~`span` seconds. */
+  babble(v, text = '', span = 0.6) {
+    const words = String(text).split(/\s+/).filter((w) => /[a-z0-9]/i.test(w));
+    if (!words.length) return;
+    const ask = /\?\s*$/.test(text), bang = /!\s*$/.test(text);
+    const total = words.reduce((a, w) => a + Math.max(1, this._sylls(w).length), 0);
+    let t = 0;
+    const per = Math.max(0.075, Math.min(0.12, span / Math.max(1, total)));
+    const maxT = Math.max(span, 0.4) * 1.25;
+    words.forEach((w, i) => {
+      if (t > maxT) return;
+      const k = Math.max(1, this._sylls(w).length);
+      const last = i === words.length - 1;
+      this.voice(v, { text: w, delay: t, span: k * per, pos: i / words.length, ask: ask && last, emph: bang && (last || i === 0) });
+      t += k * per + 0.03;
+    });
+  }
+  /** Creature / troop voice: kind = spawn | hit | death | taunt (short shouts, pitched by size). */
   critter(id = '', kind = 'spawn', size = 1, o = {}) {
     if (!this.ctx || this.muted) return false;
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    const base = (260 + (h % 9) * 38) / Math.sqrt(Math.max(0.6, size));
-    const v = { base, duty: [0.125, 0.25, 0.5][h % 3], range: 5 + (h % 5), wobble: h % 4 === 0 ? 0.02 : 0, speed: 1.15 };
+    const sz = Math.max(0.6, size);
+    const v = { base: (190 + (h % 9) * 26) / Math.sqrt(sz), formant: 1.35 / Math.pow(sz, 0.3), range: 5 + (h % 5), growl: h % 3 === 0 ? 0.06 : 0, retro: 0.25, duty: 0.25, speed: 1.2 };
     const now = this.ctx.currentTime;
     this._cLast = this._cLast ?? {};
     const k = kind + (o.side ?? '');
     if (this._cLast[k] && now - this._cLast[k] < (kind === 'hit' ? 0.35 : 0.12)) return false;
     this._cLast[k] = now;
-    if (kind === 'death') return this.voice({ ...v, drop: true, speed: 0.8 }, { syll: 2, vol: 0.9 * (o.vol ?? 1) });
-    if (kind === 'hit') return this.voice({ ...v, drop: true, speed: 1.6 }, { syll: 1, vol: 0.55 * (o.vol ?? 1) });
-    if (kind === 'taunt') return this.voice({ ...v, speed: 0.9 }, { syll: 3, emph: true, vol: o.vol ?? 1 });
-    return this.voice(v, { syll: 2, ask: true, vol: 0.8 * (o.vol ?? 1) });
+    const pick = (a) => a[(h + Math.floor(Math.random() * a.length)) % a.length];
+    const vol = o.vol ?? 1;
+    if (kind === 'death') return this.voice({ ...v, drop: true, speed: 0.85 }, { text: pick(['waaah', 'nooo', 'aiee', 'blehh']), vol: 0.75 * vol });
+    if (kind === 'hit') return this.voice({ ...v, drop: true, speed: 1.4 }, { text: pick(['oof', 'ugh', 'ack', 'eep']), vol: 0.5 * vol });
+    if (kind === 'taunt') return this.voice({ ...v, base: v.base * 0.8, growl: 0.1, speed: 0.9 }, { text: pick(['grahaha', 'roaar', 'bwahaha']), emph: true, vol: 0.9 * vol });
+    return this.voice(v, { text: pick(['hya', 'yah', 'hup', 'gogo', 'heyo', 'leggo']), emph: true, vol: 0.6 * vol });
   }
 
   // -------------------------------------------------------------------------
