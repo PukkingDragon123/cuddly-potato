@@ -10,7 +10,7 @@ import { trophyRoadBadge } from './trophyRoad.js';
  * badges() -> { shop, cards, lab, pass, road }
  *   shop:  daily gift waiting
  *   cards: upgradable cards (copies + coins) and newly found cards
- *   lab:   empty perk slots on the equipped Commander you can afford to roll
+ *   lab:   finished research to look at, or a free bench with an affordable research
  *   pass:  claimable pass tiers + finished challenges + finished quests
  *   road:  claimable Trophy Road rewards (bonus: for the trophy button)
  */

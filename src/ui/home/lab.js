@@ -75,7 +75,7 @@ const LINES = {
   tanks: ['Thicker plates. Your troops will thank me.', 'If it dents, I hit it again.'],
   spells: ['Stir clockwise. Counterclockwise summons a raccoon.', 'This potion glows. That is a good sign. Probably.'],
   ultimate: ['One drop of this and your ULTIMATE hits way harder.', 'Serum check: pink, fizzy, slightly humming. Perfect.'],
-  done: ['It works! I think it works!', 'Done! Write that down. Somebody write that down.', 'Science! Put it on the tree.'],
+  done: ['It works! I think it works!', 'Done! Write that down. Somebody write that down.', 'Nailed it. That one goes on the tree.'],
   fizz: ['That was supposed to happen.', 'Note to self: less purple.', 'I meant to do that. For the thumbnail.'],
 };
 const KIND_OF = { shack: 'shack', power: 'power', ult: 'ultimate', brawl: 'tanks', tank: 'tanks', shoot: 'tanks', fly: 'tanks', swarm: 'spells', spell: 'spells' };
@@ -186,11 +186,11 @@ export function mount(el, ctx, opts = {}) {
     }
   }
   function placeBubble() {
-    const sr = root.getBoundingClientRect(), st = stageEl.getBoundingClientRect();
-    let ax = st.left + st.width / 2, ay = st.top + st.height * 0.35, hw = 60;
+    const st = stageEl.getBoundingClientRect();
+    let ax = st.left + st.width / 2, ay = st.top + st.height * 0.35;
     if (stage?.live) {
       const p = stage.headScreen(_hp);
-      if (p) { ax = p.x; ay = p.y; hw = p.w ?? 60; }
+      if (p) { ax = p.x; ay = p.y; }
     }
     const m = 8;
     const w = bubbleEl.offsetWidth, hh = bubbleEl.offsetHeight;
@@ -201,7 +201,6 @@ export function mount(el, ctx, opts = {}) {
     const top = Math.max(hudB + 4, Math.min(lowest - hh - m, ay - hh - 6));
     bubbleEl.style.setProperty('--tx', Math.round(Math.max(14, Math.min(w - 20, ax - left))) + 'px');
     bubbleEl.style.transform = `translate(${Math.round(left - st.left)}px, ${Math.round(top - st.top)}px)`;
-    void hw; void sr;
   }
   function hideBubble() {
     bubbleUntil = 0;
@@ -244,11 +243,11 @@ export function mount(el, ctx, opts = {}) {
     if (bubbleUntil && performance.now() > bubbleUntil) hideBubble();
     if (live && stage.focus === 0) placeTreeBtnSoft();
     // the panel scrolled all the way over the lab: stop drawing it (the canvas keeps the last frame)
-    if (stage?.ready && !treeOpen) {
+    if (stage?.ready && !treeOpen && !root.closest('.hm-tab-out')) {
       const sp = scroll.querySelector('.lb2-spacer');
       const hidden = !!(sp && sp.offsetHeight && sp.getBoundingClientRect().bottom < hud.getBoundingClientRect().bottom + 6);
       if (hidden && stage.live) stage.detach();
-      else if (!hidden && !stage.live && engine.backdrop?.owner !== stage && attached) stage.attach();
+      else if (!hidden && attached && !engine.backdrop && !root.closest('.hm-tab-out')) stage.attach();
     }
     if (treeSheet && treeSheet.classList.contains('closing') && stage) clipToTerminal(treeSheet);
   });
@@ -279,9 +278,11 @@ export function mount(el, ctx, opts = {}) {
   // ------------------------------------------------------------------ research: live hooks
 
   let lastActive = researchStatus().active?.id ?? null;
+  let updateTreeCount = null;
   const offRes = onResearch((ev) => {
     if (disposed) return;
     syncResearch();
+    if (treeOpen) updateTreeCount?.();
     if (ev.type === 'start') {
       const a = researchStatus().active;
       if (a) {
@@ -303,9 +304,12 @@ export function mount(el, ctx, opts = {}) {
     }
     lastActive = st.active?.id ?? null;
   }
+  let pendingParty = null;
   function celebrate(id, level) {
     const key = `${id}:${level}`;
     if (celebrated.has(key)) return;
+    // finished while the tree is up: the lab throws the party when you come back to it
+    if (treeOpen) { pendingParty = [id, level]; return; }
     celebrated.add(key);
     const n = NODES[id];
     const col = hexOf(BRANCH[n?.branch]?.color ?? '#ffd23f');
@@ -346,11 +350,13 @@ export function mount(el, ctx, opts = {}) {
     if (stage?.live) stage.focusTo = 1;
     const close = button(null, () => closeTree(), 'red sm lb2-tree-x', { icon: 'x', sound: 'tap' });
     close.setAttribute('aria-label', 'Close');
-    const st = researchStatus();
     const total = Object.keys(NODES).length;
+    const countChip = chip('', 'lb2-tree-count');
+    updateTreeCount = () => { countChip.textContent = `${researchStatus().done.length} / ${total} researched`; };
+    updateTreeCount();
     const head = h('div', { class: 'lb2-tree-head' },
       h('span', { class: 't-d outline lb2-tree-title' }, 'RESEARCH'),
-      chip(`${st.done.length} / ${total} researched`, 'lb2-tree-count'),
+      countChip,
       h('span', { class: 'spacer' }), close);
     const body = h('div', { class: 'lb2-tree-body' });
     const sheet = (treeSheet = h('div', { class: 'lb2-tree' }, h('div', { class: 'lb2-tree-crt' }, head, body), h('i', { class: 'lb2-tree-scan' })));
@@ -362,6 +368,8 @@ export function mount(el, ctx, opts = {}) {
       if (disposed || treeSheet !== sheet) return;
       sheet.classList.add('open');
       sheet.style.clipPath = 'inset(0 0 0 0)';
+      // the screen covers the lab now: stop drawing it until the tree closes
+      setTimeout(() => { if (treeSheet === sheet && treeOpen && !sheet.classList.contains('closing')) stage?.detach(); }, 450);
       audio.play('reveal', { vol: 0.5 });
       try {
         const m = await import('./research.js');
@@ -385,6 +393,7 @@ export function mount(el, ctx, opts = {}) {
     if (!treeOpen) return;
     const sheet = treeSheet, tr = tree;
     tree = null;
+    if (stage && attached) stage.attach();
     audio.play('whoosh', { pitch: 0.8, vol: 0.4 });
     const done = () => { try { tr?.dispose(); } catch (e) { console.warn(e); } };
     if (sheet) {
@@ -394,7 +403,12 @@ export function mount(el, ctx, opts = {}) {
       setTimeout(() => { done(); sheet.remove(); if (treeSheet === sheet) treeSheet = null; }, 380);
     } else done();
     setTimeout(() => { if (stage) stage.focusTo = 0; }, 200);
-    setTimeout(() => { treeOpen = false; shell.render(); refreshCtx(ctx); }, 420);
+    setTimeout(() => {
+      treeOpen = false;
+      shell.render();
+      refreshCtx(ctx);
+      if (pendingParty && !disposed) { const [id, lv] = pendingParty; pendingParty = null; setTimeout(() => celebrate(id, lv), 450); }
+    }, 420);
   }
 
   // ------------------------------------------------------------------ research card
@@ -416,7 +430,6 @@ export function mount(el, ctx, opts = {}) {
     }
     const n = NODES[a.id];
     const B = BRANCH[a.branch] ?? { name: 'RESEARCH', color: '#7cff3a' };
-    const left = researchTimeLeft();
     const frac = Math.min(1, (Date.now() - a.startedAt) / Math.max(1, a.endsAt - a.startedAt));
     const pb = bar(frac, 'green', '', { cls: 'lb2-rc-bar' });
     pb.dataset.start = String(a.startedAt);
@@ -431,8 +444,7 @@ export function mount(el, ctx, opts = {}) {
           h('span', { class: 'lb2-rc-k' }, h('i', { class: 'lb2-rc-dot' }), `RESEARCHING  ${B.name}`),
           h('b', { class: 't-d outline lb2-rc-n' }, n ? `${n.name}${n.max > 1 ? ` LV ${a.level}` : ''}` : a.name),
           h('div', { class: 'lb2-rc-prog' }, pb, h('span', { class: 'lb2-rc-time t-d outline' }, icon('clock', 's'), countdown(a.endsAt, 'lb2-cd'))))),
-      h('div', { class: 'lb2-rc-btns' }, speed, openBtn),
-      left <= 0 ? null : null);
+      h('div', { class: 'lb2-rc-btns' }, speed, openBtn));
   }
   function doSpeedUp(btnEl) {
     const price = researchSpeedUpPrice();
@@ -695,7 +707,8 @@ export function mount(el, ctx, opts = {}) {
     const st = m.labStage();
     st.loadMs ??= Math.round(performance.now() - tImp);
     await st.build();
-    if (disposed) return;
+    // gone, or already sliding out for another tab (which may own the backdrop by now)
+    if (disposed || root.closest('.hm-tab-out')) return;
     stage = st;
     st.applyScientist();
     syncResearch();

@@ -10,7 +10,6 @@
 import * as THREE from 'three';
 import { Chibi, definePoses } from '../../core/chibi.js';
 import { Mats, makeMesh } from '../../core/voxel.js';
-import { audio } from '../../core/audio.js';
 import { HAND, PROJECT } from './labStageProps.js';
 import { TILE } from './labStageFx.js';
 
@@ -99,9 +98,9 @@ definePoses({
 const STATIONS = {
   bench: { x: 0, z: -0.66, face: 0 },
   notes: { x: 0.55, z: -0.66, face: 0.2 },
-  board: { x: -2.24, z: -3.02, lookAt: [-2.55, -3.6] },
+  board: { x: -2.26, z: -3.02, lookAt: [-2.62, -3.6] },
   scope: { x: 1.98, z: -0.05, face: Math.PI / 2 },
-  tube: { x: -0.58, z: -1.52, lookAt: [-1.3, -2.5] },
+  tube: { x: -0.3, z: -1.55, lookAt: [-0.95, -2.5] },
 };
 // waypoints around the containment tube / bench corners
 const VIA = { board: [[-2.25, -1.5], [-2.3, -2.6]], scope: [[1.75, -0.78]], tube: [] };
@@ -231,7 +230,7 @@ export class Scientist {
     if (this.research) {
       // the project glows in the branch colour
       const c = this.research.color;
-      for (const m of [this.liqP, this.liqS, this.liqC]) m.color.setHex(c).multiplyScalar(1.7);
+      for (const m of [this.liqP, this.liqS, this.liqC]) m.color.setHex(c).multiplyScalar(1.2);
     }
     if (kind !== prev && this.ch && this.busyT <= 0) this.pickTask(true);
   }
@@ -318,7 +317,7 @@ export class Scientist {
     const fx = this.stage.fx;
     const at = this.props.beakerR.visible ? this.props.beakerR.position : this.props.flask.visible ? this.props.flask.position : _v.set(0, 0.75, -0.1);
     const col = [0xb05cff, 0x7cff3a, 0xff8ad0, 0x6ad0ff][Math.floor(Math.random() * 4)];
-    for (let i = 0; i < 14; i++) fx.spawn({ x: at.x + (Math.random() - 0.5) * 0.2, y: at.y + 0.1 + Math.random() * 0.1, z: at.z + (Math.random() - 0.5) * 0.2, vx: (Math.random() - 0.5) * 0.9, vy: 0.5 + Math.random() * 0.8, vz: (Math.random() - 0.2) * 0.6, drag: 1.6, life: 1.1 + Math.random() * 0.7, size: 0.12, size1: 0.32, tile: TILE.smoke, color: i % 3 ? col : 0xd8d8e8 });
+    for (let i = 0; i < 24; i++) fx.spawn({ x: at.x + (Math.random() - 0.5) * 0.3, y: at.y + 0.12 + Math.random() * 0.15, z: at.z + 0.1 + (Math.random() - 0.5) * 0.2, vx: (Math.random() - 0.5) * 1.4, vy: 0.6 + Math.random() * 1.1, vz: 0.2 + Math.random() * 0.6, drag: 1.8, life: 1.2 + Math.random() * 0.8, size: 0.16, size1: 0.5, tile: TILE.smoke, color: i % 3 ? col : 0xe0e0ee, glow: i % 3 ? 1.25 : 1 });
     fx.burst(at, 10, { speed: 2.2, life: 0.5, size: 0.04, tile: TILE.spark, color: [0xffffff, 0xffe080, col], glow: 2.2, grav: -4 });
     this.stage.sfx('fizz', { vol: 0.55 });
     this.stage.sfx('pop', { pitch: 0.7, vol: 0.5 });
@@ -490,7 +489,7 @@ export class Scientist {
       proj.visible = true;
       proj.position.set(0.02, benchY, 0.18);
       proj.rotation.set(0, proj === P.shack ? this.t * (name === 'wrench' ? 0.6 : 0.15) : proj === P.plate ? -0.25 : 0, 0);
-      proj.scale.setScalar(1);
+      proj.scale.setScalar(proj === P.serum ? 0.78 : 1);
     }
     // hide the resting beakers behind a big project so they never overlap it
     if (proj === P.serum) { P.beakerR.visible = !!use.beakerR; }

@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { VoxGrid, Mats, makeMesh, PAL, shade, mixHex, hash3, text, textW } from '../../models/props/common.js';
 import { aoGeometry, dense } from '../../models/props/voxmesh.js';
-import { blob, capsule, chain, cyl, rbox } from '../../models/kit.js';
+import { blob, capsule, chain, cyl } from '../../models/kit.js';
 
 export const V = 0.05;
 
@@ -71,7 +71,7 @@ function roomGrid() {
   // drain grate (front right)
   for (let x = 20; x <= 27; x++) for (let z = 4; z <= 9; z++) g.set(x, -1, z, (x === 20 || x === 27 || z === 4 || z === 9) ? C.steelHL : (x & 1 ? 0x0c0e14 : C.steelL));
   // hazard border in front of the containment tube bay
-  for (let x = -27; x <= 1; x++) for (const z of [-14, -15]) g.set(x, -1, z, hz(x, 0, z));
+  for (let x = -24; x <= 5; x++) for (const z of [-14, -15]) g.set(x, -1, z, hz(x, 0, z));
   // goo spill near the fume hood (glows)
   for (let x = -54; x <= -34; x++)
     for (let z = -26; z <= -8; z++) {
@@ -648,8 +648,10 @@ function serumGrid() {
   for (const [x, z] of [[-9, -6], [8, -6], [-9, 5], [8, 5]]) g.box(x, 3, z, x, 20, z, C.steelHL);
   for (let y = 3; y <= 19; y++) for (let x = -8; x <= 7; x++) for (let z = -5; z <= 4; z++) {
     const side = x === -8 || x === 7 || z === -5 || z === 4;
-    if (side) g.set(x, y, z, C.glass);
-    else if (y <= 15) g.set(x, y, z, 0xffffff, true);
+    const edge = (x === -8 || x === 7) && (z === -5 || z === 4);
+    if (edge || (side && (y === 3 || y === 19))) g.set(x, y, z, C.steelHL);
+    else if (side && y > 15) g.set(x, y, z, C.glass);
+    else if (y <= 15) g.set(x, y, z, (x + y + z) % 7 === 0 ? 0xe0e0e0 : 0xffffff, true);
   }
   g.box(-10, 21, -7, 9, 22, 6, C.steelD);
   chain(g, [[6, 23, 0], [9, 25, 0], [11, 20, 2]], 0.6, PAL.pink);

@@ -1958,7 +1958,7 @@ export class BattleView {
         // three parallel claw marks raked across the target, mirrored for each paw
         const rs = Math.min(1.7, 0.8 + src.size * 0.32) * (src.ts?.pinT > 0 ? 0.85 : 1);
         // in front of whichever body is nearer the camera, so the marks are never swallowed by the brawl
-        const rz = Math.max(at.z, sp.z + sa.rig.width * 0.35) + 0.15;
+        const rz = Math.max(p.z + a.rig.width * 0.55, sp.z + sa.rig.width * 0.55) + 0.05;
         hpx.rake(_pv.set((sp.x + sdir * 0.3 * src.size + at.x) / 2 + sdir * 0.1, at.y + 0.08, rz), sdir, sa.swing ?? 1, crit ? 0xffd84a : heavy ? 0xffb02e : 0xf4f8ff, rs);
       }
       else if (style === 'punch') hpx.streaks(_pv.set(sp.x + sdir * 0.3 * src.size, sp.y + sa.rig.height * 0.5, sp.z), sdir, { count: 2, h: sa.rig.height * 0.4, scale: 0.8 });

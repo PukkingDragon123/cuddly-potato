@@ -39,10 +39,10 @@ const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 // layout (world): where every big piece stands
 const AT = {
-  tube: new THREE.Vector3(-1.25, 0, -2.5),
+  tube: new THREE.Vector3(-0.95, 0, -2.5),
   bench: new THREE.Vector3(0, -0.1, 0.12),
   hood: new THREE.Vector3(-4.48, 0, WALL + 0.52),
-  board: new THREE.Vector3(-2.5, 1.86, WALL + 0.01),
+  board: new THREE.Vector3(-2.62, 1.86, WALL + 0.01),
   term: new THREE.Vector3(1.75, 2.8, WALL + 0.01),
   reactor: new THREE.Vector3(3.2, 0, -1.6),
   scope: new THREE.Vector3(2.55, 0, 0.0),
@@ -473,7 +473,7 @@ export class LabStage {
 
   buildTube() {
     const sc = this.scene;
-    const R = 0.62, H = 2.1;
+    const R = 0.56, H = 2.1;
     const t = (this.tube = specimenTube({ color: 0x7cff3a, h: H, r: R, accent: LP.C.pink }));
     t.root.position.copy(AT.tube);
     sc.add(t.root);
@@ -495,7 +495,7 @@ export class LabStage {
     const deck = (() => { try { return currentDeck() ?? []; } catch (e) { return []; } })();
     const pick = deck.find((id) => SWARMS[id] && !SWARMS[id].isMega) ?? 'panther';
     try {
-      this.swarm = createSwarm(pick, { scale: 0.62 });
+      this.swarm = createSwarm(pick, { scale: 0.58 });
       this.swarm.setState?.('idle');
       this.swarm.root.position.set(AT.tube.x, 1.25, AT.tube.z);
       this.swarm.root.rotation.y = 0.3;
@@ -578,7 +578,11 @@ export class LabStage {
     const fullH = H * upp;
     const dist = fullH / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     const look = (this._look ??= new THREE.Vector3());
-    look.set(wide ? -0.2 : 0.05, wide ? 1.98 : 2.08, -1.3);
+    // the camera drifts after the scientist when he walks to the whiteboard or the microscope
+    const sx = this.sci?.ch?.root.position.x ?? 0;
+    const want = Math.max(-1.15, Math.min(1.25, sx * (wide ? 0.15 : 0.6)));
+    this.pan = (this.pan ?? want) + (want - (this.pan ?? want)) * Math.min(1, (this._dt ?? 0.016) * 1.6);
+    look.set((wide ? -0.2 : 0.05) + this.pan * (1 - smooth(this.focus)), wide ? 1.98 : 2.08, -1.3);
     const pos = (this._pos ??= new THREE.Vector3());
     pos.set(look.x + Math.sin(this.t * 0.11) * 0.25, look.y + dist * 0.05, look.z + dist);
     // the dolly into the RESEARCH terminal
@@ -628,9 +632,9 @@ export class LabStage {
     this.sci.celebrate();
     const at = new THREE.Vector3(0, LP.BENCH.top + 0.5, 0.05);
     const conf = [0xff2e88, 0x29b6f6, 0xffd23f, 0x7cff6b, 0xb05cff, 0xff8a2a, 0xffffff];
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 110; i++) {
       const a = Math.random() * Math.PI * 2, s = 2.2 + Math.random() * 2.6;
-      this.fx.spawn({ x: at.x + (Math.random() - 0.5) * 0.3, y: at.y + 0.4, z: at.z, vx: Math.cos(a) * s * 0.7, vy: 2.2 + Math.random() * 2.8, vz: Math.sin(a) * s * 0.35 + 0.6, grav: -3.2, drag: 1.6, life: 2.4 + Math.random() * 1.2, size: 0.07, flip: true, color: conf[i % conf.length], wobble: 1.2, floor: 0.02 });
+      this.fx.spawn({ x: at.x + (Math.random() - 0.5) * 0.3, y: at.y + 0.4, z: at.z, vx: Math.cos(a) * s * 0.7, vy: 2.2 + Math.random() * 2.8, vz: Math.sin(a) * s * 0.35 + 0.6, grav: -3.2, drag: 1.6, life: 2.4 + Math.random() * 1.2, size: 0.1, flip: true, color: conf[i % conf.length], wobble: 1.2, floor: 0.02 });
     }
     this.fx.burst(at, 18, { speed: 2.6, life: 0.9, size: 0.09, size1: 0.03, tile: TILE.star, color: [0xffe680, 0xffffff, color], glow: 2.2, grav: -2, up: 1.4 });
   }
@@ -718,6 +722,7 @@ export class LabStage {
   update(dt) {
     if (!this.ready) return;
     dt = Math.min(dt, 0.1);
+    this._dt = dt;
     this.t += dt;
     const t = this.t;
     // camera (re-layout while resizing, dollying or swaying)

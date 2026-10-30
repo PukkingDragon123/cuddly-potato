@@ -177,7 +177,7 @@ body.landscape .lb2-bubble { font-size: 1.18em; max-width: min(80%, calc(var(--u
 
 /* Commander */
 .lb2-cmdsec, .lb2-lvsec { display: flex; flex-direction: column; gap: calc(var(--u) * 2); scroll-margin-top: calc(var(--u) * 2); }
-.lb2-cmd { display: flex; align-items: stretch; gap: calc(var(--u) * 1.6); padding: calc(var(--u) * 1.2) calc(var(--u) * 1.6) calc(var(--u) * 4.4) calc(var(--u) * 1); overflow: hidden; }
+.lb2-cmd { --liq-h: calc(var(--u) * 4); display: flex; align-items: stretch; gap: calc(var(--u) * 1.6); padding: calc(var(--u) * 1.2) calc(var(--u) * 1.6) calc(var(--u) * 4.4) calc(var(--u) * 1); overflow: hidden; }
 .lb2-cmd-stage { position: relative; flex: none; width: calc(var(--u) * 30); min-height: calc(var(--u) * 38); display: flex; align-items: flex-end; justify-content: center; cursor: pointer; }
 .lb2-cmd-spot {
   position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 1); height: 70%;
@@ -212,7 +212,7 @@ body.landscape .lb2-bubble { font-size: 1.18em; max-width: min(80%, calc(var(--u
 /* Lab Level */
 .lb2-lvsec-r { display: flex; align-items: center; gap: 0.35em; }
 .lb2-lvsec-r .rmedal { --rm: calc(var(--u) * 7); }
-.lb2-lvpanel { display: flex; flex-direction: column; gap: calc(var(--u) * 1.8); padding: calc(var(--u) * 1.6) calc(var(--u) * 1.8) calc(var(--u) * 7); }
+.lb2-lvpanel { --liq-h: calc(var(--u) * 4.5); display: flex; flex-direction: column; gap: calc(var(--u) * 1.8); padding: calc(var(--u) * 1.6) calc(var(--u) * 1.8) calc(var(--u) * 6.4); }
 .lb2-lvpanel > .mn-sub { margin: 0 calc(var(--u) * -1.8); }
 .lb2-how { display: flex; flex-direction: column; gap: calc(var(--u) * 0.7); font-size: 0.86em; line-height: 1.2; }
 .lb2-how > div { display: flex; align-items: center; gap: 0.5em; }
