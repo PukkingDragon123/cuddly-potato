@@ -44,7 +44,7 @@ export function vmesh(id, fn, o = {}) {
 // ---------------------------------------------------------------------------
 // Room shell (V = 0.1): floor + back wall + side walls, one mesh
 
-const RW = 64, RB = -36, RF = 26, RH = 50; // half width, back z, front z, height (0.1 voxels)
+const RW = 64, RB = -36, RF = 26, RH = 62; // half width, back z, front z, height (0.1 voxels)
 export const ROOM = { halfW: RW * 0.1, back: RB * 0.1, front: RF * 0.1, height: RH * 0.1 };
 
 function panelColor(u, v, s) {
@@ -194,7 +194,7 @@ export const stepMesh = () => vmesh('step', stepGrid, { receive: true });
 // Fume hood (1.5 wide, 2.5 tall): cabinet, worktop, hood box, open sash, duct
 
 function hoodGrid() {
-  const g = dense(-17, 0, -11, 16, 100, 11);
+  const g = dense(-17, 0, -11, 16, 124, 11);
   g.box(-15, 0, -9, 14, 11, 8, (x, y, z) => (y === 0 ? C.steelDD : z === 8 && (x === -1 || x === 0) ? C.steelDD : z === 8 && y === 11 ? C.steelL : C.steel));
   for (const x of [-3, 2]) g.box(x, 6, 9, x, 9, 9, C.steelHL);
   // hazard sticker (diamond) on the left door
@@ -235,7 +235,7 @@ function hoodGrid() {
     g.box(x - 1, 19, -5, x + 1, 19, -3, C.ink);
   }
   // duct up to the ceiling
-  g.box(-6, 51, -8, 5, 100, 1, (x, y, z) => (y % 14 === 0 ? C.steelHL : x === -6 || z === 1 ? C.steelL : C.steelD));
+  g.box(-6, 51, -8, 5, 124, 1, (x, y, z) => (y % 14 === 0 ? C.steelHL : x === -6 || z === 1 ? C.steelL : C.steelD));
   return g;
 }
 export const hoodMesh = () => vmesh('hood', hoodGrid, { shadow: true });
@@ -509,8 +509,8 @@ export const SPARK_AT = new THREE.Vector3(83.5 * V, 2 * V, 3.5 * V);
 // Pendant lamp over the bench (shade + cord), bulb glows
 
 function lampGrid() {
-  const g = dense(-7, -2, -7, 7, 40, 7);
-  g.box(0, 6, 0, 0, 40, 0, C.ink);
+  const g = dense(-7, -2, -7, 7, 64, 7);
+  g.box(0, 6, 0, 0, 64, 0, C.ink);
   for (let y = 0; y <= 5; y++) {
     const r = 2 + (5 - y) * 0.9;
     cyl(g, 'y', 0, 0, y, y, r, r, y === 0 ? C.steelHL : y === 5 ? C.steelDD : 0x3a5a4a, { hollow: y === 0 ? 1 : 0 });

@@ -46,10 +46,10 @@ const AT = {
   term: new THREE.Vector3(1.75, 2.8, WALL + 0.01),
   reactor: new THREE.Vector3(3.2, 0, -1.6),
   scope: new THREE.Vector3(2.55, 0, 0.0),
-  robot: new THREE.Vector3(4.75, 0, -0.3),
-  rack: new THREE.Vector3(4.3, 0, 0.75),
+  robot: new THREE.Vector3(4.3, 0, 0.35),
+  rack: new THREE.Vector3(5.0, 0, -0.75),
   shelf: new THREE.Vector3(5.2, 0, WALL + 0.32),
-  lamp: new THREE.Vector3(0.1, 3.3, 0.1),
+  lamp: new THREE.Vector3(0.1, 3.08, 0.25),
 };
 
 // ---------------------------------------------------------------------------
