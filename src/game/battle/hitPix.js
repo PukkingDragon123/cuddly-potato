@@ -14,6 +14,7 @@
 // per frame, then
 //   hpx.hit(pos, kind, scale, dir)   hit spark per damage kind
 //   hpx.slash(pos, dir, tint, scale) melee smear arc
+//   hpx.rake(pos, dir, side, tint, scale) three-mark claw rake (alternating paws)
 //   hpx.muzzle(pos, dir, tint, scale)
 //   hpx.dust / smoke / fire / boom / poof / chips / embers / sparks / splat / streaks (pos, o)
 import * as THREE from 'three';
@@ -240,6 +241,38 @@ function buildAtlas() {
       }
     }
     if (f === 1 || f === 2) for (let i = 0; i < 4; i++) { const px = 4 + i * 8 + f, py = 27 - (i % 2) * 3 + f; put(px, py, 0.9); put(px + 1, py, 0.6); }
+  });
+  // RAKE: three parallel curved claw marks torn through the air by a paw (claw attacks): the strokes are
+  // drawn in along the swipe, burn hot, then thin and dither away. A dark rim keeps them readable on
+  // bright sand / snow. Flipped horizontally for the pull-back rake of the other paw.
+  for (let f = 0; f < 5; f++) frame('rake', 32, 32, (put) => {
+    const lead = [0.5, 1, 1, 1, 1][f], tail = [0, 0, 0.12, 0.32, 0.55][f], thin = [1, 1.1, 0.85, 0.6, 0.42][f];
+    const m = new Float32Array(32 * 32);
+    const ax = 4, ay = 3, bx = 24, by = 29; // stroke: top-left -> bottom-right (the swipe direction)
+    const L = Math.hypot(bx - ax, by - ay), tx = (bx - ax) / L, ty = (by - ay) / L, nx = ty, ny = -tx;
+    for (let k = 0; k < 3; k++) {
+      const off = (k - 1) * 6.2, len = k === 1 ? 1 : 0.84, s0 = k === 1 ? 0 : 0.08;
+      for (let u = s0; u <= s0 + len; u += 0.01) {
+        const q = (u - s0) / len;
+        if (q > lead || q < tail) continue;
+        const w = Math.max(0.55, 2.5 * Math.sin(Math.PI * Math.pow(Math.min(1, (q - tail) / Math.max(0.05, lead - tail)), 0.8)) * thin);
+        const bulge = 3.6 * Math.sin(Math.PI * q);
+        const cx = ax + tx * L * u + nx * (off + bulge), cy = ay + ty * L * u + ny * (off + bulge);
+        for (let o = -w; o <= w; o += 0.35) {
+          const x = Math.round(cx + nx * o), y = Math.round(cy + ny * o);
+          if (x < 0 || y < 0 || x > 31 || y > 31) continue;
+          const L2 = Math.abs(o) < w * 0.42 ? 1 : 0.76;
+          if (m[y * 32 + x] < L2) m[y * 32 + x] = L2;
+        }
+      }
+    }
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const v = m[y * 32 + x];
+      if (v) {
+        if (f >= 3 && bay(x, y) < (f === 3 ? 0.3 : 0.55)) continue;
+        put(x, y, v);
+      } else if (f < 3 && ((x > 0 && m[y * 32 + x - 1]) || (x < 31 && m[y * 32 + x + 1]) || (y > 0 && m[(y - 1) * 32 + x]) || (y < 31 && m[(y + 1) * 32 + x]))) put(x, y, 0.22);
+    }
   });
   // POW: jagged comic impact burst (punch / blunt): solid star blob -> hollow jagged outline -> bits
   for (let f = 0; f < 4; f++) frame('pow', 32, 32, (put) => {
@@ -494,6 +527,17 @@ class HitPix {
   /** Melee smear: a crescent swept in front of the attacker (dir: facing). */
   slash(pos, dir = 1, tint = 0xffffff, scale = 1) {
     this.emit('solid', 'slash', { x: pos.x + dir * 0.32 * scale, y: pos.y, z: (pos.z ?? 0) + 0.4, life: 0.16, scale: scale * 0.85, color: tint, flip: dir < 0, fadeOut: 0.75 });
+  }
+  /**
+   * Claw rake: three parallel curved marks across the struck point. dir = the way the attacker faces,
+   * side = which paw (+1 the forward swat, -1 the pull-back rake: mirrored), tint, scale.
+   */
+  rake(pos, dir = 1, side = 1, tint = 0xffffff, scale = 1) {
+    const z = pos.z ?? 0;
+    this.emit('solid', 'rake', { x: pos.x, y: pos.y, z, life: 0.34, scale, color: tint, flip: (dir < 0) !== (side < 0), fadeOut: 0.85 });
+    // a few hot bits flicked off along the swipe
+    const n = this.load > 0.5 ? 1 : 3, sx = (side < 0 ? -1 : 1) * dir;
+    for (let i = 0; i < n; i++) this.emit('glow', 'ember', { x: pos.x + rnd(-0.2, 0.2) * scale, y: pos.y + rnd(-0.25, 0.2) * scale, z, vx: sx * rnd(1.5, 3.5), vy: rnd(-2.5, 0.5), grav: -8, drag: 1.5, life: rnd(0.16, 0.3), scale: rnd(0.9, 1.3), color: i ? 0xffffff : tint, fadeOut: 0.5 });
   }
   /** Launch flash at a muzzle (dir: shot direction). */
   muzzle(pos, dir = 1, tint = 0xffe27a, scale = 1) {

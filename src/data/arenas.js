@@ -3,6 +3,7 @@
 // NPC quests and secrets on the island diorama.
 import { mulberry32, hashString } from '../core/util.js';
 import { ALL_CARDS, cardDef, DECK_SIZE } from './cards.js';
+import { researchForTrophies } from './research.js';
 
 export const ARENAS = [
   {
@@ -341,8 +342,10 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     banner: bannerIds[Math.floor(rng() * bannerIds.length)], difficulty: Math.min(0.95, 0.08 + trophies / 2600), ghost: true,
     // early rivals have flimsy bases so new players get satisfying wins
     hpMult: Math.min(1, 0.65 + trophies / 1800),
-    // ...and slower POWER (negative surge) until ~700 trophies
-    perks: { energySurge: Math.min(0, -40 + trophies / 12) },
+    // ...and slower POWER (a regen handicap) until ~480 trophies
+    handicap: { regen: Math.min(0, -0.4 + trophies / 1200) },
+    // research tree upgrades like a typical player at these trophies (none for brand-new players)
+    research: researchForTrophies(trophies, labLevel, rng),
     cmdLevel: Math.max(1, Math.min(8, Math.floor(trophies / 450) + 1)),
     // rivals past the Panthar unlock may bring a MEGA of their own
     mega: (() => {

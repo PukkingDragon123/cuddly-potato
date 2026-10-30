@@ -1013,8 +1013,8 @@ export class BattleHUD {
         if (need) need.style.height = ((1 - Math.min(1, e / Math.max(0.01, cost))) * 100).toFixed(1) + '%';
       }
     });
-    // base upgrade
-    const oc = BASE_UPGRADES[s.overclock];
+    // base upgrade (cost after research discounts)
+    const oc = sim.overclockInfo(0);
     const nx = BASE_UPGRADES[s.overclock + 1];
     const lv = `LV ${s.overclock + 1}`;
     if (lv !== this.lastLv) { this.lastLv = lv; this.ocTier.textContent = lv; }

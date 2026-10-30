@@ -63,12 +63,17 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - Swarms drop in from shattering lab vials, then march and fight on their own: tanks, ranged, splash, flyers,
   kamikazes, knockback, stun/freeze/slow/burn, chain lightning, splitting slimes and bosses.
 - **Spells** (Food Throw, $100K Drop, Slime Flood, Freeze Ray, Soda Rocket, Lab Shield) are cards too.
-- **Commanders** (Recruit, Jimmy, Nolan, Juan) have unlockable skills, perks and a game-changing **ULTIMATE**. It
+- **Commanders** (Recruit, Jimmy, Nolan, Juan) have unlockable skills and a game-changing **ULTIMATE**. It
   charges only from the POWER your side makes and from damage your base takes (a battered base charges it faster,
   ~90-120 s into a battle otherwise), and firing it stops the whole battle for a full cutscene in which your Commander says their line: *Mutant Uprising*
   (your army mutates into giants + 3 free mutant squads), *Beast Buyout* (Jimmy buys the 3 strongest enemy troops),
   *Orbital Belly Flop* (Nolan rides a soda rocket into orbit and lands as a meteor: board wipe + burning crater) and
   *Tiempo Muerto* (time stops for the rival for 7 s, then their frozen troops shatter).
+- **Research tree** (the Lab's wall screen): 9 branches (Lab Shack, POWER, Ultimate, Brawlers, Tanks, Shooters,
+  Flyers, Swarms, Spells), 51 nodes, 195 levels. Research costs Beast Coins and real time (one at a time, it keeps
+  running while the game is closed, finish early with Beast Bucks) and deeper nodes need a higher rank medal.
+  Upgrades apply in every battle (stats plus signature tricks like Shack Sentry, Pack Tactics, Iron Hide and
+  Pre-Mixed); AI rivals bring research that matches their trophies.
 - **MEGA ultimate**: equip a **MEGA-TECH Mutator** figure (Panthar, Silver-Byte, NecroClaw, Cyber Glitch, plus rare
   Metallic Gold versions, won on the Trophy Road). Its charge only fills as you deal damage, it needs at least a
   Trailer Lab base, and you get one per battle. Your Commander crackles with more and more electric energy as it

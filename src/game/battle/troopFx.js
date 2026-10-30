@@ -1,5 +1,6 @@
-// Readable first-pass visuals for the troop signature-trait events emitted by
-// troopTraits.js (roar, leap, charge, devour, meltdown...). view.js forwards
+// Readable visuals for the troop signature-trait events emitted by troopTraits.js
+// (roar, pounce, grab, charge, devour, meltdown...). Creature moves on the rig itself
+// (rig.play / rig.hold, models/swarmMoves.js) are started from here and from view.js. view.js forwards
 // every event it doesn't handle itself to troopFx(view, ev). Only reuses the
 // existing pixel / voxel FX kit (hitPix, pixfx, particles, voxfx), so the
 // combat-FX owner can restyle any of these in one place.
@@ -121,7 +122,62 @@ function groundPatch(view, kind, x, z, r, dur, tick) {
   };
   view.zones.push(zone);
 }
-const _tp = new THREE.Vector3();
+const _tp = new THREE.Vector3(), _tg = new THREE.Vector3();
+const amp = (a) => a?.anim?.amp ?? 1;
+
+/** KO'd in the jaws: the victim hangs from the killer's mouth while it thrashes, then pops (done()). */
+export function thrashFx(view, a, killer, done) {
+  const p = a.rig.root.position, H = Math.max(0.35, a.rig.height);
+  a.plate.style.display = 'none';
+  a.ring.visible = false;
+  killer.rig.play('thrash', 0.42, 1, 1);
+  audio.play('growl', { pitch: 1.4 / Math.sqrt(killer.u.size), vol: 0.4, gap: 0.2 });
+  let t = 0;
+  view.zones.push({
+    done: false,
+    update(dt) {
+      t += dt;
+      killer.rig.gripWorld(_tg);
+      const k = Math.min(1, dt * 30);
+      p.x += (_tg.x - p.x) * k;
+      p.y += (Math.max(0, _tg.y - H * 0.62) - p.y) * k;
+      p.z += (_tg.z + 0.06 - p.z) * k;
+      a.rig.hold('grabbed');
+      a.rig.update(dt);
+      if (t >= 0.36) {
+        this.done = true;
+        done();
+      }
+    },
+  });
+}
+/** DEVOURED: the victim is pulled into the grabber's mouth and shrinks away (then disposed). */
+export function swallowFx(view, a) {
+  const by = a.swallowBy;
+  const p = a.rig.root.position, s0 = a.rig.inner.scale.x;
+  a.plate.style.display = 'none';
+  a.ring.visible = a.shadow.visible = false;
+  let t = 0;
+  view.zones.push({
+    done: false,
+    update(dt) {
+      t += dt;
+      const k = Math.min(1, t / 0.24);
+      if (by?.rig?.root.parent) {
+        by.rig.gripWorld(_tg);
+        p.x += (_tg.x - p.x) * Math.min(1, dt * 18);
+        p.y += (_tg.y - a.rig.height * 0.3 - p.y) * Math.min(1, dt * 18);
+        p.z += (_tg.z - p.z) * Math.min(1, dt * 18);
+      }
+      a.rig.inner.scale.setScalar(Math.max(0.01, s0 * (1 - k * k)));
+      a.rig.inner.rotation.x += dt * 9;
+      if (k >= 1) {
+        this.done = true;
+        a.dispose();
+      }
+    },
+  });
+}
 
 export function troopFx(view, ev) {
   switch (ev.type) {
@@ -129,7 +185,7 @@ export function troopFx(view, ev) {
       const a = actorOf(view, ev.unit);
       if (!a) break;
       const p = a.rig.root.position;
-      a.rig.boing?.(0.5);
+      a.rig.play('roar', 1, 1, amp(a));
       pix(view).burst(V(p.x, 0.6, p.z + 0.2), { tex: 'chevron', count: 14, speed: 6, size: 0.35, color: [0xffd23f, 0xffffff], glow: 2, life: 0.5 });
       hpx.dust(V(p.x - ev.r * 0.5, 0, p.z), { count: 3, scale: 1.3, vx: -2 });
       hpx.dust(V(p.x + ev.r * 0.5, 0, p.z), { count: 3, scale: 1.3, vx: 2 });
@@ -214,20 +270,80 @@ export function troopFx(view, ev) {
       audio.play('hitHeavy', { pitch: 0.9, gap: 0.08 });
       break;
     }
+    case 'pounceCrouch': {
+      // coiling to spring: the hind feet dig in
+      const a = actorOf(view, ev.unit);
+      if (!a) break;
+      a.crouchT = 0;
+      a.crouchDur = ev.dur;
+      const p = a.rig.root.position, back = ev.unit.side === 0 ? -1 : 1, s = Math.min(1.8, ev.unit.size);
+      hpx.dust(_tp.set(p.x + back * 0.25 * s, 0, p.z), { count: 1, scale: 0.5 * s, vx: back * 0.6, spread: 0.2, color: view.dustColor });
+      if (ev.unit.size >= 0.95) audio.play('growl', { pitch: 1.5 / Math.sqrt(ev.unit.size), vol: 0.45, gap: 0.25 });
+      break;
+    }
     case 'leap': {
       const a = actorOf(view, ev.unit);
       if (!a) break;
-      const p = a.rig.root.position;
-      hpx.dust(V(p.x, 0, p.z), { count: 2, scale: 0.7 });
-      audio.play('boing', { pitch: 1.6, vol: 0.5, gap: 0.1 });
+      const p = a.rig.root.position, d = ev.unit.side === 0 ? 1 : -1, s = Math.min(1.8, ev.unit.size);
+      // push-off: dirt kicked back from the hind feet + a whoosh of speed lines
+      hpx.dust(_tp.set(p.x - d * 0.3 * s, 0, p.z), { count: 3, scale: 0.75 * s, vx: -d * 2.6, spread: 0.6, color: view.dustColor });
+      hpx.streaks(_tp.set(p.x, p.y + a.rig.height * 0.5, p.z), d, { count: 2, h: a.rig.height * 0.5, scale: 0.8 });
+      a.rig.boing?.(0.25);
+      audio.play('whoosh', { pitch: 1.5 / Math.sqrt(ev.unit.size), vol: 0.55, gap: 0.08 });
       break;
     }
     case 'leapLand': {
       const a = actorOf(view, ev.unit);
       if (!a) break;
       const p = a.rig.root.position;
-      hpx.landPuff?.(V(p.x, 0, p.z), { scale: 0.8 });
-      a.rig.boing?.(0.4);
+      hpx.landPuff?.(V(p.x, 0, p.z), { scale: 0.8 * Math.min(1.8, ev.unit.size) });
+      if (!ev.pounce) a.rig.play('land', 0.3);
+      a.rig.boing?.(ev.pounce ? -0.2 : 0.4);
+      break;
+    }
+    case 'pounceHit': {
+      // landed ON the prey: a heavy hit flash, dust thrown out from under them both
+      const a = actorOf(view, ev.unit), v = actorOf(view, ev.target);
+      const d = ev.unit.side === 0 ? 1 : -1;
+      const at = v ? v.rig.root.position : V(ev.x, 0, ev.unit.z ?? 0);
+      const H = v ? Math.max(0.4, v.rig.height) : 0.6;
+      hpx.hit(_tp.set(at.x, at.y + H * 0.5, at.z), 'heavy', 0.75 + Math.min(0.6, ev.unit.size * 0.25), d);
+      hpx.dust(_tp.set(at.x - d * 0.1, 0, at.z), { count: 2, scale: 0.9 * Math.min(1.8, ev.unit.size), vx: d * 1.4, spread: 1.2, color: view.dustColor });
+      hpx.clash(_tp.set(at.x, 0, at.z), d, { scale: 1.2, color: view.dustColor });
+      if (a) callout(view, a, 'POUNCE!', 'big', 0.8);
+      engine.shake(Math.min(0.22, 0.08 + ev.unit.size * 0.06));
+      audio.play('hitHeavy', { pitch: 1.1 / Math.sqrt(ev.unit.size), vol: 0.8, gap: 0.06 });
+      audio.play('growl', { pitch: 1.3 / Math.sqrt(ev.unit.size), vol: 0.5, gap: 0.2 });
+      break;
+    }
+    case 'pin': {
+      // knocked flat: the victim pancakes under the paws, pebbles skitter out
+      const v = actorOf(view, ev.unit);
+      if (!v) break;
+      const p = v.rig.root.position;
+      v.rig.boing?.(-0.45);
+      hpx.chips(_tp.set(p.x, 0.1, p.z), { count: 3, colors: [0xd8c4a0, 0xb8a080], speed: 2.5, up: 0.8 });
+      break;
+    }
+    case 'grab': {
+      // GRAB: the grabber clamps on and lifts; the victim is carried (view.js hangs it from the grip point)
+      const a = actorOf(view, ev.unit), v = actorOf(view, ev.victim);
+      if (a) a.rig.play('grab', ev.hold / 0.9, 1, amp(a), ev.kind);
+      if (v) { v.rig.flash?.(0.08); v.rig.boing?.(0.3); }
+      if (a && ev.kind === 'roll') callout(view, a, 'DEATH ROLL!', 'crit', 1);
+      audio.play('chomp', { pitch: 0.8 + 0.3 / Math.max(0.8, ev.unit.size), gap: 0.08 });
+      break;
+    }
+    case 'grabSlam': {
+      // thrown down: the victim smacks into the ground in front of the grabber
+      const v = actorOf(view, ev.victim);
+      const z = v ? v.rig.root.position.z : ev.unit.z ?? 0, d = ev.unit.side === 0 ? 1 : -1;
+      if (v) { v.rig.boing?.(-0.6); v.dropT = 0.12; }
+      hpx.hit(V(ev.x, 0.3, z), 'heavy', 1.1, d);
+      hpx.dust(V(ev.x, 0, z), { count: 4, scale: 1.1, spread: 1.6, color: view.dustColor });
+      hpx.chips(V(ev.x, 0.1, z), { count: 5, colors: [0xd8c4a0, 0xb8a080, 0x8a7a5a], speed: 3.5 });
+      engine.shake(0.2);
+      audio.play('thud', { pitch: 0.8, gap: 0.08 });
       break;
     }
     case 'reveal': {
@@ -244,7 +360,11 @@ export function troopFx(view, ev) {
       const z = a ? a.rig.root.position.z : 0;
       hpx.chips(V(ev.x, 0.1, z), { count: ev.type === 'surface' ? 10 : 5, colors: [0x8a5a3a, 0xd8c4a0, 0xff6a1f], speed: 4 });
       hpx.dust(V(ev.x, 0, z), { count: 4, scale: 1.2 });
-      if (ev.type === 'surface') { groundHit(V(ev.x, 0, z), { radius: 1.4, color: 0xff6a1f }); audio.play('thud', { pitch: 1.1, gap: 0.1 }); }
+      if (ev.type === 'surface') {
+        groundHit(V(ev.x, 0, z), { radius: 1.4, color: 0xff6a1f });
+        audio.play('thud', { pitch: 1.1, gap: 0.1 });
+        if (a) a.rig.play('surface', 0.6);
+      }
       break;
     }
     case 'phase': {
@@ -272,6 +392,7 @@ export function troopFx(view, ev) {
       const a = actorOf(view, ev.unit);
       if (!a) break;
       pix(view).burst(topOf(a), { tex: 'flame', count: 8, speed: 3, size: 0.3, color: [0xff8a2a, 0xffd23f], glow: 2.2, life: 0.5 });
+      a.rig.play('roar', 0.8);
       callout(view, a, 'BOO!', 'big', 1);
       audio.play('laugh', { pitch: 0.7, vol: 0.5, gap: 1 });
       break;
@@ -301,6 +422,7 @@ export function troopFx(view, ev) {
       break;
     case 'abduct': {
       const a = actorOf(view, ev.unit), s = actorOf(view, ev.src);
+      if (s) s.rig.play('beam', ev.dur);
       if (a && s) voxelBeam(view.scene, midOf(s), a.rig.root.position.clone().setY(0.1), 0x7cff3a, ev.dur * 0.8, 0.28);
       if (a) callout(view, a, 'ABDUCTED!', 'heal');
       audio.play('magic', { pitch: 1.6, vol: 0.6, gap: 0.3 });
@@ -308,6 +430,8 @@ export function troopFx(view, ev) {
     }
     case 'pull': {
       const a = actorOf(view, ev.unit), s = actorOf(view, ev.src);
+      if (s) s.rig.play('yank', 0.55);
+      if (a) a.pulledT = 0.45; // dragged in kicking
       if (a && s) voxelBeam(view.scene, midOf(s), midOf(a), 0xb45cff, 0.35, 0.2);
       if (a) callout(view, a, 'YANK!', 'crit', 0.7);
       audio.play('slosh', { pitch: 0.8, gap: 0.2 });
@@ -341,11 +465,13 @@ export function troopFx(view, ev) {
       break;
     }
     case 'devour': {
-      const a = actorOf(view, ev.unit);
-      if (a) { a.rig.boing?.(0.7); callout(view, a, 'CHOMP!', 'big', 1); }
-      hpx.chips(V(ev.x, 0.6, 0), { count: 8, colors: [0x5a3220, 0x7d4a2d, 0xffd23f], speed: 4 });
-      hpx.hit(V(ev.x, 0.7, 0), 'bite', 1.3, ev.unit.side === 0 ? 1 : -1);
-      audio.play('chomp', { gap: 0.1 });
+      const a = actorOf(view, ev.unit), v = ev.victim ? view.actors.get(ev.victim.id) : null;
+      if (v && a) v.swallowBy = a; // the death that follows plays the gulp instead of a KO poof
+      const at = a ? a.rig.gripWorld(_tg) : V(ev.x, 0.7, 0);
+      if (a) { a.rig.boing?.(0.5); callout(view, a, 'CHOMP!', 'big', 1); }
+      hpx.chips(at, { count: 6, colors: [0x5a3220, 0x7d4a2d, 0xffd23f], speed: 3 });
+      hpx.hit(at, 'bite', 1.2, ev.unit.side === 0 ? 1 : -1);
+      audio.play('chomp', { pitch: 0.7, gap: 0.1 });
       break;
     }
     case 'feast': {
@@ -380,6 +506,7 @@ export function troopFx(view, ev) {
     }
     case 'erupt': {
       const a = actorOf(view, ev.unit);
+      if (a) a.rig.play('stomp', 0.7, 1, 1.2);
       hpx.boom(V(ev.x, 0.9, ev.unit.z ?? 0), { scale: 1.8, color: 0xff5a1a });
       groundImpact(V(ev.x, 0, ev.unit.z ?? 0), { radius: ev.r, colors: [0xff5a1a, 0xffa31a, 0x3a2a2a] });
       hpx.fire(V(ev.x, 0.2, ev.unit.z ?? 0), { count: 10, radius: ev.r * 0.6 });

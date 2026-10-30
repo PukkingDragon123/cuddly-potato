@@ -65,32 +65,44 @@ export const SERIES = {
 //   feast      KOs heal it and speed it up     erupt      one-time blast at half HP
 //   strike     periodic orbital strike         abduct     lifts an enemy, helpless
 //   shield     spawns with a shield
+//   pounce     coils, leaps onto prey, pins it (stunned) and rakes faster while it's down; re-arms after a free run
+//   grab       clamps a wounded target, carries + shakes it (helpless), then slams it (DEATH ROLL)
+//   devour.hold the prey is lifted and shaken before the gulp
+// anim: how the troop fights on screen (view.js + models/swarmMoves.js):
+//   attack  claw | bite | chomp | headbutt | ram | tailwhip | stomp | smash | punch | dive | shoot | spit | spin | pulse
+//   combo   optional cycle of attack moves; special: the signature move (pounce, grab, charge, stomp, roar, yank, surface)
+//   amp     move strength (bigger wind-ups / recoil); hit: the impact spark if not the attack's own
+//   kill    'thrash': a small KO'd victim is shaken in the jaws before it pops
 // arena: the Beast Island arena where the card unlocks (drops from vials).
 export const SWARMS = {
   // ----- Beast Icons
   panther: {
     name: 'Panther', series: 'originals', rarity: 'common', role: 'melee', arena: 'lab',
     elixir: 2, hp: 400, dmg: 70, atk: 1.0, range: 0.75, speed: 1.75, kb: 2, size: 1,
-    traits: { pack: { per: 0.2, max: 3, r: 2.6 } },
-    desc: 'The Lab mascot hunts in packs: +20% damage for every ally fighting beside it, up to +60%.',
+    traits: { pack: { per: 0.2, max: 3, r: 2.6 }, pounce: { range: 2, mult: 1.2, pin: 0.4, crouch: 0.34, flurry: 1.3 } },
+    anim: { attack: 'claw', special: 'pounce' },
+    desc: 'The Lab mascot hunts in packs: +20% damage for every ally fighting beside it, up to +60%. Pounces on its first target and pins it.',
     mega: 'feastablesPanther',
   },
   steelPanther: {
     name: 'Steel Panther', series: 'originals', rarity: 'epic', role: 'tank', arena: 'lab',
     elixir: 6, hp: 2050, dmg: 125, atk: 1.3, range: 0.85, speed: 1.0, kb: 2, size: 1.3,
     traits: { armor: 0.25, thorns: 0.45 },
+    anim: { attack: 'claw', combo: ['claw', 'claw', 'bite'], amp: 1.1 },
     desc: 'Spiked Ultra Armor: blocks 25% of all damage and stabs melee attackers for 45% of every hit they land.',
   },
   beastTiger: {
     name: 'Beast Tiger', series: 'originals', rarity: 'legendary', role: 'melee', arena: 'pyramid',
     elixir: 8, hp: 2950, dmg: 210, atk: 1.6, range: 1.3, speed: 1.05, kb: 3, size: 1.9,
-    traits: { area: true, roar: { every: 7, r: 3.2, stun: 1.4 } },
+    traits: { area: true, roar: { every: 7, r: 3.2, stun: 1.4 }, pounce: { range: 2.6, mult: 1.15, pin: 0.5, crouch: 0.36, flurry: 1.2 } },
+    anim: { attack: 'claw', special: 'pounce', amp: 1.15 },
     desc: 'The legend from the Lab tank: swipes whole crowds, and every 7s its ROAR stuns every enemy around it.',
   },
   hyperFusionPanther: {
     name: 'Hyper Fusion Panther', series: 'originals', rarity: 'mythic', role: 'melee', arena: 'island',
     elixir: 9, hp: 4400, dmg: 320, atk: 1.3, range: 1.5, speed: 1.25, kb: 4, size: 1.8,
-    traits: { area: true, fireIce: { burn: { dps: 50, dur: 3 }, freeze: 1.2 } },
+    traits: { area: true, fireIce: { burn: { dps: 50, dur: 3 }, freeze: 1.2 }, pounce: { range: 2.6, mult: 1.15, pin: 0.5, crouch: 0.34, flurry: 1.2 } },
+    anim: { attack: 'claw', special: 'pounce', amp: 1.15 },
     desc: 'LIMITED EDITION, only 1,000 exist! Its splash swipes alternate fire that burns and ice that freezes.',
   },
 
@@ -99,60 +111,70 @@ export const SWARMS = {
     name: 'Clogged Toilet', series: 'homeHorrors', rarity: 'common', role: 'ranged', arena: 'lab',
     elixir: 3, hp: 380, dmg: 90, atk: 1.3, range: 4.6, speed: 1.05, kb: 2, size: 1,
     traits: { shove: 0.6 }, projectile: 'sludge',
+    anim: { attack: 'spit' },
     desc: 'Lobs sludge from range, and every splat shoves its target a step back.',
   },
   trashedCan: {
     name: 'Trashed Can', series: 'homeHorrors', rarity: 'common', role: 'tank', arena: 'lab',
     elixir: 3, hp: 960, dmg: 58, atk: 1.3, range: 0.75, speed: 0.95, kb: 2, size: 1.1,
     traits: { summon: { unit: 'ragingRat', every: 5, first: 2.5, max: 2, hp: 0.9, dmg: 0.9 } },
+    anim: { attack: 'chomp' },
     desc: 'A garbage can with a grudge: every 5s a Raging Rat crawls out of it to fight (2 at a time).',
   },
   toiletRollRipper: {
     name: 'Toilet Roll Ripper', series: 'homeHorrors', rarity: 'common', role: 'swarm', arena: 'lab',
     elixir: 2, hp: 110, dmg: 38, atk: 0.9, range: 0.6, speed: 2.2, kb: 1, size: 0.8, count: 3,
     traits: { wrap: { stacks: 4, stun: 1.0, cd: 2.5 } },
+    anim: { attack: 'chomp' },
     desc: 'A 3-pack of shredders: every 4th hit on a target mummy-wraps it in paper, stunning it for 1s.',
   },
   mutantMailbox: {
     name: 'Mutant Mailbox', series: 'homeHorrors', rarity: 'rare', role: 'ranged', arena: 'circle',
     elixir: 4, hp: 520, dmg: 100, atk: 1.8, range: 5, speed: 1.0, kb: 2, size: 1.1,
     traits: { area: true, backline: true }, projectile: 'letters',
+    anim: { attack: 'spit' },
     desc: 'Skips the front line: its junk-mail bombs land on the enemy furthest back in range and splash.',
   },
   ragingStopSign: {
     name: 'Raging Stop Sign', series: 'homeHorrors', rarity: 'rare', role: 'melee', arena: 'circle',
     elixir: 4, hp: 900, dmg: 105, atk: 1.2, range: 0.9, speed: 1.2, kb: 3, size: 1.2,
     traits: { stopper: { stun: 1.2 } },
+    anim: { attack: 'headbutt' },
     desc: 'STOP! Its first hit on every new target stuns it for 1.2s.',
   },
   badEggsperiment: {
     name: 'Bad Eggsperiment', series: 'homeHorrors', rarity: 'rare', role: 'kamikaze', arena: 'circle',
     elixir: 3, hp: 360, dmg: 560, atk: 0.1, range: 0.6, speed: 2.5, kb: 1, size: 0.95,
     traits: { area: true, kamikaze: true, siege: true, fragile: true },
+    anim: { attack: 'headbutt' },
     desc: 'Ignores troops and sprints at the base to EXPLODE, but cracks and blows up early if a troop hits it.',
   },
   barfBin: {
     name: 'Barf Bin', series: 'homeHorrors', rarity: 'rare', role: 'melee', arena: 'circle',
     elixir: 4, hp: 1000, dmg: 66, atk: 1.3, range: 1.9, speed: 1.0, kb: 2, size: 1.15,
     traits: { pierce: true, slow: { amt: 0.45, dur: 2 } },
+    anim: { attack: 'spit' },
     desc: 'Barfs a 2-tile cone that hits every enemy in front of it and slows them to a crawl.',
   },
   atomicToilet: {
     name: 'Atomic Toilet', series: 'homeHorrors', rarity: 'epic', role: 'ranged', arena: 'circle',
     elixir: 6, hp: 1000, dmg: 190, atk: 2.6, range: 6.2, speed: 0.85, kb: 2, size: 1.35,
     traits: { area: true, splash: 1.5, mortar: { min: 2.2 } }, projectile: 'nuke',
+    anim: { attack: 'shoot', amp: 1.7 },
     desc: 'A walking mortar: flushes nukes from very long range with a huge splash, but cannot hit anything up close.',
   },
   shockSign: {
     name: 'Shock Sign', series: 'homeHorrors', rarity: 'epic', role: 'ranged', arena: 'circle',
     elixir: 5, hp: 760, dmg: 88, atk: 1.6, range: 4.3, speed: 1.05, kb: 2, size: 1.2,
     traits: { chain: 4, stun: { chance: 1, dur: 0.3 } }, projectile: 'zap',
+    anim: { attack: 'shoot' },
     desc: 'High voltage! Each bolt chains through up to 4 enemies and jolts every one of them to a stop.',
   },
   fieryPanther: {
     name: 'Fiery Panther', series: 'homeHorrors', rarity: 'epic', role: 'melee', arena: 'circle',
-    elixir: 4, hp: 900, dmg: 96, atk: 1.0, range: 0.9, speed: 1.6, kb: 2, size: 1.05,
-    traits: { burn: { dps: 22, dur: 3 }, trail: { every: 0.35, dur: 3, r: 0.75, dps: 50, kind: 'fire' } },
+    elixir: 4, hp: 900, dmg: 89, atk: 1.0, range: 0.9, speed: 1.6, kb: 2, size: 1.05,
+    traits: { burn: { dps: 22, dur: 3 }, trail: { every: 0.35, dur: 3, r: 0.75, dps: 50, kind: 'fire' }, pounce: { range: 2, mult: 1.2, pin: 0.4, crouch: 0.34, flurry: 1.3 } },
+    anim: { attack: 'claw', special: 'pounce' },
     desc: 'Leaves a trail of burning paw prints: every enemy that walks through its fire path burns.',
   },
 
@@ -161,30 +183,35 @@ export const SWARMS = {
     name: 'Glitch Bot', series: 'technoTerrors', rarity: 'common', role: 'ranged', arena: 'mart',
     elixir: 3, hp: 330, dmg: 76, atk: 1.0, range: 4.8, speed: 1.1, kb: 2, size: 1,
     traits: { blink: { dist: 3, cd: 5, near: 1.5 } }, projectile: 'laser',
+    anim: { attack: 'shoot' },
     desc: 'Pew pew. When an enemy gets too close it glitches out and teleports 3 tiles back.',
   },
   droneFang: {
     name: 'Drone Fang', series: 'technoTerrors', rarity: 'rare', role: 'flying', arena: 'mart',
     elixir: 4, hp: 640, dmg: 110, atk: 0.9, range: 1.0, speed: 1.85, kb: 2, size: 1,
     traits: { flying: true, skirmish: { back: 1.5 } },
+    anim: { attack: 'dive', hit: 'bite' },
     desc: 'Flies in hit-and-run strikes: bites, zips back out of reach, then dives in again.',
   },
   circuitShark: {
     name: 'Circuit Shark', series: 'technoTerrors', rarity: 'rare', role: 'melee', arena: 'mart',
     elixir: 4, hp: 880, dmg: 150, atk: 1.0, range: 0.9, speed: 1.7, kb: 3, size: 1.2,
     traits: { breaker: { shield: 3 } },
+    anim: { attack: 'bite', kill: 'thrash', amp: 1.25 },
     desc: 'Shield-breaker: its 10,000-volt bites ignore armor and fry shields at triple damage.',
   },
   hyperchargePanther: {
     name: 'Hypercharge Panther', series: 'technoTerrors', rarity: 'epic', role: 'melee', arena: 'mart',
-    elixir: 5, hp: 1200, dmg: 135, atk: 1.1, range: 0.9, speed: 1.55, kb: 2, size: 1.1,
-    traits: { chain: 2 },
+    elixir: 5, hp: 1200, dmg: 130, atk: 1.1, range: 0.9, speed: 1.55, kb: 2, size: 1.1,
+    traits: { chain: 2, pounce: { range: 2, mult: 1.2, pin: 0.4, crouch: 0.34, flurry: 1.3 } },
+    anim: { attack: 'claw', special: 'pounce' },
     desc: 'A glow-in-the-dark electric panther: every swipe arcs lightning into a second enemy.',
   },
   megaTechMech: {
     name: 'Mega-Tech Mech', series: 'technoTerrors', rarity: 'legendary', role: 'siege', arena: 'mart',
     elixir: 7, hp: 2600, dmg: 200, atk: 2.4, range: 5.3, speed: 0.8, kb: 2, size: 1.9,
     traits: { siege: true, area: true }, projectile: 'missile',
+    anim: { attack: 'shoot', amp: 1.8 },
     desc: 'Walking artillery: ignores troops and shells the base from so far away that only a Beast Lab can shoot back.',
   },
 
@@ -193,24 +220,28 @@ export const SWARMS = {
     name: 'Raging Rat', series: 'labBrats', rarity: 'common', role: 'swarm', arena: 'redlight',
     elixir: 2, hp: 100, dmg: 38, atk: 0.8, range: 0.55, speed: 2.4, kb: 1, size: 0.75, count: 3,
     traits: { leap: { range: 3.2 } },
+    anim: { attack: 'bite', special: 'pounce' },
     desc: 'Three mutant rats that LEAP over the front line to bite whatever is hiding behind it.',
   },
   toxicPanther: {
     name: 'Toxic Panther', series: 'labBrats', rarity: 'rare', role: 'melee', arena: 'redlight',
-    elixir: 3, hp: 680, dmg: 70, atk: 1.0, range: 0.8, speed: 1.6, kb: 2, size: 1,
-    traits: { poisonStack: { dps: 18, dur: 4, max: 4 } },
+    elixir: 3, hp: 680, dmg: 62, atk: 1.0, range: 0.8, speed: 1.6, kb: 2, size: 1,
+    traits: { poisonStack: { dps: 18, dur: 4, max: 4 }, pounce: { range: 2, mult: 1.2, pin: 0.4, crouch: 0.34, flurry: 1.3 } },
+    anim: { attack: 'claw', special: 'pounce' },
     desc: 'Every bite stacks another dose of poison (up to 4), so its venom keeps hurting long after.',
   },
   midnightPanther: {
     name: 'Midnight Panther', series: 'creepyCritters', rarity: 'rare', role: 'melee', arena: 'redlight',
     elixir: 3, hp: 560, dmg: 92, atk: 1.0, range: 0.8, speed: 1.8, kb: 2, size: 1,
-    traits: { stealth: true, ambush: 2.5 },
-    desc: 'Invisible until it strikes: nothing can target it, and its first strike deals 2.5x damage.',
+    traits: { stealth: true, ambush: 2.5, pounce: { range: 2.4, mult: 1, pin: 0.45, crouch: 0.3, flurry: 1.25 } },
+    anim: { attack: 'claw', special: 'pounce' },
+    desc: 'Invisible until it strikes: nothing can target it, and its first strike, a pounce from the shadows, deals 2.5x damage.',
   },
   vexViper: {
     name: 'Vex Viper', series: 'creepyCritters', rarity: 'rare', role: 'ranged', arena: 'redlight',
     elixir: 4, hp: 500, dmg: 76, atk: 1.2, range: 4.4, speed: 1.1, kb: 2, size: 1.05,
     traits: { burn: { dps: 14, dur: 3, poison: true }, expose: { amt: 0.3, dur: 3 } }, projectile: 'venom',
+    anim: { attack: 'spit' },
     desc: 'Its venom EXPOSES: anything it bites takes 30% more damage from everyone for 3s.',
   },
 
@@ -219,18 +250,21 @@ export const SWARMS = {
     name: 'Atomic Slime', series: 'atomic', rarity: 'common', role: 'melee', arena: 'reactor',
     elixir: 3, hp: 700, dmg: 70, atk: 1.1, range: 0.75, speed: 1.2, kb: 2, size: 0.95,
     traits: { absorb: { hp: 0.3, dmg: 0.2, scale: 0.16, max: 4 } },
+    anim: { attack: 'chomp' },
     desc: 'A hungry blob: every enemy it finishes off gets absorbed, making it bigger, tougher and stronger.',
   },
   plutoniumPup: {
     name: 'Plutonium Pup', series: 'atomic', rarity: 'rare', role: 'support', arena: 'reactor',
     elixir: 4, hp: 900, dmg: 55, atk: 1.0, range: 0.8, speed: 1.3, kb: 2, size: 1.05,
     traits: { aura: { dps: 42, r: 1.9 } },
+    anim: { attack: 'bite', kill: 'thrash' },
     desc: 'Glows with a radioactive aura that constantly burns every enemy within 2 tiles.',
   },
   reactorRex: {
     name: 'Reactor Rex', series: 'atomic', rarity: 'epic', role: 'tank', arena: 'reactor',
     elixir: 7, hp: 2250, dmg: 135, atk: 1.6, range: 1.2, speed: 0.95, kb: 3, size: 1.6,
     traits: { area: true, deathBomb: { dmg: 320, r: 2.8, kind: 'nuke', building: 0.4 } },
+    anim: { attack: 'bite', combo: ['bite', 'bite', 'tailwhip'], amp: 1.1 },
     desc: 'A dino with a reactor heart: tail-swipes crowds, and when it falls it MELTS DOWN in a nuclear blast.',
   },
 
@@ -239,18 +273,21 @@ export const SWARMS = {
     name: 'Blaze Hybrid', series: 'hybrids', rarity: 'rare', role: 'ranged', arena: 'antarctica',
     elixir: 4, hp: 560, dmg: 56, atk: 0.9, range: 2.6, speed: 1.1, kb: 2, size: 1.05,
     traits: { pierce: true, burn: { dps: 26, dur: 3 } }, projectile: 'fire',
+    anim: { attack: 'spit' },
     desc: 'A short-range flamethrower that hoses every enemy in a 2.5-tile cone and sets them ablaze.',
   },
   frostHybrid: {
     name: 'Frost Hybrid', series: 'hybrids', rarity: 'rare', role: 'melee', arena: 'antarctica',
     elixir: 4, hp: 940, dmg: 90, atk: 1.1, range: 0.9, speed: 1.2, kb: 2, size: 1.1,
     traits: { freezeEvery: { n: 3, dur: 1.5 } },
+    anim: { attack: 'punch', special: 'smash' },
     desc: 'Icy claws: every third hit freezes the target solid for 1.5s.',
   },
   stoneHybrid: {
     name: 'Stone Hybrid', series: 'hybrids', rarity: 'epic', role: 'siege', arena: 'antarctica',
     elixir: 6, hp: 3500, dmg: 180, atk: 1.5, range: 0.9, speed: 0.8, kb: 1, size: 1.5,
     traits: { armor: 0.2, siege: true, unstoppable: true },
+    anim: { attack: 'smash' },
     desc: 'An unstoppable boulder: ignores troops, shrugs off stuns, slows, freezes and knockback, and smashes the base.',
   },
 
@@ -259,42 +296,49 @@ export const SWARMS = {
     name: 'Fry Fiend', series: 'food', rarity: 'common', role: 'ranged', arena: 'lab',
     elixir: 2, hp: 220, dmg: 46, atk: 0.9, range: 4.2, speed: 1.2, kb: 2, size: 1,
     traits: { multishot: 2 }, projectile: 'fries', season: 1,
+    anim: { attack: 'shoot' },
     desc: 'Double-fries: shoots two crispy fries at once at two different enemies.',
   },
   pizzaSlicer: {
     name: 'Pizza Slicer', series: 'food', rarity: 'common', role: 'melee', arena: 'lab',
     elixir: 2, hp: 380, dmg: 62, atk: 0.8, range: 0.7, speed: 1.6, kb: 2, size: 0.95,
     traits: { spin: { r: 1.1 } }, season: 1,
+    anim: { attack: 'spin', hit: 'claw' },
     desc: 'Spins like a buzzsaw, slicing every enemy around it, even the ones behind it.',
   },
   donutDasher: {
     name: 'Donut Dasher', series: 'food', rarity: 'rare', role: 'melee', arena: 'factory',
     elixir: 3, hp: 680, dmg: 90, atk: 1.0, range: 0.8, speed: 1.9, kb: 2, size: 1,
     traits: { charge: { after: 2, speed: 2, mult: 2.2, knock: 4 } }, season: 1,
+    anim: { attack: 'ram', special: 'charge' },
     desc: 'After a short run-up it rolls at double speed, and the impact deals double damage and bowls enemies over.',
   },
   burgerBrute: {
     name: 'Burger Brute', series: 'food', rarity: 'rare', role: 'support', arena: 'factory',
     elixir: 5, hp: 1900, dmg: 60, atk: 1.4, range: 0.8, speed: 0.9, kb: 2, size: 1.3,
     traits: { healer: { amt: 150, every: 2.5, r: 3.2 } }, season: 1,
+    anim: { attack: 'smash' },
     desc: 'A walking snack bar: every 2.5s it tosses a heal to the most-hurt ally nearby.',
   },
   sodaSurge: {
     name: 'Soda Surge', series: 'food', rarity: 'rare', role: 'support', arena: 'factory',
     elixir: 4, hp: 560, dmg: 44, atk: 0.6, range: 3.6, speed: 1.1, kb: 2, size: 1,
     traits: { rally: { r: 2.8, atk: 0.35, spd: 0.25 } }, projectile: 'soda', season: 1,
+    anim: { attack: 'shoot' },
     desc: 'SUGAR RUSH: allies near it attack 35% faster and move 25% faster.',
   },
   chocoChomper: {
     name: 'Choco Chomper', series: 'food', rarity: 'epic', role: 'melee', arena: 'factory',
-    elixir: 5, hp: 1500, dmg: 125, atk: 1.3, range: 1.2, speed: 1.15, kb: 3, size: 1.35,
-    traits: { devour: { hp: 380, cd: 5, heal: 0.6 } }, season: 1,
-    desc: 'CHOMP! Swallows any enemy with 380 HP or less whole (every 5s) and heals from the snack.',
+    elixir: 5, hp: 1560, dmg: 125, atk: 1.3, range: 1.2, speed: 1.15, kb: 3, size: 1.35,
+    traits: { devour: { hp: 380, cd: 5, heal: 0.7, hold: 0.45 } }, season: 1,
+    anim: { attack: 'bite', special: 'grab', amp: 1.15 },
+    desc: 'CHOMP! Grabs any enemy with 380 HP or less, shakes it and swallows it whole (every 5s), healing from the snack.',
   },
   melonMauler: {
     name: 'Melon Mauler', series: 'food', rarity: 'epic', role: 'tank', arena: 'factory',
     elixir: 6, hp: 2000, dmg: 105, atk: 1.5, range: 1.0, speed: 0.9, kb: 2, size: 1.5,
     traits: { split: 3, area: true }, season: 1,
+    anim: { attack: 'smash' },
     desc: 'A giant melon tank that bursts into 3 angry Seedlings when it finally pops.',
   },
 
@@ -303,66 +347,77 @@ export const SWARMS = {
     name: 'Hard Head Panther', series: 'originals', rarity: 'rare', role: 'tank', arena: 'factory',
     elixir: 4, hp: 1350, dmg: 86, atk: 1.4, range: 0.85, speed: 1.15, kb: 1, size: 1.15,
     traits: { knock: 3.5 },
+    anim: { attack: 'headbutt', amp: 1.2 },
     desc: 'SPECIAL EDITION battering-ram helmet: every single headbutt sends its target flying back.',
   },
   voltBat: {
     name: 'Volt Bat', series: 'megaTech', rarity: 'rare', role: 'flying', arena: 'mart',
     elixir: 4, hp: 460, dmg: 84, atk: 1.3, range: 3.0, speed: 1.85, kb: 2, size: 0.95,
     traits: { flying: true, chain: 3 }, projectile: 'zap',
+    anim: { attack: 'spit' },
     desc: 'A tesla-coil bat that flies over the brawl and zaps lightning that bounces between 3 enemies.',
   },
   mechaMantis: {
     name: 'Mecha Mantis', series: 'megaTech', rarity: 'epic', role: 'melee', arena: 'redlight',
     elixir: 4, hp: 880, dmg: 60, atk: 0.55, range: 1.0, speed: 1.9, kb: 2, size: 1.1,
     traits: { lifesteal: 0.45 },
+    anim: { attack: 'claw' },
     desc: 'Chrome scythes slash twice a second, and every cut heals it for 45% of the damage dealt.',
   },
   cyberCroc: {
     name: 'Cyber Croc', series: 'megaTech', rarity: 'epic', role: 'tank', arena: 'reactor',
     elixir: 6, hp: 1900, dmg: 190, atk: 1.8, range: 1.0, speed: 0.95, kb: 1, size: 1.45,
-    traits: { armor: 0.15, execute: { below: 0.4, mult: 2 } },
-    desc: 'Hydraulic death-roll jaws: bites deal DOUBLE damage to any enemy under 40% HP.',
+    traits: { armor: 0.15, execute: { below: 0.4, mult: 2 }, grab: { hold: 0.8, cd: 3, below: 0.4, kind: 'roll', mult: 1.25 } },
+    anim: { attack: 'bite', combo: ['bite', 'tailwhip'], special: 'grab', amp: 1.2 },
+    desc: 'Hydraulic jaws: DOUBLE damage to any enemy under 40% HP. It grabs those, death-rolls them and slams them down.',
   },
   pixelPups: {
     name: 'Pixel Pups', series: 'megaTech', rarity: 'common', role: 'swarm', arena: 'lab',
     elixir: 2, hp: 150, dmg: 44, atk: 0.8, range: 0.6, speed: 2.1, kb: 1, size: 0.75, count: 2,
     traits: { revive: { hp: 0.6, delay: 0.7 } },
+    anim: { attack: 'bite', kill: 'thrash' },
     desc: 'Two 8-bit pups with a 1-UP each: the first time a pup is knocked out it respawns with 60% HP.',
   },
   emberWolf: {
     name: 'Ember Wolf', series: 'fireIce', rarity: 'rare', role: 'melee', arena: 'antarctica',
-    elixir: 3, hp: 660, dmg: 78, atk: 0.9, range: 0.8, speed: 2.0, kb: 2, size: 1.05,
-    traits: { burn: { dps: 14, dur: 2 }, berserk: { below: 0.5 } },
+    elixir: 3, hp: 660, dmg: 75, atk: 0.9, range: 0.8, speed: 2.0, kb: 2, size: 1.05,
+    traits: { burn: { dps: 14, dur: 2 }, berserk: { below: 0.5 }, pounce: { range: 2, mult: 1.15, pin: 0.35, crouch: 0.3, flurry: 1.25 } },
+    anim: { attack: 'bite', special: 'pounce', kill: 'thrash' },
     desc: 'Below half HP it goes BERSERK: +40% damage and +30% speed for the rest of the fight.',
   },
   iceBeetle: {
     name: 'Ice Beetle', series: 'fireIce', rarity: 'common', role: 'ranged', arena: 'antarctica',
     elixir: 3, hp: 420, dmg: 70, atk: 1.1, range: 4.4, speed: 1.05, kb: 2, size: 0.95,
     traits: { chill: { per: 0.15, max: 0.6, dur: 2.5 } }, projectile: 'ice',
+    anim: { attack: 'shoot' },
     desc: 'Every ice shard stacks more chill: 15% slower per hit, up to 60%.',
   },
   magmaMole: {
     name: 'Magma Mole', series: 'fireIce', rarity: 'epic', role: 'siege', arena: 'pyramid',
     elixir: 5, hp: 1450, dmg: 135, atk: 1.3, range: 0.8, speed: 1.4, kb: 1, size: 1.2,
     traits: { siege: true, burrow: true, ambush: 2 },
+    anim: { attack: 'claw', special: 'surface' },
     desc: 'Tunnels underground where nothing can hit it, then erupts at the base with a double-damage strike.',
   },
   sludgeKraken: {
     name: 'Sludge Kraken', series: 'battleFusion', rarity: 'legendary', role: 'ranged', arena: 'island',
     elixir: 7, hp: 2150, dmg: 135, atk: 2.1, range: 4.5, speed: 0.85, kb: 2, size: 1.6,
     traits: { area: true, backline: true, pull: { power: 3 }, burn: { dps: 26, dur: 3, poison: true } }, projectile: 'acid',
+    anim: { attack: 'spit', special: 'yank' },
     desc: 'Tentacles grab the enemy furthest back, YANK it into the brawl and splash it with toxic sludge.',
   },
   boomBox: {
     name: 'Boom Box', series: 'homeHorrors', rarity: 'rare', role: 'ranged', arena: 'circle',
     elixir: 4, hp: 780, dmg: 78, atk: 1.6, range: 2.3, speed: 1.05, kb: 2, size: 1.1,
     traits: { spin: { r: 2.3, knock: 2 } },
+    anim: { attack: 'pulse' },
     desc: 'Drops the bass: every BOOM blasts all enemies around it in a full circle and pushes them back.',
   },
   mutantMop: {
     name: 'Mutant Mop', series: 'homeHorrors', rarity: 'common', role: 'melee', arena: 'circle',
     elixir: 3, hp: 780, dmg: 72, atk: 1.1, range: 1.0, speed: 1.2, kb: 2, size: 1.05,
     traits: { puddle: { r: 1.0, dur: 3.5, slow: 0.5, dps: 0, kind: 'water' } },
+    anim: { attack: 'smash' },
     desc: 'Mops a slippery wet floor under its target: every enemy on the puddle is slowed by 50%.',
   },
 
@@ -372,72 +427,84 @@ export const SWARMS = {
     name: 'Vine Viper', series: 'wildlands', rarity: 'common', role: 'ranged', arena: 'jungle',
     elixir: 3, hp: 400, dmg: 70, atk: 1.2, range: 4.4, speed: 1.1, kb: 2, size: 1,
     traits: { root: { dur: 1.5, cd: 2 } }, projectile: 'acid',
+    anim: { attack: 'spit' },
     desc: 'Spits vine seeds that ROOT the target in place for 1.5s: it can still swing, but it cannot move.',
   },
   templeGolem: {
     name: 'Temple Golem', series: 'wildlands', rarity: 'epic', role: 'tank', arena: 'jungle',
     elixir: 6, hp: 2400, dmg: 135, atk: 1.7, range: 1.0, speed: 0.8, kb: 1, size: 1.4,
     traits: { armor: 0.15, slam: { every: 3, r: 2.1, knock: 4, mult: 1.5 } },
+    anim: { attack: 'smash', special: 'stomp' },
     desc: 'Every third punch is a GROUND POUND that hits everything nearby and knocks it flying.',
   },
   laserLynx: {
     name: 'Laser Lynx', series: 'megaTech', rarity: 'rare', role: 'ranged', arena: 'laser',
     elixir: 4, hp: 500, dmg: 38, atk: 0.4, range: 4.6, speed: 1.25, kb: 2, size: 1.05,
     traits: { heatUp: { per: 0.25, max: 3 } }, projectile: 'laser',
+    anim: { attack: 'shoot' },
     desc: 'Tank melter: its beam heats up on the same target, +25% damage every shot, up to 4x.',
   },
   vaultBot: {
     name: 'Vault Bot', series: 'technoTerrors', rarity: 'rare', role: 'tank', arena: 'laser',
     elixir: 4, hp: 950, dmg: 100, atk: 1.3, range: 0.85, speed: 1.05, kb: 1, size: 1.15,
     traits: { shield: 0.6 },
+    anim: { attack: 'punch' },
     desc: 'Rolls out behind a vault-door shield worth 60% of its HP that has to be cracked first.',
   },
   ghostPanther: {
     name: 'Ghost Panther', series: 'spooky', rarity: 'epic', role: 'flying', arena: 'haunted',
     elixir: 4, hp: 740, dmg: 104, atk: 1.0, range: 0.9, speed: 1.8, kb: 2, size: 1.1,
     traits: { flying: true, phase: { on: 1.3, off: 2.4 } },
+    anim: { attack: 'dive', hit: 'claw' },
     desc: 'Flies, and every few seconds it phases out of reality: for 1.3s nothing can touch it.',
   },
   pumpkinBrute: {
     name: 'Pumpkin Brute', series: 'spooky', rarity: 'common', role: 'melee', arena: 'haunted',
     elixir: 3, hp: 720, dmg: 64, atk: 1.3, range: 0.95, speed: 1.05, kb: 2, size: 1.15,
     traits: { area: true, scare: { every: 6, r: 2.2, dur: 1.3 } },
+    anim: { attack: 'smash', special: 'roar' },
     desc: 'Its glowing grin SCARES nearby enemies every 6s, sending them running the wrong way.',
   },
   sharkByte: {
     name: 'Shark Byte', series: 'wildlands', rarity: 'rare', role: 'melee', arena: 'reef',
     elixir: 3, hp: 680, dmg: 64, atk: 0.6, range: 0.75, speed: 2.3, kb: 2, size: 1.05,
     traits: { feast: { heal: 0.5, spd: 0.2, max: 3 } },
+    anim: { attack: 'bite', kill: 'thrash', amp: 1.15 },
     desc: 'Feeding frenzy: every knockout heals it by half and makes it faster.',
   },
   jellyZapper: {
     name: 'Jelly Zapper', series: 'wildlands', rarity: 'common', role: 'flying', arena: 'reef',
     elixir: 3, hp: 420, dmg: 68, atk: 1.3, range: 2.8, speed: 1.2, kb: 2, size: 0.95,
     traits: { flying: true, deathBomb: { dmg: 110, r: 2.1, stun: 1.6, kind: 'zap' } }, projectile: 'zap',
+    anim: { attack: 'pulse' },
     desc: 'Floats over the brawl, and when it pops it releases a shock burst that stuns everything nearby.',
   },
   magmaTitan: {
     name: 'Magma Titan', series: 'fireIce', rarity: 'legendary', role: 'tank', arena: 'volcano',
     elixir: 8, hp: 3000, dmg: 155, atk: 1.8, range: 1.3, speed: 0.75, kb: 3, size: 1.45,
     traits: { area: true, burn: { dps: 30, dur: 3 }, erupt: { below: 0.5, dmg: 320, r: 3.4, burn: { dps: 40, dur: 4 } } },
+    anim: { attack: 'smash', special: 'stomp' },
     desc: 'Slams burning lava over crowds, and at half HP it ERUPTS once, blasting everything nearby.',
   },
   emberImps: {
     name: 'Ember Imps', series: 'fireIce', rarity: 'common', role: 'swarm', arena: 'volcano',
     elixir: 3, hp: 135, dmg: 38, atk: 0.9, range: 1.1, speed: 2.0, kb: 1, size: 0.62, count: 3,
     traits: { flying: true, burn: { dps: 10, dur: 2 } },
+    anim: { attack: 'dive', hit: 'claw' },
     desc: 'Three fire imps that fly over ground troops, so only ranged and flying enemies hit them well.',
   },
   astroPanther: {
     name: 'Astro Panther', series: 'cosmic', rarity: 'legendary', role: 'flying', arena: 'space',
     elixir: 6, hp: 1050, dmg: 120, atk: 1.5, range: 3.6, speed: 1.5, kb: 2, size: 1.35,
     traits: { flying: true, strike: { every: 7, dmg: 200, r: 1.7, range: 7, building: 0.4 } }, projectile: 'missile',
+    anim: { attack: 'shoot', amp: 1.4 },
     desc: 'Rocket-flies over the battle, and every 7s calls an ORBITAL STRIKE on the biggest enemy crowd.',
   },
   ufoGrabber: {
     name: 'UFO Grabber', series: 'cosmic', rarity: 'epic', role: 'flying', arena: 'space',
     elixir: 5, hp: 1000, dmg: 110, atk: 1.3, range: 3.2, speed: 1.3, kb: 2, size: 1.15,
     traits: { flying: true, abduct: { cd: 4, dur: 1.6 } }, projectile: 'zap',
+    anim: { attack: 'shoot', special: 'grab' },
     desc: 'Its tractor beam ABDUCTS an enemy every 4s, lifting it helplessly into the air.',
   },
 
@@ -446,6 +513,7 @@ export const SWARMS = {
     name: 'Feastables Panther', series: 'food', rarity: 'legendary', role: 'melee', isMega: true, base: 'panther',
     elixir: 5, hp: 2600, dmg: 220, atk: 1.15, range: 1.5, speed: 1.45, kb: 4, size: 2.1,
     traits: { area: true, slow: { amt: 0.4, dur: 2 } }, season: 1,
+    anim: { attack: 'claw', special: 'pounce', amp: 1.2 },
     desc: 'MEGA FORM! A gigantic Panther sculpted from Feastables chocolate. Chocolate shockwaves slow enemies.',
   },
 
@@ -453,10 +521,12 @@ export const SWARMS = {
   miniSlime: {
     name: 'Mini Slime', series: 'atomic', rarity: 'common', role: 'melee', hidden: true,
     elixir: 0, hp: 210, dmg: 38, atk: 0.8, range: 0.6, speed: 1.5, kb: 1, size: 0.6,
+    anim: { attack: 'chomp' },
   },
   seedling: {
     name: 'Seedling', series: 'food', rarity: 'common', role: 'melee', hidden: true,
     elixir: 0, hp: 300, dmg: 50, atk: 0.9, range: 0.6, speed: 1.5, kb: 1, size: 0.6,
+    anim: { attack: 'headbutt' },
   },
 };
 
@@ -587,6 +657,8 @@ export function traitText(s) {
   if (t.erupt) out.push('Erupts at half HP');
   if (t.strike) out.push(`Orbital strike every ${t.strike.every}s`);
   if (t.abduct) out.push('Abducts');
+  if (t.pounce) out.push('Pounces');
+  if (t.grab) out.push('Death roll');
   if (t.puddle) out.push('Slippery puddles');
   if (t.heal) out.push('Heals on death');
   if (s.count > 1) out.push(`x${s.count} per deploy`);

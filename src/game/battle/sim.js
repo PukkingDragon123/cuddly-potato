@@ -21,6 +21,7 @@ import { SPELLS, spellPower } from '../../data/spells.js';
 import { COMMANDERS, cmdPower } from '../../data/commanders.js';
 import { TOWERS, ENERGY, BASE_UPGRADES, MEGA, labPower } from '../../data/labs.js';
 import { MEGAS } from '../../data/megas.js';
+import { researchMods, troopClass } from '../../data/research.js';
 import { mulberry32 } from '../../core/util.js';
 import { FIELD } from './field.js';
 import * as TT from './troopTraits.js';
@@ -62,7 +63,8 @@ export class BattleSim {
   /**
    * cfg: { seed, timeLimit, sides: [SideCfg, SideCfg], boss?, noOvertime? }
    * SideCfg: { name, deck: [{ id, unit?, level, variant, skin, spell? }], commander: { id, level } | null,
-   *            perks: {}, labLevel, hpMult? }
+   *            research: { nodeId: level }, handicap?: { regen }, labLevel, hpMult? }
+   *   (perks are legacy: only perks.energySurge is still read, as a POWER regen handicap)
    */
   constructor(cfg) {
     this.cfg = cfg;
@@ -90,6 +92,8 @@ export class BattleSim {
 
   makeSide(s, i) {
     const perks = s.perks || {};
+    // research tree upgrades (src/data/research.js), folded into one flat modifier object
+    const rs = researchMods(s.research);
     const dir = i === 0 ? 1 : -1;
     const pow = labPower(s.labLevel ?? 1) * (s.hpMult ?? 1);
     const mk = (kind, x, half, T, hpMult = 1) => ({
@@ -97,10 +101,11 @@ export class BattleSim {
       dmg: T.dmg * labPower(s.labLevel ?? 1),
       atk: T.atk, range: T.range, cool: 0.6, alive: true, active: true, shield: 0, shieldT: 0, radius: half, dead: false, id: UID++,
     });
-    const lab = mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF, TOWERS.lab, 1 + (perks.thickWalls ?? 0) / 100);
+    const lab = mk('lab', i === 0 ? -LAB_X : LAB_X, LAB_HALF, TOWERS.lab, 1 + rs.baseHp);
     lab.active = true;
     lab.baseHp = lab.maxHp;
-    lab.baseDmg = lab.dmg * (1 + (perks.quickHands ?? 0) / 100);
+    lab.baseDmg = lab.dmg * (1 + rs.zapDmg);
+    lab.rangeMult = 1 + rs.zapRange;
     this.applyTier(lab, 0);
     const cmd = s.commander ? COMMANDERS[s.commander.id] : null;
     const lvl = s.commander?.level ?? 1;
@@ -122,14 +127,14 @@ export class BattleSim {
       // the card cycle: `hand` and `queue` hold deck indices; `mod` = per-card cost change while in hand
       hand: order.slice(0, handSize), queue: order.slice(handSize), handSize, mod: deck.map(() => 0),
       echo: 0, last: null, exhausted: 0, baseLen: deck.length, cds: [],
-      energy: Math.min(ENERGY.max, ENERGY.start + (perks.headStart ?? 0)), overclock: 0,
+      energy: Math.min(ENERGY.max + rs.maxPower, ENERGY.start + rs.startPower), overclock: 0,
       lab, turret: null,
       mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
-      cmd, cmdLevel: lvl, sig: 0, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
-      perks, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0, stopped: 0 },
+      cmd, cmdLevel: lvl, sig: cmd ? Math.min(0.95, rs.ultStart) : 0, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
+      perks, rs, regenBonus: rs.regen + (s.handicap?.regen ?? 0) + (perks.energySurge ?? 0) / 100, spellPlays: 0, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0, stopped: 0 },
       nextGiant: null,
       stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
-      power: cmdPower(lvl),
+      power: cmdPower(lvl) * (1 + rs.ultPower),
     };
   }
 
@@ -140,12 +145,12 @@ export class BattleSim {
     b.maxHp = Math.round(b.baseHp * T.hp);
     if (k > 0) b.hp = Math.min(b.maxHp, b.hp + (b.maxHp - oldMax) + b.maxHp * 0.06);
     b.dmg = b.baseDmg * T.dmg;
-    b.range = T.range;
+    b.range = T.range * (b.rangeMult ?? 1);
   }
   /** Max POWER for a side (grows with the base tier). */
   maxPower(si) {
     const s = this.sides[si];
-    return BASE_UPGRADES[s.overclock].max;
+    return BASE_UPGRADES[s.overclock].max + (s.rs?.maxPower ?? 0);
   }
 
   emit(type, data = {}) {
@@ -189,7 +194,9 @@ export class BattleSim {
     const c = this.handCard(si, slot);
     if (!c) return Infinity;
     const s = this.sides[si];
-    return Math.max(0, ((c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3) + (s.mod[s.hand[slot]] ?? 0));
+    // research PRE-MIXED: the first spell(s) of the battle cost 1 less
+    const pre = c.spell && s.rs && s.spellPlays < s.rs.preMixed ? 1 : 0;
+    return Math.max(0, ((c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3) + (s.mod[s.hand[slot]] ?? 0) - pre);
   }
   /** Cards don't recharge any more (they cycle); kept for old callers. */
   slotCd() {
@@ -201,12 +208,16 @@ export class BattleSim {
   canPlay(si, slot) {
     return !this.over && !!this.handCard(si, slot) && this.sides[si].energy >= this.cardCost(si, slot);
   }
+  /** The current base tier; `cost` is the POWER for the next upgrade after research discounts. */
   overclockInfo(si) {
-    return BASE_UPGRADES[this.sides[si].overclock];
+    const s = this.sides[si];
+    const T = BASE_UPGRADES[s.overclock];
+    const off = s.rs?.upgradeDiscount ?? 0;
+    return off && T.cost !== null ? { ...T, cost: Math.max(1, T.cost - off) } : T;
   }
   canUpgradeLab(si) {
     const s = this.sides[si];
-    const info = BASE_UPGRADES[s.overclock];
+    const info = this.overclockInfo(si);
     return !this.over && info.cost !== null && s.energy >= info.cost;
   }
   canMega(si) {
@@ -290,11 +301,13 @@ export class BattleSim {
     if (!free) {
       if (s.energy < cost) return false;
       s.energy -= cost;
-      if (s.perks.bargain && this.rand() * 100 < s.perks.bargain) {
+      // research COUPON CLIPPER: a troop deploy may refund 1 POWER
+      if (!card.spell && s.rs.refund && this.rand() < s.rs.refund) {
         s.energy = Math.min(this.maxPower(si), s.energy + 1);
         this.emit('refund', { side: si });
       }
     }
+    if (card.spell) s.spellPlays++;
     // cycle: the played card goes to the back of the deck, the next one slides in
     this.cycleOut(si, slot, card.temp || (card.special && SPELLS[card.unit].exhaust));
     if (card.special) {
@@ -467,7 +480,8 @@ export class BattleSim {
   deployTroop(si, card, x, echo = false) {
     const s = this.sides[si];
     const def = SWARMS[card.unit];
-    const n = def.count ?? 1;
+    // research PACK TACTICS: multi-unit Swarm cards bring extra units
+    const n = (def.count ?? 1) + ((def.count ?? 1) > 1 && troopClass(def) === 'swarm' ? s.rs.packExtra : 0);
     // stat boosts: MUTATED / GOLDEN cards, ECHO clones, GIANT serum, ARMOR window
     let hp = 1 + (card.boost ?? 0), dmg = 1 + (card.boost ?? 0), scale = 1;
     const g = echo ? s.lastGiant : s.nextGiant;
@@ -490,7 +504,7 @@ export class BattleSim {
   upgradeLab(si) {
     if (!this.canUpgradeLab(si)) return false;
     const s = this.sides[si];
-    s.energy -= BASE_UPGRADES[s.overclock].cost;
+    s.energy -= this.overclockInfo(si).cost;
     s.overclock++;
     this.applyTier(s.lab, s.overclock);
     this.emit('labUp', { side: si, level: s.overclock + 1, tier: s.overclock + 1, name: BASE_UPGRADES[s.overclock].name });
@@ -503,7 +517,7 @@ export class BattleSim {
   addMegaCharge(si, amt) {
     const m = this.sides[si]?.mega;
     if (!m || m.used || m.charge >= 1) return;
-    m.charge = Math.min(1, m.charge + amt);
+    m.charge = Math.min(1, m.charge + amt * (1 + (this.sides[si].rs?.megaCharge ?? 0)));
     if (m.charge >= 1) this.emit('megaReady', { side: si });
   }
   /** Unleash the Mega: a cinematic (the battle freezes), then it breaks out. */
@@ -628,10 +642,11 @@ export class BattleSim {
     const s = this.sides[si];
     const id = card.unit ?? card.id;
     const def = SPELLS[id];
-    const pw = spellPower(card.level ?? 1);
+    // research: EXTRA STRENGTH / BIG BRAIN (power), WIDER SPLASH (radius)
+    const pw = spellPower(card.level ?? 1) * (1 + (s.rs?.spellPow ?? 0));
     s.stats.spells++;
     s.stats['cast_' + id] = (s.stats['cast_' + id] ?? 0) + 1;
-    const R = def.radius;
+    const R = def.radius ? def.radius * (1 + (s.rs?.spellRadius ?? 0)) : def.radius;
     switch (id) {
       case 'foodThrow': {
         this.emit('spell', { side: si, id, x, delay: 0.55, radius: R });
@@ -798,11 +813,11 @@ export class BattleSim {
     if (this.cinematicKind === 'sig' && this.cinematic > 0) this.cinematic = 1e-6;
   }
 
-  /** Add ULTIMATE charge (k = fraction of a full meter; the Hype Man perk speeds it up). */
+  /** Add ULTIMATE charge (k = fraction of a full meter; research HYPE JUICE speeds it up). */
   addSigCharge(si, k, fromDamage = false) {
     const s = this.sides[si];
     if (!s.cmd || s.sig >= 1 || !(k > 0)) return;
-    k /= Math.max(0.3, 1 - (s.perks.hypeMan ?? 0) / 100);
+    k *= 1 + (s.rs?.ultCharge ?? 0);
     if (fromDamage) {
       k = Math.min(k, SIG_DMG_CAP - (s.sigDmg ?? 0));
       if (k <= 0) return;
@@ -978,7 +993,7 @@ export class BattleSim {
     const s = this.sides[si];
     const sk = s.skills[k];
     if (!sk || s.skillCds[k] > 0 || this.over) return false;
-    s.skillCds[k] = sk.cd;
+    s.skillCds[k] = sk.cd * (1 - (s.rs?.skillCd ?? 0));
     const pw = s.power;
     switch (sk.id) {
       case 'labRally':
@@ -1050,7 +1065,10 @@ export class BattleSim {
     const s = this.sides[si];
     const id = card.unit ?? card.id;
     const def = SWARMS[id];
-    const mods = { dmg: 1 + (s.perks.sharpTeeth ?? 0) / 100 };
+    // research tree troop upgrades by class (Brawler / Tank / Shooter / Flyer / Swarm); never bosses or Megas
+    const cls = opts.boss || MEGAS[id] ? null : troopClass(def);
+    const rs = s.rs;
+    const mods = cls && rs ? { hp: 1 + rs[cls + 'Hp'], dmg: 1 + rs[cls + 'Dmg'] } : {};
     const st = swarmStats(id, card.level ?? 1, card.variant ?? 'base', mods);
     const size = def.size ?? 1;
     const kb = opts.kb ?? def.kb ?? 2;
@@ -1070,9 +1088,34 @@ export class BattleSim {
       level: card.level ?? 1,
     };
     TT.initTraits(this, u);
+    if (cls && rs) this.applyResearch(u, cls, rs);
     this.units.push(u);
     this.emit('spawn', { unit: u, dropped: opts.delay > 0 });
     return u;
+  }
+
+  /** Research tree upgrades on a fresh troop of class cls (side.rs, see src/data/research.js). */
+  applyResearch(u, cls, rs) {
+    u.rcls = cls;
+    if (rs[cls + 'Spd']) u.speedMult *= 1 + rs[cls + 'Spd'];
+    if (rs[cls + 'Atk']) u.st.atk /= 1 + rs[cls + 'Atk'];
+    if (cls === 'shoot') {
+      if (rs.shootRange) u.st.range *= 1 + rs.shootRange;
+      u.dtap = rs.doubleTap;
+      u.lucky = rs.lucky;
+    } else if (cls === 'brawl') {
+      if (rs.brawlFirst) u.ambush = Math.max(u.ambush || 1, 1 + rs.brawlFirst);
+      u.bonk = rs.bonk;
+      u.hits = 0;
+    } else if (cls === 'tank') {
+      if (rs.tankShield) u.shieldHp = Math.max(u.shieldHp ?? 0, u.maxHp * rs.tankShield);
+      if (rs.tankKb) u.kbMult = 1 - rs.tankKb;
+      u.thorns = rs.tankThorns;
+      u.mule = rs.tankMule;
+    } else if (cls === 'fly') {
+      u.foil = rs.foil;
+      u.gift = rs.gift;
+    } else if (cls === 'swarm') u.hazmat = rs.hazmat;
   }
 
   spawnBoss(b) {
@@ -1239,7 +1282,7 @@ export class BattleSim {
         const wind = Math.min(0.32, u.st.atk * 0.4);
         u.atkPhase = wind;
         u.atkTarget = tgt;
-        this.emit('attack', { unit: u, dur: wind / 0.5 });
+        this.emit('attack', { unit: u, dur: wind / 0.5 / Math.max(0.2, atkSpd) }); // the blow lands at half the anim, sped up with the troop
       }
     } else if (TT.holdGround(this, u)) {
       u.state = 'idle';
@@ -1278,6 +1321,8 @@ export class BattleSim {
       };
       shoot(t, tx);
       if (u.st.traits.multishot) TT.extraShots(this, u, t, shoot);
+      // research DOUBLE TAP: sometimes a second shot right behind the first
+      if (u.dtap && this.rand() < u.dtap) this.later(0.12, () => { if (!u.dead && !this.over) shoot(t, t.building || t.dead ? tx : t.x); });
     } else {
       this.applyHit(u, t, tx);
     }
@@ -1341,6 +1386,8 @@ export class BattleSim {
       this.damage(t, dmg, u, { kind });
       if (tr.knock && !t.dead) this.knock(t, typeof tr.knock === 'number' ? tr.knock : 3);
     }
+    // research BONK COMBO: every 4th Brawler hit stuns
+    if (u.bonk && !t.building && !t.none && !t.dead && t.buffs && ++u.hits % 4 === 0) t.buffs.stun = Math.max(t.buffs.stun, u.bonk * (t.boss ? 0.4 : 1));
     TT.afterHit(this, u, t, tx, dmg);
   }
 
@@ -1371,6 +1418,7 @@ export class BattleSim {
     if (e.dead || e.state === 'spawn') return;
     if (e.mega || e.st.traits.unstoppable || TT.immune(e)) return;
     if (e.boss || e.siege) power *= 0.3;
+    if (e.kbMult !== undefined) power *= e.kbMult; // research HEAVY BOOTS
     const dir = this.sides[e.side].dir;
     e.state = 'kb';
     e.vx = -dir * power * 1.2;
@@ -1388,7 +1436,10 @@ export class BattleSim {
     d = TT.incoming(this, e, d, src, o);
     if (d < 0) return;
     const def = this.sides[e.side];
-    if (def.perks.armorUp) d *= 1 - def.perks.armorUp / 100;
+    // research: LUCKY SOCKS (Shooter crits), ANTI-ZAP FOIL (Flyers vs the base zapper), HAZMAT ONESIES (Swarms vs spells)
+    if (src?.lucky && this.rand() < src.lucky) d *= 3;
+    if (e.foil && o.kind === 'labCannon') d *= 1 - e.foil;
+    else if (e.hazmat && !src && o.kind !== 'labCannon' && o.kind !== 'burn') d *= 1 - e.hazmat;
     if (src && src.st && e.flying && !src.st.projectile) d *= 0.5;
     if (e.buffs.freeze > 0 && o.kind !== 'ice') d *= 1.25;
     if (d <= 0) return;
@@ -1410,10 +1461,14 @@ export class BattleSim {
     }
     if (!o.silent) this.emit('hit', { unit: e, amount: Math.round(d), kind: o.kind ?? 'melee', src, crit: d >= e.maxHp * 0.3 });
     TT.damaged(this, e, Math.min(before, d), src, o);
+    // research SPITE SPIKES: Tanks hit melee attackers back
+    if (e.thorns && src?.st && !src.dead && !src.st.projectile && (o.kind ?? 'melee') === 'melee') this.damage(src, Math.min(before, d) * e.thorns, null, { kind: 'thorns' });
     if (e.hp <= 0) {
       this.kill(e, src);
       return;
     }
+    // research STUBBORN MULE: a Tank heals once when it drops low
+    if (e.mule && e.hp < e.maxHp * 0.25) { const m = e.mule; e.mule = 0; this.heal(e, e.maxHp * m); }
     if (src && src.st) {
       const tr = src.st.traits;
       TT.hitStatus(this, src, e);
@@ -1436,10 +1491,21 @@ export class BattleSim {
     const killerSide = 1 - e.side;
     const ks = this.sides[killerSide];
     ks.stats.kills++;
+    // research SCRAP COLLECTOR: knockouts pay POWER
+    if (ks.rs?.killPower && !o.silent) ks.energy = Math.min(this.maxPower(killerSide), ks.energy + ks.rs.killPower);
+    // research PARTING GIFT: Flyers drop a soda bomb
+    if (e.gift && !o.silent) {
+      const gx = e.x, gs = e.side, gd = e.gift * (1 + ((e.level ?? 1) - 1) * 0.1);
+      this.later(0.3, () => {
+        if (this.over) return;
+        this.areaDamage(gs, gx, 1.4, gd, { kind: 'soda', knock: 3 });
+        this.emit('impact', { x: gx, radius: 1.4, kind: 'soda', side: gs });
+      });
+    }
     if (!o.silent) {
       if (!src?.mega) this.addMegaCharge(killerSide, MEGA.killBonus * (e.boss ? 5 : 1));
     }
-    this.emit('death', { unit: e, killerSide, silent: !!o.silent });
+    this.emit('death', { unit: e, killerSide, silent: !!o.silent, src: src && src.st ? src : null });
     const tr = e.st.traits;
     if (tr.split) {
       const mini = e.type === 'melonMauler' ? 'seedling' : 'miniSlime';
@@ -1458,6 +1524,8 @@ export class BattleSim {
 
   damageBuilding(b, d, src, o = {}) {
     if (!b.alive || this.over) return;
+    b.hitT = this.t;
+    if (o.spell) d *= 1 + (this.sides[1 - b.side].rs?.wallBreaker ?? 0); // research WALL BREAKER
     if (b.shield > 0) {
       const ab = Math.min(b.shield, d);
       b.shield -= ab;
@@ -1471,6 +1539,14 @@ export class BattleSim {
     if (this.cfg.baseFloor && b.side === 0) b.hp = Math.max(b.hp, b.maxHp * this.cfg.baseFloor);
     // the comeback mechanic: a hammered base charges its Commander's ULTIMATE
     if (hp0 > b.hp) this.addSigCharge(b.side, (hp0 - Math.max(0, b.hp)) / (b.maxHp * SIG_HP_FULL), true);
+    // research BUNKER MODE: blast doors (a one-time shield) when the base drops low
+    const brs = this.sides[b.side].rs;
+    if (brs?.bunker && !b.bunkered && b.hp > 0 && b.hp < b.maxHp * 0.3) {
+      b.bunkered = true;
+      b.shield = Math.max(b.shield, b.maxHp * brs.bunker);
+      b.shieldT = 10;
+      this.emit('spell', { side: b.side, id: 'labShield', x: b.x, delay: 0, radius: 0, research: 'bunker' });
+    }
     const atk = 1 - b.side;
     this.sides[atk].stats.dmg += d;
     this.sides[atk].stats.towerDmg += d;
@@ -1510,6 +1586,22 @@ export class BattleSim {
     };
     this.projectiles.push(p);
     this.emit('towerShoot', { side: b.side, kind: b.kind, proj: p });
+    // research SHACK SENTRY: a second zap at the next enemy in range
+    const sentry = this.sides[b.side].rs?.sentry;
+    if (sentry) {
+      let b2 = null, bd2 = Infinity;
+      for (const e of this.units) {
+        if (e === best || e.dead || e.side === b.side || e.state === 'spawn' || TT.untargetable(e)) continue;
+        const d = Math.abs(e.x - b.x) - e.radius;
+        if (d <= b.range && d < bd2) { bd2 = d; b2 = e; }
+      }
+      if (b2) {
+        const d2 = Math.abs(b2.x - b.x);
+        const p2 = { ...p, id: UID++, tx: b2.x, flight: 0.15 + d2 / 22, target: b2, dmg: b.dmg * sentry, sentry: true };
+        this.projectiles.push(p2);
+        this.emit('towerShoot', { side: b.side, kind: b.kind, proj: p2, sentry: true });
+      }
+    }
   }
 
   end(winner, o = {}) {
@@ -1545,7 +1637,7 @@ export class BattleSim {
     const s = this.sides[si];
     if (s.buffs.stopped > 0) return 0; // TIEMPO MUERTO: no POWER while time is stopped...
     const steal = this.sides[1 - si]?.buffs.stopped > 0 ? 2 : 1; // ...and the other side gets that time
-    return steal * ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * (1 + (s.perks.energySurge ?? 0) / 100) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
+    return steal * ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * Math.max(0.2, 1 + (s.regenBonus ?? 0)) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
   }
 
   tick(dt) {
@@ -1575,6 +1667,9 @@ export class BattleSim {
       if (s.cmd) this.addSigCharge(s.i, gen / (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) / s.cmd.signature.charge);
       if (s.buffs.stopped > 0) this.holdStopped(s.i);
       for (const k in s.buffs) if (s.buffs[k] > 0) s.buffs[k] -= dt;
+      // research DUCT TAPE CREW: the base patches itself up after 3s without a hit
+      const lb = s.lab;
+      if (s.rs?.repair && lb.alive && lb.hp < lb.maxHp && this.t - (lb.hitT ?? -9) > 3) lb.hp = Math.min(lb.maxHp, lb.hp + lb.maxHp * s.rs.repair * dt);
       this.updateBuilding(s.lab, dt);
     }
     // zones

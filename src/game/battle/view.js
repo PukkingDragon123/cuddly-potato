@@ -27,7 +27,7 @@ import { labCollapse } from './baseFall.js';
 import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMat } from './spellVfx.js';
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
-import { troopFx } from './troopFx.js';
+import { troopFx, swallowFx, thrashFx } from './troopFx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech, iconURL } from '../../ui/ui.js';
@@ -72,6 +72,8 @@ const seriesColor = (id) => hexOf(SERIES[SWARMS[id]?.series]?.color);
 // it is read off the name (critters bite, cats claw, blades slash, the rest punch).
 const MAGIC_PROJ = new Set(['zap', 'laser', 'nuke', 'ice', 'acid', 'venom']);
 const styleCache = new Map();
+// creature move (data: SWARMS[id].anim.attack) -> impact spark
+const MOVE_HIT = { claw: 'claw', bite: 'bite', chomp: 'bite', headbutt: 'punch', ram: 'punch', tailwhip: 'punch', stomp: 'punch', smash: 'punch', punch: 'punch', pulse: 'punch', spin: 'punch', dive: 'bite' };
 function attackStyle(type) {
   let s = styleCache.get(type);
   if (s) return s;
@@ -79,6 +81,7 @@ function attackStyle(type) {
   const id = String(type).toLowerCase();
   if (d.hitStyle) s = d.hitStyle;
   else if (d.projectile) s = MAGIC_PROJ.has(d.projectile) ? 'magic' : 'bullet';
+  else if (d.anim?.hit || MOVE_HIT[d.anim?.attack]) s = d.anim.hit ?? MOVE_HIT[d.anim.attack];
   else if (/shark|croc|chomp|rat|pup|fang|rex|byte|viper|mole|imp|bat|wolf|jelly/.test(id)) s = 'bite';
   else if (/panther|tiger|lynx|mantis|slicer|ripper|sign|mop|dasher/.test(id)) s = 'claw';
   else if (/ghost|ufo|glitch|seedling/.test(id)) s = 'magic';
@@ -91,6 +94,8 @@ const projPool = new Map();
 const _sv = new THREE.Vector3(), _sv2 = new THREE.Vector3();
 const _col = new THREE.Color(), _white = new THREE.Color(0xffffff);
 const _pv = new THREE.Vector3(), _pt = new THREE.Vector3(), _ws = new THREE.Vector3(), _wc = new THREE.Vector3(), _wp = new THREE.Vector3();
+const _gp = new THREE.Vector3();
+const NO_TS = Object.freeze({}), NO_TRAITS = Object.freeze({});
 /**
  * Pop voxel meshes into at most `max` chunky cubes: every n-th voxel, each scaled
  * up so the body still reads as a pile of toy blocks (a capped fx.shatter).
@@ -346,6 +351,39 @@ class UnitActor {
     }
     rig.inner.scale.setScalar(0.01);
     this.bounceT = 0;
+    // creature moves (models/swarmMoves.js): the data says how this troop fights
+    rig.posed = true;
+    this.anim = SWARMS[u.type]?.anim ?? { attack: SWARMS[u.type]?.projectile ? 'shoot' : 'bite' };
+    this.swing = 1; // alternating paw / fist
+    this.atkN = 0;
+    this.sinF = Math.sin(this.face);
+    this.cosF = Math.cos(this.face);
+    this.flX = 0; // hit flinch spring (world x)
+    this.flV = 0;
+    this.crouchT = 0;
+    this.crouchDur = 0.24;
+    this.dropT = 0;
+    this.skidT = 0;
+  }
+  /** The sim started an attack: play the troop's own move (combo, alternating paw, trait-synced specials). */
+  onAttack(ev) {
+    const u = ev.unit, an = this.anim, tr = u.st?.traits ?? NO_TRAITS, ts = u.ts ?? NO_TS;
+    let mv = an.combo ? an.combo[this.atkN % an.combo.length] : an.attack;
+    // the signature hit lines up with the sim's own counters
+    if (tr.slam && ((ts.hits ?? 0) + 1) % tr.slam.every === 0) mv = 'stomp';
+    else if (tr.freezeEvery && ((ts.fz ?? 0) + 1) % tr.freezeEvery.n === 0) mv = 'smash';
+    else if (ts.charging) mv = 'ram';
+    this.atkN++;
+    this.swing = -this.swing;
+    const dur = Math.max(0.24, ev.dur);
+    // standing on pinned prey the rakes are short and quick (the paws are already down on it)
+    this.rig.play(mv, dur, this.swing, (an.amp ?? 1) * (ts.charging ? 1.3 : 1) * (ts.pinT > 0 ? 0.6 : 1));
+    this.move = mv;
+  }
+  /** A blow from world direction dir (+1 = travelling towards +x): a springy flinch away from it. */
+  flinch(dir, amt) {
+    if (this.u.grabbedBy || this.u.buffs?.pinT > 0) return;
+    this.flV += dir * amt;
   }
   land() {
     if (this.landed) return;
@@ -366,10 +404,22 @@ class UnitActor {
       return;
     }
     const p = rig.root.position;
-    p.x = damp(p.x, u.x, 25, dt);
-    p.z = damp(p.z, u.z, 10, dt);
     const hover = this.flying ? 0.9 + Math.sin(this.view.t * 3 + u.id) * 0.1 : 0;
-    p.y = u.y + hover;
+    const ga = u.grabbedBy ? this.view.actors.get(u.grabbedBy.id) : null;
+    if (ga && !ga.hidden) {
+      // GRABBED: hangs from the grabber's jaws / claws and goes wherever they go (every shake, roll and slam)
+      ga.rig.gripWorld(_gp);
+      const H = Math.max(0.35, rig.height);
+      p.x = damp(p.x, _gp.x, 30, dt);
+      p.y = damp(p.y, Math.max(0, _gp.y - H * 0.62), 30, dt);
+      p.z = damp(p.z, _gp.z + 0.06, 30, dt);
+      this.dropT = 0.25;
+    } else {
+      p.x = damp(p.x, u.x, 25, dt);
+      p.z = damp(p.z, u.z, 10, dt);
+      if (this.dropT > 0) { this.dropT -= dt; p.y = damp(p.y, u.y + hover, 22, dt); } // let go: falls back to its feet
+      else p.y = u.y + hover;
+    }
     if (this.jump) {
       // Mega pounce arc
       const j = this.jump;
@@ -402,6 +452,7 @@ class UnitActor {
     else if (u.state === 'stun') rig.setState('stun');
     else rig.setState('idle');
     rig.frozen = u.state === 'frozen';
+    this.holdPose(dt);
     rig.walkRate = ((u.st?.speed ?? 1.5) / 1.5) * (this.view.sim.sides[u.side].buffs.dance > 0 ? 1.35 : 1) * (u.buffs.slowT > 0 ? 1 - (u.buffs.slow ?? 0) : 1) * (u.mega ? 0.55 : 1);
     // spawn pop-in (overshoot) + grow buff scale
     this.spawnT += dt;
@@ -412,11 +463,25 @@ class UnitActor {
       const k = this.spawnT / 0.26;
       rig.baseScale = target * (k < 0.6 ? 0.6 + (k / 0.6) * 0.5 : 1.1 - ((k - 0.6) / 0.4) * 0.1);
     } else rig.baseScale = damp(rig.baseScale, target, 8, dt);
+    // hit flinch: a spring pushed by each blow (world x), turned into the model's own frame + a tilt away
+    this.flV += (-this.flX * 170 - this.flV * 15) * dt;
+    this.flX += this.flV * dt;
+    const E = rig.ext, lz = this.flX * this.sinF;
+    E.x = this.flX * this.cosF;
+    E.z = lz;
+    E.rx = Math.max(-0.45, Math.min(0.45, lz * 2.2));
     rig.update(dt);
     this.updateStrike(dt);
-    // knockback tumble
+    // knockback tumble; skidding to a stop kicks up a dust trail
     const tumble = u.state === 'kb' ? (u.side === 0 ? 1 : -1) * 0.55 : 0;
     rig.root.rotation.z = damp(rig.root.rotation.z, tumble, u.state === 'kb' ? 12 : 10, dt);
+    if (u.state === 'kb' && u.y < 0.05 && Math.abs(u.vx) > 0.6 && !this.flying) {
+      this.skidT -= dt;
+      if (this.skidT <= 0) {
+        this.skidT = 0.07;
+        hpx.dust(_sv.set(p.x, 0, p.z), { count: 1, scale: 0.55 * Math.min(1.6, u.size), vx: -Math.sign(u.vx) * 0.8, spread: 0.3, life: 0.6, color: this.view.dustColor });
+      }
+    }
     // decals
     const air = Math.max(0, p.y);
     const sh = 1 / (1 + air * 0.35);
@@ -478,41 +543,33 @@ class UnitActor {
     }
   }
   /**
-   * Attack feel on top of the rig's own swing: wind-up pull-back + forward lean,
-   * a lunge on the strike, recoil when hit, and a damage-number accumulator
-   * (one punchy number per troop every ~0.2 s instead of a pile of tiny ones).
+   * Held creature states read straight off the sim unit: coiling to pounce, mid-leap, standing on pinned
+   * prey, knocked flat under a pouncer, dangling in a grabber's jaws, abducted, charging.
    */
-  updateStrike(dt) {
-    const rig = this.rig, s = Math.max(0.6, this.u.size);
-    let z = 0, lean = 0;
-    const atk = this.atk;
-    if (atk) {
-      atk.t += dt;
-      const a = atk.t / atk.dur;
-      if (a >= 1) this.atk = null;
-      else if (atk.melee) {
-        // anticipation (rock back), a snappy lunge, then a held follow-through that eases home
-        if (a < 0.45) { const k = a / 0.45; const e = k * k * (3 - 2 * k); z = -0.15 * e; lean = -0.2 * e; }
-        else if (a < 0.6) {
-          const k = (a - 0.45) / 0.15; z = -0.15 + 0.53 * Math.sin(k * Math.PI * 0.5); lean = -0.2 + 0.5 * k;
-          if (!atk.kicked && !this.flying) {
-            // push-off: a puff of dust kicked back from the feet
-            atk.kicked = true;
-            const p = rig.root.position, back = this.u.side === 0 ? -1 : 1;
-            hpx.dust(_sv.set(p.x + back * 0.2 * s, 0, p.z), { count: 1, scale: 0.55 * s, vx: back * 1.6, spread: 0.3, life: 0.7, color: this.view.dustColor });
-          }
-        } else if (a < 0.7) { z = 0.38; lean = 0.3; }
-        else { const k = (a - 0.7) / 0.3; const e = (1 - k) ** 2; z = 0.38 * e; lean = 0.3 * e; }
-      } else {
-        // ranged: brace, then a sharp recoil on the shot
-        if (a < 0.45) lean = -0.06 * (a / 0.45);
-        else { const k = (a - 0.45) / 0.55; z = -0.16 * Math.sin(Math.min(1, k * 2.2) * Math.PI) * (1 - k * 0.5); lean = -0.06 - 0.12 * Math.sin(Math.min(1, k * 2.5) * Math.PI); }
-      }
+  holdPose(dt) {
+    const u = this.u, rig = this.rig, ts = u.ts ?? NO_TS, b = u.buffs;
+    if (u.state === 'crouch') {
+      this.crouchT += dt;
+      rig.hold('crouch', this.crouchT / Math.max(0.05, this.crouchDur));
+      return;
     }
-    this.recoil = Math.max(0, (this.recoil ?? 0) - dt * 2.2);
-    z = z * s - this.recoil;
-    rig.inner.position.z = z;
-    if (rig.gait !== 'hop') rig.inner.rotation.x = lean;
+    this.crouchT = 0;
+    if (u.state === 'grabbed') { rig.hold('grabbed'); return; }
+    if (b.pinT > 0) {
+      // bowled over onto its side, belly and kicking legs towards the camera
+      rig.hold('pinned', 0, u.side === 0 ? -1 : 1);
+      return;
+    }
+    if (b.liftT > 0) { rig.hold('lifted', 1 - b.liftT / (b.liftDur || 1)); return; }
+    if (u.state === 'leap' && ts.leapDur) { rig.hold('air', ts.leapT / ts.leapDur); return; }
+    if (this.jump) { rig.hold('air', this.jump.t / this.jump.dur); return; }
+    if (this.pulledT > 0) { this.pulledT -= dt; rig.hold('grabbed'); return; }
+    if (ts.pinT > 0) { rig.hold('pinning'); return; }
+    if (ts.charging && u.state === 'walk') { rig.hold('charge'); return; }
+    rig.hold(null);
+  }
+  /** The damage-number accumulator: one punchy number per troop every ~0.2 s instead of a pile of tiny ones. */
+  updateStrike(dt) {
     // damage numbers
     if (this.dmgAcc > 0) {
       this.dmgT -= dt;
@@ -1528,8 +1585,7 @@ export class BattleView {
         const a = this.actors.get(ev.unit.id);
         const role = SWARMS[ev.unit.type]?.role;
         if (a) {
-          a.rig.attack(Math.max(0.3, ev.dur));
-          a.atk = { t: 0, dur: Math.max(0.3, ev.dur), melee: role !== 'ranged' && !SWARMS[ev.unit.type]?.projectile };
+          a.onAttack(ev);
           if (SWARMS[ev.unit.type]?.traits?.kamikaze) break;
         }
         if (role !== 'ranged' && !SWARMS[ev.unit.type]?.projectile) audio.play('swing', { pitch: 1.4 / Math.max(0.6, ev.unit.size), gap: 0.05 });
@@ -1607,6 +1663,21 @@ export class BattleView {
       case 'death': {
         audio.critter(ev.unit.type, 'death', ev.unit.size, { side: ev.unit.side });
         const a = this.actors.get(ev.unit.id);
+        if (a?.swallowBy) {
+          // DEVOURED: no poof, it vanishes down the grabber's throat
+          a.flushDamage();
+          swallowFx(this, a);
+          this.actors.delete(ev.unit.id);
+          break;
+        }
+        const killer = ev.src && a && !a.hidden ? this.actors.get(ev.src.id) : null;
+        if (killer && !killer.hidden && killer.anim?.kill === 'thrash' && !ev.unit.boss && !ev.unit.mega && !a.flying && ev.unit.size <= ev.src.size * 1.2 && !(ev.unit.y > 0.3)) {
+          // shaken in the jaws first, then the usual KO pop
+          a.flushDamage();
+          this.actors.delete(ev.unit.id);
+          thrashFx(this, a, killer, () => { this.deathFx(a, ev, false); audio.play('death', { pitch: 0.8 + Math.random() * 0.4, gap: 0.03 }); a.dispose(); });
+          break;
+        }
         if (a) {
           const big = ev.unit.size > 1.5 || ev.unit.boss;
           a.flushDamage();
@@ -1865,10 +1936,12 @@ export class BattleView {
     const crit = !!ev.crit;
     const amt = ev.amount ?? 0;
     const heavy = !crit && ((src && src.size > 1.45) || amt >= 160);
-    const at = _pt.set(p.x - dir * Math.min(0.45, 0.24 * u.size), p.y + H * 0.55, p.z);
+    // sparks sit on the camera side of the body (a flipped / lying victim is deep, keep them out of it)
+    const at = _pt.set(p.x - dir * Math.min(0.45, 0.24 * u.size), p.y + H * (u.buffs?.pinT > 0 ? 0.4 : 0.55), p.z + Math.min(0.7, a.rig.width * (u.buffs?.pinT > 0 ? 0.45 : 0.2)));
     a.rig.flash(crit ? 0.1 : heavy ? 0.08 : 0.06);
     a.rig.boing(crit ? -0.42 : heavy ? -0.3 : -0.15);
-    a.recoil = Math.min(0.36, (a.recoil ?? 0) + (crit ? 0.26 : heavy ? 0.18 : 0.06));
+    // flinch away from the attacker (a blow from behind shoves it forward)
+    a.flinch(dir, (crit ? 3.4 : heavy ? 2.5 : 1.3) * (kind === 'melee' ? 1 : 0.7) / Math.max(0.8, Math.sqrt(u.size)));
     const melee = kind === 'melee';
     const style = melee && src && !src.building && src.type ? attackStyle(src.type) : null;
     const sz = crit ? 1.35 : heavy ? 1.15 : 0.8 + Math.min(0.3, amt / 400);
@@ -1881,7 +1954,13 @@ export class BattleView {
     const sa = src && !src.building ? this.actors.get(src.id) : null;
     if (sa && !sa.hidden && melee) {
       const sp = sa.rig.root.position, sdir = src.side === 0 ? 1 : -1;
-      if (style === 'claw') hpx.slash(_pv.set(sp.x + sdir * 0.22 * src.size, sp.y + sa.rig.height * 0.55, sp.z), sdir, crit ? 0xffd84a : heavy ? 0xffb02e : 0xf4f8ff, Math.min(1.9, 0.7 + src.size * 0.38));
+      if (style === 'claw') {
+        // three parallel claw marks raked across the target, mirrored for each paw
+        const rs = Math.min(1.7, 0.8 + src.size * 0.32) * (src.ts?.pinT > 0 ? 0.85 : 1);
+        // in front of whichever body is nearer the camera, so the marks are never swallowed by the brawl
+        const rz = Math.max(at.z, sp.z + sa.rig.width * 0.35) + 0.15;
+        hpx.rake(_pv.set((sp.x + sdir * 0.3 * src.size + at.x) / 2 + sdir * 0.1, at.y + 0.08, rz), sdir, sa.swing ?? 1, crit ? 0xffd84a : heavy ? 0xffb02e : 0xf4f8ff, rs);
+      }
       else if (style === 'punch') hpx.streaks(_pv.set(sp.x + sdir * 0.3 * src.size, sp.y + sa.rig.height * 0.5, sp.z), sdir, { count: 2, h: sa.rig.height * 0.4, scale: 0.8 });
       sa.rig.boing(-0.1);
       if (!(sa.clashT > this.t - 0.4) && !a.flying && !sa.flying) {

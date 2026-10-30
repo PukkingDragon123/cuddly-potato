@@ -6,6 +6,9 @@
 //   reveal, burrow, surface, phase, expose, absorb, deathBomb, revive, erupt, strike, strikeHit,
 //   abduct, pull, root, slam, freezeHit, heatUp, devour, execute, feast, scare, healPulse, rally,
 //   shove, thorns (a 'hit' with kind 'thorns'), plus 'buff' { kind: 'rage' } for berserk.
+// Creature moves (view: swarmMoves.js): pounceCrouch (coil before a leap), leap { pounce, target },
+//   pounceHit, pin (prey knocked flat, can't act), grab { victim, hold, kind: roll | gulp },
+//   grabSlam, grabRelease. Units carry two extra states: 'crouch' (coiling) and 'grabbed' (held).
 import { statMult } from '../../data/swarms.js';
 import { FIELD } from './field.js';
 
@@ -17,13 +20,16 @@ const RETREAT_SPEED = 1.35;
 export function immune(e) {
   return !!(e.phased || e.burrowing);
 }
-/** Can't be picked as a target (invisible, intangible, underground or mid-leap). */
+/** Can't be picked as a target (invisible, intangible, underground, leaping the line, or already in a grabber's jaws). A pounce can be shot out of the air. */
 export function untargetable(e) {
-  return !!(e.cloaked || e.phased || e.burrowing || e.state === 'leap');
+  return !!(e.cloaked || e.phased || e.burrowing || (e.state === 'leap' && !e.ts?.pouncing) || e.grabbedBy);
 }
 const lvlMult = (u) => statMult(u.level ?? 1);
 const isTroop = (t) => t && !t.building && !t.none && t.st;
-const TICK_TRAITS = ['phase', 'burrow', 'charge', 'trail', 'rally', 'healer', 'roar', 'scare', 'summon', 'strike', 'blink', 'leap', 'unstoppable', 'skirmish', 'abduct', 'devour', 'puddle'];
+const TICK_TRAITS = ['phase', 'burrow', 'charge', 'trail', 'rally', 'healer', 'roar', 'scare', 'summon', 'strike', 'blink', 'leap', 'unstoppable', 'skirmish', 'abduct', 'devour', 'puddle', 'pounce', 'grab'];
+const sm = (k) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
+/** Can this grabber pick the target up (no bases, bosses, flyers, giants or anything already held)? */
+const canGrab = (u, t) => isTroop(t) && !t.dead && !t.boss && !t.mega && !t.flying && !t.st.traits.unstoppable && !immune(t) && !t.grabbedBy && t.state !== 'leap' && t.size <= u.size * 1.25;
 
 /** Called once from spawnUnit. */
 export function initTraits(sim, u) {
@@ -39,13 +45,14 @@ export function initTraits(sim, u) {
   if (t.healer) ts.healT = 1;
   if (t.scare) ts.scareT = t.scare.first ?? 1;
   if (t.phase) ts.phaseT = t.phase.off;
+  if (t.pounce) ts.pounceReady = true;
 }
 
 /**
  * Boss versions of troops keep the fight readable: no blind spots, phasing, burrowing,
  * hit-and-run or leaps, and a ranged artillery boss fights troops instead of only the base.
  */
-const BOSS_DROP = ['mortar', 'phase', 'stealth', 'burrow', 'fragile', 'blink', 'skirmish', 'leap', 'kamikaze', 'unstoppable', 'healer'];
+const BOSS_DROP = ['mortar', 'phase', 'stealth', 'burrow', 'fragile', 'blink', 'skirmish', 'leap', 'pounce', 'kamikaze', 'unstoppable', 'healer'];
 export function bossTraits(traits, projectile) {
   const t = { ...traits };
   for (const k of BOSS_DROP) delete t[k];
@@ -61,6 +68,83 @@ function stepBack(sim, u, dist) {
   if ((u.x - back) * s.dir < 0) u.x = back;
 }
 
+/** Spring off the ground towards lx (a LEAP over the line, or a POUNCE onto prey). */
+function launchLeap(sim, u, lx, prey) {
+  const ts = u.ts, dir = sim.sides[u.side].dir;
+  const fb = sim.frontBuilding(u.side);
+  if (fb) { const lim = sim.faceX(fb, u.side) - dir * (u.radius + 0.1); if ((lx - lim) * dir > 0) lx = lim; }
+  const dist = Math.abs(lx - u.x);
+  ts.leapT = 0;
+  ts.leapDur = (prey ? 0.34 : 0.42) + dist * (prey ? 0.06 : 0.05);
+  u.state = 'leap';
+  u.atkPhase = 0;
+  u.vx = (lx - u.x) / ts.leapDur;
+  u.vy = (GRAV * ts.leapDur) / 2;
+  ts.pouncing = prey;
+  sim.emit('leap', { unit: u, from: u.x, to: lx, dur: ts.leapDur, pounce: !!prey, target: prey });
+}
+/** Coil before springing: the unit holds still for a beat (and can be hit or stunned out of it). */
+function crouch(sim, u, kind, dur, prey) {
+  const ts = u.ts;
+  ts.crouchFor = kind;
+  ts.crouchT = dur;
+  ts.prey = prey;
+  u.state = 'crouch';
+  u.atkPhase = 0;
+  sim.emit('pounceCrouch', { unit: u, target: prey, dur });
+}
+function cancelCrouch(u) {
+  const ts = u.ts;
+  if (ts.crouchFor === 'leap') ts.leapt = false;
+  if (ts.crouchFor === 'pounce') ts.pounceReady = true;
+  ts.crouchFor = null;
+  ts.prey = null;
+}
+/** GRAB: clamp the victim (it can't act and is carried) for `hold` seconds, then slam it down or gulp it. */
+function startGrab(sim, u, v, hold, kind, cd) {
+  if (v.ts?.grab) releaseGrab(sim, v);
+  u.ts.grab = { v, t: 0, hold, kind, cd };
+  v.grabbedBy = u;
+  v.atkPhase = 0;
+  v.state = 'grabbed';
+  if (v.ts?.crouchFor) cancelCrouch(v);
+  u.atkPhase = 0;
+  sim.emit('grab', { unit: u, victim: v, hold, kind });
+}
+function releaseGrab(sim, u, emit = true) {
+  const g = u.ts?.grab;
+  if (!g) return;
+  u.ts.grab = null;
+  u.ts.grabCd = emit ? Math.min(g.cd, 0.8) : g.cd; // knocked out of it: free to try again soon
+  if (emit && g.kind === 'gulp') u.ts.devourCd = Math.min(u.ts.devourCd ?? 0, 0.8);
+  const v = g.v;
+  if (v.grabbedBy === u) {
+    v.grabbedBy = null;
+    if (!v.dead) { v.y = 0; if (v.state === 'grabbed') v.state = 'walk'; sim.clampUnit(v); }
+  }
+  if (emit) sim.emit('grabRelease', { unit: u, victim: v });
+}
+function finishGrab(sim, u) {
+  const g = u.ts.grab, v = g.v, tr = u.st.traits, dir = sim.sides[u.side].dir;
+  releaseGrab(sim, u, false);
+  if (v.dead) return;
+  if (g.kind === 'gulp') {
+    sim.emit('devour', { unit: u, victim: v, x: v.x });
+    const gain = v.maxHp * tr.devour.heal;
+    sim.kill(v, u);
+    sim.heal(u, gain);
+    return;
+  }
+  // slammed down in front of the grabber, dazed for a beat
+  v.x = u.x + dir * (u.radius + v.radius + 0.15);
+  sim.clampUnit(v);
+  const dmg = sim.unitDamage(u) * hitMult(sim, u, v) * (tr.grab.mult ?? 1);
+  sim.emit('grabSlam', { unit: u, victim: v, x: v.x });
+  sim.damage(v, dmg, u, { kind: 'melee' });
+  if (!v.dead && !v.st.traits.unstoppable) { v.buffs.stun = Math.max(v.buffs.stun, tr.grab.daze ?? 0.35); v.atkPhase = 0; }
+  afterHit(sim, u, v, v.x, dmg);
+}
+
 /**
  * Per-tick trait behaviour, called from updateUnit after the status timers.
  * Returns true when it used up the unit's turn (leaping, fleeing, retreating...).
@@ -73,6 +157,24 @@ export function tickTraits(sim, u, dt) {
   if (b.rootCd > 0) b.rootCd -= dt;
   if (b.wrapCd > 0) b.wrapCd -= dt;
   if (b.rallyT > 0) b.rallyT -= dt;
+  if (b.pinT > 0) b.pinT -= dt;
+  // GRABBED: carried in front of the grabber's jaws, helpless
+  const gb = u.grabbedBy;
+  if (gb) {
+    const g = gb.ts?.grab;
+    if (!g || g.v !== u || gb.dead) {
+      u.grabbedBy = null;
+      u.y = 0;
+      if (u.state === 'grabbed') u.state = 'walk';
+    } else {
+      const k = g.t / g.hold, gdir = sim.sides[gb.side].dir;
+      u.x = gb.x + gdir * (gb.radius + u.radius * 0.5 + 0.12 * gb.size);
+      u.y = sm((k - 0.12) / 0.18) * (1 - sm((k - 0.72) / 0.12)) * (0.3 + 0.3 * gb.size);
+      u.state = 'grabbed';
+      u.atkPhase = 0;
+      return true;
+    }
+  }
   if (b.liftT > 0) {
     b.liftT -= dt;
     const k = 1 - Math.max(0, b.liftT) / (b.liftDur || 1);
@@ -80,7 +182,8 @@ export function tickTraits(sim, u, dt) {
     if (b.liftT <= 0) u.y = 0;
   }
   if (b.fearT > 0 && !(b.freeze > 0 || b.stun > 0) && u.state !== 'kb' && u.state !== 'leap') {
-    // SCARED: run the wrong way
+    // SCARED: run the wrong way (dropping anything it was holding)
+    if (ts.grab) releaseGrab(sim, u);
     b.fearT -= dt;
     u.state = 'walk';
     u.atkPhase = 0;
@@ -96,6 +199,8 @@ export function tickTraits(sim, u, dt) {
   if (ts.devourCd > 0) ts.devourCd -= dt;
   if (ts.blinkCd > 0) ts.blinkCd -= dt;
   if (ts.puddleCd > 0) ts.puddleCd -= dt;
+  if (ts.grabCd > 0) ts.grabCd -= dt;
+  if (ts.pinT > 0) ts.pinT -= dt;
 
   // LEAP: mid-air over the front line
   if (u.state === 'leap') {
@@ -108,11 +213,48 @@ export function tickTraits(sim, u, dt) {
       u.state = 'walk';
       u.cool = 0;
       sim.clampUnit(u);
-      sim.emit('leapLand', { unit: u, x: u.x });
+      const v = ts.pouncing;
+      ts.pouncing = null;
+      // POUNCE: land on the prey (if it's still there), hit it with the leap's weight and pin it down
+      if (v && !v.dead && !immune(v) && !v.grabbedBy && Math.abs(v.x - u.x) <= v.radius + u.radius + 0.9) {
+        u.x = v.x - dir * (v.radius + u.radius) * 0.75;
+        sim.clampUnit(u);
+        sim.emit('leapLand', { unit: u, x: u.x, pounce: true, target: v });
+        sim.emit('pounceHit', { unit: u, target: v, x: v.x });
+        ts.pounceBonus = t.pounce.mult;
+        sim.applyHit(u, v, v.x);
+        ts.pounceBonus = 0;
+        if (!v.dead && !v.mega && !v.st.traits.unstoppable && !immune(v) && v.size <= u.size * 1.35) { // can't bowl over anything much bigger than itself
+          const d = t.pounce.pin * (v.boss ? 0.4 : 1);
+          v.buffs.stun = Math.max(v.buffs.stun, d);
+          v.buffs.pinT = d;
+          v.atkPhase = 0;
+          v.pinBy = u;
+          ts.pinT = d;
+          sim.emit('pin', { unit: v, src: u, dur: d });
+        }
+        u.atkTarget = v;
+        u.cool = 0.12;
+      } else sim.emit('leapLand', { unit: u, x: u.x });
     }
     return true;
   }
-  if (u.state === 'kb') { ts.run = 0; if (ts.charging) { ts.charging = false; sim.emit('chargeEnd', { unit: u }); } return false; }
+  // GRAB in progress: hold still, carry the prey, then slam / gulp it (anything that stops the grabber drops it)
+  if (ts.grab) {
+    const g = ts.grab;
+    if (g.v.dead || u.state === 'kb' || b.freeze > 0 || b.stun > 0) releaseGrab(sim, u);
+    else {
+      g.t += dt;
+      u.state = 'attack';
+      u.atkPhase = 0;
+      if (g.t >= g.hold) {
+        finishGrab(sim, u);
+        u.cool = Math.max(0.1, u.st.atk - g.hold); // keeps the attack rhythm: the hold was the wind-up
+      }
+      return true;
+    }
+  }
+  if (u.state === 'kb') { ts.run = 0; ts.pouncing = null; if (ts.crouchFor) cancelCrouch(u); if (ts.charging) { ts.charging = false; sim.emit('chargeEnd', { unit: u }); } return false; }
 
   // PHASE: intangible on a cycle
   if (t.phase) {
@@ -141,8 +283,44 @@ export function tickTraits(sim, u, dt) {
   const held = b.freeze > 0 || b.stun > 0;
   if (held) {
     ts.run = 0;
+    if (ts.crouchFor) cancelCrouch(u);
     if (ts.charging) { ts.charging = false; sim.emit('chargeEnd', { unit: u }); }
     return false;
+  }
+  // CROUCH: coiling before a leap / pounce, then spring
+  if (u.state === 'crouch' && ts.crouchFor) {
+    ts.crouchT -= dt;
+    if (ts.crouchT > 0) return true;
+    const kind = ts.crouchFor, v = ts.prey;
+    ts.crouchFor = null;
+    ts.prey = null;
+    if (kind === 'leap') { launchLeap(sim, u, ts.leapTo, null); return true; }
+    if (!v || v.dead || untargetable(v) || v.flying || v.grabbedBy) { u.state = 'walk'; ts.pounceReady = true; return false; }
+    // aim where the prey will be when we come down
+    const vd = sim.sides[v.side].dir;
+    const est = 0.34 + Math.abs(v.x - u.x) * 0.06;
+    const vx = v.state === 'walk' ? vd * v.st.speed * (v.speedMult ?? 1) * est * 0.8 : 0;
+    launchLeap(sim, u, v.x + vx - dir * (v.radius + u.radius) * 0.75, v);
+    return true;
+  }
+  if (u.state === 'crouch') u.state = 'walk';
+  // POUNCE: the first time it closes in on prey it coils and springs onto it (re-arms after a free run)
+  if (t.pounce && u.state === 'walk') {
+    if (ts.pounceReady) {
+      const reach = u.st.range + u.radius;
+      let prey = null, bd = Infinity;
+      for (const e of sim.units) {
+        if (e.dead || e.side === u.side || e.state === 'spawn' || e.flying || untargetable(e)) continue;
+        const d = (e.x - u.x) * dir - e.radius;
+        if (d > reach + 0.2 && d <= t.pounce.range && d < bd) { bd = d; prey = e; }
+      }
+      if (prey && !sim.findTarget(u)) {
+        ts.pounceReady = false;
+        ts.rearm = 0;
+        crouch(sim, u, 'pounce', t.pounce.crouch ?? 0.24, prey);
+        return true;
+      }
+    } else if ((ts.rearm = (ts.rearm ?? 0) + moved) >= (t.pounce.rearm ?? 3)) ts.pounceReady = true;
   }
   // HIT-AND-RUN: zip back out of reach after a strike
   if (ts.retreatT > 0) {
@@ -314,15 +492,9 @@ export function tickTraits(sim, u, dt) {
       let lx = back ? back.x - dir * (back.radius + u.radius + 0.15) : front.x + dir * (front.radius + u.radius + 0.35);
       const fb = sim.frontBuilding(u.side);
       if (fb) { const lim = sim.faceX(fb, u.side) - dir * (u.radius + 0.1); if ((lx - lim) * dir > 0) lx = lim; }
-      const dist = Math.abs(lx - u.x);
       ts.leapt = true;
-      ts.leapT = 0;
-      ts.leapDur = 0.42 + dist * 0.05;
-      u.state = 'leap';
-      u.atkPhase = 0;
-      u.vx = (lx - u.x) / ts.leapDur;
-      u.vy = (GRAV * ts.leapDur) / 2;
-      sim.emit('leap', { unit: u, from: u.x, to: lx, dur: ts.leapDur });
+      ts.leapTo = lx;
+      crouch(sim, u, 'leap', t.leap.crouch ?? 0.16, back ?? front);
       return true;
     }
   }
@@ -341,7 +513,9 @@ export function moveMult(u) {
 }
 /** Attack-speed multiplier from traits. */
 export function atkMult(u) {
-  return u.buffs.rallyT > 0 ? 1 + (u.buffs.rallyAtk ?? 0) : 1;
+  const m = u.buffs.rallyT > 0 ? 1 + (u.buffs.rallyAtk ?? 0) : 1;
+  // POUNCE flurry: rakes come faster while the prey is pinned
+  return u.ts?.pinT > 0 ? m * (u.st.traits.pounce?.flurry ?? 1) : m;
 }
 /** Mortar: an enemy is inside its blind spot, so it holds its ground instead of walking into it. */
 export function holdGround(sim, u) {
@@ -390,12 +564,20 @@ export function extraShots(sim, u, primary, mkProj) {
 export function beforeHit(sim, u, t) {
   const tr = u.st.traits, ts = u.ts ?? (u.ts = {});
   if (u.cloaked) { u.cloaked = false; sim.emit('reveal', { unit: u }); }
-  if (tr.devour && isTroop(t) && !t.dead && !t.boss && !t.mega && !(ts.devourCd > 0) && t.hp <= tr.devour.hp * lvlMult(u)) {
+  if (tr.devour && isTroop(t) && !t.dead && !t.boss && !t.mega && !(ts.devourCd > 0) && t.hp <= tr.devour.hp * lvlMult(u) && !t.grabbedBy && t.state !== 'leap') {
     ts.devourCd = tr.devour.cd;
+    // the prey is lifted to the mouth and shaken first, then swallowed (finishGrab)
+    if (tr.devour.hold) { startGrab(sim, u, t, tr.devour.hold, 'gulp', 0); return true; }
     const gain = t.maxHp * tr.devour.heal;
     sim.emit('devour', { unit: u, victim: t, x: t.x });
     sim.kill(t, u);
     sim.heal(u, gain);
+    return true;
+  }
+  // GRAB (death roll): a wounded target gets clamped, rolled and slammed instead of just bitten
+  const gr = tr.grab;
+  if (gr && canGrab(u, t) && !(ts.grabCd > 0) && (!gr.below || t.hp / t.maxHp < gr.below)) {
+    startGrab(sim, u, t, gr.hold, gr.kind ?? 'slam', gr.cd ?? 3);
     return true;
   }
   return false;
@@ -417,6 +599,7 @@ export function hitMult(sim, u, t) {
     if (ts.heat < tr.heatUp.max) ts.heatMax = false;
   }
   if (ts.charging) m *= tr.charge.mult;
+  if (ts.pounceBonus) m *= ts.pounceBonus;
   return m;
 }
 /** After the hit (or volley) landed. */
@@ -603,6 +786,7 @@ export function hitStatus(sim, src, e) {
 /** After e was knocked out by src (DEATH BLAST, 1-UP, ABSORB, FEAST). */
 export function onKilled(sim, e, src, o) {
   const t = e.st.traits;
+  if (e.ts?.grab) releaseGrab(sim, e); // a KO'd grabber drops its prey
   if (t.deathBomb) {
     const db = t.deathBomb;
     sim.emit('deathBomb', { unit: e, x: e.x, r: db.r, kind: db.kind ?? 'explode' });

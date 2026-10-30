@@ -35,6 +35,8 @@ import { SWARMS } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
 import { STARTER_CARDS } from '../data/cards.js';
+import { researchForTrophies } from '../data/research.js';
+import { mulberry32, hashString } from '../core/util.js';
 import { game } from '../game/game.js';
 import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
@@ -72,12 +74,13 @@ export class BattleScene {
       me.deck = STARTER_CARDS.map((id) => deckEntry(id, 1));
       me.noShuffle = true;
       me.labLevel = 1;
+      me.research = {};
       // no MEGA yet: those are earned on the Trophy Road
       me.mega = null;
       me.noMegaTeaser = true;
       enemy = {
         name: 'Jimmy', deck: ['toiletRollRipper', 'trashedCan'].map((id) => deckEntry(id, 1)),
-        commander: commanderCfg('jimmy', 1), perks: { energySurge: -50 }, labStyle: 'mansion', labLevel: 1, hpMult: 0.4, clan: 'MrBeast Lab',
+        commander: commanderCfg('jimmy', 1), handicap: { regen: -0.5 }, labStyle: 'mansion', labLevel: 1, hpMult: 0.4, clan: 'MrBeast Lab',
       };
       aiOpts = { difficulty: 0.05, maxLab: 0, noSpells: true, sigDelay: 9999 };
     } else if (mode === 'boss') {
@@ -85,7 +88,7 @@ export class BattleScene {
       arenaId = b.arena;
       enemy = {
         name: b.name, deck: b.deck.map((id) => deckEntry(id, b.level)), commander: b.commander ? commanderCfg(b.commander, Math.min(10, b.level)) : null,
-        perks: {}, labStyle: b.lab ?? 'rival', labLevel: b.level + 1, hpMult: 1.2, clan: 'BOSS CHALLENGE',
+        research: researchForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString(b.id ?? b.name))), labStyle: b.lab ?? 'rival', labLevel: b.level + 1, hpMult: 1.2, clan: 'BOSS CHALLENGE',
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
       aiOpts = { difficulty: Math.min(0.9, 0.5 + b.level * 0.05) };
@@ -97,13 +100,13 @@ export class BattleScene {
     } else if (mode === 'practice') {
       enemy = {
         name: 'Training Bot', deck: ['panther', 'trashedCan', 'cloggedToilet', 'pizzaSlicer', 'fryFiend', 'toiletRollRipper', 'foodThrow', 'moneyDrop'].map((id) => deckEntry(id, 1)),
-        commander: commanderCfg('recruit', 1), perks: {}, labStyle: 'rival', labLevel: 1, clan: 'Practice',
+        commander: commanderCfg('recruit', 1), labStyle: 'rival', labLevel: 1, clan: 'Practice',
       };
       aiOpts = { difficulty: 0.25, maxLab: 1 };
     } else {
       const g = params.opponent ?? ghostOpponent(p.trophies, Date.now(), arenaId);
       enemy = {
-        name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), perks: g.perks ?? {}, hpMult: g.hpMult, mega: g.mega ?? null,
+        name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), research: g.research ?? {}, handicap: g.handicap ?? null, perks: g.perks ?? {}, hpMult: g.hpMult, mega: g.mega ?? null,
         labStyle: ['rival', 'martLab', 'chocoLab', 'default'][g.name.length % 4], labLevel: g.labLevel, banner: g.banner, trophies: g.trophies, clan: g.clan, ghost: true,
       };
       this.opponentTrophies = g.trophies;

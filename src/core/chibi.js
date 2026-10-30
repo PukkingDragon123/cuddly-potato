@@ -554,6 +554,10 @@ const LEGACY = new Set(['idle', 'walk', 'run', 'talk', 'cheer', 'dance', 'throw'
 const STAND_ONLY = new Set(['walk', 'run', 'kick', 'bellyflop', 'jump', 'celebrate', 'stomp', 'tapFoot', 'bow']);
 
 export const POSE_NAMES = Object.keys(POSES);
+/** Register scene-specific poses ({ name: fn(t, p, k, dur) }, same conventions as POSES), e.g. the Lab tab's scientist at work. */
+export function definePoses(map) {
+  for (const [k, fn] of Object.entries(map)) if (!POSES[k]) POSES[k] = fn;
+}
 
 // ---------------------------------------------------------------------------
 // Moods (face presets) and reactions (pose + mood + emote)

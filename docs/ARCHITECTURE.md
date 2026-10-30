@@ -24,7 +24,9 @@ src/
     tween.js, util.js  animation helpers, rng, colour + math helpers
   data/                pure data: swarms, spells, cards (unified catalogue), commanders, vials, arenas (+ trophy
                        road, bosses, quests, secrets, ghost opponents), labs (base, POWER, BASE_UPGRADES tiers,
-                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season, entrances (NEW CARD cutscene cosmetics)
+                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season, entrances (NEW CARD cutscene cosmetics),
+                       research (the Lab's research tree: 9 branches / 51 nodes, coin + time costs, rank gates,
+                       researchMods() -> the battle sim's side.rs, researchForTrophies() for AI rivals)
   game/
     state.js           profile v2 persistence + every economy operation (cards, decks, vials, trophies, pass...)
     game.js            scene router: game.go('title' | 'lab' | 'home' | 'battle' | 'vialopen' | dev scenes, params)
@@ -57,6 +59,9 @@ src/
   models/
     kit.js             high-res toy modelling kit (blob, rbox, cyl, capsule, pixel-art stamping, joints)
     swarmRig.js        part-driven procedural animation + toy finishes (gloss, metal, translucent, glow)
+    swarmMoves.js      creature moves layered on the rig (claw, bite, chomp, headbutt, tailwhip, stomp, smash,
+                       punch, dive, shoot, spit, spin, pulse, roar, grab, yank, beam, surface, thrash, land) and
+                       held states (crouch, air, pinning, pinned, grabbed, lifted, charge); SWARMS[id].anim picks them
     swarmModels.js     createSwarm(id, {variant, skin, scale, model}) registry; models in swarms/*.js by series
     arenas/            battle arenas + Beast Island zone dioramas (kit.js ArenaKit + sky/animation/scenery
                        helpers, hdpaint.js HD painted skies / far layers / clouds (never hard pixel art),
@@ -90,6 +95,9 @@ src/
                        labSkinThumb, baseSpin/baseThumb (battle base tiers); lazy queue renders on-screen images first
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss)
+    home/research.js   the RESEARCH TREE (mountResearchTree, mounted by the Lab tab): pan / zoom pipe tree,
+                       node sheet, lab bench timer + SPEED UP; researchArt.js = node icons, frames, chains,
+                       junctions, the bubbling beaker; research state + timers live in game/state.js
     home/shop.js       SHOP tab: the secret bunker. bunker.js = the live voxel diorama drawn behind the tab with
                        engine.setBackdrop (Lonan, the shady seller, behind his counter: idle acting, coat flash,
                        parcel); bunkerProps.js = pure voxel builders, baked in bunkerWorker.js off the main thread;
@@ -120,7 +128,9 @@ src/
 ```
 Part names drive animation: `body head jaw lid tail armL armR legL legR legFL legFR legBL legBR wheel* spin prop
 flag antenna* cannon wingL wingR`. `SwarmRig` API: `setState('idle'|'walk'|'stun'|'dance')`, `attack(dur)`,
-`flash()`, `boing()`, `update(dt)`, `muzzleWorld()`, `meshes`, `height`.
+`flash()`, `boing()`, `update(dt)`, `muzzleWorld()`, `meshes`, `height`. Battle actors set `rig.posed = true` and drive
+`play(move, dur, side, amp, kind)` / `hold(state, k, side)` (swarmMoves.js), `ext` (hit flinch offsets) and
+`gripWorld()` (the mouth point grabbed prey hangs from); the sim side of pounce / grab lives in troopTraits.js.
 
 ## Arena module format (models/arenas/*.js)
 

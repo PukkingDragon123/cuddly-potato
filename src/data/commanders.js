@@ -2,8 +2,9 @@
 // game-changing ability charged ONLY by the POWER your side generates and the
 // damage your base takes (`charge` = POWER worth of a full meter, see
 // BattleSim.addSigCharge), played as a full cinematic (sigCutscene.js); plus
-// unique skills unlocked by level, and rollable perk slots. `cry` is the line
-// the Commander says (voiced) in the ultimate's cutscene.
+// unique skills unlocked by level. (The old rollable perk slots became the
+// Lab's research tree: src/data/research.js.) `cry` is the line the Commander
+// says (voiced) in the ultimate's cutscene.
 
 export const COMMANDERS = {
   recruit: {
@@ -68,61 +69,24 @@ for (const [id, c] of Object.entries(COMMANDERS)) c.id = id;
 export const CMD_MAX_LEVEL = 10;
 export const cmdXpForLevel = (lvl) => 100 + (lvl - 1) * 90; // xp needed to go from lvl -> lvl+1
 export const cmdPower = (lvl) => 1 + (lvl - 1) * 0.07;
-export const perkSlotsForLevel = (lvl) => (lvl >= 8 ? 3 : lvl >= 4 ? 2 : 1);
 
 // Level rewards shown on the Commander screen.
 export const CMD_LEVEL_REWARDS = {
   2: { text: '+7% ability power', coins: 200 },
   3: { text: 'Unlocks Skill #1', skill: 0 },
-  4: { text: '2nd Perk slot', bucks: 20 },
+  4: { text: '20 Beast Bucks', bucks: 20 },
   5: { text: 'Unlocks Skill #2', skill: 1 },
   6: { text: 'Gold banner', banner: 'goldBars', coins: 600 },
   7: { text: '+ability power', bucks: 40 },
-  8: { text: '3rd Perk slot', coins: 1000 },
+  8: { text: '1,000 Beast Coins', coins: 1000 },
   9: { text: 'Animated banner', banner: 'animStars' },
   10: { text: 'Golden outfit', skin: 'gold', bucks: 100 },
 };
 
-// Rollable perk pool. value range per tier.
+// Legacy perk ids: perks were replaced by the research tree (src/data/research.js).
+// Only the parked online lobby (src/net/lobby.js) still reads these keys.
 export const PERKS = {
-  energySurge: { name: 'Power Surge', desc: '+{v}% POWER regen', range: [5, 18], icon: 'energy' },
-  thickWalls: { name: 'Thick Walls', desc: '+{v}% Lab HP', range: [8, 28], icon: 'shield' },
-  quickHands: { name: 'Turret Boost', desc: 'Guard turret deals +{v}% damage', range: [6, 20], icon: 'tower' },
-  hypeMan: { name: 'Hype Man', desc: 'Ultimate charges {v}% faster', range: [10, 32], icon: 'star' },
-  bargain: { name: 'Bargain Hunter', desc: '{v}% chance a deploy refunds 1 energy', range: [5, 20], icon: 'energy' },
-  armorUp: { name: 'Lab Coat Armor', desc: 'Troops take {v}% less damage', range: [3, 11], icon: 'shield' },
-  sharpTeeth: { name: 'Sharp Teeth', desc: 'Troops deal +{v}% damage', range: [4, 13], icon: 'sword' },
-  spellSlinger: { name: 'Spell Slinger', desc: 'Spell cooldowns -{v}%', range: [8, 22], icon: 'magic' },
-  coinMagnet: { name: 'Coin Magnet', desc: '+{v}% coins from battles', range: [10, 35], icon: 'coin' },
-  headStart: { name: 'Head Start', desc: 'Start battles with +{v} energy', range: [1, 3], icon: 'energy' },
+  energySurge: { name: 'Power Surge' }, thickWalls: { name: 'Thick Walls' }, quickHands: { name: 'Turret Boost' },
+  hypeMan: { name: 'Hype Man' }, bargain: { name: 'Bargain Hunter' }, armorUp: { name: 'Lab Coat Armor' },
+  sharpTeeth: { name: 'Sharp Teeth' }, spellSlinger: { name: 'Spell Slinger' }, coinMagnet: { name: 'Coin Magnet' }, headStart: { name: 'Head Start' },
 };
-for (const [id, p] of Object.entries(PERKS)) p.id = id;
-
-export const PERK_TIERS = [
-  { id: 'common', name: 'Common', weight: 55, t: [0, 0.35] },
-  { id: 'rare', name: 'Rare', weight: 30, t: [0.3, 0.6] },
-  { id: 'epic', name: 'Ultra Rare', weight: 12, t: [0.55, 0.85] },
-  { id: 'legendary', name: 'Legendary', weight: 3, t: [0.85, 1] },
-];
-export const PERK_ROLL_COST = 250;
-
-export function rollPerk(rng = Math.random) {
-  const ids = Object.keys(PERKS);
-  const id = ids[Math.floor(rng() * ids.length)];
-  let total = 0;
-  for (const t of PERK_TIERS) total += t.weight;
-  let r = rng() * total;
-  let tier = PERK_TIERS[0];
-  for (const t of PERK_TIERS) {
-    r -= t.weight;
-    if (r <= 0) { tier = t; break; }
-  }
-  const p = PERKS[id];
-  const k = tier.t[0] + rng() * (tier.t[1] - tier.t[0]);
-  const v = Math.round(p.range[0] + (p.range[1] - p.range[0]) * k);
-  return { id, tier: tier.id, v };
-}
-export function perkText(perk) {
-  if (!perk) return '';
-  return PERKS[perk.id].desc.replace('{v}', perk.v);
-}

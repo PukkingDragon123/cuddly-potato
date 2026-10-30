@@ -4,7 +4,7 @@
 import { SWARMS, VARIANTS, MAX_LEVEL } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
 import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_CARDS, UPGRADE, UPGRADE_XP, lineupSlots } from '../data/cards.js';
-import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS, rollPerk, PERK_ROLL_COST, perkSlotsForLevel } from '../data/commanders.js';
+import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS } from '../data/commanders.js';
 import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId, upgradedVial, maxVialUpgrades, vialTier } from '../data/vials.js';
 import { ENTRANCES, DEFAULT_ENTRANCE } from '../data/entrances.js';
 import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
@@ -13,6 +13,7 @@ import {
 } from '../data/arenas.js';
 import { labLevelFor, LAB_XP, LAB_MAX_LEVEL, LAB_LEVEL_REWARDS } from '../data/labs.js';
 import { MEGAS } from '../data/megas.js';
+import { NODES, nodeCost, nodeTime, researchSkipPrice, reqMet } from '../data/research.js';
 import { mulberry32, hashString, todayKey, randInt } from '../core/util.js';
 
 const KEY = 'mbswarmers.save.v1';
@@ -38,6 +39,9 @@ function defaultProfile() {
     deckIdx: 0,
     commanders: { owned: { recruit: { level: 1, xp: 0, perks: [null, null, null], skin: null } }, equipped: 'recruit' },
     megaUnlocked: {},
+    // research tree (src/data/research.js): levels per node, the one active research (endsAt keeps
+    // running while the game is closed), finished-but-not-yet-shown levels, the old perk refund note
+    research: { levels: {}, active: null, fresh: {}, perkRefund: 0 },
     megas: { owned: {}, equipped: null },
     vials: { slots: Array(VIAL_SLOTS).fill(null), storage: [], cycle: 0, freeNext: 0, freeStock: 1, crowns: 0, crownDay: '', crownClaimed: false, opening: null },
     shop: { day: '', bought: {}, freeClaimed: false },
@@ -75,6 +79,7 @@ export const state = {
     } catch (e) {
       console.warn('Save load failed', e);
     }
+    try { checkResearch(); } catch (e) { console.warn('research check failed', e); }
     return this.p;
   },
   save() {
@@ -168,6 +173,32 @@ function sanitize(p) {
   p.decks = p.decks.map((dk) => dk.slice(0, slots));
   const d2 = p.decks[p.deckIdx];
   for (const id of Object.keys(p.cards)) if (d2.length < slots && !d2.includes(id)) d2.push(id);
+  sanitizeResearch(p);
+}
+
+/** Research tree save repair + the one-time refund of the old Commander perks (they became the research tree). */
+const PERK_REFUND = { common: 250, rare: 400, epic: 650, legendary: 1000 };
+function sanitizeResearch(p) {
+  if (!p.research || typeof p.research !== 'object') p.research = {};
+  const r = p.research;
+  if (!r.levels || typeof r.levels !== 'object') r.levels = {};
+  for (const id of Object.keys(r.levels)) {
+    const n = NODES[id];
+    if (!n) delete r.levels[id];
+    else r.levels[id] = Math.max(0, Math.min(n.max, Math.floor(Number(r.levels[id]) || 0)));
+  }
+  if (r.active && (!NODES[r.active.id] || !(r.active.endsAt > 0))) r.active = null;
+  if (!r.fresh || typeof r.fresh !== 'object') r.fresh = {};
+  r.perkRefund = Math.max(0, Number(r.perkRefund) || 0);
+  let refund = 0;
+  for (const c of Object.values(p.commanders?.owned ?? {})) {
+    if (Array.isArray(c.perks)) for (const pk of c.perks) if (pk && pk.id) refund += PERK_REFUND[pk.tier] ?? 250;
+    c.perks = [null, null, null];
+  }
+  if (refund) {
+    p.coins += refund;
+    r.perkRefund += refund;
+  }
 }
 
 const P = () => state.p;
@@ -404,30 +435,146 @@ export function addCmdXp(id, xp) {
   state.emit('commanders');
   return ups;
 }
-export function rollCommanderPerk() {
-  if (!spendCoins(PERK_ROLL_COST)) return null;
-  return rollPerk();
-}
-export function setPerk(cmdId, slot, perk) {
-  const c = P().commanders.owned[cmdId];
-  if (!c || slot >= perkSlotsForLevel(c.level)) return;
-  c.perks[slot] = perk;
-  state.emit('commanders');
-}
 export function setCmdSkin(cmdId, skinId) {
   const c = P().commanders.owned[cmdId];
   if (!c) return;
   c.skin = skinId;
   state.emit('commanders');
 }
-export function perkBonuses(cmdId = P().commanders.equipped) {
-  const c = P().commanders.owned[cmdId];
-  const b = {};
-  if (!c) return b;
-  c.perks.slice(0, perkSlotsForLevel(c.level)).forEach((pk) => {
-    if (pk) b[pk.id] = (b[pk.id] ?? 0) + pk.v;
-  });
-  return b;
+/** Legacy: perks are gone (see the research tree); kept for old callers (the parked online lobby). */
+export function perkBonuses() {
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// Research tree (src/data/research.js). One research at a time; it finishes at
+// `endsAt` (wall clock, so it keeps running while the game is closed), or right
+// away for Beast Bucks. Listeners (onResearch) hear 'start' | 'speedup' | 'finish'.
+
+const researchListeners = new Set();
+let researchTimer = 0;
+const R_ = () => P().research;
+
+/** Subscribe to research events: fn({ type: 'start' | 'speedup' | 'finish', id, level, active }). Returns an unsubscribe. */
+export function onResearch(fn) {
+  researchListeners.add(fn);
+  return () => researchListeners.delete(fn);
+}
+function researchEvent(type, id, level) {
+  const ev = { type, id, level, active: researchStatus().active };
+  for (const fn of [...researchListeners]) { try { fn(ev); } catch (e) { console.warn('research listener', e); } }
+}
+export const researchLevel = (id) => R_()?.levels?.[id] ?? 0;
+/** A copy of every researched level ({ nodeId: level }) for the battle side config. */
+export const researchLevels = () => ({ ...(R_()?.levels ?? {}) });
+/** { active: { id, name, branch, level, endsAt, startedAt } | null, done: [ids with level >= 1], levels }. */
+export function researchStatus() {
+  const r = R_();
+  const a = r?.active;
+  const n = a ? NODES[a.id] : null;
+  return {
+    active: n ? { id: a.id, name: n.name, branch: n.branch, level: a.level, endsAt: a.endsAt, startedAt: a.startedAt } : null,
+    done: Object.keys(r?.levels ?? {}).filter((id) => r.levels[id] > 0),
+    levels: { ...(r?.levels ?? {}) },
+  };
+}
+/** Seconds until the active research finishes (0 if none / done). */
+export function researchTimeLeft() {
+  const a = R_()?.active;
+  return a ? Math.max(0, (a.endsAt - Date.now()) / 1000) : 0;
+}
+export const researchSpeedUpPrice = () => researchSkipPrice(researchTimeLeft());
+/**
+ * Can node `id` be researched now? { ok, reason, level (next), cost, time }
+ * reason: 'max' | 'locked' (prerequisite) | 'rank' | 'busy' (another research running) | 'active' | 'coins' | null
+ */
+export function canResearch(id) {
+  const n = NODES[id];
+  if (!n) return { ok: false, reason: 'locked', level: 0, cost: 0, time: 0 };
+  const r = R_();
+  const lv = r.levels[id] ?? 0;
+  const out = { ok: false, reason: null, level: lv + 1, cost: lv < n.max ? nodeCost(n, lv + 1) : 0, time: lv < n.max ? nodeTime(n, lv + 1) : 0 };
+  if (lv >= n.max) out.reason = 'max';
+  else if (!reqMet(n, r.levels)) out.reason = 'locked';
+  else if (labLevel() < n.rank) out.reason = 'rank';
+  else if (r.active?.id === id) out.reason = 'active';
+  else if (r.active) out.reason = 'busy';
+  else if (P().coins < out.cost) out.reason = 'coins';
+  else out.ok = true;
+  return out;
+}
+function scheduleResearch() {
+  clearTimeout(researchTimer);
+  const a = R_()?.active;
+  if (!a || typeof setTimeout === 'undefined') return;
+  researchTimer = setTimeout(() => checkResearch(), Math.max(50, Math.min(2 ** 31 - 1, a.endsAt - Date.now() + 30)));
+}
+/** Start researching the next level of a node (pays the coins). */
+export function startResearch(id) {
+  const c = canResearch(id);
+  if (!c.ok) return false;
+  const p = P();
+  p.coins -= c.cost;
+  const now = Date.now();
+  p.research.active = { id, level: c.level, startedAt: now, endsAt: now + c.time * 1000 };
+  scheduleResearch();
+  state.emit('research');
+  researchEvent('start', id, c.level);
+  return true;
+}
+/** Finish the active research now for Beast Bucks. */
+export function speedUpResearch() {
+  const a = R_()?.active;
+  if (!a) return false;
+  const price = researchSpeedUpPrice();
+  if (price > 0 && !spendBucks(price)) return false;
+  a.endsAt = Date.now();
+  researchEvent('speedup', a.id, a.level);
+  checkResearch();
+  return true;
+}
+/** Complete the active research if its time is up. Returns the finished { id, level } or null. */
+export function checkResearch() {
+  const r = R_();
+  const a = r?.active;
+  if (!a) return null;
+  if (Date.now() < a.endsAt) { scheduleResearch(); return null; }
+  const n = NODES[a.id];
+  r.active = null;
+  clearTimeout(researchTimer);
+  if (n) {
+    r.levels[a.id] = Math.min(n.max, Math.max(r.levels[a.id] ?? 0, a.level));
+    r.fresh[a.id] = r.levels[a.id];
+  }
+  state.emit('research');
+  if (n) researchEvent('finish', a.id, r.levels[a.id]);
+  return n ? { id: a.id, level: r.levels[a.id] } : null;
+}
+/** Levels finished since the tree last showed them ({ id: level }); clear with markResearchSeen. */
+export const researchFresh = () => ({ ...(R_()?.fresh ?? {}) });
+export function markResearchSeen(id = null) {
+  const f = R_()?.fresh;
+  if (!f) return;
+  if (id) delete f[id];
+  else for (const k of Object.keys(f)) delete f[k];
+  state.save();
+}
+/** The one-off perk refund (coins) to announce, then cleared. */
+export function takePerkRefund() {
+  const r = R_();
+  const n = r?.perkRefund ?? 0;
+  if (n) { r.perkRefund = 0; state.save(); }
+  return n;
+}
+/** Lab tab dot: finished research to look at, or the bench is free and something is affordable. */
+export function researchBadgeCount() {
+  const r = R_();
+  if (!r) return 0;
+  checkResearch();
+  const fresh = Object.keys(r.fresh ?? {}).length;
+  if (fresh) return fresh;
+  if (r.active) return 0;
+  return Object.keys(NODES).some((id) => canResearch(id).ok) ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -932,7 +1079,7 @@ export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0,
     result, crowns, coins: 0, trophies: 0, calories: 0, vial: null, vialSlot: -1, cmdXp: 0, labXp: 0,
     levelUps: [], labUps: [], bossResult: null, passTiers: 0, slotsFull: false, crownProgress: null,
   };
-  const coinMag = 1 + (perkBonuses().coinMagnet ?? 0) / 100;
+  const coinMag = 1;
   const ranked = mode === 'ranked';
   p.stats.battles++;
   if (arenaId === 'mart') p.stats.martBattles++;

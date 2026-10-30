@@ -29,7 +29,7 @@ import { cardsOfArena, isSpell } from '../data/cards.js';
 import { MEGAS, MEGA_IDS } from '../data/megas.js';
 import { SWARMS } from '../data/swarms.js';
 import {
-  state, labXpInfo, vialTimeLeft, isUnlocking, startUnlock, vialReady, skipVial, takeVial, freeVialStatus, claimFreeVial,
+  state, labXpInfo, vialTimeLeft, isUnlocking, startUnlock, vialReady, skipVial, takeVial, freeVialStatus, claimFreeVial, onResearch,
   equipMega, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
 } from '../game/state.js';
 import { game } from '../game/game.js';
@@ -121,6 +121,10 @@ export class HomeScene {
     this.buildUI();
     if (params.tab) this.setTab(params.tab, true); // e.g. back from a shop entrance preview
     this.offState = state.on(() => this.refresh());
+    // research finishing while you're on another tab: a toast (the Lab tab celebrates it itself)
+    this.offResearch = onResearch((ev) => {
+      if (ev.type === 'finish' && this.tab !== 'lab') import('../data/research.js').then(({ NODES }) => toast(`Research done: *${NODES[ev.id]?.name ?? 'Upgrade'}*${(NODES[ev.id]?.max ?? 1) > 1 ? ` LV ${ev.level}` : ''}`, { icon: 'flask' }));
+    });
     this.bindInput();
     audio.music('map');
     if (params.dev) window.__home = this;
@@ -358,7 +362,7 @@ export class HomeScene {
     // pills start at what they showed last time; refresh() after the entrance rolls them up
     this.coinPill = pill('coin', shown.coins ?? p.coins, { plus: () => this.setTab('shop'), cls: 'hm-pill-coin' });
     this.buckPill = pill('bucks', shown.bucks ?? p.bucks, { plus: () => this.setTab('shop'), cls: 'hm-pill-buck' });
-    this.coinPill.dataset.tip = '*Beast Coins*: upgrade cards, roll perks';
+    this.coinPill.dataset.tip = '*Beast Coins*: upgrade cards, fund research';
     this.buckPill.dataset.tip = '*Beast Bucks*: vials, skins and skips';
     this.top = h('div', { class: 'hm-top' }, prof, this.coinPill, this.buckPill);
     root.appendChild(this.top);
@@ -964,6 +968,7 @@ export class HomeScene {
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onUp);
     this.offState && this.offState();
+    this.offResearch && this.offResearch();
     try { this.currentTab?.dispose?.(); } catch (e) { /* ignore */ }
     if (this.tutPtr) this.tutPtr();
     clearTimeout(this.showT);
