@@ -132,6 +132,7 @@ body.landscape .tt-wrap .cn-logo .l2 { font-size: calc(var(--u) * 15); }
    loading.js) and one tip at a time. */
 .ld { position: absolute; inset: 0; z-index: 62; overflow: hidden; opacity: 0; transition: opacity 0.16s ease-out; pointer-events: auto; color: #fff; --lp: 3px; }
 .ld.in { opacity: 1; }
+.ld.now { transition: none; }
 .ld.out { opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in; }
 .ld-bg { position: absolute; inset: 0;
   background:

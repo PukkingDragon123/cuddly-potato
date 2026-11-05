@@ -149,7 +149,7 @@ export function mount(el, ctx) {
         // an empty slot: '+' when a card is waiting in the collection, else a hint to go find more
         const spare = Object.keys(p.cards).some((cid) => !deck.includes(cid));
         const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: spare ? null : { flexDirection: 'column', gap: '0.1em' } },
-          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.7 } }, '?'), h('span', { class: 't-xs c-muted', style: { fontSize: '0.62em', textAlign: 'center', lineHeight: 1.05 } }, 'Win to find')]));
+          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.55 } }, '?'), h('span', { class: 'c-muted', style: { fontSize: 'calc(var(--u) * 2.1)', fontWeight: 700, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' } }, 'Win more')]));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.appendChild(em);
       }

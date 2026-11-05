@@ -365,6 +365,8 @@ export function setupIslandRoad(home) {
       const now = performance.now();
       if (dirty && now - lastCommit > 220) { dirty = false; lastCommit = now; atlas.commit(); }
       if (!active) return;
+      // the phone turned: re-frame for the new aspect
+      if (Math.abs(camDist() - pitchDist) > 0.5) buildPitch(camDist());
       if (!flying) {
         if (drag) {
           // the finger owns s

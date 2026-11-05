@@ -153,8 +153,8 @@ export class TitleScene {
     this.root.classList.add('go');
     await wait(0.4);
     const p = state.p;
-    if (p.tutorial === 'done' || p.tutorial === 'home') game.go('home');
-    else game.go('lab'); // first time: into the Lab to meet Jimmy and open your first pack
+    if (p.tutorial === 'done' || p.tutorial === 'home') game.go('home', { cover: true });
+    else game.go('lab', { cover: true }); // first time: into the Lab to meet Jimmy and open your first pack
   }
 
   resize(w, hh) {

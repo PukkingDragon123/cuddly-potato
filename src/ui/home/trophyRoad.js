@@ -240,12 +240,12 @@ export function openTrophyRoad(ctx) {
 // Island Trophy Road HUD
 
 /** 2D pixel confetti bursting up from a screen point and falling back (DOM squares, WAAPI). */
-function pixelPop(x, y, n = 40) {
+function pixelPop(x, y, n = 56) {
   if (matchMedia?.('(prefers-reduced-motion: reduce)').matches) n = 8;
   const cols = ['#ffd84a', '#ff2e88', '#3ff2e0', '#7aff4a', '#ffffff', '#a35cff', '#ff8a1f'];
   const layer = $overlay();
   for (let i = 0; i < n; i++) {
-    const w = 2 + (i % 3), hh = i % 4 === 0 ? 1 : w;
+    const w = 3 + (i % 3), hh = i % 4 === 0 ? 2 : w;
     const p = h('i', { class: 'trd-px', style: { left: x + 'px', top: y + 'px', background: cols[i % cols.length], width: `calc(var(--px) * ${w})`, height: `calc(var(--px) * ${hh})` } });
     layer.appendChild(p);
     const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.1, v = 170 + Math.random() * 230;

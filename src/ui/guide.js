@@ -655,3 +655,5 @@ export async function battleLessons(sc) {
     }
   }
 }
+
+if (import.meta.env?.DEV && typeof window !== 'undefined') window.__guide = { resolve: (id) => { const t = resolveTarget(STEPS[id].targets); return t && { tip: t.tip, cls: t.el.className }; }, visible };

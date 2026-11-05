@@ -120,6 +120,8 @@ export function showLoading(name, params = {}) {
       h('div', { class: 'ld-tips', style: { '--n': tips.length } },
         ...tips.map((t, i) => h('p', { class: 'ld-tip', style: { '--i': i } }, h('b', {}, 'TIP'), h('span', { html: rich(t) }))))));
   app.appendChild(el);
+  // coming from the title's wipe (same navy), the screen is simply there; otherwise it fades in
+  if (params.cover) el.classList.add('now');
   void el.offsetWidth;
   el.classList.add('in');
 

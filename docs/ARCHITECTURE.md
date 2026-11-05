@@ -72,7 +72,9 @@ src/
                        helpers, hdpaint.js HD painted skies / far layers / clouds (never hard pixel art),
                        wildsKit.js; one module per arena, 15 arenas)
     island/            Beast Island world: terrain (chunked), water, sky, props, makeBeastIsland() - 15 zones
-                       incl. the northern region and the floating space station
+                       incl. the northern region and the floating space station; trophyPath.js builds the
+                       TROPHY_ROAD into it (milestone pedestals + chests + floating reward billboards, arena
+                       gates with portcullis, the orbit road around the space elevator past the last arena)
     props/             base tiers Camp Lab -> Mega HQ (base.js: lab-gear brushes, dressBox), MEGA containment vessel (containment.js), legacy Lab
                        buildings (lab.js), vials (vials.js), lab interior + misc props
   scenes/
@@ -83,7 +85,9 @@ src/
     lab.js             the Beast Lab: first-time flow (Jimmy, your name, first pack -> tutorial battle ->
                        MEGA tube -> Beast Island) and later visits
     home.js            Beast Island home lobby (top bar, vial slots, battle, nav tabs, unlock cinematic); spring
-                       motion (press / release / hover, staggered entrances, tab carousel) in homeMotion.js
+                       motion (press / release / hover, staggered entrances, tab carousel) in homeMotion.js;
+                       homeRoad.js = Trophy Road mode (camera flies onto the island road, drag / inertia pan,
+                       tap a chest, CLAIM pops it) + the YOU marker; its HUD is mountIslandRoad() in home/trophyRoad.js
     frozenBattle.js    title / loading cinematic: a time-stopped lane fight in an arena (real arena/bases/
                        Commanders/Swarms, suspended fx snapshot, live arcs/glows/streaks), scripted camera shots
     battle.js          battle scene: modes (tutorial/ranked/practice/boss/friend), input, tutorial, finish
