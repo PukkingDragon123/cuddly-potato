@@ -5,7 +5,7 @@ import { SWARMS, VARIANTS, MAX_LEVEL } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
 import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER_CARDS, UPGRADE, UPGRADE_XP, lineupSlots } from '../data/cards.js';
 import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS } from '../data/commanders.js';
-import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId, upgradedVial, maxVialUpgrades, vialTier } from '../data/vials.js';
+import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId, upgradedVial, maxVialUpgrades, vialTier, EARLY_VIALS, NEW_CARD_VIALS, FAST_FIRST_VIALS } from '../data/vials.js';
 import { ENTRANCES, DEFAULT_ENTRANCE } from '../data/entrances.js';
 import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
 import {
@@ -60,6 +60,10 @@ function defaultProfile() {
     settings: { sfx: 0.8, music: 0.45, pixel: 'off', graphics: null, shake: true, muted: false },
     hub: {},
     lastDay: '',
+    // progression (game/progression.js): features revealed so far, guided-tutorial steps, battle
+    // lessons, the main quest line. legacy = a save from before gating: everything stays unlocked.
+    // holdDeck: the first new card waits in the collection so the guide can teach "USE".
+    prog: { legacy: false, seen: {}, guide: {}, lessons: {}, main: { idx: 0, base: null }, holdDeck: true },
   };
 }
 
@@ -72,6 +76,8 @@ export const state = {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const data = migrate(JSON.parse(raw));
+        // saves from before progressive unlocks keep every feature they already had
+        if (data && !data.prog) data.prog = { legacy: data.tutorial === 'done' || data.tutorial === 'home' || (data.stats?.battles ?? 0) > 0, holdDeck: false };
         this.p = deepMerge(defaultProfile(), data);
         sanitize(this.p);
         recoverOpening(this.p);
@@ -172,7 +178,7 @@ function sanitize(p) {
   const slots = lineupSlots(Math.max(p.bestTrophies ?? 0, p.trophies ?? 0));
   p.decks = p.decks.map((dk) => dk.slice(0, slots));
   const d2 = p.decks[p.deckIdx];
-  for (const id of Object.keys(p.cards)) if (d2.length < slots && !d2.includes(id)) d2.push(id);
+  if (!p.prog?.holdDeck) for (const id of Object.keys(p.cards)) if (d2.length < slots && !d2.includes(id)) d2.push(id);
   sanitizeResearch(p);
 }
 
@@ -310,7 +316,7 @@ export function grantCard(id, copies = 1, variant = 'base') {
     e.variant = variant; // auto-equip the shiny!
   }
   const d = currentDeck();
-  if (isNew && d.length < deckSlotCount() && !d.includes(id)) d.push(id);
+  if (isNew && !p.prog?.holdDeck && d.length < deckSlotCount() && !d.includes(id)) d.push(id);
   state.emit('cards');
   return { isNew, newVariant };
 }
@@ -339,6 +345,7 @@ export function upgradeCard(id) {
   P().coins -= info.coins;
   e.copies -= info.copies;
   e.level++;
+  stat('upgrades');
   const labUps = addLabXp(info.xp);
   state.emit('cards');
   return { ok: true, labUps, xp: info.xp };
@@ -730,7 +737,11 @@ export function rollVial(type, opts = {}) {
   let epic = (g.epic ?? 0) + (rng() < N * 0.012 ? 1 : 0);
   let rare = Math.max(g.rare ?? 0, Math.round(N * 0.13 * (0.75 + rng() * 0.5)));
   let common = Math.max(0, N - rare - epic - legendary);
-  const pool = cardPool(p.bestTrophies, { series: vial.series });
+  const fullPool = cardPool(p.bestTrophies, { series: vial.series });
+  // a new player's first vials: only cards you own (new ones come at a steady pace, see below)
+  const opened = p.stats.vialsOpened ?? 0;
+  const early = !p.prog?.legacy && opened < EARLY_VIALS && fullPool.some((c) => p.cards[c.id]);
+  const pool = early ? fullPool.filter((c) => p.cards[c.id]) : fullPool;
   const byR = (r) => pool.filter((c) => c.rarity === r);
   // demote rarities that aren't unlocked yet (a guaranteed Legendary falls back to any Legendary)
   if (legendary && !byR('legendary').length) {
@@ -764,6 +775,25 @@ export function rollVial(type, opts = {}) {
   split('rare', rare, N >= 30 ? 3 : 2);
   split('epic', epic, 2);
   split('legendary', legendary, 1);
+  // the pacing vials always bring something new (the lowest rarity you're missing, taken out of the biggest stack)
+  if (!p.prog?.legacy && NEW_CARD_VIALS.includes(opened) && !Object.keys(counts).some((id) => !p.cards[id])) {
+    // skip cards the Trophy Road / the pass's first tiers are about to hand out anyway
+    const soon = new Set([
+      ...TROPHY_ROAD.filter((m) => m.t > p.bestTrophies && m.t < 400 && m.reward?.type === 'card').map((m) => m.reward.id),
+      ...PASS_TIERS.slice(0, 6).map((t) => t.free).filter((r) => r.type === 'card' || r.type === 'spell').map((r) => r.id),
+    ]);
+    const missing = fullPool.filter((c) => !p.cards[c.id] && c.rarity !== 'legendary');
+    const fresh = (missing.some((c) => !soon.has(c.id)) ? missing.filter((c) => !soon.has(c.id)) : missing).sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
+    const pick = fresh.filter((c) => c.rarity === fresh[0]?.rarity);
+    const big = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    if (pick.length && big) {
+      const c = pick[Math.floor(rng() * pick.length)];
+      const k = Math.max(1, Math.min(c.rarity === 'common' ? 2 : 1, counts[big] - 1));
+      counts[big] -= k;
+      if (counts[big] <= 0) delete counts[big];
+      counts[c.id] = k;
+    }
+  }
   const boost = vial.shinyBoost ?? 1;
   for (const id in counts) {
     let variant = 'base';
@@ -1099,6 +1129,8 @@ export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0,
       if (hasFreeSlot()) {
         res.vial = nextCycleVial();
         res.vialSlot = addVial(res.vial);
+        // a new player's first win vials come pre-shaken: open them right away
+        if (!p.prog?.legacy && p.stats.wins <= FAST_FIRST_VIALS && res.vialSlot >= 0) { p.vials.slots[res.vialSlot].skipped = true; res.vialFast = true; }
       } else res.slotsFull = true;
     }
   } else if (result === 'draw') {

@@ -100,18 +100,18 @@ export function unlockedSeries(trophies) {
 // Trophy road (milestones). Arena gates are flagged `arena`.
 
 export const TROPHY_ROAD = [
-  // you start with only 2 troops (Panther + Clogged Toilet); the first wins unlock the rest of the squad
+  // you start with 2 troops + Food Throw (Panther, Clogged Toilet); the first wins unlock a new card
+  // almost every battle (vials guarantee new cards early too, see data/vials.js EARLY_NEW_CARD_VIALS)
   { t: 10, reward: { type: 'card', id: 'fryFiend', copies: 2 } },
-  { t: 30, reward: { type: 'card', id: 'foodThrow', copies: 2 } },
-  { t: 50, reward: { type: 'vial', id: 'testTube' } },
-  { t: 70, reward: { type: 'card', id: 'trashedCan', copies: 2 } },
-  { t: 100, reward: { type: 'coins', amount: 150 } },
-  { t: 130, reward: { type: 'card', id: 'pizzaSlicer', copies: 2 } },
-  { t: 160, reward: { type: 'vial', id: 'labPack' } },
-  { t: 190, reward: { type: 'card', id: 'toiletRollRipper', copies: 2 } },
-  { t: 220, reward: { type: 'coins', amount: 400 } },
+  { t: 40, reward: { type: 'card', id: 'trashedCan', copies: 2 } },
+  { t: 70, reward: { type: 'vial', id: 'testTube' } },
+  { t: 100, reward: { type: 'card', id: 'toiletRollRipper', copies: 2 } },
+  { t: 130, reward: { type: 'coins', amount: 150 } },
+  { t: 160, reward: { type: 'card', id: 'pixelPups', copies: 2 } },
+  { t: 190, reward: { type: 'vial', id: 'labPack' } },
+  { t: 220, reward: { type: 'card', id: 'mutantMop', copies: 3 } },
   { t: 250, reward: { type: 'card', id: 'steelPanther', copies: 1 } },
-  { t: 280, reward: { type: 'card', id: 'moneyDrop', copies: 2 } },
+  { t: 280, reward: { type: 'coins', amount: 400 } },
   { t: 300, arena: 'circle', reward: { type: 'mega', id: 'panthar' } },
   { t: 360, reward: { type: 'coins', amount: 500 } },
   { t: 420, reward: { type: 'card', id: 'mutantMailbox', copies: 5 } },
@@ -302,7 +302,11 @@ const NAME_A = ['Swarm', 'Beast', 'Slime', 'Lab', 'Mega', 'Choco', 'Atomic', 'To
 const NAME_B = ['Lord', 'King', 'Master', 'Gamer', 'Wizard', 'Goblin', 'Chef', 'Boss', 'Ninja', 'Legend', 'Rex', 'Muncher', 'Queen', 'Hero', 'Gremlin', 'Fan', 'Pro', 'Chomp'];
 const CLAN = ['Beast Squad', 'Lab Rats', 'Feastables Fam', 'Panther Pride', 'Slime Time', 'Toilet Titans', 'Circle Campers', null, null];
 
-export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
+/** Rival deck size in the first arena: grows with trophies like a new player's collection. */
+export const rivalDeckSize = (trophies) => (trophies < 30 ? 3 : trophies < 60 ? 4 : trophies < 100 ? 5 : trophies < 140 ? 6 : trophies < 200 ? 7 : DECK_SIZE);
+
+/** opts.deckSize: the player's deck size (first arena only: rivals bring the same number of cards). */
+export function ghostOpponent(trophies, seed = Date.now(), arenaId, opts = {}) {
   const rng = mulberry32((seed ^ hashString(String(trophies))) >>> 0);
   const name = `${NAME_A[Math.floor(rng() * NAME_A.length)]}${NAME_B[Math.floor(rng() * NAME_B.length)]}${rng() < 0.5 ? Math.floor(rng() * 999) : ''}`;
   const arena = arenaId ? arenaById(arenaId) : currentArena(trophies);
@@ -315,9 +319,9 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId) {
     const opts = cands.filter((c) => f(c) && !deck.includes(c.id));
     if (opts.length) deck.push(opts[Math.floor(rng() * opts.length)].id);
   };
-  // lineup size grows with trophies (new rivals bring only a few Swarms, like you)
-  // rivals bring a full Clash Royale deck too
-  const size = DECK_SIZE;
+  // deck size grows with trophies in the Beast Lab arena (new rivals own only a few cards, like you),
+  // a full Clash Royale deck from Arena 2 on
+  const size = trophies < 300 ? Math.max(3, Math.min(DECK_SIZE, opts.deckSize ?? rivalDeckSize(trophies))) : DECK_SIZE;
   // a sensible archetype: a cheap card, a tank, ranged support, a spell, then fill
   want((c) => c.kind === 'troop' && c.elixir <= 2);
   want((c) => c.kind === 'troop' && (c.role === 'tank' || c.role === 'siege'));

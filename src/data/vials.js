@@ -47,6 +47,13 @@ export const VIALS = {
 for (const [id, v] of Object.entries(VIALS)) v.id = id;
 
 export const VIAL_SLOTS = 4;
+// new-player pacing (about one new card per win early on, see game/progression.js): your first
+// EARLY_VIALS vials only hold cards you already own, except the ones listed in NEW_CARD_VIALS (by how
+// many vials you'd opened before) which always bring one card you don't have yet. The vials from your
+// first FAST_FIRST_VIALS wins arrive pre-shaken (no unlock timer).
+export const EARLY_VIALS = 6;
+export const NEW_CARD_VIALS = [0, 2, 4];
+export const FAST_FIRST_VIALS = 2;
 export const FREE_VIAL_EVERY = 4 * 3600; // seconds
 export const FREE_VIAL_MAX = 2;
 export const CROWN_GOAL = 10;

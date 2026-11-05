@@ -62,11 +62,11 @@ function padGrid(num, kind, ms) {
     g.set(x, 1, z, e ? rim : base, e && kind === 'next');
   }
   const str = String(num);
-  const ink = kind === 'done' ? 0xffffff : kind === 'next' ? PINK : 0xd04a90;
+  const ink = kind === 'done' ? 0x7a3a06 : kind === 'next' ? PINK : 0xd04a90;
   const w = textW(str, 2);
   // digits on top, reading from the camera (rows run toward -z)
   text(g, str, -Math.floor(w / 2), 2, 5, '+y', ink, { scale: 2 });
-  if (ms) for (const [x, z] of [[-r + 1, -r + 1], [r - 2, -r + 1], [-r + 1, r - 2], [r - 2, r - 2]]) g.set(x, 2, z, kind === 'done' ? 0xffffff : GOLD, true);
+  if (ms) for (const [x, z] of [[-r + 1, -r + 1], [r - 2, -r + 1], [-r + 1, r - 2], [r - 2, r - 2]]) g.set(x, 2, z, kind === 'done' ? 0xfff6c8 : GOLD, true);
   return g;
 }
 /** Display stand: free = white + blue trim with a ribbon emblem, premium = gold + pink with a crown. */
@@ -145,26 +145,10 @@ function padlockGrid() {
   g.set(-4, 7, 2, 0xffffff).set(-3, 7, 2, 0xffffff);
   return g;
 }
-/** Pixel sparkle sprite texture (4-point star). */
-let sparkTex = null;
-function sparkTexture() {
-  if (sparkTex) return sparkTex;
-  const c = document.createElement('canvas');
-  c.width = c.height = 9;
-  const x = c.getContext('2d');
-  x.fillStyle = '#fff6b0';
-  for (const [a, b] of [[4, 0], [4, 1], [4, 2], [4, 3], [4, 5], [4, 6], [4, 7], [4, 8], [0, 4], [1, 4], [2, 4], [3, 4], [5, 4], [6, 4], [7, 4], [8, 4]]) x.fillRect(a, b, 1, 1);
-  x.fillStyle = '#ffffff';
-  x.fillRect(3, 3, 3, 3);
-  sparkTex = new THREE.CanvasTexture(c);
-  sparkTex.magFilter = sparkTex.minFilter = THREE.NearestFilter;
-  sparkTex.colorSpace = THREE.SRGBColorSpace;
-  return sparkTex;
-}
-
 // ---------------------------------------------------------------------------
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _c = new THREE.Color(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
+const _tagA = new THREE.Vector3(), _tagB = new THREE.Vector3();
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /**
@@ -253,9 +237,7 @@ export async function createPassStage(o = {}) {
   const bulbB = bulbA.clone();
   const bulbMats = [bulbA, bulbB];
   const glowPulse = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
-  const sparkMat = new THREE.SpriteMaterial({ map: sparkTexture(), color: 0xffffff, transparent: true, depthWrite: false, fog: false });
-  sparkMat.toneMapped = false;
-  owned.mats.push(bulbA, bulbB, glowPulse, sparkMat);
+  owned.mats.push(bulbA, bulbB, glowPulse);
   const flagPole = geo('flagPole', flagGrid, 0.05, 'bottom');
   const flagCloth = geo('flagCloth', clothGrid, 0.05, [0, 0, 0]);
   const lockGeo = geo('padlock', padlockGrid, 0.05, 'center');
@@ -306,17 +288,8 @@ export async function createPassStage(o = {}) {
       const hold = new THREE.Group();
       hold.position.y = top + 0.22;
       g.add(hold);
-      const sparks = [];
-      for (let k = 0; k < 3; k++) {
-        const sp = new THREE.Sprite(sparkMat);
-        sp.scale.setScalar(0.18);
-        sp.visible = false;
-        sp.userData.o = k * 2.1 + i;
-        g.add(sp);
-        sparks.push(sp);
-      }
       nodeRoot.add(g);
-      node.stands[track] = { track, i, g, body, bulbs, flag, cloth, lock, hold, sparks, top, item: null, st: null, bounce: 0, fly: null };
+      node.stands[track] = { track, i, g, body, bulbs, flag, cloth, lock, hold, top, item: null, st: null, bounce: 0, fly: null };
     }
     nodes.push(node);
   }
@@ -426,7 +399,8 @@ export async function createPassStage(o = {}) {
   let tier = -1, t = 0, chaseT = 0, chase = 1, disposed = false;
   let juanIdx = -1;
   const START_Z = -2.3; // where Juan waits before tier 1 (past the START gate, clear of its banner)
-  const stopPos = (i) => (i < 0 ? _v.set(L.pathX(START_Z), 0.12, START_Z) : _v.set(nodes[i].x, nodes[i].y + 0.3, nodes[i].z));
+  const JUAN_BACK = 0.68; // Juan stands at the back of his stop, so the tier number in front of him stays readable
+  const stopPos = (i) => (i < 0 ? _v.set(L.pathX(START_Z), 0.12, START_Z) : _v.set(L.pathX(nodes[i].z - JUAN_BACK), nodes[i].y + 0.3, nodes[i].z - JUAN_BACK));
 
   function standState(i, track) {
     const p = state.p;
@@ -449,7 +423,6 @@ export async function createPassStage(o = {}) {
     s.lock.visible = stNew === 'plock';
     s.hold.visible = !claimed || !!s.fly;
     if (s.item) setDim(s.item.obj, dimmed(s));
-    for (const sp of s.sparks) sp.visible = stNew === 'avail';
     s.bulbs.visible = stNew === 'avail';
   }
   // locked rewards are dimmed, except the season's grand prize stage (always on show)
@@ -567,7 +540,7 @@ export async function createPassStage(o = {}) {
     }
     // fit the stands across the free area in tall views
     const halfV = Math.tan((R.fov * Math.PI) / 360);
-    const needDist = (R.width / 2) / (halfV * (W2 / H2));
+    const needDist = (R.width / 2) / (halfV * (Math.max(1, Math.min(view.w, W2)) / H2));
     const dist = Math.max(R.dist, Math.min(30, needDist));
     // the camera follows the path's sideways bends (centred on the framed stop)
     const fx = L.pathX(cam.z + FRAME * 0.6) * 0.9;
@@ -736,12 +709,6 @@ export async function createPassStage(o = {}) {
           o.rotation.y += dt * 1.1;
           const sq = ph < 0.42 ? 1 + Math.sin((ph / 0.42) * Math.PI) * 0.06 : 1;
           o.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
-          s.sparks.forEach((sp, k) => {
-            const a = t * 1.3 + sp.userData.o;
-            sp.position.set(Math.cos(a) * 0.62, s.top + 0.5 + Math.sin(a * 1.7) * 0.35, Math.sin(a) * 0.42 + 0.1);
-            const tw = Math.max(0, Math.sin(t * 4 + k * 2.1));
-            sp.scale.setScalar(0.06 + tw * 0.16);
-          });
         } else o.rotation.y += dt * (s.st === 'locked' || s.st === 'plock' ? 0.25 : 0.5);
         o.position.y = y;
         if (Math.abs(dz) < 26) it.update(Math.min(dt, 1 / 30));
@@ -803,7 +770,6 @@ export async function createPassStage(o = {}) {
       s.fly = { t: 0, res, from: new THREE.Vector3() };
       s.hold.visible = true;
       s.item.obj.getWorldPosition(s.fly.from);
-      for (const sp of s.sparks) sp.visible = false;
       s.bulbs.visible = true;
     });
   }
@@ -930,6 +896,27 @@ export async function createPassStage(o = {}) {
     pick,
     project(v) { return project(v); },
     standScreen(i, track) { return project(standAnchor(nodes[i].stands[track])); },
+    /** Screen point just above a stand's reward (for its DOM tag) + px per world unit there (s). */
+    standTag(i, track) {
+      const st = nodes[i].stands[track];
+      _tagA.set(0, st.top + 1.12, 0).applyMatrix4(st.g.matrixWorld);
+      const p = project(_tagA);
+      const q = project(_tagB.copy(_tagA).add(_v.set(0.5, 0, 0)));
+      p.s = Math.hypot(q.x - p.x, q.y - p.y) * 2;
+      return p;
+    },
+    /** First and last tier whose stop is inside the view rect (-1 when none). */
+    visibleTiers() {
+      let lo = -1, hi = -1;
+      for (const n of nodes) {
+        if (Math.abs(n.z - cam.z) > 40) continue;
+        const p = project(_tagA.set(n.x, n.y, n.z));
+        if (!p.vis || p.y < view.y || p.y > view.y + view.h) continue;
+        if (lo < 0) lo = n.i;
+        hi = n.i;
+      }
+      return [lo, hi];
+    },
     charScreen(id) {
       const c = chars.find((x) => x.id === id);
       if (!c) return null;

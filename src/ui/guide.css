@@ -1,0 +1,173 @@
+/* =========================================================================
+   Progression UI (ui/guide.js): locked home tabs + side buttons, the unlock
+   reveal (spotlight with pixel corner brackets, rattle + pop, caption), the
+   guided-step chip, the MAIN QUEST tracker + list, locked battle buttons.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------- locked home features */
+.pg-lk {
+  position: absolute; z-index: 3; left: 50%; translate: -50% 0; pointer-events: none; display: flex; align-items: center; gap: 0.15em; white-space: nowrap;
+  padding: 0.05em 0.35em 0.08em; font-style: normal; font-family: var(--font-d); font-size: 0.62em; line-height: 1.05; color: #ffe9a0; text-shadow: var(--outline-thin);
+  background: linear-gradient(#3a2a10, #1c1206); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink), inset 0 calc(var(--px) * 0.75) 0 rgba(255, 216, 74, 0.45);
+}
+.pg-lk .pi { width: 1.15em; height: 1.15em; }
+.pg-lock > .pi, .pg-lock > span > .pi, .pg-lock .row > .pi { filter: grayscale(1) brightness(0.45) !important; animation: none !important; }
+.pg-lock .badge { display: none !important; }
+/* nav tabs: the label makes room for the lock chip */
+.hm-tabbtn.pg-lock .tl { opacity: 0 !important; }
+.hm-tabbtn.pg-lock .pg-lk { bottom: 6%; }
+.hm-tabbtn.pg-lock::before { display: none; }
+/* side buttons + TRAIN: chip across the bottom edge, the button itself dims */
+.hm-sb.pg-lock, .hm-side-play.pg-lock { filter: saturate(0.25) brightness(0.7) !important; animation: none !important; }
+.hm-sb.pg-lock::after { opacity: 0; }
+.hm-sb.pg-lock .pg-lk { top: auto; bottom: calc(var(--u) * -1.6); font-size: 0.6em; filter: saturate(4) brightness(1.4); }
+.hm-side-play.pg-lock .pg-lk { top: calc(var(--u) * -2.4); bottom: auto; font-size: 0.48em; filter: saturate(4) brightness(1.4); }
+.pg-shake { animation: pgShake 0.36s steps(6) !important; }
+@keyframes pgShake { 0%, 100% { translate: 0 0; } 20% { translate: calc(var(--px) * -3) 0; } 40% { translate: calc(var(--px) * 3) 0; } 60% { translate: calc(var(--px) * -2) 0; } 80% { translate: calc(var(--px) * 2) 0; } }
+/* reveal: the lock rattles, then the feature springs in */
+.pg-rattle .pg-lk { animation: pgRattle 0.12s steps(2) infinite; }
+@keyframes pgRattle { 0% { translate: calc(-50% - var(--px) * 2) 0; } 100% { translate: calc(-50% + var(--px) * 2) calc(var(--px) * -1); } }
+.pg-pop { animation: pgPop 0.8s cubic-bezier(.2, 1.7, .4, 1) !important; }
+@keyframes pgPop { 0% { scale: 0.3; } 45% { scale: 1.35; } 70% { scale: 0.92; } 100% { scale: 1; } }
+.pg-newtag {
+  position: absolute; z-index: 4; right: 2%; top: -4%; pointer-events: none; padding: 0.05em 0.3em; font-style: normal;
+  font-family: var(--font-d); font-size: 0.62em; line-height: 1; color: var(--ink); background: var(--gold); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink), 0 0 calc(var(--px) * 4) rgba(255, 216, 74, 0.8);
+  animation: badgeBob 1s ease-in-out infinite;
+}
+.hm-tabbtn .pg-newtag { right: 6%; top: 0; }
+
+/* ---------------------------------------------------------------- spotlight */
+.gd-spot {
+  position: absolute; z-index: 44; pointer-events: none; transition: left 0.22s cubic-bezier(.3, 1.3, .5, 1), top 0.22s cubic-bezier(.3, 1.3, .5, 1), width 0.22s, height 0.22s, opacity 0.2s;
+  box-shadow: 0 0 0 200vmax rgba(5, 6, 26, 0.42); animation: gdSpotIn 0.35s ease-out both;
+}
+.gd-spot.strong { box-shadow: 0 0 0 200vmax rgba(5, 6, 26, 0.72); }
+.gd-spot.off { opacity: 0; }
+.gd-spot.bye { opacity: 0; transition: opacity 0.25s; }
+@keyframes gdSpotIn { from { opacity: 0; } to { opacity: 1; } }
+/* stepped pixel corner brackets (not a ring): they breathe in and out in pixel steps */
+.gd-spot i {
+  position: absolute; width: calc(var(--u) * 3); height: calc(var(--u) * 3); border: 0 solid var(--gold);
+  filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 216, 74, 0.9)); animation: gdBrk 0.9s steps(3) infinite alternate;
+}
+.gd-spot i.tl { left: calc(var(--px) * -3); top: calc(var(--px) * -3); border-left-width: calc(var(--px) * 1.5); border-top-width: calc(var(--px) * 1.5); --dx: -1; --dy: -1; }
+.gd-spot i.tr { right: calc(var(--px) * -3); top: calc(var(--px) * -3); border-right-width: calc(var(--px) * 1.5); border-top-width: calc(var(--px) * 1.5); --dx: 1; --dy: -1; }
+.gd-spot i.bl { left: calc(var(--px) * -3); bottom: calc(var(--px) * -3); border-left-width: calc(var(--px) * 1.5); border-bottom-width: calc(var(--px) * 1.5); --dx: -1; --dy: 1; }
+.gd-spot i.br { right: calc(var(--px) * -3); bottom: calc(var(--px) * -3); border-right-width: calc(var(--px) * 1.5); border-bottom-width: calc(var(--px) * 1.5); --dx: 1; --dy: 1; }
+@keyframes gdBrk { from { translate: 0 0; } to { translate: calc(var(--dx) * var(--px) * 3) calc(var(--dy) * var(--px) * 3); } }
+.gd-catch { position: absolute; inset: 0; z-index: 43; pointer-events: auto; }
+
+/* reveal caption: UNLOCKED + the feature name slam in next to the spotlight */
+.gd-cap {
+  position: absolute; z-index: 46; translate: -50% 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.4);
+  animation: slam 0.5s cubic-bezier(.2, 1.5, .4, 1) both; white-space: nowrap;
+}
+.gd-cap.up { translate: -50% -100%; }
+.gd-cap.bye { opacity: 0; transition: opacity 0.25s; }
+.gd-cap-k {
+  font-family: var(--font-d); font-size: 0.85em; letter-spacing: 0.12em; padding: 0.05em 0.6em; color: var(--ink);
+  background: var(--gold); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 5) rgba(255, 216, 74, 0.8);
+}
+.gd-cap b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 7.5); line-height: 0.95; color: #fff; text-shadow: var(--outline), 0 0 calc(var(--u) * 2) rgba(63, 242, 224, 0.75); }
+body.landscape .gd-cap b { font-size: calc(var(--u) * 6.5); }
+
+/* ---------------------------------------------------------------- guided-step chip */
+.gd-chip {
+  position: absolute; z-index: 8; left: 50%; translate: -50% 0; top: calc(var(--safe-t) + var(--u) * 28); pointer-events: auto;
+  display: flex; align-items: center; gap: calc(var(--u) * 1.2); max-width: calc(100vw - var(--u) * 6); padding: calc(var(--u) * 0.8) calc(var(--u) * 0.8) calc(var(--u) * 0.8) calc(var(--u) * 1.2);
+  background: linear-gradient(rgba(36, 22, 4, 0.94), rgba(20, 12, 2, 0.94)); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.75) rgba(255, 216, 74, 0.7), 0 calc(var(--px) * 2) calc(var(--px) * 4) rgba(0, 0, 0, 0.45);
+  animation: gdChipIn 0.45s cubic-bezier(.2, 1.5, .4, 1) both;
+}
+.gd-chip.hide { opacity: 0; pointer-events: none; }
+.gd-chip.ok { background: linear-gradient(#2f8a2e, #1b5a1a); }
+.gd-chip.ok .gd-skip { display: none; }
+@keyframes gdChipIn { from { opacity: 0; transform: translateY(calc(var(--u) * -4)) scale(0.8); } to { opacity: 1; transform: none; } }
+.gd-chip-ic { display: flex; flex: none; }
+.gd-chip-ic .pi { width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); }
+.gd-chip-t { font-family: var(--font-d); font-size: 0.95em; line-height: 1.05; color: #fff; text-shadow: var(--outline-thin); }
+.gd-chip-t b { color: var(--gold); font-weight: normal; }
+.gd-chip .gd-skip { flex: none; font-size: 0.72em !important; min-height: 0 !important; padding: 0.15em 0.55em !important; }
+/* placement: .top (under the top bar) when the target sits low on screen, .bot (over the nav) otherwise */
+.gd-chip.bot { top: auto; bottom: calc(var(--safe-b) + var(--u) * 16); }
+.home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 11); }
+body.landscape .gd-chip { top: calc(var(--safe-t) + var(--u) * 21); }
+body.landscape .gd-chip.bot { top: auto; bottom: calc(var(--safe-b) + var(--u) * 13); }
+body.landscape .home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 10); }
+
+/* ---------------------------------------------------------------- main quest tracker */
+.gd-qt {
+  position: absolute; z-index: 4; left: calc(var(--safe-l) + var(--u) * 1.6); top: calc(var(--safe-t) + var(--u) * 13); pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: calc(var(--u) * 1.2); width: calc(var(--u) * 44); padding: calc(var(--u) * 0.9) calc(var(--u) * 1.4) calc(var(--u) * 1) calc(var(--u) * 0.9);
+  border: none; color: #fff; text-align: left; font: inherit;
+  background: var(--tx-grid) 0 0 / calc(16 * var(--px)) calc(16 * var(--px)), linear-gradient(rgba(10, 16, 56, 0.92), rgba(6, 10, 38, 0.92));
+  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.75) rgba(127, 230, 255, 0.45), 0 0 calc(var(--px) * 4) rgba(63, 200, 255, 0.35);
+  transition: transform 0.16s cubic-bezier(.3, 1.8, .5, 1);
+}
+.gd-qt:active { transform: scale(0.96, 0.92); }
+.home.tabbed .gd-qt { display: none !important; }
+.gd-qt-face {
+  position: relative; flex: none; width: calc(var(--u) * 9); height: calc(var(--u) * 9); overflow: hidden;
+  background: linear-gradient(#4fb0ff, #1a52c8); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 1) 0 #9fe8ff;
+}
+.gd-qt-face img { position: absolute; left: -12%; top: -6%; width: 124%; height: 124%; object-fit: cover; image-rendering: pixelated; }
+.gd-qt-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.4); min-width: 0; flex: 1 1 auto; }
+.gd-qt-k { font-family: var(--font-d); font-size: 0.62em; letter-spacing: 0.08em; color: var(--lab-cyan, #7fe6ff); line-height: 1; }
+.gd-qt-n { font-family: var(--font-d); font-weight: normal; font-size: 0.98em; line-height: 1; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-qt-bar { height: calc(var(--u) * 2.8); }
+.gd-qt-bar .lbl { font-size: 0.62em; }
+.gd-qt-lock, .gd-qt-claim { display: flex; align-items: center; gap: 0.2em; font-family: var(--font-d); font-size: 0.72em; line-height: 1.1; }
+.gd-qt-lock { color: #ffe9a0; }
+.gd-qt-lock .pi, .gd-qt-claim .pi { width: 1.2em; height: 1.2em; }
+.gd-qt-claim { align-self: flex-start; padding: 0.05em 0.45em; color: #fff; text-shadow: var(--outline-thin); background: linear-gradient(#a8f07a 0 22%, var(--green) 22% 76%, #238a2e 76%); box-shadow: 0 0 0 calc(var(--px) * 0.8) var(--ink), 0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.9); animation: chargeReady 0.9s ease-in-out infinite; }
+.gd-qt.ready { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.75) #fff27a, 0 0 calc(var(--px) * 6) rgba(255, 216, 74, 0.85); animation: readyBob 0.9s ease-in-out infinite; }
+.gd-qt-in { animation: gdQtIn 0.6s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes gdQtIn { 0% { transform: translateX(-110%); } 60% { transform: translateX(4%); } 100% { transform: none; } }
+.gd-qt-claimed { animation: jelly 0.45s cubic-bezier(.3, 1.6, .5, 1); }
+.gd-qt-got {
+  position: absolute; left: 50%; top: 100%; translate: -50% calc(var(--u) * 1); display: flex; gap: calc(var(--u) * 1); white-space: nowrap; pointer-events: none;
+  font-family: var(--font-d); font-size: 0.85em; color: var(--gold); text-shadow: var(--outline-thin); animation: gdGot 1.4s ease-out both;
+}
+.gd-qt-got span { display: flex; align-items: center; gap: 0.2em; }
+.gd-qt-got .pi { width: 1.2em; height: 1.2em; }
+@keyframes gdGot { 0% { opacity: 0; transform: translateY(calc(var(--u) * 2)) scale(0.6); } 25% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(calc(var(--u) * -2)); } }
+body.landscape .gd-qt { top: calc(var(--safe-t) + var(--u) * 12); width: calc(var(--u) * 40); }
+
+/* quest list */
+.gd-ql { display: flex; flex-direction: column; gap: calc(var(--u) * 1.2); }
+.gd-ql-row {
+  display: flex; align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1) calc(var(--u) * 1.2);
+  background: rgba(8, 12, 44, 0.55); box-shadow: 0 0 0 calc(var(--px) * 0.75) rgba(127, 200, 255, 0.25);
+}
+.gd-ql-row.cur { background: rgba(60, 44, 6, 0.6); box-shadow: 0 0 0 var(--px) var(--gold), 0 0 calc(var(--px) * 4) rgba(255, 216, 74, 0.5); }
+.gd-ql-row.done { opacity: 0.6; }
+.gd-ql-row.next { opacity: 0.8; }
+.gd-ql-face { flex: none; width: calc(var(--u) * 8); height: calc(var(--u) * 8); overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(#2a3a8a, #141c50); box-shadow: 0 0 0 var(--px) var(--ink); }
+.gd-ql-face img { width: 124%; height: 124%; object-fit: cover; image-rendering: pixelated; }
+.gd-ql-face .pi { width: 55%; height: 55%; opacity: 0.7; }
+.gd-ql-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.4); min-width: 0; flex: 1 1 auto; }
+.gd-ql-txt b { font-family: var(--font-d); font-weight: normal; font-size: 1em; line-height: 1; text-shadow: var(--outline-thin); }
+.gd-ql-row.cur .gd-ql-txt b { color: var(--gold); }
+.gd-ql-txt span { font-size: 0.78em; line-height: 1.2; color: #d4dcff; }
+.gd-ql-bar { height: calc(var(--u) * 2.6); margin-top: calc(var(--u) * 0.3); }
+.gd-ql-bar .lbl { font-size: 0.62em; }
+.gd-ql-rw { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(var(--u) * 0.4); }
+.gd-ql-bit { display: flex; align-items: center; gap: 0.2em; font-family: var(--font-d); font-size: 0.82em; text-shadow: var(--outline-thin); }
+.gd-ql-bit .pi { width: 1.2em; height: 1.2em; }
+.gd-ql-rw > .pi { width: calc(var(--u) * 5); height: calc(var(--u) * 5); }
+
+/* ---------------------------------------------------------------- locked battle buttons */
+.pg-blk { animation: none !important; }
+.pg-blk > :not(.pg-blk-chip) { filter: saturate(0.15) brightness(0.6); }
+.pg-blk .u-pct, .pg-blk .u-rays, .pg-blk .bb-info, .pg-blk .bb-rays { visibility: hidden; }
+.pg-blk-chip {
+  position: absolute; z-index: 6; left: 50%; top: 50%; translate: -50% -50%; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 0.1em;
+  font-family: var(--font-d); font-size: calc(var(--u) * 2.6); line-height: 1; color: #ffe9a0; text-shadow: var(--outline-thin); white-space: nowrap;
+}
+.pg-blk-chip .pi { width: calc(var(--u) * 5); height: calc(var(--u) * 5); }
+.pg-blk-chip span { padding: 0.05em 0.35em; background: rgba(5, 3, 12, 0.8); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink); }
+
+/* on the island lobby the chip hangs under the quest tracker, clear of the right-hand buttons */
+.home:not(.tabbed) .gd-chip, .home:not(.tabbed) .gd-chip.bot {
+  left: calc(var(--safe-l) + var(--u) * 1.6); translate: none; top: calc(var(--safe-t) + var(--u) * 27); bottom: auto; max-width: calc(100vw - var(--u) * 24);
+}
+body.landscape .home:not(.tabbed) .gd-chip, body.landscape .home:not(.tabbed) .gd-chip.bot { top: calc(var(--safe-t) + var(--u) * 25); }

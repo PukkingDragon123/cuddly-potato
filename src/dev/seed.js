@@ -1,4 +1,5 @@
-// Dev helper: ?seed=1 (fresh player past the tutorial), ?seed=mid (~900 trophies)
+// Dev helper: ?seed=new (brand-new player right after the tutorial: 3 cards, everything locked),
+// ?seed=1 (fresh player, all features unlocked), ?seed=mid (~900 trophies)
 // or ?seed=all (everything unlocked) gives a populated profile for testing.
 import { state, grantCard, grantCommander, addVial, unlockMega, setDeck, grantMega, equipMega } from '../game/state.js';
 import { MEGA_IDS } from '../data/megas.js';
@@ -7,6 +8,16 @@ import { ALL_CARDS, STARTER_DECK, STARTER_CARDS } from '../data/cards.js';
 export function seedProfile(level = '1') {
   const p = state.p;
   p.tutorial = 'done';
+  // ?seed=new: a brand-new player right after the tutorial (3 cards, progressive unlocks + guide);
+  // every other seed keeps all features unlocked (game/progression.js legacy) so screens stay reachable
+  if (level === 'new') {
+    for (const id of STARTER_CARDS) grantCard(id, 3);
+    setDeck(STARTER_CARDS.slice());
+    p.coins = Math.max(p.coins, 100);
+    state.save();
+    return;
+  }
+  p.prog = { ...p.prog, legacy: true, holdDeck: false };
   p.name = p.name === 'Recruit' ? 'LabHero' : p.name;
   p.coins = Math.max(p.coins, 5000);
   p.bucks = Math.max(p.bucks, 500);

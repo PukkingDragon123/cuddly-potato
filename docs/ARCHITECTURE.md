@@ -29,6 +29,8 @@ src/
                        researchMods() -> the battle sim's side.rs, researchForTrophies() for AI rivals)
   game/
     state.js           profile v2 persistence + every economy operation (cards, decks, vials, trophies, pass...)
+    progression.js     progressive unlocks (featureUnlocked / onFeatureUnlock / lockInfo: tabs open after wins,
+                       ULT + base upgrades in battle), guided-tutorial + battle-lesson bookkeeping, the MAIN QUEST line
     game.js            scene router: game.go('title' | 'lab' | 'home' | 'battle' | 'vialopen' | dev scenes, params)
     battle/
       field.js         lane geometry shared by sim, view and arenas
@@ -38,6 +40,9 @@ src/
       ai.js            opponent AI (reads its hand, defends, builds pushes, spells, base upgrades, MEGA)
       netsync.js       friend battles: HostSync streams state, RemoteSim mirrors it for the guest
       loadout.js       the player's battle side config from the profile
+      labMods.js       LAB MODULES in the sim (side.lm): Tesla / Goo / Laser / Acid weapons, Repair Drone, Snack
+                       Dispenser, Cloning Vat, Hamster Dynamo regen, Reactor meltdown ('modFire' events); modFx.js =
+                       the module models on each base + their battle effects
       view.js          3D battle presentation (arena, bases + tier swaps, units, plates, projectiles, spells, camera)
       megaCutscene.js  MEGA breakout cutscene (containment vessel, camera shots, overlay) + Mega special fx
       commandFx.js     Commander electric MEGA charge-up (voxel lightning, energy helix, label)
@@ -86,6 +91,8 @@ src/
     vialGestures.js    phone shake + tilt input (iOS permission) with swipe / keyboard fallbacks
     newCardCutscene.js NEW CARD cutscene: entrance animation (data/entrances.js), bottle pop, pose, stats panel
   ui/
+    guide.js           progression UI: locked tabs / buttons, unlock reveals (spotlight + voiced line), guided
+                       first-session steps (pointing hand, skippable), main quest tracker + list, battle locks + lessons
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), panel(), ribbon(), pill(), bar(), modal(), toast(),
                        say() dialogue, speech(), floatText(), pointAt(), sparkle(), rollNumber()
     skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*, glass tanks, plates, pods, ensureSkin tints),
@@ -95,6 +102,10 @@ src/
                        labSkinThumb, baseSpin/baseThumb (battle base tiers); lazy queue renders on-screen images first
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss)
+    home/lab.js        LAB tab: your base in a 3D lab yard (labYard.js + labYardProps.js, engine.setBackdrop) with your
+                       modules and Commander; segments LAB / MODULES / SKINS / COMMANDER; module data src/data/labModules.js
+                       (4 slots x 4 modules, 5 levels, unlocks, AI loadouts), profile ops src/game/labGear.js,
+                       models src/models/props/labModules.js
     home/research.js   the RESEARCH TREE (mountResearchTree, mounted by the Lab tab): pan / zoom pipe tree,
                        node sheet, lab bench timer + SPEED UP; researchArt.js = node icons, frames, chains,
                        junctions, the bubbling beaker; research state + timers live in game/state.js

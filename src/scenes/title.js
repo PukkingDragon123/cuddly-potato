@@ -1,16 +1,14 @@
 // Title screen: a movie title sequence over the frozen cinematic battle.
 //
-// The UI is up the instant the scene starts (no 3D needed): letterbox bars,
-// grain, a painted "clash in the dark" backdrop and the logo assembling letter
-// by letter. Meanwhile the frozen battle (frozenBattle.js, code-split so boot
-// stays lean) is staged in the player's current arena; when it is ready it
-// fades up from the backdrop and the camera starts its shots: a slow pull-back
-// reveal of the whole fight, then a loop of push-ins and tracking moves (your
-// Commander, your Swarm line, the leaper hanging in the air, the battered rival
-// base, a wide crane) with dips to black and lower-third captions.
-// A few frames are captured as stills for the loading screen (loading.js).
+// The UI is up the instant the scene starts (no 3D needed): letterbox bars, a
+// dark lab backdrop and the logo dropping in. Meanwhile the frozen battle
+// (frozenBattle.js, code-split so boot stays lean) is staged in the player's
+// current arena; when it is ready it fades up from the backdrop and the camera
+// starts its shots: a slow pull-back reveal of the whole fight, then a loop of
+// push-ins and tracking moves with dips to black and lower-third captions.
 //
-// TAP TO START:
+// TAP TO START: the label presses in, one "go" sound, a navy wipe crosses the
+// screen and the loading screen (same navy) takes over underneath it.
 //   new players -> inside the Lab (scenes/lab.js): Jimmy, your name, your
 //                  FIRST PACK, then the tutorial battle and back to the Lab
 //   everyone else -> Beast Island home
@@ -23,7 +21,7 @@ import { h, $ui, closeDialogue } from '../ui/ui.js';
 import { state } from '../game/state.js';
 import { game } from '../game/game.js';
 import { currentArena } from '../data/arenas.js';
-import { cineBackdrop, cineDressing, cineLogo, setLoadingStills } from './loading.js';
+import { cineBackdrop, cineDressing, cineLogo } from './loading.js';
 
 const frames = (n = 2) => new Promise((r) => { const f = () => (--n <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -38,7 +36,6 @@ export class TitleScene {
     this.camera = new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 600);
     this.t = 0;
     this.fb = null;
-    this.stills = [];
   }
 
   get bloom() { return this.fb?.bloom ?? {}; }
@@ -53,12 +50,12 @@ export class TitleScene {
     this.root = h('div', { class: 'tt-cine' },
       h('div', { class: 'tt-pre' }, cineBackdrop()),
       h('div', { class: 'cn-layer' }, cineDressing(), this.cut, this.flash, this.cap),
-      h('div', { class: 'tt-load' }, h('i'), h('span', {}, 'STAGING')),
       h('div', { class: 'tt-wrap' },
         h('div', { class: 'tt-logo-wrap' }, cineLogo({ reveal: true })),
         h('div', { class: 'tt-foot' },
           this.startEl,
-          h('div', { class: 'tt-disc' }, 'Unofficial fan-made game. Not affiliated with MrBeast or Moose Toys. MrBeast Lab Swarms are toys by Moose Toys.'))));
+          h('div', { class: 'tt-disc' }, 'Unofficial fan-made game. Not affiliated with MrBeast or Moose Toys. MrBeast Lab Swarms are toys by Moose Toys.'))),
+      h('i', { class: 'tt-wipe' }));
     $ui().appendChild(this.root);
     audio.music('title');
     // a tutorial that was interrupted after the battle picks up in the Lab
@@ -149,33 +146,12 @@ export class TitleScene {
       void c.offsetWidth;
       c.classList.add('go');
     }
-    // stills for the loading screen: a few distinct frames, mid-move
-    if (this.stills.length < 3 && ['cmd', 'leap', 'wide', 'rival'].includes(sh.id)) this.snapAt = this.t + sh.dur * 0.45;
-  }
-
-  /** Grab the current frame (rendered now, so the drawing buffer is valid) as a JPEG still. */
-  capture() {
-    const fb = this.fb;
-    if (!fb || typeof engine.canvas.toBlob !== 'function') return;
-    try {
-      engine.render(fb.scene, fb.camera);
-      engine.canvas.toBlob((b) => {
-        if (!b || this.stills.length >= 3) return;
-        this.stills.push(URL.createObjectURL(b));
-        setLoadingStills(this.stills);
-      }, 'image/jpeg', 0.86);
-    } catch (e) { /* stills are optional */ }
   }
 
   async start() {
+    // the label presses in and the wipe crosses the screen; the loading screen fades in over the wipe
     this.root.classList.add('go');
-    this.flash.classList.remove('go');
-    void this.flash.offsetWidth;
-    this.flash.classList.add('go');
-    // the first wide frame is always worth keeping for the loading screen
-    const S = this.fb?.cineShot;
-    if (this.live && !this.stills.length && S && (S.id !== 'reveal' || S.t > S.dur * 0.5)) this.capture();
-    await wait(0.32);
+    await wait(0.4);
     const p = state.p;
     if (p.tutorial === 'done' || p.tutorial === 'home') game.go('home');
     else game.go('lab'); // first time: into the Lab to meet Jimmy and open your first pack
@@ -202,7 +178,6 @@ export class TitleScene {
     }
     const S = fb.cineShot;
     if (S && !this.pendingShot && S.t >= S.dur - CUT) this.nextShot();
-    if (this.snapAt && this.t >= this.snapAt) { this.snapAt = 0; this.capture(); }
   }
 
   exit() {

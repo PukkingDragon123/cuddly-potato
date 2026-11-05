@@ -3,6 +3,7 @@
 import { state, deployInfo, researchLevels, currentDeck, labLevel, equippedMega, lineupSize } from '../state.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { CMD_SKINS } from '../../data/season.js';
+import { equippedLoadout, featureOpen } from '../labGear.js';
 
 export function commanderCfg(id, level, skinId) {
   const c = COMMANDERS[id];
@@ -32,5 +33,7 @@ export function playerSide() {
     name: p.name, deck, commander, research: researchLevels(), labLevel: labLevel(), mega: equippedMega(),
     labStyle: p.cosmetics.labSkin === 'default' ? 'default' : p.cosmetics.labSkin,
     banner: p.cosmetics.banner, trophies: p.trophies, lineupSlots: slots,
+    // LAB MODULES bolted onto the base (src/data/labModules.js)
+    modules: featureOpen('labModules') ? equippedLoadout() : null,
   };
 }

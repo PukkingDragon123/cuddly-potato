@@ -25,6 +25,7 @@ import { researchMods, troopClass } from '../../data/research.js';
 import { mulberry32 } from '../../core/util.js';
 import { FIELD } from './field.js';
 import * as TT from './troopTraits.js';
+import * as LM from './labMods.js';
 
 export const LAB_X = FIELD.LAB_X;
 export const LAB_HALF = FIELD.LAB_HALF;
@@ -94,6 +95,8 @@ export class BattleSim {
     const perks = s.perks || {};
     // research tree upgrades (src/data/research.js), folded into one flat modifier object
     const rs = researchMods(s.research);
+    // LAB MODULES (src/data/labModules.js): research-style keys fold into rs, the rest is side.lm
+    const lm = LM.mergeModules(rs, s);
     const dir = i === 0 ? 1 : -1;
     const pow = labPower(s.labLevel ?? 1) * (s.hpMult ?? 1);
     const mk = (kind, x, half, T, hpMult = 1) => ({
@@ -131,7 +134,7 @@ export class BattleSim {
       lab, turret: null,
       mega: s.mega && MEGAS[s.mega.id] ? { id: s.mega.id, variant: s.mega.variant ?? 'base', level: s.mega.level ?? 1, charge: s.mega.charge ?? 0, used: false } : null,
       cmd, cmdLevel: lvl, sig: cmd ? Math.min(0.95, rs.ultStart) : 0, skills, skillCds: skills.map((k) => Math.min(k.cd, 10)),
-      perks, rs, regenBonus: rs.regen + (s.handicap?.regen ?? 0) + (perks.energySurge ?? 0) / 100, spellPlays: 0, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0, stopped: 0 },
+      perks, rs, lm, regenBonus: rs.regen + (s.handicap?.regen ?? 0) + (perks.energySurge ?? 0) / 100, spellPlays: 0, buffs: { rally: 0, dance: 0, immortal: 0, surge: 0, frenzy: 0, haste: 0, armorWin: 0, overclock: 0, stopped: 0 },
       nextGiant: null,
       stats: { deployed: 0, kills: 0, dmg: 0, spells: 0, sigs: 0, food: 0, deployById: {}, towerDmg: 0 },
       power: cmdPower(lvl) * (1 + rs.ultPower),
@@ -234,7 +237,7 @@ export class BattleSim {
     const s = this.sides[si];
     const back = s.labX + s.dir * (LAB_HALF + 0.2);
     // work in "forward" coordinates (distance past the centre line towards the rival)
-    let f = FIELD.DEPLOY_MAX;
+    let f = FIELD.DEPLOY_MAX + (s.lm?.fx.deploy ?? 0); // LAB MODULE: Radar Dish
     for (const u of this.units) {
       if (u.dead || u.side !== si || u.boss) continue;
       const uf = u.x * s.dir - FIELD.DEPLOY_BEHIND;
@@ -1552,6 +1555,7 @@ export class BattleSim {
     this.sides[atk].stats.towerDmg += d;
     if (!src?.mega) this.addMegaCharge(atk, (d * MEGA.baseDmgMult) / MEGA.chargeDmg);
     this.emit('towerHit', { side: b.side, kind: b.kind, amount: Math.round(d), src, spell: !!o.spell });
+    if (this.sides[b.side].lm) LM.onBaseHit(this, b); // LAB MODULE: Nuclear Reactor meltdown
     if (b.hp <= 0) this.destroyBuilding(b);
   }
 
@@ -1637,7 +1641,7 @@ export class BattleSim {
     const s = this.sides[si];
     if (s.buffs.stopped > 0) return 0; // TIEMPO MUERTO: no POWER while time is stopped...
     const steal = this.sides[1 - si]?.buffs.stopped > 0 ? 2 : 1; // ...and the other side gets that time
-    return steal * ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * Math.max(0.2, 1 + (s.regenBonus ?? 0)) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
+    return steal * ENERGY.perSec * BASE_UPGRADES[s.overclock].regen * Math.max(0.2, 1 + (s.regenBonus ?? 0) + (s.lm ? LM.regenBonus(this, s) : 0)) * (this.overtime ? 3 : this.doubleEnergy ? 2 : 1) * (s.buffs.overclock > 0 ? 1.6 : 1);
   }
 
   tick(dt) {
@@ -1671,6 +1675,7 @@ export class BattleSim {
       const lb = s.lab;
       if (s.rs?.repair && lb.alive && lb.hp < lb.maxHp && this.t - (lb.hitT ?? -9) > 3) lb.hp = Math.min(lb.maxHp, lb.hp + lb.maxHp * s.rs.repair * dt);
       this.updateBuilding(s.lab, dt);
+      if (s.lm) LM.tick(this, s, dt); // LAB MODULES: base weapons, repairs, healing, clones
     }
     // zones
     for (const z of this.zones) {

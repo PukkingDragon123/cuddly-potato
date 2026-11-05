@@ -7,6 +7,11 @@
 // Drag / swipe (or the mouse wheel) walks the camera along the path with
 // inertia; opening the tab sweeps it up to Juan, who stands at your tier. Tap a
 // stand for its reward card, tap Juan or a friend to hear them out.
+//
+// Rewards you can claim are hard to miss: a REWARDS READY button in the foot,
+// a CLAIM tag over every ready stand (tap it to claim), arrows to ready stands
+// above or below the view, and the season track along the edge (one pip per
+// tier, free and premium halves, ready ones lit) that you can tap or scrub.
 import { h, icon, button, bar, sparkle, bump, rich, burst, flyIcons, confetti, say, $overlay } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
@@ -116,8 +121,16 @@ export function mount(el, ctx, opts = {}) {
   el.appendChild(root);
 
   // ------------------------------------------------------------- HUD (season, clock, Calorie bar, premium)
+  const N = PASS_TIERS.length;
   const hudTier = h('b', { class: 't-d' });
   const hudNext = h('b', { class: 't-d' });
+  const nextArt = h('div', { class: 'pz-next-art' });
+  const nextBox = h('button', { class: 'pz-tierbox next', type: 'button', 'aria-label': 'Next reward', onclick: () => {
+    const i = Math.min(passTier(), N - 1);
+    if (!stage || !live || passTier() >= N) return;
+    audio.play('tap');
+    stage.flyToTier(i, 0.8, () => openCard(i, 'free'));
+  } }, h('small', { class: 't-d' }, 'NEXT'), nextArt, h('span', { class: 'pz-next-n' }, hudNext));
   const xpBar = bar(0, 'orange', '', { cls: 'pz-xpbar' });
   const premSlot = h('div', { class: 'pz-prem-slot' });
   hud.append(
@@ -131,18 +144,18 @@ export function mount(el, ctx, opts = {}) {
     h('div', { class: 'pz-xp' },
       h('div', { class: 'pz-tierbox cur' }, h('small', { class: 't-d' }, 'TIER'), hudTier),
       h('div', { class: 'pz-xpmid' }, xpBar),
-      h('div', { class: 'pz-tierbox next' }, h('small', { class: 't-d' }, 'NEXT'), hudNext)));
+      nextBox));
 
   function renderHud() {
-    const N = PASS_TIERS.length;
     const tier = Math.min(passTier(), N);
     const max = tier >= N;
     const into = max ? SEASON.calPerTier : state.p.calories - tier * SEASON.calPerTier;
     hudTier.textContent = String(tier);
     hudNext.replaceChildren(max ? icon('check') : String(tier + 1));
-    hudNext.parentElement.classList.toggle('done', max);
-    hudNext.parentElement.querySelector('small').textContent = max ? 'DONE' : 'NEXT';
-    xpBar.set(max ? 1 : into / SEASON.calPerTier, max ? 'PASS COMPLETE' : `${fmtN(Math.max(0, into))} / ${SEASON.calPerTier} CAL`);
+    nextArt.replaceChildren(...(max ? [] : [safeTile(PASS_TIERS[tier].free)]));
+    nextBox.classList.toggle('done', max);
+    nextBox.querySelector('small').textContent = max ? 'DONE' : 'NEXT';
+    xpBar.set(max ? 1 : into / SEASON.calPerTier, max ? 'PASS COMPLETE' : `${fmtN(Math.max(0, SEASON.calPerTier - into))} CAL TO TIER ${tier + 1}`);
     if (!xpBar.querySelector('.pz-cal')) xpBar.appendChild(icon('calorie', 'pz-cal'));
     premSlot.replaceChildren(state.p.pass.premium
       ? h('div', { class: 'pz-prem-on t-d', role: 'button', onclick: () => { audio.play('tap'); ctx.toast?.('*Premium* is active: both tracks are yours.', { icon: 'crown' }); } }, icon('crown', 's'), 'PREMIUM')
@@ -164,30 +177,198 @@ export function mount(el, ctx, opts = {}) {
     chalBtn.querySelector('.badge')?.remove();
     if (badge > 0) chalBtn.appendChild(h('div', { class: 'badge' }, badge > 9 ? '9+' : String(badge)));
     const n = passClaimCount();
-    const cta = n > 1 ? button(`CLAIM ALL (${n})`, claimAll, 'green sm pulse pz-claimall', { icon: 'gift' })
-      : n === 1 ? button('1 READY', () => { const r = firstReady(); if (r) stage?.flyToTier(r.i, 0.9, () => openCard(r.i, r.track)); }, 'green sm pz-claimall', { icon: 'gift', sound: 'tap' })
-        : null;
+    if (n === shownReady) return;
+    shownReady = n;
+    const cta = n > 0 ? button(h('span', { class: 'pz-cb' },
+      h('b', { class: 't-d' }, n === 1 ? '1 REWARD READY' : `${n} REWARDS READY`),
+      h('small', { class: 't-d' }, n === 1 ? 'TAP TO CLAIM' : 'CLAIM ALL')), n === 1 ? claimFirst : claimAll, 'green pz-claimbar', { icon: 'gift', sound: 'tap' })
+      : null;
     midSlot.replaceChildren(...(cta ? [cta] : []));
+  }
+  let shownReady = -1;
+  /** One reward ready: walk the camera to it and claim it there, so its stand plays the claim. */
+  function claimFirst() {
+    const r = firstReady();
+    if (!r || !stage || busy) return;
+    stage.flyToTier(r.i, 0.7, () => claim(r.i, r.track));
   }
   function firstReady() {
     for (let i = 0; i < Math.min(passTier(), PASS_TIERS.length); i++) for (const tr of ['free', 'premium']) if (passClaimable(i, tr)) return { i, track: tr };
     return null;
   }
 
+  // ------------------------------------------------------------- season track (minimap): one pip per tier, free | premium
+  const pips = [];
+  const trackIn = h('div', { class: 'pz-trk-in' });
+  for (let i = 0; i < N; i++) {
+    const f = h('i', { class: 'f' }), p = h('i', { class: 'p' });
+    const el = h('div', { class: `pz-pip${isMilestoneTier(i) || i === N - 1 ? ' ms' : ''}` }, f, p);
+    trackIn.appendChild(el);
+    pips.push({ el, f, p });
+  }
+  const trkWin = h('i', { class: 'pz-trk-win' });
+  const trkMe = h('div', { class: 'pz-trk-me t-d' });
+  trackIn.append(trkWin, trkMe);
+  const track = h('div', { class: 'pz-track', role: 'slider', 'aria-label': 'Season track: tap a tier to go there' },
+    h('span', { class: 'pz-trk-end t-d' }, String(N)), trackIn, h('span', { class: 'pz-trk-end t-d' }, '1'));
+  function renderTrack() {
+    const tier = Math.min(passTier(), N);
+    const P = state.p.pass;
+    pips.forEach((q, i) => {
+      q.f.className = `f ${P.free[i] ? 'c' : i < tier ? 'r' : ''}`;
+      q.p.className = `p ${P.premium_[i] ? 'c' : !P.premium ? 'l' : i < tier ? 'r' : ''}`;
+      q.el.classList.toggle('got', i < tier);
+    });
+    trkMe.style.display = tier > 0 ? '' : 'none';
+    trkMe.style.setProperty('--m', ((tier - 0.5) / N).toFixed(4));
+    trkMe.textContent = String(tier);
+  }
+  let trkPtr = null, trkLast = -1;
+  const trackPick = (e) => {
+    const r = trackIn.getBoundingClientRect();
+    const f = document.body.classList.contains('landscape') ? (e.clientX - r.left) / r.width : 1 - (e.clientY - r.top) / r.height;
+    return Math.max(0, Math.min(N - 1, Math.floor(f * N)));
+  };
+  const trackGo = (e, dur) => {
+    const i = trackPick(e);
+    if (i === trkLast) return;
+    trkLast = i;
+    stage.flyToTier(i, dur);
+    audio.play('tick', { gap: 0.04 });
+  };
+  track.addEventListener('pointerdown', (e) => {
+    if (!stage || !live || busy) return;
+    e.stopPropagation();
+    closeCard();
+    trkPtr = e.pointerId;
+    trkLast = -1;
+    try { track.setPointerCapture(e.pointerId); } catch (err) { /* old browsers */ }
+    trackGo(e, 0.5);
+  });
+  track.addEventListener('pointermove', (e) => { if (trkPtr === e.pointerId) trackGo(e, 0.32); });
+  const trkUp = (e) => { if (trkPtr === e.pointerId) trkPtr = null; };
+  track.addEventListener('pointerup', trkUp);
+  track.addEventListener('pointercancel', trkUp);
+  root.appendChild(track);
+
+  // ------------------------------------------------------------- ready rewards: CLAIM tags over the stands, arrows to the ones off screen
+  let ready = []; // [{ i, track }] claimable right now, lowest tier first
+  function collectReady() {
+    ready = [];
+    for (let i = 0; i < Math.min(passTier(), N); i++) for (const tr of ['free', 'premium']) if (passClaimable(i, tr)) ready.push({ i, track: tr });
+  }
+  const tagEls = new Map(); // "i:track" -> tag element
+  function claimTag(i, tr) {
+    const prem = tr === 'premium';
+    const el = h('button', { class: `pz-ctag ${prem ? 'prem' : 'free'}`, type: 'button', 'aria-label': `Claim tier ${i + 1} ${prem ? 'premium' : 'free'} reward` },
+      h('span', { class: 'pz-ctag-in t-d' }, icon(prem ? 'crown' : 'gift', 's'), 'CLAIM'));
+    el.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); });
+    el.addEventListener('click', (e) => { e.stopPropagation(); audio.play('tap'); claim(i, tr); });
+    tags.appendChild(el);
+    return el;
+  }
+  const offUp = h('button', { class: 'pz-off up', type: 'button' }, icon('up', 's'), h('span', { class: 't-d' }));
+  const offDn = h('button', { class: 'pz-off down', type: 'button' }, icon('up', 's pz-flip'), h('span', { class: 't-d' }));
+  /** Fly to the nearest ready stand above (dir 1) or below (dir -1) the view. */
+  function jumpReady(dir) {
+    if (!stage || !live) return;
+    const [lo, hi] = stage.visibleTiers();
+    const list = ready.map((r) => r.i);
+    const target = dir > 0 ? list.find((i) => i > hi) : [...list].reverse().find((i) => i < lo);
+    if (target === undefined) return;
+    audio.play('whoosh', { pitch: 1.3, vol: 0.5 });
+    stage.flyToTier(target, 0.75);
+  }
+  for (const [b, dir] of [[offUp, 1], [offDn, -1]]) {
+    b.addEventListener('pointerdown', (e) => e.stopPropagation());
+    b.addEventListener('click', (e) => { e.stopPropagation(); jumpReady(dir); });
+  }
+  // FREE / PREMIUM column labels that ride on the stand columns at the bottom of the view
+  const laneF = h('span', { class: 'pz-lane free t-d' }, 'FREE');
+  const laneP = h('span', { class: 'pz-lane prem t-d' }, icon('crown', 's'), 'PREMIUM');
+  root.append(offUp, offDn, laneF, laneP);
+  const vr = { top: 0, bot: 0, w: 0, right: 0 }; // the 3D view, relative to the tab
+  function tickReady() {
+    const used = new Set();
+    let up = 0, down = 0;
+    if (stage && live) {
+      const o = root.getBoundingClientRect();
+      for (const r of ready) {
+        const p = stage.standTag(r.i, r.track);
+        const x = p.x - o.left, y = p.y - o.top;
+        const inView = p.vis && y > vr.top + 6 && y < vr.bot - 4 && x > 0 && x < vr.right;
+        if (!inView) {
+          if (p.vis ? y <= vr.top + 6 : r.i > stage.viewTier) up++;
+          else down++;
+          continue;
+        }
+        const key = r.i + ':' + r.track;
+        used.add(key);
+        let el = tagEls.get(key);
+        if (!el) { el = claimTag(r.i, r.track); tagEls.set(key, el); }
+        const k = Math.max(0.78, Math.min(1.1, p.s / 80));
+        el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%) scale(${k.toFixed(2)})`;
+        el.style.zIndex = String(Math.round(y));
+      }
+      // column labels along the bottom of the view, under the nearest stop's stands
+      const [lo] = stage.visibleTiers();
+      if (lo >= 0) {
+        const pf = stage.standTag(lo, 'free'), pp = stage.standTag(lo, 'premium');
+        // kept inside the view (clear of the track)
+        const at = (lb, x) => {
+          const w = lb.offsetWidth / 2 + 4;
+          return Math.round(Math.max(w, Math.min(vr.right - w, x)));
+        };
+        laneF.style.transform = `translate(${at(laneF, pf.x - o.left)}px, ${Math.round(vr.bot)}px) translate(-50%, -100%)`;
+        laneP.style.transform = `translate(${at(laneP, pp.x - o.left)}px, ${Math.round(vr.bot)}px) translate(-50%, -100%)`;
+      }
+      laneF.classList.toggle('show', lo >= 0);
+      laneP.classList.toggle('show', lo >= 0);
+    }
+    for (const [key, el] of tagEls) if (!used.has(key)) { el.remove(); tagEls.delete(key); }
+    for (const [b, n, word] of [[offUp, up, 'ABOVE'], [offDn, down, 'BELOW']]) {
+      b.classList.toggle('show', n > 0);
+      if (n > 0) b.lastChild.textContent = `${n} READY ${word}`;
+    }
+  }
+  function tickTrackWindow() {
+    if (!stage || !live) return;
+    const [lo, hi] = stage.visibleTiers();
+    trkWin.style.display = lo < 0 ? 'none' : '';
+    if (lo >= 0) {
+      trkWin.style.setProperty('--a', (lo / N).toFixed(4));
+      trkWin.style.setProperty('--b', ((hi + 1) / N).toFixed(4));
+    }
+  }
+
   // ------------------------------------------------------------- view rect (the 3D frames itself between the panels)
   // offset* sizes ignore transforms, so the tab's slide-in / slide-out never skews the framing
   function layout() {
+    const land = document.body.classList.contains('landscape');
+    const hudH = hud.offsetHeight, footH = foot.offsetHeight, W = el.offsetWidth, H = el.offsetHeight;
+    // the season track: under the season plate in landscape, down the right edge in portrait
+    const trkW = land ? 0 : track.offsetWidth;
+    const trkH = land ? track.offsetHeight : 0;
+    track.style.top = hudH + 'px';
+    track.style.bottom = land ? '' : footH + 'px';
+    vr.top = hudH + trkH;
+    vr.bot = H - (land ? 0 : footH);
+    vr.right = W - trkW;
+    fxLayer.style.top = hudH + 'px';
+    root.style.setProperty('--pz-foot', footH + 'px');
+    // portrait: centred on the path; landscape: on the open floor at the left
+    offUp.style.top = (vr.top + 8) + 'px';
+    offDn.style.bottom = (H - vr.bot + (land ? footH + 8 : 30)) + 'px';
+    for (const b of [offUp, offDn]) b.classList.toggle('side', land);
+    for (const b of [offUp, offDn]) b.style.left = land ? '' : (vr.right / 2) + 'px';
     if (!stage) return;
     const pr = el.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 };
     const x = pr.left + el.offsetLeft, y0 = pr.top + el.offsetTop;
-    const top = y0 + hud.offsetHeight;
-    fxLayer.style.top = hud.offsetHeight + 'px';
     // portrait: the button row spans the width, frame above it; landscape: the buttons sit in the corners
-    const bot = y0 + el.offsetHeight - (document.body.classList.contains('landscape') ? 0 : foot.offsetHeight);
-    stage.setView({ x, y: top, w: el.offsetWidth, h: Math.max(80, bot - top) });
+    stage.setView({ x, y: y0 + vr.top, w: vr.right, h: Math.max(80, vr.bot - vr.top) });
   }
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => layout()) : null;
-  ro?.observe(el); ro?.observe(hud); ro?.observe(foot);
+  ro?.observe(el); ro?.observe(hud); ro?.observe(foot); ro?.observe(track);
   window.addEventListener('resize', layout);
 
   // ------------------------------------------------------------- input: drag / wheel / tap
@@ -256,11 +437,11 @@ export function mount(el, ctx, opts = {}) {
       let act;
       if (claimed) act = h('div', { class: 'pz-card-st ok t-d' }, icon('check', 's'), 'CLAIMED');
       else if (can) act = button('CLAIM', () => claim(i, track), 'green pulse pz-card-claim', { icon: 'gift', sound: 'tap' });
-      else if (locked) act = h('div', { class: 'pz-card-st lock t-d' }, icon('lock', 's'), 'PREMIUM');
+      else if (locked) act = button('UNLOCK', (e) => buyPremium(e.currentTarget), 'yellow sm pz-card-claim', { icon: 'crown', sound: 'tap' });
       else act = h('div', { class: 'pz-card-st t-d' }, icon('lock', 's'), `TIER ${i + 1}`);
-      return h('div', { class: `pz-card-col ${prem ? 'prem' : 'free'} ${focus === track ? 'focus' : ''} ${claimed ? 'claimed' : ''}` },
+      return h('div', { class: `pz-card-col ${prem ? 'prem' : 'free'} ${focus === track ? 'focus' : ''} ${claimed ? 'claimed' : ''} ${can ? 'ready' : ''}` },
         h('div', { class: 'pz-card-track t-d' }, icon(prem ? 'crown' : 'gift', 's'), prem ? 'PREMIUM' : 'FREE'),
-        h('div', { class: 'pz-card-art' }, safeTile(r)),
+        h('div', { class: 'pz-card-art' }, can ? h('div', { class: `px-rays ${prem ? '' : 'w'}`, style: { '--rs': '150%', '--ro': 0.5 } }) : null, safeTile(r)),
         h('div', { class: 'pz-card-name' }, safeLabel(r)),
         h('div', { class: 'pz-card-kind' }, rewardKind(r)),
         act);
@@ -335,6 +516,7 @@ export function mount(el, ctx, opts = {}) {
     const fx = stage.claimFx(i, track);
     const got = claimPass(i, track);
     if (!got.length) { busy = false; return; }
+    collectReady();
     audio.play('whoosh', { pitch: 1.4, vol: 0.6 });
     stage.refresh();
     stage.cheer('celebrate');
@@ -372,6 +554,7 @@ export function mount(el, ctx, opts = {}) {
     const fxs = shown.map((x) => stage.claimFx(x.i, x.track));
     const got = [];
     for (const x of list) got.push(...claimPass(x.i, x.track));
+    collectReady();
     stage.refresh();
     stage.cheer('victory');
     juanSays('Big haul!');
@@ -598,8 +781,10 @@ export function mount(el, ctx, opts = {}) {
   // ------------------------------------------------------------- refresh on profile changes
   let refT = 0;
   function renderAll() {
+    collectReady();
     renderHud();
     renderFoot();
+    renderTrack();
     if (card && !busy) openCard(card.i, null);
     tickTimers(hud);
   }
@@ -607,16 +792,18 @@ export function mount(el, ctx, opts = {}) {
     clearTimeout(refT);
     refT = setTimeout(() => {
       if (disposed) return;
+      collectReady();
       renderHud();
       renderFoot();
+      renderTrack();
       if (!busy) stage?.refresh();
       if (drawer && !drawer.lock) renderDrawer();
     }, 90);
   });
   const timer = setInterval(() => { if (!disposed) { tickTimers(hud); if (drawer) tickTimers(drawer.body); } }, 1000);
 
-  // the MY TIER button only shows when the camera has wandered off
-  let lastT = performance.now(), raf = 0, layoutAt = 0;
+  // the back-to-Juan button only shows when the camera has wandered off
+  let lastT = performance.now(), raf = 0, layoutAt = 0, winAt = 0;
   const loop = () => {
     if (disposed) return;
     raf = requestAnimationFrame(loop);
@@ -628,6 +815,8 @@ export function mount(el, ctx, opts = {}) {
     const away = Math.abs(stage.viewTier - Math.max(0, stage.juanIdx)) > 2;
     homeBtn.classList.toggle('show', away);
     tickTags(dt);
+    tickReady();
+    if (now - winAt > 120) { winAt = now; tickTrackWindow(); }
   };
   raf = requestAnimationFrame(loop);
 
@@ -647,8 +836,11 @@ export function mount(el, ctx, opts = {}) {
   mo.observe(el, { attributes: true, attributeFilter: ['class'] });
 
   // ------------------------------------------------------------- build the 3D stage, then reveal it
+  collectReady();
   renderHud();
   renderFoot();
+  renderTrack();
+  layout();
   tickTimers(hud);
   (async () => {
     try {
@@ -661,7 +853,7 @@ export function mount(el, ctx, opts = {}) {
       await engine.precompile(st.scene, st.camera);
       if (disposed || out) return;
       engine.cover('passTab', true);
-      engine.setBackdrop({ scene: st.scene, camera: st.camera, update: (dt) => st.update(dt), bloom: { strength: 0.5, radius: 0.12, threshold: 1.75 }, grade: { sat: 0.08, contrast: 0.06, vignette: 0.16 }, owner: st });
+      engine.setBackdrop({ scene: st.scene, camera: st.camera, update: (dt) => st.update(dt), bloom: { strength: 0.5, radius: 0.12, threshold: 1.75 }, grade: { sat: 0.12, contrast: 0.1, vignette: 0.18 }, owner: st });
       live = true;
       st.intro();
       requestAnimationFrame(() => curtain.classList.add('gone'));
@@ -691,6 +883,6 @@ export function mount(el, ctx, opts = {}) {
       root.remove();
       el.classList.remove('pz-tab');
     },
-    refresh: () => { renderHud(); renderFoot(); stage?.refresh(); },
+    refresh: () => { collectReady(); renderHud(); renderFoot(); renderTrack(); stage?.refresh(); },
   };
 }

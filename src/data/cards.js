@@ -32,9 +32,13 @@ export function avgElixir(deck) {
 /** Cards that unlock in a given arena id. */
 export const cardsOfArena = (arenaId) => ALL_CARDS.filter((c) => c.arena === arenaId);
 
-/** Starter deck given after the tutorial (all Beast Lab cards). */
+/** The full Beast Lab deck (dev seeds, practice bot). New players start with STARTER_CARDS. */
 export const STARTER_DECK = ['panther', 'cloggedToilet', 'toiletRollRipper', 'trashedCan', 'pizzaSlicer', 'fryFiend', 'foodThrow', 'moneyDrop'];
 // every Commander starts with just two troops (like the Cat and the Tank Cat); the rest unlock as you play
 export const STARTER_TROOPS = ['panther', 'cloggedToilet'];
-// the whole Beast Lab starter deck: a full 8 cards from the start
-export const STARTER_CARDS = STARTER_DECK;
+export const STARTER_SPELLS = ['foodThrow'];
+// a brand-new player owns these 3 cards (the first pack + the tutorial battle deck); the deck fills
+// up to 8 as wins, vials, the Trophy Road and the pass hand out new cards (see game/progression.js)
+export const STARTER_CARDS = [...STARTER_TROOPS, ...STARTER_SPELLS];
+/** The smallest deck a battle accepts (hand of 2 + the NEXT card). */
+export const MIN_DECK = 3;

@@ -619,7 +619,7 @@ body.landscape .bb-rays { bottom: calc(var(--u) * 16); }
 .bh-ult.locked .u-pop { filter: grayscale(0.7) brightness(0.55); }
 /* charge % chip in the top-right corner */
 .bh-ult .u-pct {
-  left: auto; right: calc(var(--u) * -1.6); top: calc(var(--u) * 0.6); translate: none; z-index: 6; padding: 0 0.25em; min-width: 0;
+  left: auto; right: calc(var(--u) * -0.6); top: calc(var(--u) * 0.6); translate: none; z-index: 6; padding: 0 0.25em; min-width: 0;
   font-size: calc(var(--u) * 2.8); line-height: 1.15; border-radius: var(--px);
   background: linear-gradient(rgba(16, 22, 70, 0.95), rgba(6, 8, 30, 0.95)); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink), inset 0 calc(var(--px) * 0.67) 0 color-mix(in srgb, var(--uc) 60%, transparent);
 }

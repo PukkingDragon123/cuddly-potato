@@ -1,5 +1,5 @@
-// Frozen battle: the title screen's (and loading screen's) cinematic. A
-// time-stopped frame of an epic side-view lane fight in the selected arena, built from the real
+// Frozen battle: the title screen's cinematic. A
+// time-stopped frame of a side-view lane fight in the selected arena, built from the real
 // battle assets (arena backdrop + atmosphere grade, the two bases with their
 // Commanders, the player's deck Swarms vs. the arena's Swarms, spells and
 // projectiles) and posed like a paused movie frame: a leap mid-air, a tank
@@ -7,8 +7,8 @@
 // cluster, a soda rocket mid-arc, debris / coins / slime suspended.
 //
 // Time is stopped but the VFX stay alive: suspended debris and rock chunks
-// creep and spin in slow motion, sparks hang as streaks of light, glows and an
-// anamorphic flare pulse on the focal hit, electric arcs crackle around the
+// creep and spin in slow motion, sparks hang as streaks of light, a glow pool
+// pulses under the focal hit, electric arcs crackle around the
 // clash and the Commander, light shafts breathe and motes drift. (No ring /
 // shockwave effects: spells and the hit read through filled glow pools,
 // radial light streaks and debris.)
@@ -94,21 +94,6 @@ const shadowTex = () => pixelTex('shadow2', 32, (ctx, s) => {
     if (d > 0.82 && (x + y) % 2) continue;
     if (d > 0.93 && (x * 3 + y) % 4) continue;
     ctx.fillStyle = `rgba(10,8,30,${d < 0.55 ? 0.5 : 0.36})`;
-    ctx.fillRect(x, y, 1, 1);
-  }
-});
-/** Comic-book impact star (8 spikes, white-hot core). */
-const starTex = () => pixelTex('star', 48, (ctx, s) => {
-  const c = s / 2;
-  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
-    const dx = x + 0.5 - c, dy = y + 0.5 - c;
-    const r = Math.hypot(dx, dy) / c;
-    const a = Math.atan2(dy, dx);
-    const spikes = Math.pow(Math.abs(Math.cos(a * 4)), 5) * 0.62 + Math.pow(Math.abs(Math.cos(a * 4 + Math.PI / 4)), 9) * 0.3;
-    const edge = 0.3 + spikes;
-    if (r > edge) continue;
-    const k = r / edge;
-    ctx.fillStyle = k < 0.42 ? '#ffffff' : k < 0.7 ? '#fff3a8' : k < 0.88 ? '#ffc83a' : '#ff7a1a';
     ctx.fillRect(x, y, 1, 1);
   }
 });
@@ -594,10 +579,8 @@ export class FrozenBattle {
     this.shot(bRanged, bR, rA, 0.5);
     this.shot(rRanged, rR, bR, 0.56);
 
-    // the big hit: impact star + anamorphic flare, light streaks bursting out, a scorched glow
-    // on the ground, rock chunks, debris + slime hanging in the air
-    this.impactStar(I, 1.35, 0);
-    this.anamorphic(I, 0xbfe8ff, 7.5);
+    // the big hit: light streaks bursting out, a scorched glow on the ground, rock chunks,
+    // debris + slime hanging in the air (no glitter: the title stays clean)
     this.streaks(I, 0xfff0c0, 14, 2.6);
     this.glowPool(I.x, I.z, 2.4, 0xffa040, 0.55);
     this.chunks(I, 9);
@@ -606,7 +589,6 @@ export class FrozenBattle {
       fx.burst(I, { count: 34, colors: [0xffffff, 0xffe27a, 0xffd23f], size: 0.1, speed: 7, grav: -6 });
       fx.slime(kb.root.position.clone().setY(0.9), { count: 16, color: kbCol, speed: 4 });
       fx.burst(new THREE.Vector3(I.x, 0.1, I.z), { count: 26, colors: [0xd8c4a0, 0xb89a70, 0x8a7050], size: 0.13, speed: 6, ground: -5 });
-      fx.sparkle(I, { count: 26, colors: [0xffffff, 0x9ff2ff, 0xffe27a], speed: 5, radius: 1.2 });
     }, 0.16, { airOnly: true });
     B.sim(() => fx.dust(new THREE.Vector3(shover.root.position.x - 0.4, 0, 0.2), { count: 12, scale: 2.4, vx: -1.5 }), 0.2);
     // arcs crackling around the clash (and off the leaper's claws)
@@ -750,26 +732,6 @@ export class FrozenBattle {
     if (GLOWY.has(kind) || kind === 'zap') this.flare(pos0, cols[0], 0.9);
   }
 
-  /** Comic impact star (additive pixel sprite, pulsing). */
-  impactStar(pos, size, hue) {
-    void hue;
-    const mat = this.own(new THREE.SpriteMaterial({ map: starTex(), color: new THREE.Color(1.55, 1.45, 1.3), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true }));
-    const sp = new THREE.Sprite(mat);
-    sp.position.copy(pos);
-    sp.renderOrder = 8;
-    this.scene.add(sp);
-    const inner = new THREE.Sprite(this.own(new THREE.SpriteMaterial({ map: glintTex(), color: new THREE.Color(1.3, 1.25, 1.1), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: 0.45 })));
-    inner.position.copy(pos);
-    inner.renderOrder = 8;
-    this.scene.add(inner);
-    this.updaters.push((dt, t) => {
-      const k = 1 + Math.sin(t * 5.3) * 0.06 + Math.sin(t * 13.1) * 0.03;
-      sp.scale.setScalar(size * k);
-      mat.rotation = Math.sin(t * 0.4) * 0.12;
-      inner.scale.setScalar(size * 1.25 * (1.05 - Math.sin(t * 5.3) * 0.08));
-    });
-  }
-
   /** Small pulsing pixel glint. */
   flare(pos, color, size = 1) {
     const mat = this.own(new THREE.SpriteMaterial({ map: glintTex(), color: new THREE.Color(color).multiplyScalar(2), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, transparent: true, opacity: 0.75 }));
@@ -779,20 +741,6 @@ export class FrozenBattle {
     this.scene.add(sp);
     const ph = this.r() * 6;
     this.updaters.push((dt, t) => sp.scale.setScalar(size * (0.9 + Math.sin(t * 3.7 + ph) * 0.12)));
-  }
-
-  /** Anamorphic lens flare: a long thin horizontal streak + a soft core (movie lens look). */
-  anamorphic(pos, color, len = 7) {
-    const col = new THREE.Color(color).multiplyScalar(1.6);
-    const mk = (op) => this.own(new THREE.SpriteMaterial({ map: spikeTex(), color: col, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false, transparent: true, opacity: op }));
-    const line = new THREE.Sprite(mk(0.55)), line2 = new THREE.Sprite(mk(0.3));
-    for (const sp of [line, line2]) { sp.position.copy(pos); sp.renderOrder = 9; this.scene.add(sp); }
-    this.updaters.push((dt, t) => {
-      const k = 1 + Math.sin(t * 5.3) * 0.05 + Math.sin(t * 1.7) * 0.06;
-      line.scale.set(len * k, 0.09 * k, 1);
-      line2.scale.set(len * 0.45 * k, 0.5, 1);
-      line.material.opacity = 0.5 + Math.sin(t * 2.1) * 0.08;
-    });
   }
 
   /** Light streaks bursting out of a hit: thin additive shards frozen mid-flight, flickering. */

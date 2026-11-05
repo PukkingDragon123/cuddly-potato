@@ -27,6 +27,7 @@ import { labCollapse } from './baseFall.js';
 import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMat } from './spellVfx.js';
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
+import { attachBaseModules, ModFx } from './modFx.js';
 import { troopFx, swallowFx, thrashFx } from './troopFx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
@@ -780,6 +781,7 @@ export class BattleView {
     // bases: every battle starts in a tent
     this.labs = [0, 1].map((i) => this.makeBaseFor(i, (this.sim.sides[i].overclock ?? 0) + 1));
     for (const lab of this.labs) scene.add(lab.root);
+    this.modFx = new ModFx(this); // LAB MODULE effects ('modFire' events)
     // build the next tier's geometry while idle so the first upgrade doesn't hitch
     for (let i = 0; i < 2; i++) this.prewarm(i, this.labs[i].tier + 1);
     // base HP plates
@@ -849,6 +851,7 @@ export class BattleView {
       lab.setLevel?.(Math.min(8, tier + 1));
     }
     lab.root.position.set(i === 0 ? -LAB_X : LAB_X, 0, 0);
+    attachBaseModules(lab, cfg.sides[i].modules, i); // LAB MODULES (modFx.js)
     for (const m of lab.meshes ?? []) m.castShadow = true;
     lab.style = style;
     lab.tier = tier;

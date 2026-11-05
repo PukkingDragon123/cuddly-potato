@@ -36,6 +36,7 @@ import { SPELLS } from '../data/spells.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
 import { STARTER_CARDS } from '../data/cards.js';
 import { researchForTrophies } from '../data/research.js';
+import { modulesForTrophies } from '../data/labModules.js';
 import { mulberry32, hashString } from '../core/util.js';
 import { game } from '../game/game.js';
 import { net } from '../net/p2p.js';
@@ -43,6 +44,7 @@ import { HostSync, RemoteSim } from '../game/battle/netsync.js';
 import { lobby } from '../net/lobby.js';
 import { commanderCfg, playerSide, deckEntry } from '../game/battle/loadout.js';
 import { prewarmBattle } from '../game/battle/prewarm.js';
+import { battleLocks, applyBattleLocks, battleAllowed, battleLessons } from '../ui/guide.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
 const JIMMY = () => ({ name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) });
@@ -75,6 +77,7 @@ export class BattleScene {
       me.noShuffle = true;
       me.labLevel = 1;
       me.research = {};
+      me.modules = null;
       // no MEGA yet: those are earned on the Trophy Road
       me.mega = null;
       me.noMegaTeaser = true;
@@ -89,6 +92,7 @@ export class BattleScene {
       enemy = {
         name: b.name, deck: b.deck.map((id) => deckEntry(id, b.level)), commander: b.commander ? commanderCfg(b.commander, Math.min(10, b.level)) : null,
         research: researchForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString(b.id ?? b.name))), labStyle: b.lab ?? 'rival', labLevel: b.level + 1, hpMult: 1.2, clan: 'BOSS CHALLENGE',
+        modules: modulesForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString((b.id ?? b.name) + ':mods'))),
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
       aiOpts = { difficulty: Math.min(0.9, 0.5 + b.level * 0.05) };
@@ -99,19 +103,26 @@ export class BattleScene {
       this.opponentTrophies = enemy.trophies ?? 0;
     } else if (mode === 'practice') {
       enemy = {
-        name: 'Training Bot', deck: ['panther', 'trashedCan', 'cloggedToilet', 'pizzaSlicer', 'fryFiend', 'toiletRollRipper', 'foodThrow', 'moneyDrop'].map((id) => deckEntry(id, 1)),
+        name: 'Training Bot', deck: ['panther', 'trashedCan', 'cloggedToilet', 'pizzaSlicer', 'fryFiend', 'toiletRollRipper', 'foodThrow', 'moneyDrop'].slice(0, Math.max(3, me.deck.length)).map((id) => deckEntry(id, 1)),
         commander: commanderCfg('recruit', 1), labStyle: 'rival', labLevel: 1, clan: 'Practice',
       };
       aiOpts = { difficulty: 0.25, maxLab: 1 };
     } else {
-      const g = params.opponent ?? ghostOpponent(p.trophies, Date.now(), arenaId);
+      const g = params.opponent ?? ghostOpponent(p.trophies, Date.now(), arenaId, { deckSize: me.deck.length });
       enemy = {
         name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), research: g.research ?? {}, handicap: g.handicap ?? null, perks: g.perks ?? {}, hpMult: g.hpMult, mega: g.mega ?? null,
         labStyle: ['rival', 'martLab', 'chocoLab', 'default'][g.name.length % 4], labLevel: g.labLevel, banner: g.banner, trophies: g.trophies, clan: g.clan, ghost: true,
+        // LAB MODULES like a player at these trophies (src/data/labModules.js)
+        modules: g.modules ?? modulesForTrophies(g.trophies ?? 0, g.labLevel ?? 1, mulberry32(hashString(g.name + ':mods'))),
       };
       this.opponentTrophies = g.trophies;
       aiOpts = { difficulty: g.difficulty };
     }
+    // progressive unlocks (game/progression.js): a locked ULT / base upgrade is locked for the rival too
+    this.locks = battleLocks(mode);
+    if (this.locks.ult) aiOpts.sigDelay = 9999;
+    if (this.locks.base) aiOpts.maxLab = 0;
+    if (this.locks.modules && enemy?.ghost) enemy.modules = null;
     const arena = arenaById(arenaId) ?? ARENAS[0];
     this.arenaId = arena.id;
     this.aiOpts = aiOpts;
@@ -170,6 +181,7 @@ export class BattleScene {
       minimap: (x) => this.view.focus(x, 4),
     });
     this.hud.mount($ui());
+    applyBattleLocks(this.hud, this.locks ?? {});
     this.hud.setVisible(false);
     this.plc = new Placement(this.view, this.hud, 0);
     this.view.on((ev) => this.onSimEvent(ev));
@@ -208,6 +220,7 @@ export class BattleScene {
     if (!(this.netMode && this.params.role === 'guest')) this.sim.paused = false;
     this.ready = true;
     if (this.ai && this.mode === 'ranked' && Math.random() < 0.5) setTimeout(() => !this.ended && this.hud.showEmote(1, 0), 1500);
+    battleLessons(this).catch((e) => console.warn('battle lesson', e));
   }
 
   async friendHandshake() {
@@ -236,8 +249,7 @@ export class BattleScene {
   }
   // the tutorial only points at things: it never blocks your controls
   allowed(what) {
-    void what;
-    return true;
+    return battleAllowed(this, what);
   }
   card(slot) {
     return this.sim.handCard(0, slot);
@@ -819,37 +831,8 @@ export class BattleScene {
       await teach('foodThrow', 'Spell!', 'Tap here!', () => sim.frontAllyX(0));
       this.lockInput = null;
     }
-    // 6) tap the base to upgrade it
-    await waitFor(() => sim.t > 35 || sim.over);
-    if (!sim.over) {
-      sim.sides[0].energy = Math.max(sim.sides[0].energy, sim.overclockInfo(0).cost ?? 4);
-      this.view.focus(sim.sides[0].labX + (engine.width < engine.height ? 3.5 : 6), 8);
-      await wait(0.6);
-      this.noPush = true;
-      await talk('Now *UPGRADE YOUR BASE* with the big BASE button: more HP, a stronger zapper and *more POWER*!');
-      this.noPush = false;
-      this.lockInput = 'lab';
-      remove = pointAt(() => this.hud.ocBtn, 'Upgrade!');
-      await until('lab');
-      clearPtr();
-      this.lockInput = null;
-      await wait(1.6);
-    }
-    // 7) Commander signature
-    await waitFor(() => sim.sides[0].sig >= 1 || sim.t > 75 || sim.over);
-    if (!sim.over) {
-      sim.sides[0].sig = 1;
-      await talk(`Your *ULTIMATE* is charged. It fills up from the *POWER* you make and from *damage to your base*. Tap the glowing *ULT* button for *${sim.sides[0].cmd?.signature?.name ?? 'your ULTIMATE'}*.`);
-      this.lockInput = 'sig';
-      remove = pointAt(this.hud.sig, 'Tap it!');
-      await until('sig');
-      clearPtr();
-      this.lockInput = null;
-      // let the full ULTIMATE cutscene play out first
-      await waitFor(() => !sim.cinematic && !this.view.cine);
-      await wait(1.6);
-      await talk("Nice! Now smash my base!");
-    }
+    // (base upgrades and the Commander ULTIMATE are taught in your first ranked battles, once they
+    // unlock: ui/guide.js battleLessons; here they show a lock)
     // the finish: no MEGA yet (those are earned on the Trophy Road)
     const jLab = sim.sides[1].lab;
     await waitFor(() => jLab.hp < jLab.maxHp * 0.5 || sim.t > 120 || sim.over);

@@ -20,6 +20,7 @@ import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
 import { rankMedal, setRankMedal } from '../ui/rankMedal.js';
 import * as M from './homeMotion.js';
+import { setupIslandRoad } from './homeRoad.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { Chibi } from '../core/chibi.js';
 import { CHARACTERS } from '../data/characters.js';
@@ -35,6 +36,7 @@ import {
 import { game } from '../game/game.js';
 import { batchStatic } from '../core/staticBatch.js';
 import { ONLINE_ENABLED } from '../ui/home/friend.js';
+import * as G from '../ui/guide.js';
 
 const TABS = [
   { id: 'shop', label: 'SHOP', icon: 'shop' },
@@ -158,11 +160,13 @@ export class HomeScene {
       state.save();
       await wait(1.0);
       const J = { name: 'Jimmy', color: '#2b8cf2', portrait: charPortrait('jimmy', { eyes: 'happy', mouth: 'grin' }) };
-      await say(J, 'Welcome to *BEAST ISLAND*! Every arena on this island is from one of my videos. Win battles to earn *trophies* and climb the road to the top!');
-      await say(J, 'Battles also win you *vials* full of Swarms. Upgrade your cards in the *CARDS* tab and build your best deck. Now go get some trophies!');
+      await say(J, 'Welcome to *BEAST ISLAND*! Every arena on this island is from one of my videos. Win battles to earn *trophies* and climb to the top.');
+      await say(J, 'Everything else here is *locked* until you win. Cards, the Shop, the Lab, all of it. Each win opens something new. Go get one!');
       const off = pointAt(this.battleBtn, 'Battle!');
       this.tutPtr = off;
     }
+    // progressive unlocks: reveal what the last battles opened, then the next guided step (ui/guide.js)
+    G.homeReady(this);
   }
 
   // -------------------------------------------------------------------------
@@ -185,6 +189,8 @@ export class HomeScene {
     for (const z of I.zones) if (z.index > best || (this.unlockTarget >= 0 && z.index >= this.unlockTarget)) I.setLocked(z.id, true);
     this.I = I;
     this.populate();
+    // the trophy road's chests, gates + your YOU marker live on the island too
+    try { this.road = setupIslandRoad(this); } catch (e) { console.warn('island trophy road unavailable', e); }
     // merge the island's still props into a few draws per zone; anything that later moves is
     // handed back to normal rendering automatically (core/staticBatch.js)
     try { this.batch = batchStatic(I.root, { probe: (dt, t) => I.update(dt, t) }); } catch (e) { console.warn('static batching skipped', e); }
@@ -370,7 +376,7 @@ export class HomeScene {
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
       button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only hm-sb hm-sb-fr', { icon: 'friends' }),
-      this.roadBtn = button('', () => this.openModal('trophyRoad', 'openTrophyRoad'), 'gold icon-only hm-sb hm-sb-road', { icon: 'road' })));
+      this.roadBtn = button('', () => this.openRoad(), 'gold icon-only hm-sb hm-sb-road', { icon: 'road' })));
     // tags over the island
     this.tagLayer = h('div', { class: 'hm-tags' });
     for (const pk of this.pickables) if (pk.tag) this.tagLayer.appendChild(pk.tag);
@@ -382,7 +388,7 @@ export class HomeScene {
     this.zRibbon = ribbon('BEAST LAB', 'blue');
     this.zTro = h('div', { class: 'zt' });
     this.zProg = bar(0, 'gold', '', { cls: 'hm-zprog' });
-    this.zBox = h('div', { class: 'hm-zbox', 'data-sfx': 'tap', onclick: () => this.openModal('trophyRoad', 'openTrophyRoad') }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
+    this.zBox = h('div', { class: 'hm-zbox', 'data-sfx': 'tap', onclick: () => this.openRoad() }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
     const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
     this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Win trophies & vials', sound: 'go' });
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
@@ -419,6 +425,7 @@ export class HomeScene {
     for (const b of this.navBtns) M.pressable(b, { press: { sx: 1.1, sy: 0.84, y: 3 }, hover: { y: -3, sx: 1.06, sy: 1.06 } });
     M.pressable(bwrap, { press: { sx: 1, sy: 1, y: 0 }, hover: { y: -4, sx: 1.03, sy: 1.03 } });
     for (const pl of [this.coinPill, this.buckPill]) M.pressable(pl, { press: { sx: 0.96, sy: 0.9, y: 1 }, hover: { y: -2, sx: 1.03, sy: 1.03 } });
+    G.mountHome(this); // locked tabs / buttons + the main quest tracker
     this.setTab('battle', true);
     this.refresh(true);
   }
@@ -464,6 +471,8 @@ export class HomeScene {
     this.updateMinis();
     this.updateBadges();
     this.currentTab?.refresh?.();
+    G.refreshHome(this);
+    this.road?.refresh();
   }
   setPill(el, v) {
     if (el.set) { if (el._v !== v) el.set(v); return; }
@@ -576,7 +585,7 @@ export class HomeScene {
       for (const btn of this.navBtns) {
         btn.querySelector('.badge')?.remove();
         const n = b[btn.dataset.tab] ?? 0;
-        if (n > 0) btn.appendChild(h('div', { class: 'badge' }, n > 9 ? '9+' : String(n)));
+        if (n > 0) btn.appendChild(h('div', { class: 'badge' }, n > 99 ? '99+' : String(n)));
       }
       this.roadBtn.querySelector('.badge')?.remove();
       if (b.road > 0) this.roadBtn.appendChild(h('div', { class: 'badge' }, b.road > 9 ? '9+' : String(b.road)));
@@ -593,7 +602,6 @@ export class HomeScene {
       openVial: (o) => this.openVial(o.type, o.slot, o.source),
       openFree: () => this.openFree(),
       openMegas: () => this.openMegas(),
-      visitLab: () => game.go('lab', { visit: true, backTab: 'lab' }),
       battle: (params) => game.go('battle', params),
       focusArena: (id) => {
         document.querySelectorAll('.modal-back').forEach((m) => m.remove());
@@ -601,11 +609,19 @@ export class HomeScene {
         const k = ARENAS.findIndex((a) => a.id === id);
         if (k >= 0 && k !== this.zoneIdx) this.goArena(k);
       },
+      islandRoad: this.road ? (key) => this.openRoad(key) : null,
       toast,
     };
   }
+  /** The Trophy Road: flies onto the island's road (or the full-screen road if the island has none). */
+  openRoad(key) {
+    if (!this.road) { this.openModal('trophyRoad', 'openTrophyRoad'); return; }
+    if (this.tab !== 'battle') this.setTab('battle');
+    this.road.open(key);
+  }
 
   async setTab(id, instant = false, opts = {}) {
+    if (!G.tabAllowed(id)) return; // not unlocked yet (game/progression.js)
     const prevIdx = TABS.findIndex((t) => t.id === this.tab);
     const idx = TABS.findIndex((t) => t.id === id);
     const homeIdx = TABS.findIndex((t) => t.id === 'battle');
@@ -813,6 +829,7 @@ export class HomeScene {
     await wait(0.2);
     const I = this.I;
     I.setLocked(A.id, false, { animate: true });
+    I.trophyPath?.setGateLocked(A.id, false, { animate: true });
     audio.play('shatter');
     await wait(1.0);
     engine.shake(0.4);
@@ -858,7 +875,7 @@ export class HomeScene {
   bindInput() {
     const c = engine.canvas;
     this.onDown = (e) => {
-      if (this.tab !== 'battle') return;
+      if (this.tab !== 'battle' || this.road?.active) return;
       this.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
     };
     this.onUp = (e) => {
@@ -892,7 +909,7 @@ export class HomeScene {
   resize(w, hh) {
     this.camera.aspect = w / hh;
     this.camera.updateProjectionMatrix();
-    if (this.I && !this.fly) this.placeZone(this.zoneIdx, true);
+    if (this.I && !this.fly && !this.road?.active) this.placeZone(this.zoneIdx, true);
     this.layoutTab();
   }
 
@@ -924,7 +941,7 @@ export class HomeScene {
     }
     // cinematic idle drift: a slow orbit sway, a gentle dolly "breath" and a drifting look target;
     // it eases in after each camera flight so zone framing stays exact when you arrive
-    this.idleK = this.fly ? 0 : Math.min(1, (this.idleK ?? 0) + dt * 0.35);
+    this.idleK = this.fly || this.road?.active ? 0 : Math.min(1, (this.idleK ?? 0) + dt * 0.35);
     const ik = this.idleK * this.idleK * (3 - 2 * this.idleK), t = this.t;
     const off = _camOff.copy(this.cam.pos).sub(this.cam.look);
     off.applyAxisAngle(_yAxis, (Math.sin(t * 0.11) * 0.05 + Math.sin(t * 0.23 + 1.3) * 0.015) * ik + Math.sin(t * 0.13) * 0.02);
@@ -936,6 +953,7 @@ export class HomeScene {
     cam.position.y += Math.sin(t * 0.4) * 0.15 + Math.sin(t * 0.07) * 0.6 * ik;
     cam.lookAt(_camLook);
     for (const a of this.actors) a.update?.(dt);
+    this.road?.update(dt);
     // world tags
     const v = _tagV;
     const shownTags = [];
@@ -945,7 +963,7 @@ export class HomeScene {
       v.y += pk.tagH;
       const s = engine.toScreen(v, cam);
       const near = cam.position.distanceTo(v) < 140;
-      if (!s.visible || !near || this.tab !== 'battle') { pk.tag.style.display = 'none'; continue; }
+      if (!s.visible || !near || this.tab !== 'battle' || this.road?.active) { pk.tag.style.display = 'none'; continue; }
       if (pk.tag.style.display === 'none' || !pk.tagBox?.[0]) { pk.tag.style.display = ''; pk.tagBox = [pk.tag.offsetWidth, pk.tag.offsetHeight]; }
       shownTags.push({ pk, x: s.x, y: s.y });
     }
@@ -969,7 +987,9 @@ export class HomeScene {
     window.removeEventListener('pointercancel', this.onUp);
     this.offState && this.offState();
     this.offResearch && this.offResearch();
+    G.leaveHome(this);
     try { this.currentTab?.dispose?.(); } catch (e) { /* ignore */ }
+    this.road?.dispose();
     if (this.tutPtr) this.tutPtr();
     clearTimeout(this.showT);
     clearTimeout(this.coverT);

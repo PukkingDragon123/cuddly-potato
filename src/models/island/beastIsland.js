@@ -16,6 +16,7 @@
 //                  camPos/camLook: 3/4 top-down framing for fov ~35 in landscape; for portrait push the
 //                  camera back along (camPos - camLook) by ~1/aspect (see src/dev/islandView.js).
 //   roadPoints     Vector3[] trophy-road polyline (1 unit spacing, y = walkable surface incl. bridges + plinth tops)
+//   trophyPath     the TROPHY_ROAD milestones built along the road (pedestals, chests, gates; see trophyPath.js)
 //   setLocked(id, locked, { animate })  cloud cover + padlock + chains + greyed signpost; animate the unlock
 //   isLocked(id), heightAt(x, z), overview { camPos, camLook }, sky, fog, fogFor(dist), lights, dispose()
 //
@@ -37,6 +38,7 @@ import { makeOcean, makeRiver, lagoonTexture, lavaLakeTexture, columnWater } fro
 import { makeSky, Billboards, makeDistantIslands, HORIZON } from './sky.js';
 import * as P from './props.js';
 import { addIslandExtras, makeCloudUniforms, patchCloudShadows } from './extras.js';
+import { addTrophyPath } from './trophyPath.js';
 
 export const ZONE_ORDER = ['lab', 'circle', 'factory', 'mart', 'redlight', 'antarctica', 'reactor', 'pyramid', 'island', 'jungle', 'laser', 'haunted', 'reef', 'volcano', 'space'];
 
@@ -421,6 +423,13 @@ export async function makeBeastIsland(opts = {}) {
   lap('zones');
   // ------------------------------------------------------------------ landmarks
   const exclude = [];
+  // the trophy road's milestones (pedestals, chests, arena gates) claim their spots before the scatter
+  let trophyPath = null;
+  try {
+    trophyPath = addTrophyPath({ T, root, roadPoints, roadIdx, zones: ZONES, plinthR: PLINTH_R, exclude, updaters });
+  } catch (e) {
+    console.error('trophy road failed', e);
+  }
   addLandmarks({ T, root, updaters, exclude, R });
   addNorthLandmarks({ T, root, updaters, exclude, R, zones });
   lap('landmarks');
@@ -448,6 +457,7 @@ export async function makeBeastIsland(opts = {}) {
     root,
     zones,
     roadPoints,
+    trophyPath,
     setLocked,
     isLocked: (id) => !!lockState[id]?.locked,
     update(dt, t) { for (const u of updaters) u(dt, t); },
@@ -471,6 +481,7 @@ export async function makeBeastIsland(opts = {}) {
       for (const m of lagoons) { m.geometry.dispose(); m.material.dispose(); }
       lagTex.dispose();
       lavaTex.dispose();
+      trophyPath?.dispose();
     },
   };
 }
@@ -938,13 +949,13 @@ function addRoadside({ T, root, bridges, exclude }) {
     const x = p.x - (tz / l) * (T.RW + 0.45) * side, z = p.z + (tx / l) * (T.RW + 0.45) * side;
     const id = T.colAt(x, z);
     if (id < 0 || T.riverD[id] < T.riverW[id] + 0.6) continue;
+    if (exclude.some(([ex, ez, er]) => Math.hypot(x - ex, z - ez) < er)) continue;
     items.push([x, T.heightAt(x, z), z, 0, 1]);
     side = -side;
   }
   const im = instanced(P.geo('lamp', P.lampGrid, 0.085, 'bottom'), items, { shadow: true });
   im.name = 'roadLamps';
   root.add(im);
-  void exclude;
 }
 
 // ---------------------------------------------------------------------------

@@ -258,7 +258,7 @@
 
 .cn-chips { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1); justify-content: center; }
 .cn-chip {
-  display: flex; align-items: center; gap: 0.35em; padding: 0 0.3em 0 0;
+  display: flex; align-items: center; gap: 0.35em; padding: 0 0.8em 0 0.1em;
   opacity: 0; transform: scale(0.6);
 }
 .cn-chip.in { opacity: 1; transform: none; animation: popIn 0.32s cubic-bezier(.2, 1.6, .4, 1) both; }

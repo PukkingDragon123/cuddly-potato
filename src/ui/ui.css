@@ -1054,3 +1054,22 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 
 /* House rule: text is never tilted or skewed (no rotate/skew on text, ever). */
 .t-d, .t-b, .outline, h1, h2, h3, [class*="name"], [class*="title"], [class*="slam"], [class*="label"], [class*="tag"], [class*="kicker"], [class*="banner"] { font-style: normal; }
+
+/* boot screen, round 5: the same calm look as the loading screen (scenes/cinematic.css .ld):
+   navy lab backdrop, the two-tone logo and a green goo tube, no fizz texture */
+#boot {
+  gap: 26px;
+  background:
+    radial-gradient(ellipse 110% 85% at 50% 48%, transparent 45%, rgba(3, 4, 16, 0.7)),
+    repeating-linear-gradient(90deg, rgba(120, 170, 255, 0.05) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(0deg, rgba(120, 170, 255, 0.05) 0 1px, transparent 1px 24px),
+    linear-gradient(#0e1740, #0b1230 55%, #080d26);
+}
+#boot .boot-logo { font-size: 44px; color: #ffe2f0; text-shadow: -3px -3px 0 #120c24, 3px -3px 0 #120c24, -3px 3px 0 #120c24, 3px 3px 0 #120c24, 0 6px 0 #ff2e88, 0 9px 0 #120c24; }
+#boot .boot-logo span { color: #ffd23f; font-size: 1.45em; text-shadow: -3px -3px 0 #120c24, 3px -3px 0 #120c24, -3px 3px 0 #120c24, 3px 3px 0 #120c24, 0 6px 0 #d8661a, 0 9px 0 #120c24; }
+#boot .boot-bar { width: 240px; height: 24px; background: #0b1236; box-shadow: 0 0 0 3px #120c24, inset 0 0 0 3px #4a6a9c, inset 0 3px 0 3px #8fb4e0; }
+#boot .boot-bar i {
+  margin: 6px; height: calc(100% - 12px); max-width: calc(100% - 12px); animation: none; box-shadow: inset -3px 0 0 #eaffd8;
+  background: linear-gradient(#b6ff8a 0 3px, #7dff4a 3px 55%, #3fd23f 55% 85%, #1d8a3a 85%);
+}
+#boot .boot-tip { font-size: 17px; color: #e8eeff; text-shadow: -1px -1px 0 #120c24, 1px -1px 0 #120c24, -1px 1px 0 #120c24, 1px 1px 0 #120c24; }

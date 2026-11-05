@@ -833,7 +833,7 @@ export class BattleHUD {
         }
         break;
       case 'sigReady':
-        if (ev.side === 0 && this.sig) this.showUltReady();
+        if (ev.side === 0 && this.sig && !this.locked?.ult) this.showUltReady();
         break;
       case 'sigStart':
         this.ultTip?.remove();
@@ -1095,8 +1095,8 @@ export class BattleHUD {
       if (lean) bump(this.twLean, 'pop');
     }
     this.twLean.style.left = Math.max(14, Math.min(86, sp)).toFixed(2) + '%';
-    // commander ultimate + skills
-    if (this.sig) {
+    // commander ultimate + skills (a locked ULT keeps its lock face: ui/guide.js applyBattleLocks)
+    if (this.sig && !this.locked?.ult) {
       const k = Math.min(1, s.sig);
       const ready = k >= 1 && !sim.over;
       this.setUlt(this.sigU, k, ready ? 'ready' : 'charging', ready ? 'TAP!' : `${Math.floor(k * 100)}%`);
@@ -1163,7 +1163,7 @@ export class BattleHUD {
   }
   /** What charges the ULTIMATE: a pixel callout over the ULT button. */
   showUltTip(short = false) {
-    if (!this.sig) return;
+    if (!this.sig || this.locked?.ult) return;
     this.ultTip?.remove();
     clearTimeout(this.ultTipT);
     const pct = Math.floor(Math.min(1, this.sim.sides[0].sig) * 100);

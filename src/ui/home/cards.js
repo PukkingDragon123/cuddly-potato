@@ -146,7 +146,10 @@ export function mount(el, ctx) {
         cell.classList.add('lockd-slot');
         cell.appendChild(em);
       } else {
-        const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot' }, h('span', { class: 't-d' }, '+')));
+        // an empty slot: '+' when a card is waiting in the collection, else a hint to go find more
+        const spare = Object.keys(p.cards).some((cid) => !deck.includes(cid));
+        const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: spare ? null : { flexDirection: 'column', gap: '0.1em' } },
+          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.7 } }, '?'), h('span', { class: 't-xs c-muted', style: { fontSize: '0.62em', textAlign: 'center', lineHeight: 1.05 } }, 'Win to find')]));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.appendChild(em);
       }
@@ -155,7 +158,8 @@ export function mount(el, ctx) {
         if (i >= slots) { audio.play('deny'); ctx.toast?.(`Deck slot ${i + 1} unlocks at *${LINEUP_UNLOCKS[i]}* trophies!`, { icon: 'trophy' }); return; }
         if (swapId) return placeInto(i);
         if (id) openPop(cell, id, 'deck', i);
-        else audio.play('deny');
+        else if (Object.keys(p.cards).some((cid) => !deck.includes(cid))) { audio.play('tap'); ctx.toast?.('Tap a card in your *collection*, then *USE* to put it here.', { icon: 'cards' }); }
+        else { audio.play('deny'); ctx.toast?.('Win battles, open vials and climb the *Trophy Road* to find more cards!', { icon: 'cards' }); }
       });
       grid.appendChild(cell);
     }

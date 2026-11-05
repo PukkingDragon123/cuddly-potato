@@ -1,11 +1,14 @@
-// Trophy Road (Clash Royale style): a full-screen vertical road from 0
-// trophies upward, split into arena CHAPTERS. Each chapter starts with a big
-// arena banner (a 3D snapshot of the arena's Beast Island diorama on a sky
-// tinted with the arena colour, name, the MrBeast video it is based on, the
-// cards it unlocks, its gate reward, VIEW + BOSS) followed by the milestone
-// rewards earned inside that arena. A glass tube runs up the middle and fills
-// with glowing goo to your trophy count; your marker rides the goo front.
+// Trophy Road. On the home lobby the road is a physical part of Beast Island
+// (models/island/trophyPath.js + scenes/homeRoad.js): openTrophyRoad() flies
+// the island camera onto it and mountIslandRoad() puts the compact HUD on top
+// (back, trophies + currencies, the focused milestone's reward card with
+// CLAIM, a "to claim" jump chip and the YOU tag over your Commander).
+// Without the island (screen bench) it falls back to the full-screen road:
+// arena CHAPTERS, each with a big arena banner (diorama snapshot, the video it
+// is based on, the cards it unlocks, its gate reward, VIEW + BOSS) followed by
+// the milestone rewards earned inside that arena, along a goo-filled tube.
 // Everything is read from ARENAS / TROPHY_ROAD, so new arenas just appear.
+import './trophyRoad.css';
 import { h, icon, iconURL, button, pill, sparkle, bump, burst, flyIcons, clear, $overlay } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { arenaImg } from '../thumbs.js';
@@ -14,7 +17,7 @@ import { audio } from '../../core/audio.js';
 import { state, trophyRoadClaimable, claimTrophyRoad } from '../../game/state.js';
 import { ARENAS, TROPHY_ROAD, arenaById, currentArena, bossOfArena } from '../../data/arenas.js';
 import { cardsOfArena } from '../../data/cards.js';
-import { rewardTile, rewardLabel, showRewards, refreshCtx, fmtN, charImg, flyText, isBigReward } from './common.js';
+import { rewardTile, rewardLabel, rewardKind, showRewards, refreshCtx, fmtN, charImg, flyText, isBigReward } from './common.js';
 import { openBoss } from './boss.js';
 
 export function trophyRoadBadge() {
@@ -37,6 +40,7 @@ function chapters() {
 }
 
 export function openTrophyRoad(ctx) {
+  if (ctx?.islandRoad) { ctx.islandRoad(); return { close() {}, el: null }; }
   const root = h('div', { class: 'mn-tr' });
   const scroll = h('div', { class: 'mn-tr-scroll scroll-y' });
   const pillVal = h('b', { class: 't-d outline' }, fmtN(state.p.trophies));
@@ -230,4 +234,179 @@ export function openTrophyRoad(ctx) {
 
   render();
   return { close, el: root };
+}
+
+// ---------------------------------------------------------------------------
+// Island Trophy Road HUD
+
+/** 2D pixel confetti bursting up from a screen point and falling back (DOM squares, WAAPI). */
+function pixelPop(x, y, n = 40) {
+  if (matchMedia?.('(prefers-reduced-motion: reduce)').matches) n = 8;
+  const cols = ['#ffd84a', '#ff2e88', '#3ff2e0', '#7aff4a', '#ffffff', '#a35cff', '#ff8a1f'];
+  const layer = $overlay();
+  for (let i = 0; i < n; i++) {
+    const w = 2 + (i % 3), hh = i % 4 === 0 ? 1 : w;
+    const p = h('i', { class: 'trd-px', style: { left: x + 'px', top: y + 'px', background: cols[i % cols.length], width: `calc(var(--px) * ${w})`, height: `calc(var(--px) * ${hh})` } });
+    layer.appendChild(p);
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.1, v = 170 + Math.random() * 230;
+    const vx = Math.cos(a) * v, vy = Math.sin(a) * v, T = 0.85 + Math.random() * 0.7, g = 620;
+    const kf = [];
+    for (let k = 0; k <= 8; k++) {
+      const t = (T * k) / 8;
+      kf.push({ transform: `translate(${Math.round(vx * t)}px, ${Math.round(vy * t + 0.5 * g * t * t)}px)`, opacity: k < 6 ? 1 : 1 - (k - 5) / 3 });
+    }
+    p.animate(kf, { duration: T * 1000, easing: 'linear', fill: 'forwards' }).onfinish = () => p.remove();
+  }
+}
+
+const arenaNo = (A) => (A.legendary ? 'LEGENDARY ARENA' : `ARENA ${A.index + 1}`);
+
+/** HUD over the island road. road: the controller from scenes/homeRoad.js. */
+export function mountIslandRoad(road, ctx) {
+  const ms = road.milestones;
+  const p = state.p;
+  const troVal = h('b', { class: 't-d outline trd-tro-n' }, fmtN(p.trophies));
+  const bestEl = h('span', { class: 'trd-tro-best' });
+  const tro = h('div', { class: 'trd-tro' }, icon('trophy', 'trd-tro-ic'), h('div', { class: 'trd-tro-col' }, troVal, bestEl));
+  const coinPill = pill('coin', p.coins, { cls: 'trd-cur' });
+  const buckPill = pill('bucks', p.bucks, { cls: 'trd-cur' });
+  const back = button('', () => road.close(), 'blue icon-only trd-back', { icon: 'arrowL', sound: 'tap' });
+  const top = h('div', { class: 'trd-top' }, back, tro, h('div', { class: 'trd-curs' }, coinPill, buckPill));
+  const chapDot = h('i', { class: 'trd-chap-dot' });
+  const chapNo = h('span', { class: 'trd-chap-no' });
+  const chapName = h('b', { class: 't-d outline trd-chap-n' });
+  const chap = h('div', { class: 'trd-chap' }, chapDot, h('div', { class: 'trd-chap-txt' }, chapNo, chapName));
+  const readyN = h('span', {});
+  const readyBtn = button(readyN, () => road.nextClaimable(), 'green sm trd-ready', { icon: 'gift', sound: 'tap' });
+  const sub = h('div', { class: 'trd-sub' }, chap, readyBtn);
+  // YOU tag over your Commander
+  const youVal = h('span', {}, fmtN(p.trophies));
+  const youTag = h('div', { class: 'trd-you t-d' }, icon('trophy'), youVal);
+  // reward card
+  const cardArt = h('div', { class: 'trd-art' });
+  const kindEl = h('div', { class: 'trd-kind' });
+  const nameEl = h('div', { class: 'trd-name t-d outline' });
+  const reqEl = h('div', { class: 'trd-req' });
+  const actEl = h('div', { class: 'trd-act' });
+  const prev = button('', () => road.step(-1), 'gray icon-only sm trd-step', { icon: 'arrowL', sound: 'tap' });
+  const next = button('', () => road.step(1), 'gray icon-only sm trd-step', { icon: 'arrowR', sound: 'tap' });
+  const card = h('div', { class: 'panel sk-panel-dark trd-card' }, prev, cardArt, h('div', { class: 'trd-info' }, kindEl, nameEl, reqEl), actEl, next);
+  const root = h('div', { class: 'trd' }, h('div', { class: 'trd-vig' }), youTag, top, sub, card);
+  $overlay().appendChild(root);
+  requestAnimationFrame(() => root.classList.add('in'));
+
+  let shownIdx = -1, shownState = '';
+  const stateOf = (i) => road.stateOf(i);
+  function setPills() {
+    coinPill.set(state.p.coins);
+    buckPill.set(state.p.bucks);
+  }
+  function header() {
+    const P = state.p;
+    troVal.textContent = fmtN(P.trophies);
+    youVal.textContent = fmtN(P.trophies);
+    bestEl.textContent = P.bestTrophies > P.trophies ? `Best ${fmtN(P.bestTrophies)}` : '';
+    bestEl.style.display = bestEl.textContent ? '' : 'none';
+    const n = trophyRoadClaimable().length;
+    readyN.textContent = n === 1 ? '1 TO CLAIM' : `${n} TO CLAIM`;
+    readyBtn.style.display = n ? '' : 'none';
+  }
+  function chapter(i) {
+    const M = ms[i];
+    const A = ARENAS[M.chapter];
+    if (!A) return;
+    chap.style.setProperty('--ac', A.color);
+    chapNo.textContent = arenaNo(A);
+    chapName.textContent = A.name.toUpperCase();
+  }
+  /** Fill the reward card for milestone i. */
+  function fill(i, pop) {
+    const M = ms[i];
+    const st = stateOf(i);
+    shownIdx = i;
+    shownState = st;
+    chapter(i);
+    clear(cardArt);
+    cardArt.appendChild(rewardTile(M.m.reward));
+    const A = M.gate ? ARENAS[M.chapter] : null;
+    kindEl.textContent = A ? `${arenaNo(A)} REWARD` : rewardKind(M.m.reward).toUpperCase();
+    nameEl.textContent = rewardLabel(M.m.reward);
+    clear(reqEl);
+    reqEl.append(icon('trophy', 's'), h('span', { class: 't-d' }, fmtN(M.t)));
+    clear(actEl);
+    card.className = `panel sk-panel-dark trd-card ${st}`;
+    if (st === 'ready') {
+      const b = button('CLAIM', () => claim(i), 'green trd-claim pulse', { icon: 'gift', sound: 'tap' });
+      b.dataset.guide = 'road-claim';
+      actEl.append(b);
+    }
+    else if (st === 'claimed') actEl.append(h('div', { class: 'trd-got t-d outline' }, icon('check', 's'), 'CLAIMED'));
+    else {
+      const need = M.t - state.p.bestTrophies;
+      const f = Math.max(0, Math.min(1, state.p.trophies / M.t));
+      actEl.append(h('div', { class: 'trd-need' }, h('div', { class: 'trd-need-t t-d outline' }, icon('lock', 's'), h('span', {}, `${fmtN(need)} to go`)),
+        h('div', { class: 'trd-need-bar' }, h('i', { style: { width: (f * 100).toFixed(1) + '%' } }))));
+    }
+    if (A && !(st === 'locked')) actEl.append(button('', () => road.viewArena(A.id), 'blue icon-only sm trd-view', { icon: 'eye', sound: 'tap', tip: `Fly to *${A.name}*` }));
+    prev.classList.toggle('off', i <= 0);
+    next.classList.toggle('off', i >= ms.length - 1);
+    if (pop) bump(card, 'trd-pop');
+  }
+  let claiming = false;
+  function claim(i) {
+    if (claiming || stateOf(i) !== 'ready') return;
+    const M = ms[i];
+    const from = road.screenOf(M.rewardPos);
+    const got = road.claim(i);
+    if (!got.length) return;
+    claiming = true;
+    header();
+    // pixel confetti out of the chest, then the reward art flies from the chest to the UI
+    const chest = road.screenOf(M.anchor);
+    pixelPop(chest.x, chest.y - (from.y - chest.y) * 0.35);
+    const anchor = h('div', { class: 'trd-anchor', style: { left: from.x + 'px', top: from.y + 'px' } });
+    $overlay().appendChild(anchor);
+    sparkle(anchor, { count: 16, spread: 80, colors: ['#ffffff', '#ffd84a', '#fff6b8', '#7aff4a'] });
+    const small = got.every((g) => g.kind === 'coins' || g.kind === 'bucks' || g.kind === 'calories');
+    const done = () => { anchor.remove(); claiming = false; refreshCtx(ctx); fill(i, true); header(); };
+    if (small) {
+      for (const g of got) {
+        const to = g.kind === 'coins' ? coinPill : g.kind === 'bucks' ? buckPill : null;
+        flyText(anchor, `+${fmtN(g.amount)}`, g.kind === 'bucks' ? 'c-pink' : 'c-gold');
+        flyIcons(anchor, g.kind === 'coins' ? 'coin' : g.kind === 'bucks' ? 'bucks' : 'calorie', to, { count: 7, size: 30 }).then(() => setPills());
+      }
+      setTimeout(done, 900);
+      return;
+    }
+    // bigger rewards: the tile springs out of the chest into the reward screen
+    const tile = h('div', { class: 'trd-fly' }, rewardTile(got[0]));
+    anchor.appendChild(tile);
+    const big = isBigReward(got[0]) || M.gate;
+    setTimeout(() => {
+      anchor.remove();
+      showRewards(got, { title: `${fmtN(M.t)} TROPHIES!`, note: got.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null, color: big ? 'gold' : undefined })
+        .then(() => { setPills(); done(); });
+    }, 640);
+  }
+  const api = {
+    el: root,
+    focus(i) { if (i !== shownIdx || stateOf(i) !== shownState) fill(i, i !== shownIdx); },
+    claim,
+    refresh() { header(); if (shownIdx >= 0 && stateOf(shownIdx) !== shownState && !claiming) fill(shownIdx, false); },
+    frame() {
+      // YOU tag rides above your Commander's head
+      const o = road.youObj();
+      const sp = road.screenOf(o.position.clone().setY(o.position.y + 4.75));
+      if (!sp.visible) { youTag.style.display = 'none'; return; }
+      youTag.style.display = '';
+      youTag.style.transform = `translate(${Math.round(sp.x)}px, ${Math.round(sp.y)}px)`;
+    },
+    close() {
+      root.classList.remove('in');
+      root.classList.add('out');
+      setTimeout(() => root.remove(), 260);
+    },
+  };
+  header();
+  return api;
 }

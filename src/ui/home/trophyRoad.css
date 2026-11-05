@@ -1,0 +1,103 @@
+/* Island Trophy Road HUD (mountIslandRoad): compact top bar, chapter chip, reward card, YOU tag. */
+.trd { position: absolute; inset: 0; pointer-events: none; z-index: 5; opacity: 0; transition: opacity 0.25s; }
+.trd.in { opacity: 1; }
+.trd.out { opacity: 0; }
+.trd > * { pointer-events: auto; }
+.trd > .trd-vig, .trd > .trd-you { pointer-events: none; }
+/* soft top + bottom shade so the HUD reads over bright terrain */
+.trd-vig { position: absolute; inset: 0; background: linear-gradient(rgba(8, 10, 40, 0.5), rgba(8, 10, 40, 0) 18%, rgba(8, 10, 40, 0) 70%, rgba(8, 10, 40, 0.55)); }
+
+/* the home lobby UI steps aside while the road is open */
+.home.hm-road .hm-top, .home.hm-road .hm-side, .home.hm-road .hm-dock, .home.hm-road .hm-tags, .home.hm-road .gd-qt { opacity: 0; pointer-events: none !important; transition: opacity 0.2s; }
+.home.hm-road .hm-dock *, .home.hm-road .hm-side *, .home.hm-road .hm-top *, .home.hm-road .gd-qt * { pointer-events: none !important; }
+
+.trd-top {
+  position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: calc(var(--u) * 1.4);
+  padding: calc(var(--safe-t) + var(--u) * 1.6) calc(var(--safe-r) + var(--u) * 2) 0 calc(var(--safe-l) + var(--u) * 2);
+}
+.trd-back { flex: none; width: calc(var(--u) * 9.5); }
+.trd-tro {
+  display: flex; align-items: center; gap: calc(var(--u) * 0.8); padding: calc(var(--u) * 0.5) calc(var(--u) * 2) calc(var(--u) * 0.5) calc(var(--u) * 0.8);
+  background: linear-gradient(#2a1a5e, #140c38); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 rgba(255, 216, 74, 0.45), 0 calc(var(--px) * 1.3) 0 rgba(0, 0, 0, 0.35);
+}
+.trd-tro-ic { width: calc(var(--u) * 7); height: calc(var(--u) * 7); filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 216, 74, 0.6)); }
+.trd-tro-col { display: flex; flex-direction: column; line-height: 1; }
+.trd-tro-n { font-size: 1.45em; color: var(--gold); }
+.trd-tro-best { font-size: 0.72em; color: var(--muted); white-space: nowrap; }
+.trd-curs { margin-left: auto; display: flex; gap: calc(var(--u) * 1); min-width: 0; }
+.trd-cur { font-size: 0.92em; }
+
+.trd-sub {
+  position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + var(--u) * 13.5); display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 1.4);
+  padding: 0 calc(var(--safe-r) + var(--u) * 2) 0 calc(var(--safe-l) + var(--u) * 2); pointer-events: none;
+}
+.trd-sub > * { pointer-events: auto; }
+.trd-chap {
+  --ac: #29b6f6; display: flex; align-items: center; gap: calc(var(--u) * 1); min-width: 0; padding: calc(var(--u) * 0.6) calc(var(--u) * 1.8) calc(var(--u) * 0.6) calc(var(--u) * 1);
+  background: linear-gradient(rgba(10, 14, 50, 0.88), rgba(20, 28, 78, 0.88)); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset calc(var(--px) * 1.3) 0 0 var(--ac);
+  transition: box-shadow 0.3s;
+}
+.trd-chap-dot { flex: none; width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); background: var(--ac); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), 0 0 calc(var(--px) * 3) var(--ac); }
+.trd-chap-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.05; }
+.trd-chap-no { font-size: 0.68em; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; }
+.trd-chap-n { font-size: 1.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trd-ready { flex: none; }
+
+/* YOU tag over your Commander */
+.trd-you {
+  position: absolute; left: 0; top: 0; translate: -50% -100%; display: flex; align-items: center; gap: 0.25em; padding: 0.08em 0.5em 0.14em; white-space: nowrap;
+  font-size: 0.95em; color: var(--gold); text-shadow: var(--outline-thin); background: linear-gradient(#2b8cf2, #1460b8);
+  box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 #8fd4ff, 0 0 calc(var(--px) * 3) rgba(63, 160, 255, 0.6);
+}
+.trd-you .pi { width: 1.15em; height: 1.15em; }
+.trd-you::after { content: ''; position: absolute; left: 50%; bottom: calc(var(--px) * -2.6); width: calc(var(--px) * 2.6); height: calc(var(--px) * 2.6); translate: -50% 0; background: #1460b8; box-shadow: 0 calc(var(--px) * 0.67) 0 var(--ink); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+
+/* the focused milestone's card */
+.trd-card {
+  position: absolute; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 2.4); translate: -50% 0; width: min(calc(100% - var(--u) * 4), calc(var(--u) * 112));
+  display: flex; align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.6) calc(var(--u) * 1.4);
+}
+.trd-card.ready { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.55)); }
+.trd-card.trd-pop { animation: trdPop 0.32s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes trdPop { 0% { scale: 0.94 0.9; } 60% { scale: 1.02 1.03; } 100% { scale: 1; } }
+.trd-step { flex: none; width: calc(var(--u) * 7.4); }
+.trd-step.off { opacity: 0.35; pointer-events: none; }
+.trd-art { flex: none; }
+.trd-art .mn-rw { --rw: calc(var(--u) * 16); }
+.trd-card.locked .trd-art { filter: saturate(0.4) brightness(0.8); }
+.trd-card.claimed .trd-art { filter: saturate(0.6); }
+.trd-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); }
+.trd-kind { font-size: 0.7em; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trd-name { font-size: 1.1em; line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.trd-req { display: flex; align-items: center; gap: 0.25em; color: var(--gold); font-size: 0.95em; text-shadow: var(--outline-thin); }
+.trd-req .pi { width: 1.1em; height: 1.1em; }
+.trd-act { flex: none; display: flex; align-items: center; gap: calc(var(--u) * 1); }
+.trd-claim { min-width: calc(var(--u) * 22); }
+.trd-got { display: flex; align-items: center; gap: 0.25em; color: var(--green-l); font-size: 1em; padding: 0 calc(var(--u) * 1); }
+.trd-need { display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * 0.6); width: calc(var(--u) * 22); }
+.trd-need-t { display: flex; align-items: center; justify-content: center; gap: 0.25em; font-size: 0.85em; white-space: nowrap; }
+.trd-need-bar { position: relative; height: calc(var(--u) * 2); background: linear-gradient(#05071e, #16226a); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 rgba(170, 230, 255, 0.25); }
+.trd-need-bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#ffe680, #ffb21a); box-shadow: inset 0 calc(var(--px) * -0.67) 0 rgba(0, 0, 0, 0.25); }
+.trd-view { flex: none; width: calc(var(--u) * 7.4); }
+
+/* reward art leaving the chest + its pixel confetti */
+.trd-px { position: absolute; left: 0; top: 0; z-index: 59; pointer-events: none; translate: -50% -50%; box-shadow: 0 var(--pxs) 0 rgba(0, 0, 0, 0.25); }
+.trd-anchor { position: absolute; width: calc(var(--u) * 14); height: calc(var(--u) * 14); translate: -50% -50%; pointer-events: none; z-index: 60; }
+.trd-fly { position: absolute; left: 50%; top: 50%; translate: -50% -50%; animation: trdFly 0.64s cubic-bezier(.3, 1.4, .5, 1) forwards; }
+.trd-fly .mn-rw { --rw: calc(var(--u) * 14); }
+@keyframes trdFly {
+  0% { transform: translateY(0) scale(0.3); opacity: 0; }
+  35% { transform: translateY(calc(var(--u) * -10)) scale(1.25); opacity: 1; }
+  100% { transform: translateY(calc(var(--u) * -18)) scale(1.6); opacity: 0; }
+}
+
+/* landscape phones: tighter top, card hugs the bottom */
+@media (max-height: 520px) and (orientation: landscape) {
+  .trd-sub { top: calc(var(--safe-t) + var(--u) * 1.6); left: calc(var(--u) * 50); right: auto; padding: 0; gap: calc(var(--u) * 1); }
+  .trd-top .trd-tro { margin-right: auto; }
+  .trd-card { bottom: calc(var(--safe-b) + var(--u) * 1.4); padding: calc(var(--u) * 1.1) calc(var(--u) * 1.2); }
+  .trd-art .mn-rw { --rw: calc(var(--u) * 13); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trd-card.trd-pop, .trd-fly { animation: none; }
+}

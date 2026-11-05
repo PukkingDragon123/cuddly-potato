@@ -267,7 +267,7 @@ export class LabScene {
     j.expr('happy', 'grin', 3);
     fx.confetti(new THREE.Vector3(j.root.position.x, 2.6, j.root.position.z), { count: 40 });
     await wait(0.5);
-    await this.say("LOOK at them! A *Panther* and a *Clogged Toilet*: your very first *lineup*. Win battles and climb the *Trophy Road* to unlock way more Swarms!", 'star', 'grin');
+    await this.say("LOOK at them! A *Panther*, a *Clogged Toilet* and a *Food Throw*: your very first *deck*. Three cards. Every win unlocks more, I promise.", 'star', 'grin');
     j.play('point');
     j.expr('determined', 'smirk');
     await this.say("Now... think you can beat ME? First one to *smash the other's base* wins. Don't worry, I'll go easy on you. Probably.", 'determined', 'smirk');
@@ -286,7 +286,7 @@ export class LabScene {
     j.play('shocked');
     j.expr('shock', 'open', 3);
     await wait(0.5);
-    await this.say("NO WAY! You actually beat me?! That MEGA sure helped... speaking of which, come look at this.", 'shock', 'open');
+    await this.say("NO WAY! You actually beat me?! With THREE cards? Okay, come look at this.", 'shock', 'open');
     // show the MEGA containment tube
     const mp = this.megaPos;
     await this.camTo(new THREE.Vector3(mp.x + 2.4, 2.6, mp.z + 5.4), new THREE.Vector3(mp.x, 2.2, mp.z), 1.2);
