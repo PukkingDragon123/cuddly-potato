@@ -7,6 +7,9 @@ import { CARDS, cardDef, isSpell, DECK_SIZE, DECK_PRESETS, STARTER_DECK, STARTER
 import { COMMANDERS, cmdXpForLevel, CMD_MAX_LEVEL, CMD_LEVEL_REWARDS } from '../data/commanders.js';
 import { VIALS, VIAL_SLOTS, VIAL_CYCLE, FREE_VIAL_EVERY, FREE_VIAL_MAX, CROWN_GOAL, skipPrice, vialId, upgradedVial, maxVialUpgrades, vialTier, EARLY_VIALS, NEW_CARD_VIALS, FAST_FIRST_VIALS } from '../data/vials.js';
 import { ENTRANCES, DEFAULT_ENTRANCE } from '../data/entrances.js';
+// profile looks (pictures, frames, titles + the troop mastery banners) and Troop Mastery [engineer F]
+import { sanitizeLooks, grantItem, ownsItem, itemDef, DEFAULT_AVATAR, DEFAULT_FRAME, DEFAULT_TITLE } from '../data/profileItems.js';
+import { recordMastery, masteryStatus } from '../data/mastery.js';
 import { PASS_TIERS, SEASON, tierForCalories, SEASON_CHALLENGES, BANNERS, SWARM_SKINS } from '../data/season.js';
 import {
   ARENAS, arenaById, currentArena, cardPool, trophyFloor, TROPHY_ROAD, QUESTS, QUEST_CHAINS, SECRETS, BOSSES,
@@ -29,7 +32,7 @@ function defaultProfile() {
     name: 'Recruit',
     tutorial: 'start',
     coins: 0,
-    bucks: 20,
+    bucks: 0, // you start from absolute 0: the starter tube and the first quests pay for the first upgrades
     trophies: 0,
     bestTrophies: 0,
     calories: 0,
@@ -52,7 +55,13 @@ function defaultProfile() {
     arenaSeen: 0,
     bosses: {},
     secrets: {},
-    cosmetics: { banners: ['default'], banner: 'default', labSkins: ['default'], labSkin: 'default', swarmSkins: {}, cmdSkins: {}, entrances: [DEFAULT_ENTRANCE], entrance: DEFAULT_ENTRANCE },
+    cosmetics: {
+      banners: ['default'], banner: 'default', labSkins: ['default'], labSkin: 'default', swarmSkins: {}, cmdSkins: {}, entrances: [DEFAULT_ENTRANCE], entrance: DEFAULT_ENTRANCE,
+      // profile picture / frame / title: lists hold shop + mastery items (rule-based ones are computed)
+      avatars: [], avatar: DEFAULT_AVATAR, frames: [], frame: DEFAULT_FRAME, titles: [], title: DEFAULT_TITLE,
+    },
+    // Troop Mastery per card (src/data/mastery.js): { p, w, k, d, b, c }
+    mastery: {},
     stats: {
       wins: 0, losses: 0, draws: 0, battles: 0, deployed: 0, vialsOpened: 0, signatures: 0, deployFood: 0, martBattles: 0, cartsSmashed: 0,
       crowns: 0, threeCrowns: 0, cardsFound: 0, winStreak: 0, bestStreak: 0,
@@ -180,6 +189,8 @@ function sanitize(p) {
   const d2 = p.decks[p.deckIdx];
   if (!p.prog?.holdDeck) for (const id of Object.keys(p.cards)) if (d2.length < slots && !d2.includes(id)) d2.push(id);
   sanitizeResearch(p);
+  if (!p.mastery || typeof p.mastery !== 'object') p.mastery = {};
+  sanitizeLooks(p);
 }
 
 /** Research tree save repair + the one-time refund of the old Commander perks (they became the research tree). */
@@ -858,6 +869,12 @@ export function grantReward(r) {
     case 'cmdSkin': p.cosmetics.cmdSkins[r.id] = true; push({ icon: 'crown', label: 'Commander Outfit', kind: 'cmdSkin', id: r.id }); break;
     case 'banner': if (!p.cosmetics.banners.includes(r.id)) p.cosmetics.banners.push(r.id); push({ icon: 'flag', label: `Banner: ${BANNERS[r.id]?.name ?? r.id}`, kind: 'banner', id: r.id }); break;
     case 'serum': unlockMega(r.id); push({ icon: 'mega', label: `Mega Serum: ${SWARMS[r.id].name}`, kind: 'serum', id: r.id }); break;
+    // profile looks (src/data/profileItems.js)
+    case 'avatar': case 'frame': case 'title':
+      if (!itemDef(r.type, r.id)) break;
+      grantItem(p, r.type, r.id);
+      push({ icon: r.type === 'title' ? 'star' : 'emote', label: itemDef(r.type, r.id).name, kind: r.type, id: r.id });
+      break;
     case 'entrance': {
       const e = ENTRANCES[r.id];
       if (!e) break;
@@ -1101,7 +1118,7 @@ export function markBought(key) { P().shop.bought[key] = true; state.emit('shop'
  * Apply the result of a battle.
  * result: 'win' | 'loss' | 'draw'; crowns: crowns you earned (0-3); enemyCrowns.
  */
-export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0, arenaId, mode = 'ranked', opponentTrophies = 0, bossId = null }) {
+export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0, arenaId, mode = 'ranked', opponentTrophies = 0, bossId = null, mastery = null }) {
   const p = P();
   const win = result === 'win';
   const arenaIdx = Math.max(0, ARENAS.findIndex((a) => a.id === arenaId));
@@ -1156,8 +1173,34 @@ export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0,
   res.levelUps = addCmdXp(p.commanders.equipped, res.cmdXp);
   if (res.labXp) res.labUps = addLabXp(res.labXp);
   res.crownProgress = null;
+  // Troop Mastery: this battle's per-card counts (levels that just became claimable)
+  res.mastery = mastery ? recordMastery(p, { ...mastery, win }) : [];
   state.emit('battle');
   return res;
+}
+
+// ---------------------------------------------------------------------------
+// Profile looks + Troop Mastery claims [engineer F]
+
+/** Equip a picture / frame / title (kind: 'avatar' | 'frame' | 'title'). */
+export function equipLook(kind, id) {
+  const p = P();
+  if (!ownsItem(p, kind, id)) return false;
+  p.cosmetics[kind] = id;
+  state.emit('profile');
+  return true;
+}
+/** Claim a card's next mastery level: returns the granted reward display list ([] if not ready). */
+export function claimMastery(id) {
+  const p = P();
+  const st = masteryStatus(p, id);
+  if (!st || !st.done || !st.level) return [];
+  const m = (p.mastery[id] ??= { p: 0, w: 0, k: 0, d: 0, b: 0, c: 0 });
+  m.c = st.claimed + 1;
+  const out = [];
+  for (const r of st.level.rewards) out.push(...grantReward(r));
+  state.emit('mastery');
+  return out;
 }
 
 export { skipPrice, VIALS };

@@ -13,7 +13,7 @@ export function seedProfile(level = '1') {
   if (level === 'new') {
     for (const id of STARTER_CARDS) grantCard(id, 3);
     setDeck(STARTER_CARDS.slice());
-    p.coins = Math.max(p.coins, 100);
+    p.coins = Math.max(p.coins, 40);
     state.save();
     return;
   }

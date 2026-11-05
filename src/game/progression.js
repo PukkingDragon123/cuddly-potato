@@ -7,49 +7,74 @@
 //   lockInfo(id)          { short: '2 WINS', text: 'Win 1 more battle to unlock the Shop.' }
 //   mainQuest() / claimMainQuest()   the story quest chain on the home tracker
 //
-// Unlock schedule (wins = battles won, any mode; Training is itself locked until 3 wins):
-//   start   BATTLE only (the tutorial taught cards + Food Throw; base upgrades open right after it)
-//   1 win   TROPHY ROAD + CARDS        2 wins  SHOP + FRIENDS + in-battle ULTIMATE
-//   3 wins  BATTLE PASS + TRAINING     4 wins  LAB (research)
-//   5 wins  LAB SKINS (in the Lab)     6 wins  COMMANDERS (in the Lab)    8 wins  LAB MODULES (in the Lab)
-// Saves from before this system (prog.legacy) have everything unlocked.
+// Unlock schedule: a new player starts from absolute 0 (3 cards, BATTLE only, tiny wallet); every
+// other feature is earned. wins = battles won (any mode; Training itself opens at 4 wins).
+//   start    BATTLE (deploy cards + Food Throw, taught by the tutorial)
+//   1 win    TROPHY ROAD, VIAL SLOTS, CARDS (deck editing), in-battle BASE UPGRADES
+//   2 wins   SHOP (daily gift + free vial), FRIEND BATTLES, in-battle EMOTES
+//   3 wins   BATTLE PASS, in-battle ULTIMATE
+//   4 wins   LAB (research), TRAINING
+//   5 wins   PROFILE customization, LAB SKINS
+//   6 wins   COMMANDERS (switching, in the Lab), TROOP MASTERY
+//   7 wins   BATTLE ENTRANCES
+//   8 wins   LAB MODULES
+//   300 trophies  MEGA (Panthar on the Trophy Road, Arena 2)
+//   island.<arenaId>  a Beast Island zone (its arena's trophy gate)
+// Saves from before this system (prog.legacy) have everything unlocked. Unknown ids are never gated.
 import { state, currentDeck, grantBundle } from './state.js';
+import { arenaById } from '../data/arenas.js';
 
 const P = () => state.p;
 const wins = (p = P()) => p?.stats?.wins ?? 0;
 
 /**
- * Feature table. wins: battles won to unlock. tab: a home nav tab. quiet: unlocks with a small pop
- * (no voiced reveal). battle: an in-battle feature (taught by a battle lesson). who: who announces it.
+ * Feature table. wins / trophies: what unlocks it. tab: a home nav tab. quiet: a small pop + toast (no
+ * voiced line). battle: an in-battle feature (taught by a battle lesson). who: who announces it.
+ * alias: another name for the same gate.
  */
 export const FEATURES = {
-  baseUp: { name: 'Base Upgrades', after: 'tutorial', battle: true },
   road: { name: 'Trophy Road', wins: 1, icon: 'road', who: 'jimmy' },
+  vials: { name: 'Vial Slots', wins: 1, quiet: true, icon: 'vial' },
   cards: { name: 'Cards', wins: 1, tab: true, icon: 'cards', who: 'jimmy' },
+  baseUp: { name: 'Base Upgrades', wins: 1, battle: true, icon: 'up', who: 'jimmy' },
   shop: { name: 'Shop', wins: 2, tab: true, icon: 'shop', who: 'nolan' },
   friends: { name: 'Friend Battles', wins: 2, quiet: true, icon: 'friends' },
-  ult: { name: 'ULTIMATE', wins: 2, battle: true, icon: 'star', who: 'jimmy' },
+  emotes: { name: 'Emotes', wins: 2, battle: true, quiet: true, icon: 'beastLogo' },
   pass: { name: 'Battle Pass', wins: 3, tab: true, icon: 'calorie', who: 'juan' },
-  train: { name: 'Training', wins: 3, quiet: true, icon: 'sword' },
+  ult: { name: 'ULTIMATE', wins: 3, battle: true, icon: 'star', who: 'jimmy' },
   lab: { name: 'Lab', wins: 4, tab: true, icon: 'lab', who: 'jimmy' },
-  commanders: { name: 'Commanders', wins: 6, icon: 'crown', who: 'nolan' },
-  modules: { name: 'Lab Modules', wins: 8, icon: 'flask', who: 'jimmy' },
+  train: { name: 'Training', wins: 4, quiet: true, icon: 'sword' },
+  profile: { name: 'Profile', wins: 5, icon: 'star', who: 'nolan' },
   labSkins: { name: 'Lab Skins', wins: 5, quiet: true, icon: 'paint' },
-  // names the Lab tab (src/ui/home/lab.js via game/labGear.js featureOpen) asks for
+  commanders: { name: 'Commanders', wins: 6, icon: 'crown', who: 'nolan' },
+  mastery: { name: 'Troop Mastery', wins: 6, quiet: true, icon: 'star' },
+  entrances: { name: 'Battle Entrances', wins: 7, icon: 'star', who: 'juan' },
+  modules: { name: 'Lab Modules', wins: 8, icon: 'flask', who: 'jimmy' },
+  mega: { name: 'MEGA', trophies: 300, battle: true, icon: 'mega' },
+  // other names for the same gates (the Lab tab asks via game/labGear.js featureOpen)
+  deck: { alias: 'cards' },
+  dailyGift: { alias: 'shop' },
+  freeVial: { alias: 'shop' },
   research: { alias: 'lab' },
   labCommander: { alias: 'commanders' },
   labModules: { alias: 'modules' },
+  customization: { alias: 'profile' },
 };
 for (const [id, f] of Object.entries(FEATURES)) f.id = id;
 
 function ruleMet(f, p) {
   if (f.after === 'tutorial') return p.tutorial === 'done' || p.tutorial === 'home';
+  if (f.trophies) return (p.bestTrophies ?? 0) >= f.trophies;
   return wins(p) >= (f.wins ?? 0);
 }
 const prog = (p = P()) => p?.prog ?? { legacy: true, seen: {} };
 
 export function featureUnlocked(id) {
   const p = P();
+  if (typeof id === 'string' && id.startsWith('island.')) {
+    const ar = arenaById(id.slice(7));
+    return !ar || prog(p).legacy || (p?.bestTrophies ?? 0) >= ar.trophies;
+  }
   const f = FEATURES[id];
   if (f?.alias) return featureUnlocked(f.alias);
   if (!f || !p) return true;
@@ -66,7 +91,7 @@ export function featureRevealed(id) {
 export function pendingReveals() {
   const p = P();
   if (!p || prog(p).legacy) return [];
-  return Object.values(FEATURES).filter((f) => !f.alias && (!f.battle || f.who)).filter((f) => !prog(p).seen?.[f.id] && ruleMet(f, p)).map((f) => f.id);
+  return Object.values(FEATURES).filter((f) => !f.alias && (!f.battle || f.who || f.quiet)).filter((f) => !prog(p).seen?.[f.id] && ruleMet(f, p)).map((f) => f.id);
 }
 
 const unlockFns = new Set();
@@ -90,6 +115,7 @@ export function lockInfo(id) {
   const f = FEATURES[id];
   if (!f) return { short: '', text: '' };
   if (f.after === 'tutorial') return { short: 'LOCKED', text: `${f.name} unlock after the tutorial.` };
+  if (f.trophies) return { short: String(f.trophies), text: `Reach *${f.trophies} trophies* to unlock the *${f.name}*.`, left: Math.max(0, f.trophies - (P().bestTrophies ?? 0)) };
   const left = Math.max(1, f.wins - wins());
   const short = f.wins === 1 ? '1 WIN' : `${f.wins} WINS`;
   const text = left === 1 ? `Win 1 more battle to unlock the *${f.name}*.` : `Win ${left} more battles to unlock the *${f.name}*.`;
@@ -141,7 +167,7 @@ export const MAIN_QUESTS = [
   { id: 'openVial', by: 'jimmy', title: 'Pop The Cap', text: 'Open a vial. Shake first, ask questions later.', need: 1, val: (p) => p.stats.vialsOpened, reward: { bucks: 10 } },
   { id: 'upgrade', by: 'jimmy', title: 'Leg Day', text: 'Upgrade a card in the CARDS tab.', need: 1, val: upgradedAny, reward: { coins: 150 }, feature: 'cards' },
   { id: 'deck5', by: 'nolan', title: 'Squad Goals', text: 'Have 5 cards in your battle deck.', need: 5, val: () => currentDeck().length, reward: { vial: 'testTube' }, feature: 'cards' },
-  { id: 'baseUps', by: 'jimmy', title: 'Home Improvement', text: 'Upgrade your base 3 times in battles. A tarp is not a building.', need: 3, stat: 'baseUpgrades', since: true, reward: { coins: 200 } },
+  { id: 'baseUps', by: 'jimmy', title: 'Home Improvement', text: 'Upgrade your base 3 times in battles. A tarp is not a building.', need: 3, stat: 'baseUpgrades', since: true, reward: { coins: 200 }, feature: 'baseUp' },
   { id: 'toilets', by: 'nolan', title: 'Plumbing Emergency', text: 'Deploy 12 Clogged Toilets. Nolan is not cleaning that.', need: 12, stat: 'deploy_cloggedToilet', since: true, reward: { calories: 150 } },
   { id: 'streak', by: 'juan', title: 'On A Roll', text: 'Win 3 battles in a row.', need: 3, val: (p) => p.stats.bestStreak ?? 0, reward: { bucks: 20 } },
   { id: 'research', by: 'jimmy', title: 'For Science', text: 'Start a research in the LAB tab.', need: 1, val: researchStarted, reward: { coins: 300 }, feature: 'lab' },

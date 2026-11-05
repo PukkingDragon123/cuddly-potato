@@ -8,7 +8,7 @@
 // `product` drives the 3D model used in the opening scene.
 export const VIALS = {
   starter: {
-    name: 'Starter Tube', product: 'testTube', time: 0, cards: 0, coins: [100, 100], rarity: 'common',
+    name: 'Starter Tube', product: 'testTube', time: 0, cards: 0, coins: [40, 40], rarity: 'common',
     cap: 0xff2e88, liquid: 0x7cff3a, label: 0xffffff, desc: 'Your very first Swarms test tube!',
   },
   free: {

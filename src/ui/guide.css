@@ -175,3 +175,16 @@ body.landscape .home:not(.tabbed) .gd-chip, body.landscape .home:not(.tabbed) .g
 /* buttons give their children position: relative (ui.css .btn > *): keep the tags pinned */
 .pg-lk.pg-lk, .pg-newtag.pg-newtag { position: absolute; }
 .btn > .pg-newtag.pg-newtag { top: calc(var(--u) * -1.6); right: calc(var(--u) * -0.8); font-size: 0.5em; }
+
+/* vial slots before the first win: dimmed glass, one lock plate across the row */
+.hm-slots.pg-lock { position: relative; }
+.hm-slots.pg-lock > .hm-slot { filter: saturate(0.3) brightness(0.6); }
+.hm-slots.pg-lock > .pg-lk.pg-lk { top: 50%; bottom: auto; translate: -50% -50%; font-size: 0.85em; padding: 0.15em 0.6em 0.2em; }
+.hm-slots.pg-lock > .pg-lk .pi { width: 1.25em; height: 1.25em; }
+/* profile before 5 wins: a small lock tag under the name (the name itself stays readable) */
+.hm-prof.pg-lock { position: relative; }
+.hm-prof.pg-lock > .pg-lk.pg-lk { left: auto; right: calc(var(--u) * 1); top: 50%; bottom: auto; translate: 0 -50%; font-size: 0.6em; }
+
+.gd-ql-modal .gd-ql { padding-top: calc(var(--u) * 4); }
+.gd-ql-more { display: flex; align-items: center; justify-content: center; gap: 0.35em; padding: calc(var(--u) * 1); font-family: var(--font-d); font-size: 0.85em; color: #b8c4ec; text-shadow: var(--outline-thin); }
+.gd-ql-more .pi { width: 1.2em; height: 1.2em; opacity: 0.8; }

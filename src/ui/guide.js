@@ -52,8 +52,18 @@ const REVEAL = {
   lab: { who: 'jimmy', cap: 'THE LAB', line: 'You earned a key to *THE LAB*. Research makes every Swarm stronger, even while you sleep. Science!' },
   commanders: { who: 'nolan', cap: 'COMMANDERS', line: 'You can swap *COMMANDERS* in the Lab now. Beat the right people and they join your team. Like me. Eventually.' },
   modules: { who: 'jimmy', cap: 'LAB MODULES', line: 'Your base can take *MODULES* now. Bolt stuff onto it in the Lab. What could go wrong?' },
+  baseUp: { who: 'jimmy', cap: 'BASE UPGRADES', line: 'Next battle you can *UPGRADE YOUR BASE* mid-fight. A tarp becomes a shack, a shack becomes a lab. More POWER every step.' },
+  profile: { who: 'nolan', cap: 'PROFILE', line: 'You have a *PROFILE* now. Tap your name up top to dress it up. Rivals see it before every battle, so make it loud.' },
+  entrances: { who: 'juan', cap: 'BATTLE ENTRANCES', line: 'Big news: *BATTLE ENTRANCES*. Your Commander can arrive in style now. Smoke, lasers, a shopping cart. Your call.' },
 };
-const QUIET = { friends: 'Friend battles unlocked!', train: 'Training unlocked! Practice against the bot any time.', labSkins: 'Lab skins unlocked! Repaint your base in the Lab.' };
+const QUIET = {
+  vials: 'Vial slots unlocked! Wins drop vials in here.',
+  friends: 'Friend battles unlocked!',
+  emotes: 'Emotes unlocked! Tap the Beast logo in battle to taunt your rival.',
+  train: 'Training unlocked! Practice against the bot any time.',
+  labSkins: 'Lab skins unlocked! Repaint your base in the Lab.',
+  mastery: 'Troop mastery unlocked! Your Swarms level up their skills as you play them.',
+};
 
 // ---------------------------------------------------------------------------
 // Guided steps: each one points at the next thing to tap (first visible target wins)
@@ -70,7 +80,7 @@ const STEPS = {
     targets: [['[data-guide="road-claim"]', 'Claim!'], ['.trd-claim', 'Claim!'], ['.trd-ready', 'Tap!'], ['.mn-tr .btn.sk-btn-green.pulse', 'Claim!'], ['.hm-sb-road', 'Road']],
   },
   vial: {
-    feature: 'road', chip: 'Open your vial', who: 'jimmy',
+    feature: 'vials', chip: 'Open your vial', who: 'jimmy',
     line: 'Battles drop *vials*. This one comes pre-shaken. Tap it and pour out your loot!',
     can: () => P().vials.slots.some(Boolean),
     done: () => (P().stats.vialsOpened ?? 0) > 0,
@@ -102,6 +112,20 @@ const STEPS = {
     done: () => !!P().pass.free[1],
     targets: [['.pz-ctag[aria-label="Claim tier 2 free reward"]', 'Free troop!'], ['.pz-card-claim', 'Claim!'], ['.pz-claimbar', 'Claim!'], ['.pz-ctag.free', 'Claim!'], ['.hm-tabbtn[data-tab="pass"]:not(.on)', 'Pass']],
   },
+  profile: {
+    feature: 'profile', chip: 'Open your profile', visit: true,
+    targets: [['.hm-prof', 'Profile']],
+  },
+  commanders: {
+    feature: 'commanders', chip: 'Meet the Commanders in the Lab', visit: true,
+    targets: [['[data-seg="commander"]', 'Commanders'], ['.lx-seg .mn-seg-b:nth-child(4)', 'Commanders'], ['.hm-tabbtn[data-tab="lab"]:not(.on)', 'Lab']],
+    visitSel: '[data-seg="commander"], .lx-seg .mn-seg-b:nth-child(4)',
+  },
+  modules: {
+    feature: 'modules', chip: 'Bolt a module onto your base', visit: true,
+    targets: [['[data-seg="modules"]', 'Modules'], ['.lx-seg .mn-seg-b:nth-child(2)', 'Modules'], ['.hm-tabbtn[data-tab="lab"]:not(.on)', 'Lab']],
+    visitSel: '[data-seg="modules"], .lx-seg .mn-seg-b:nth-child(2)',
+  },
   research: {
     feature: 'lab', chip: 'Start your first research', who: 'jimmy',
     line: 'Pick something in the research tree and hit START. It keeps cooking while you battle.',
@@ -112,12 +136,15 @@ const STEPS = {
 };
 // reveal / step order for the first session
 const SEQ = [
-  { reveal: 'road' }, { step: 'road' }, { step: 'vial' },
-  { reveal: 'cards' }, { step: 'deck' }, { step: 'upgrade' },
-  { reveal: 'shop' }, { step: 'shop' }, { reveal: 'friends' }, { reveal: 'ult' },
-  { reveal: 'pass' }, { step: 'pass' }, { reveal: 'train' },
-  { reveal: 'lab' }, { step: 'research' }, { reveal: 'labSkins' },
-  { reveal: 'commanders' }, { reveal: 'modules' },
+  { reveal: 'road' }, { step: 'road' }, { reveal: 'vials' }, { step: 'vial' },
+  { reveal: 'cards' }, { step: 'deck' }, { step: 'upgrade' }, { reveal: 'baseUp' },
+  { reveal: 'shop' }, { step: 'shop' }, { reveal: 'friends' }, { reveal: 'emotes' },
+  { reveal: 'pass' }, { step: 'pass' }, { reveal: 'ult' },
+  { reveal: 'lab' }, { step: 'research' }, { reveal: 'train' },
+  { reveal: 'profile' }, { step: 'profile' }, { reveal: 'labSkins' },
+  { reveal: 'commanders' }, { step: 'commanders' }, { reveal: 'mastery' },
+  { reveal: 'entrances' },
+  { reveal: 'modules' }, { step: 'modules' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -214,14 +241,27 @@ function featureEl(hm, id) {
   if (id === 'road') return hm.roadBtn ?? hm.root.querySelector('.hm-sb-road');
   if (id === 'friends') return hm.root.querySelector('.hm-sb-fr');
   if (id === 'train') return hm.practiceBtn ?? null;
+  if (id === 'vials') return hm.slotsEl ?? null;
+  if (id === 'profile') return hm.root.querySelector('.hm-prof');
   if (id === 'commanders' || id === 'modules' || id === 'labSkins') return hm.navBtns?.find((b) => b.dataset.tab === 'lab') ?? null;
   return null;
 }
 
 function decorate(hm) {
-  for (const id of ['road', 'cards', 'shop', 'friends', 'pass', 'train', 'lab']) {
-    const el = featureEl(hm, id);
+  for (const id of ['road', 'vials', 'cards', 'shop', 'friends', 'pass', 'train', 'lab', 'profile', 'roadSign']) {
+    // the arena sign opens the Trophy Road too: same gate, no second chip
+    const fid = id === 'roadSign' ? 'road' : id;
+    const el = id === 'roadSign' ? hm.zBox : featureEl(hm, id);
     if (!el) continue;
+    if (id === 'roadSign') {
+      el.classList.toggle('pg-gate', !featureRevealed('road'));
+      if (!el._pgGate) {
+        el._pgGate = true;
+        el.addEventListener('click', (e) => { if (!el.classList.contains('pg-gate')) return; e.stopImmediatePropagation(); e.preventDefault(); denyLocked('road', hm.roadBtn); }, true);
+      }
+      continue;
+    }
+    void fid;
     const locked = !featureRevealed(id);
     el.classList.toggle('pg-lock', locked);
     let chip = el.querySelector(':scope > .pg-lk');
@@ -318,7 +358,9 @@ async function reveal(hm, id) {
   const el = featureEl(hm, id);
   if (QUIET[id]) {
     markRevealed(id);
-    if (el) { unlockAnim(el); toast(QUIET[id], { icon: FEATURES[id].icon ?? 'star' }); }
+    if (el) unlockAnim(el);
+    toast(QUIET[id], { icon: FEATURES[id].icon ?? 'star' });
+    audio.play('levelUp');
     await wait(0.5);
     return;
   }
@@ -392,7 +434,10 @@ function unlockAnim(el) {
 // A guided step
 
 async function runStep(hm, id) {
-  const S = STEPS[id];
+  const S0 = STEPS[id];
+  // "visit" steps (profile, commanders, modules) finish when you tap what they point at
+  let hit = false;
+  const S = S0.visit ? { ...S0, can: () => featureRevealed(S0.feature), done: () => hit } : S0;
   const p = P();
   if (S.done()) { setGuideDone(id); return 'done'; }
   if (!S.can()) { setGuideDone(id); return 'na'; }
@@ -422,6 +467,7 @@ async function runStep(hm, id) {
       if (finished) return;
       finished = true;
       clearInterval(iv);
+      document.removeEventListener('click', onHit, true);
       ptr?.();
       spot.remove();
       if (how === 'done' || how === 'skip') setGuideDone(id);
@@ -435,8 +481,11 @@ async function runStep(hm, id) {
       cleanup = cleanup.filter((f) => f !== kill);
       setTimeout(() => resolve(how), how === 'done' ? 950 : 50);
     };
-    const kill = () => end('left');
+    const kill = () => { document.removeEventListener('click', onHit, true); end('left'); };
     cleanup.push(kill);
+    const visitSel = S0.visitSel ?? S0.targets[0][0];
+    const onHit = (e) => { if (S0.visit && e.target instanceof Element && e.target.closest(visitSel)) hit = true; };
+    if (S0.visit) document.addEventListener('click', onHit, true);
     const tick = () => {
       if (!alive(hm)) return end('left');
       if (S.done()) return end('done');
@@ -551,21 +600,25 @@ async function claimTracker(hm) {
 function openQuestList(hm) {
   const st = mainQuest();
   const cur = st?.finished ? MAIN_QUESTS.length : st?.step ?? 0;
-  const rows = MAIN_QUESTS.map((q, i) => {
+  // done quests, the active one and the next one; the rest stay a surprise
+  const shownN = Math.min(MAIN_QUESTS.length, cur + 2);
+  const rows = MAIN_QUESTS.slice(0, shownN).map((q, i) => {
     const state_ = i < cur ? 'done' : i === cur ? 'cur' : 'next';
     const bits = rewardBits(q.reward);
     const isCur = state_ === 'cur';
     return h('div', { class: `gd-ql-row ${state_}` },
-      h('div', { class: 'gd-ql-face' }, state_ === 'next' && i > cur + 1 ? icon('lock') : h('img', { src: speaker(q.by).portrait ?? '', alt: '' })),
+      h('div', { class: 'gd-ql-face' }, h('img', { src: speaker(q.by).portrait ?? '', alt: '' })),
       h('div', { class: 'gd-ql-txt' },
-        h('b', {}, i > cur + 1 ? '???' : q.title),
-        h('span', {}, i > cur + 1 ? 'Finish the quests above to reveal this one.' : q.text),
+        h('b', {}, q.title),
+        h('span', {}, q.text),
         isCur && !st.done ? bar(Math.max(0.04, st.prog / st.need), 'gold', `${st.prog.toLocaleString('en-US')}/${st.need.toLocaleString('en-US')}`, { cls: 'gd-ql-bar' }) : null),
       h('div', { class: 'gd-ql-rw' },
         state_ === 'done' ? icon('check', 'l')
           : isCur && st.done ? button('CLAIM', () => { m.close(); claimTracker(hm); }, 'green sm', { icon: 'gift' })
             : bits.map((b) => h('span', { class: 'gd-ql-bit' }, icon(b.icon), b.text))));
   });
+  const more = MAIN_QUESTS.length - shownN;
+  if (more > 0) rows.push(h('div', { class: 'gd-ql-more' }, icon('lock'), h('span', {}, more === 1 ? '1 more quest after these' : `${more} more quests after these`)));
   const foot = [];
   if (featureRevealed('pass')) foot.push(button('DAILY CHALLENGES', () => { m.close(); hm.setTab('pass', false, { sub: 'chal' }); }, 'pink', { icon: 'calorie' }));
   const m = modal({
@@ -582,8 +635,8 @@ function openQuestList(hm) {
 
 /** Which in-battle features are locked for this battle mode. */
 export function battleLocks(mode) {
-  if (mode === 'friend' || mode === 'online') return { base: false, ult: false, modules: false };
-  return { base: !featureUnlocked('baseUp'), ult: !featureUnlocked('ult'), modules: !featureUnlocked('modules') };
+  if (mode === 'friend' || mode === 'online') return { base: false, ult: false, modules: false, emotes: false };
+  return { base: !featureUnlocked('baseUp'), ult: !featureUnlocked('ult'), modules: !featureUnlocked('modules'), emotes: !featureUnlocked('emotes') };
 }
 /** Grey the locked ULT / BASE buttons out with a lock + what opens them. */
 export function applyBattleLocks(hud, locks) {
@@ -594,14 +647,17 @@ export function applyBattleLocks(hud, locks) {
     el.appendChild(h('div', { class: 'pg-blk-chip' }, icon('lock'), h('span', {}, text)));
   };
   if (locks.ult) lockOn(hud.sig, lockInfo('ult').short);
-  if (locks.base) lockOn(hud.ocBtn, 'NEXT BATTLE');
+  if (locks.base) lockOn(hud.ocBtn, lockInfo('baseUp').short);
+  // emotes simply aren't there yet
+  if (locks.emotes && hud.emoteBtn) hud.emoteBtn.style.display = 'none';
 }
 /** BattleScene.allowed(): a locked feature says what unlocks it instead. */
 export function battleAllowed(sc, what) {
   const L = sc.locks;
   if (!L) return true;
   if (what === 'sig' && L.ult) { sc.hud?.hint(`Your ULTIMATE unlocks after ${FEATURES.ult.wins} wins!`); audio.play('deny'); return false; }
-  if (what === 'lab' && L.base) { sc.hud?.hint('Base upgrades unlock next battle!'); audio.play('deny'); return false; }
+  if (what === 'emote' && L.emotes) return false;
+  if (what === 'lab' && L.base) { sc.hud?.hint('Base upgrades unlock after your first win!'); audio.play('deny'); return false; }
   return true;
 }
 
