@@ -842,6 +842,8 @@ export async function createPassStage(o = {}) {
     refresh,
     /** Fly the camera to a tier (-1: the start gate). */
     flyToTier(i, dur = 1.1, then) { flyTo(tierZ(i) - FRAME, dur, then); },
+    /** Fly so a tier's stop sits in the upper part of the view (the reward card covers the lower part). */
+    focusTier(i, dur = 0.9, then) { flyTo(tierZ(i) + (view.w < view.h ? 2.2 : 0.8), dur, then); },
     /** Fly so a world z sits where a framed stop would. */
     flyToZ(z, dur = 1.1, then) { flyTo(z - FRAME, dur, then); },
     /** Opening move: start a little behind and sweep up the path to Juan. */

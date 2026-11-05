@@ -129,7 +129,7 @@ export function mount(el, ctx, opts = {}) {
     const i = Math.min(passTier(), N - 1);
     if (!stage || !live || passTier() >= N) return;
     audio.play('tap');
-    stage.flyToTier(i, 0.8, () => openCard(i, 'free'));
+    stage.focusTier(i, 0.8, () => openCard(i, 'free'));
   } }, h('small', { class: 't-d' }, 'NEXT'), nextArt, h('span', { class: 'pz-next-n' }, hudNext));
   const xpBar = bar(0, 'orange', '', { cls: 'pz-xpbar' });
   const premSlot = h('div', { class: 'pz-prem-slot' });
