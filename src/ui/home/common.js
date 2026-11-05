@@ -586,7 +586,7 @@ export function showRewards(list, opts = {}) {
     };
     const m = modal({
       title: opts.title ?? 'REWARDS!', color: opts.color ?? 'gold', size: 'narrow', cls: 'mn-rwmodal' + (one ? ' one' : ''),
-      body: h('div', { class: 'col center mn-rwbody' }, h('div', { class: 'px-rays mn-rw-rays' }), h('div', { class: 'px-stars' }), opts.hero ?? null, row,
+      body: h('div', { class: 'col center mn-rwbody' }, h('div', { class: 'px-rays mn-rw-rays' }), opts.hero ?? null, row,
         opts.note ? h('div', { class: 'center-t t-sm c-muted mn-rwnote' }, opts.note) : null),
       foot: button('COLLECT', collect, 'green lg shine', { icon: 'check' }),
       onClose: resolve,
@@ -596,7 +596,9 @@ export function showRewards(list, opts = {}) {
       const big = isBigReward(def);
       const tile = h('div', { class: `mn-rwpop k-${def.type} ${big ? 'big' : ''}`, style: { animationDelay: 0.12 + Math.min(i, 12) * 0.16 + 's' } },
         h('div', { class: 'mn-rwpop-art' }, big ? h('div', { class: 'px-rays w mn-rwpop-rays' }) : null, rewardTile(def)),
-        h('div', { class: 'mn-rwpop-lbl' }, rewardLabel(def)), h('div', { class: 'mn-rwpop-kind' }, rewardKind(def)));
+        h('div', { class: 'mn-rwpop-lbl' }, rewardLabel(def)),
+        // "200 Coins" already says what it is: currencies skip the kind line
+        ['coins', 'bucks', 'calories'].includes(def.type) ? null : h('div', { class: 'mn-rwpop-kind' }, rewardKind(def)));
       row.appendChild(tile);
       tiles.push({ tile, def });
       setTimeout(() => {

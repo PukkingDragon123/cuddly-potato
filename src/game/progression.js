@@ -137,7 +137,7 @@ const researchStarted = (p) => (p.research?.active ? 1 : 0) + Object.values(p.re
 const upgradedAny = (p) => Math.max(p.stats.upgrades ?? 0, Object.values(p.cards).filter((c) => c.level > 1).length);
 
 export const MAIN_QUESTS = [
-  { id: 'firstWin', by: 'jimmy', title: 'Beat Somebody', text: 'Win a battle. Any battle. Jimmy is not picky.', need: 1, val: (p) => p.stats.wins, reward: { coins: 100 } },
+  { id: 'firstWin', by: 'jimmy', title: 'Five Dollar Bet', text: 'Win your first battle. Jimmy bet five bucks on you.', need: 1, val: (p) => p.stats.wins, reward: { coins: 100 } },
   { id: 'openVial', by: 'jimmy', title: 'Pop The Cap', text: 'Open a vial. Shake first, ask questions later.', need: 1, val: (p) => p.stats.vialsOpened, reward: { bucks: 10 } },
   { id: 'upgrade', by: 'jimmy', title: 'Leg Day', text: 'Upgrade a card in the CARDS tab.', need: 1, val: upgradedAny, reward: { coins: 150 }, feature: 'cards' },
   { id: 'deck5', by: 'nolan', title: 'Squad Goals', text: 'Have 5 cards in your battle deck.', need: 5, val: () => currentDeck().length, reward: { vial: 'testTube' }, feature: 'cards' },
