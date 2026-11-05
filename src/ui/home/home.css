@@ -1544,3 +1544,5 @@ body:not(.landscape) .ps-prem:not(.on) .ps-show-i.s1 { width: calc(var(--u) * 13
 .ps-pod.ms .ps-pod-n { font-size: 0.8em; }
 .mn-pass .ps-tk small { font-size: 0.74em; }
 .tr-you { translate: calc(var(--u) * 7.2) -50%; }
+/* the deck tray is bright teal: the muted label needs a light colour and an outline to read on it */
+.mn-avg .c-muted { color: #e8f6ff; text-shadow: var(--outline-thin); letter-spacing: 0.04em; }
