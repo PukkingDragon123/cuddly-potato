@@ -588,52 +588,6 @@ textarea.px-input { resize: none; font-family: monospace; font-size: 0.8em; }
 @keyframes bootFizz { to { background-position: 0 -36px, 0 0; } }
 #boot .boot-tip { font-family: var(--font-b); color: #9ff4ff; text-shadow: 0 0 8px rgba(127, 230, 255, 0.6); }
 
-/* ---------------------------------------------------------------- title logo (title.js injects its own sheet; #ui raises specificity)
-   Layered pixel lettering: banded gradient fill (background-clip: text), a 4-way ink outline, a coloured
-   extrusion, an ink base and a neon glow, all as drop-shadow() filters so they follow the gradient glyphs.
-   SWARMERS letters each carry their own filter, so their bounce stays a cheap composited transform. */
-#ui .tt-logo { --lo: calc(var(--px) * 0.8); }
-#ui .tt-logo .l1, #ui .tt-logo .l2 span {
-  color: transparent; text-shadow: none; -webkit-background-clip: text; background-clip: text;
-}
-#ui .tt-logo .l1 {
-  background-image: linear-gradient(#ffffff 0 34%, #ffeaf4 34% 52%, #ffc4e0 52% 70%, #ff9acc 70% 86%, #ff7ab8 86%);
-  filter: drop-shadow(var(--lo) 0 0 var(--ink)) drop-shadow(calc(var(--lo) * -1) 0 0 var(--ink)) drop-shadow(0 var(--lo) 0 var(--ink)) drop-shadow(0 calc(var(--lo) * -1) 0 var(--ink))
-    drop-shadow(0 calc(var(--px) * 2) 0 #ff2e88) drop-shadow(0 calc(var(--px) * 1.5) 0 #a8145a) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 2.5) rgba(255, 46, 136, 0.6));
-}
-#ui .tt-logo .l2 span {
-  background-image: linear-gradient(#fffbe0 0 16%, #fff2a0 16% 30%, #ffe14a 30% 50%, #ffc21a 50% 68%, #ff9a1a 68% 84%, #f07a10 84%);
-  filter: drop-shadow(var(--lo) 0 0 var(--ink)) drop-shadow(calc(var(--lo) * -1) 0 0 var(--ink)) drop-shadow(0 var(--lo) 0 var(--ink)) drop-shadow(0 calc(var(--lo) * -1) 0 var(--ink))
-    drop-shadow(0 calc(var(--px) * 2.5) 0 #d8661a) drop-shadow(0 calc(var(--px) * 2) 0 #8a3a0c) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 2.5) rgba(255, 196, 40, 0.5));
-}
-/* twinkling pixel sparkles around the logo */
-#ui .tt-logo::before, #ui .tt-logo::after {
-  content: ''; position: absolute; pointer-events: none; width: calc(var(--px) * 9); height: calc(var(--px) * 9); z-index: 2;
-  background:
-    linear-gradient(#fff, #fff) 50% 50% / calc(var(--px) * 1) 100% no-repeat,
-    linear-gradient(#fff, #fff) 50% 50% / 100% calc(var(--px) * 1) no-repeat,
-    linear-gradient(#fff2a0, #fff2a0) 50% 50% / calc(var(--px) * 3) calc(var(--px) * 3) no-repeat;
-  filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 236, 140, 0.9));
-  animation: ttTwinkle 2.4s steps(1) infinite;
-}
-#ui .tt-logo::before { left: -4%; top: 8%; }
-#ui .tt-logo::after { right: 12%; bottom: 30%; animation-delay: -1.2s; }
-@keyframes ttTwinkle { 0%, 40% { transform: scale(1); opacity: 1; } 45% { transform: scale(0.5); } 50%, 85% { transform: scale(0); opacity: 0; } 90% { transform: scale(0.6); opacity: 1; } }
-#ui .tt-logo .bolt { width: calc(var(--u) * 19); height: calc(var(--u) * 19); right: calc(var(--u) * -8); top: calc(var(--u) * -6); filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 46, 136, 0.55)); }
-@keyframes ttZap { 50% { filter: drop-shadow(0 0 calc(var(--px) * 5) rgba(255, 120, 200, 0.9)) brightness(1.35); } }
-#ui .tt-logo .tag {
-  position: relative; padding: 0.12em 1.1em 0.22em; color: #fff; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(143, 212, 255, 0.9);
-  background:
-    linear-gradient(var(--ink) 0 var(--px), #d8f2ff var(--px) calc(var(--px) * 2), #7ad0ff calc(var(--px) * 2) 30%, #3a9cff 30% 64%, #2378e0 64% 84%, #1a52b0 84% calc(100% - var(--px)), var(--ink) calc(100% - var(--px)));
-  box-shadow: none;
-  clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 4) 50%, 100% 100%, 0 100%, calc(var(--px) * 4) 50%);
-  filter: drop-shadow(0 0 calc(var(--px) * 4) rgba(79, 200, 255, 0.85));
-}
-#ui .tt-start { color: #fff; text-shadow: var(--outline), 0 calc(var(--px) * 2) 0 #2b8cf2, 0 calc(var(--px) * 3.5) 0 var(--ink), 0 0 calc(var(--u) * 3) rgba(127, 230, 255, 0.9); }
-@media (prefers-reduced-motion: reduce) {
-  #ui .tt-logo, #ui .tt-logo .l2 span, #ui .tt-logo .bolt, #ui .tt-start, #ui .tt-logo::before, #ui .tt-logo::after { animation: none !important; }
-}
-
 /* =========================================================================
    Juice layer (v3): hover glints, jelly release, rolling pills, bouncing
    badges, tooltips, DOM confetti. Transform / opacity only, mostly stepped.

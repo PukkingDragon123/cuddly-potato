@@ -98,16 +98,16 @@ const STEPS = {
   },
   pass: {
     feature: 'pass', chip: 'Claim your free troop on tier 2',
-    can: () => passClaimable(1, 'free') || passClaimable(0, 'free'),
-    done: () => Object.keys(P().pass.free).length > 0,
-    targets: [['.pz-card-claim', 'Claim!'], ['.pz-claimall', 'Claim!'], ['.hm-tabbtn[data-tab="pass"]:not(.on)', 'Pass']],
+    can: () => passClaimable(1, 'free'),
+    done: () => !!P().pass.free[1],
+    targets: [['.pz-ctag[aria-label="Claim tier 2 free reward"]', 'Free troop!'], ['.pz-card-claim', 'Claim!'], ['.pz-claimbar', 'Claim!'], ['.pz-ctag.free', 'Claim!'], ['.hm-tabbtn[data-tab="pass"]:not(.on)', 'Pass']],
   },
   research: {
     feature: 'lab', chip: 'Start your first research', who: 'jimmy',
     line: 'Pick something in the research tree and hit START. It keeps cooking while you battle.',
     can: () => featureUnlocked('lab'),
     done: () => !!P().research?.active || Object.values(P().research?.levels ?? {}).some((v) => v > 0),
-    targets: [['[data-guide="research"]', 'Start!'], ['.hm-tabbtn[data-tab="lab"]:not(.on)', 'Lab']],
+    targets: [['[data-guide="research"]', 'Start!'], ['.rs-sh-foot .btn.sk-btn-green', 'Start!'], ['.rs-bench-act .btn.sk-btn-green', 'Pick!'], ['.lx-rs', 'Research'], ['.hm-tabbtn[data-tab="lab"]:not(.on)', 'Lab']],
   },
 };
 // reveal / step order for the first session
@@ -295,7 +295,7 @@ export async function homeReady(hm) {
       if (!it) break;
       if (it.step && p.prog.said?.[it.step] && todo.some((x) => x.reveal)) it = todo.find((x) => x.reveal);
       // nothing new talks over an open screen (card info, the Trophy Road view...)
-      if (busy()) { await wait(0.4); continue; }
+      if (busy() || (it.reveal && hm.tab !== 'battle')) { await wait(0.4); continue; }
       if (it.reveal) { await reveal(hm, it.reveal); continue; }
       const r = await runStep(hm, it.step);
       if (r === 'left') break;

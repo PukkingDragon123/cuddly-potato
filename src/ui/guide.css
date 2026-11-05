@@ -171,3 +171,7 @@ body.landscape .gd-qt { top: calc(var(--safe-t) + var(--u) * 12); width: calc(va
   left: calc(var(--safe-l) + var(--u) * 1.6); translate: none; top: calc(var(--safe-t) + var(--u) * 27); bottom: auto; max-width: calc(100vw - var(--u) * 24);
 }
 body.landscape .home:not(.tabbed) .gd-chip, body.landscape .home:not(.tabbed) .gd-chip.bot { top: calc(var(--safe-t) + var(--u) * 25); }
+
+/* buttons give their children position: relative (ui.css .btn > *): keep the tags pinned */
+.pg-lk.pg-lk, .pg-newtag.pg-newtag { position: absolute; }
+.btn > .pg-newtag.pg-newtag { top: calc(var(--u) * -1.6); right: calc(var(--u) * -0.8); font-size: 0.5em; }

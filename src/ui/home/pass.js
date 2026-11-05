@@ -287,7 +287,7 @@ export function mount(el, ctx, opts = {}) {
   const laneF = h('span', { class: 'pz-lane free t-d' }, 'FREE');
   const laneP = h('span', { class: 'pz-lane prem t-d' }, icon('crown', 's'), 'PREMIUM');
   root.append(offUp, offDn, laneF, laneP);
-  const vr = { top: 0, bot: 0, w: 0, right: 0 }; // the 3D view, relative to the tab
+  const vr = { top: 0, bot: 0, right: 0 }; // the 3D view, relative to the tab
   function tickReady() {
     const used = new Set();
     let up = 0, down = 0;
@@ -316,7 +316,8 @@ export function mount(el, ctx, opts = {}) {
         const pf = stage.standTag(lo, 'free'), pp = stage.standTag(lo, 'premium');
         // kept inside the view (clear of the track)
         const at = (lb, x) => {
-          const w = lb.offsetWidth / 2 + 4;
+          if (!lb._w) lb._w = lb.offsetWidth;
+          const w = lb._w / 2 + 4;
           return Math.round(Math.max(w, Math.min(vr.right - w, x)));
         };
         laneF.style.transform = `translate(${at(laneF, pf.x - o.left)}px, ${Math.round(vr.bot)}px) translate(-50%, -100%)`;

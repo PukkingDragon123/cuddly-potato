@@ -25,6 +25,11 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - Your story starts inside the **Beast Lab**: Jimmy pops out from behind the Beast Tiger's tank, asks your name and
   hands you your **first pack** to open on the workbench. Then you battle Jimmy (an easy, guided first fight), and he
   shows you the MEGA containment tube before taking you out to Beast Island. Early ranked rivals are gentle too.
+- You start with just **3 cards** (Panther, Clogged Toilet, Food Throw) and the island **unlocks one piece at a time**:
+  the Trophy Road + Cards after your first win, the Shop at 2, the Battle Pass (with a free troop on tier 2) at 3, the
+  Lab at 4, then Commanders and Lab Modules. Each unlock plays a short reveal, and a skippable guided first session
+  points at what to tap (open a vial, put a card in your deck, upgrade, research...). New cards come about once per
+  win early on, and early rivals bring decks the same size as yours. A **main quest line** sits on the home screen.
 
 **The loop (Clash Royale-style)**
 - Battle in real time, earn **trophies**, win **vials** (the game's chests), open them for cards, upgrade your
