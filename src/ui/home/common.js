@@ -187,7 +187,7 @@ export function badgeEl(n, cls = '') {
 export function segTabs(items, sel, onSel, cls = '') {
   const wrap = h('div', { class: 'mn-seg ' + cls });
   for (const it of items) {
-    const b = h('button', { class: `mn-seg-b ${it.id === sel ? 'on sk-btn-yellow' : 'sk-btn-blue'}`, type: 'button' },
+    const b = h('button', { class: `mn-seg-b ${it.id === sel ? 'on sk-btn-yellow' : 'sk-btn-blue'}`, type: 'button', 'data-seg': it.id },
       h('span', { class: 'row gap-s' }, it.icon ? icon(it.icon) : null, h('span', {}, it.label)),
       badgeEl(it.badge));
     b.addEventListener('click', (e) => {
