@@ -1,28 +1,41 @@
 // TROPHY ROAD, built into Beast Island: every milestone of TROPHY_ROAD stands
-// beside the island's paved road as a stone pedestal (trophy count on its
-// front plate) with a voxel chest on top and the actual reward floating above
-// it. Arena thresholds get a stone arch over the road (portcullis down while
-// the arena is locked). Past the last arena the road keeps going: floating
+// beside the island's paved road as a brick pedestal (trophy count on its
+// front plate) with a voxel treasure chest on top and the actual reward
+// floating above it. Arena thresholds get a stone arch over the road
+// (portcullis down while the arena is locked, the trophy count on a sign that
+// faces the road camera). Past the last arena the road keeps going: floating
 // tech tiles spiral up around the space elevator to orbit pads.
 //
-//   const TP = addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, exclude, updaters });
-//   TP.milestones[i]  { m, key, t, s, chapter, gate, color, anchor (pedestal top centre), rewardPos, group }
-//   TP.posAt(s, out) / TP.tangentAt(s, out)   along the road polyline (arc length s, 0..TP.length)
-//   TP.sOfTrophies(t)  where a player with t trophies stands (between the milestones around t)
-//   TP.setState(i, 'locked' | 'ready' | 'claimed')   chest look (grey / glowing + bouncing / open + flag)
+// FORKS (data/roadForks.js): between two arenas the road splits. The main road
+// is the COIN TRAIL (gold pavers), a side road the VIAL TRAIL (blue pavers);
+// both rejoin before the next gate. A signpost stands at the split, each trail
+// holds two bonus chests, and the trail you did not pick is barred with a
+// barricade until it opens. The camera follows a route through the trails you
+// picked (setChoices).
+//
+//   const TP = addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, exclude, updaters, forks });
+//   TP.milestones[i]  { m, key, t, s, chapter, gate, fork, side, tier, anchor, rewardPos, roadPos, group }
+//   TP.forks[j]       { F (data), id, chapter, s0, s1, sSign, signPos, signs { a, b: { mesh, pos } }, bars, bpts, mid }
+//   TP.posAt(s, out) / TP.tangentAt(s, out)   along the current route (arc length s, 0..TP.length)
+//   TP.setChoices({ forkId: 'a' | 'b' })   reroute through the picked trails (milestone s values update)
+//   TP.setBarrier(forkId, side | null)   barricade across that trail's entrance
+//   TP.sOfTrophies(t, choices)  where a player with t trophies stands
+//   TP.setState(i, 'locked' | 'ready' | 'claimed')   chest look (grey / glowing + hopping / open + flag)
 //   TP.setGateLocked(arenaId, locked)   portcullis
-//   TP.open(i)  plays the lid-pop (then the chest stays open)
+//   TP.open(i)  plays the lid-pop + coin spill (then the chest stays open)
 //   TP.setFocus(i | -1)  pixel arrow over a milestone's reward
 //   TP.atlas { canvas, ctx, cell, rect(i), commit() }  the reward art atlas (painted by the home scene)
 //   TP.camDir  horizontal unit vector (x, z) from a road point toward the road camera
 //
 // Everything still is plain voxel meshes in the island root (static-batched by the home scene);
-// the rewards, rays and focus arrow are one instanced pixel-billboard draw.
+// the rewards, rays and focus arrow are one instanced pixel-billboard draw, the spilled coins one
+// instanced draw.
 import * as THREE from 'three';
 import { VoxGrid, Mats } from '../../core/voxel.js';
 import { text, textW } from '../props/common.js';
 import { shade, clamp } from '../../core/util.js';
 import { TROPHY_ROAD, ARENAS } from '../../data/arenas.js';
+import { TRAILS } from '../../data/roadForks.js';
 import * as P from './props.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -31,7 +44,7 @@ const CAM_DIR = new THREE.Vector2(0.14, 1).normalize();
 const FACE_Y = Math.atan2(CAM_DIR.x, CAM_DIR.y);
 const PV = 0.1; // pedestal / chest voxel
 const GV = 0.125; // gate voxel
-const SIDE = 1.5 + 1.35; // pedestal centre offset from the road centre line
+const SIDE = 1.5 + 1.45; // pedestal centre offset from the road centre line
 const ATLAS = 1024;
 let CELL = 102, PER_ROW = 10;
 
@@ -42,15 +55,15 @@ const hex = (c) => (typeof c === 'string' ? parseInt(c.replace('#', ''), 16) : c
 // Voxel grids
 
 const TROPHY = ['#####', '#####', '.###.', '..#..', '.###.'];
-/** Stone pedestal with a cream number plate on its +z face (tall digits: they stay legible from above). Top at y = 0 (local), PH tall, a deep skirt below. */
+/** Brick pedestal with a cream number plate on its +z face (tall digits: they stay legible from above). Top at y = 0 (local), PH tall, a deep skirt below. */
 const PH = 1.3;
 function pedestalGrid(num, color, tech = false) {
   const g = new VoxGrid();
   const label = String(num);
   const tw = textW(label) + 7;
-  const W = (tw + 5) | 1;
+  const W = (Math.max(tw + 5, 17)) | 1;
   const hw = (W - 1) / 2;
-  const D = 5; // half depth
+  const D = 6; // half depth
   const st = tech ? [0xd8dce8, 0xb0b6c8, 0xeef0f8] : [0xe6e0d2, 0xcbc2ae, 0xf4f0e6];
   const trim = hex(color), trimD = shade(trim, -0.3), trimL = shade(trim, 0.3);
   for (let x = -hw; x <= hw; x++) for (let z = -D; z <= D; z++) for (let y = -22; y <= -3; y++) {
@@ -77,46 +90,89 @@ function pedestalGrid(num, color, tech = false) {
   return g;
 }
 
-const CHEST = {
-  wood: { body: 0xa8703c, bodyD: 0x7a4a24, bodyL: 0xc98c55, band: 0x8f98aa, bandL: 0xd7dde6, lock: 0xffc21a },
-  blue: { body: 0x2b8cf2, bodyD: 0x1460b8, bodyL: 0x6cc0ff, band: 0xffc21a, bandL: 0xffe680, lock: 0xffffff },
-  gold: { body: 0xffc21a, bodyD: 0xc8901a, bodyL: 0xffe680, band: 0xb05cff, bandL: 0xe0b0ff, lock: 0xff4fa3 },
-  tech: { body: 0xd8dce8, bodyD: 0x8f98aa, bodyL: 0xffffff, band: 0x29e0ff, bandL: 0x9ff4ff, lock: 0x8f9bff },
+// Treasure chests: wood (planks + iron), iron (riveted steel), gold (gold + crimson straps + gems),
+// legendary (violet crystal with gold trim and glowing runes).
+export const CHEST = {
+  wood: { body: [0xa8703c, 0x96602f, 0xb87d46], seam: 0x6e4224, metal: 0x5a6070, metalL: 0x9aa2b4, lock: 0xffc21a, key: 0x1a1020, feet: 0x4a3018, inside: 0x2a1a10 },
+  iron: { body: [0x8a94a8, 0x7a8498, 0x9aa4b8], seam: 0x5a6478, metal: 0x3d4352, metalL: 0x6b7386, lock: 0x29b6f6, key: 0x0a1a2a, feet: 0x2e3440, inside: 0x1a1e28, rivet: 0xd7dde6 },
+  gold: { body: [0xffc21a, 0xf0b010, 0xffd84a], seam: 0xc8901a, metal: 0xc0303e, metalL: 0xff5a6a, lock: 0xffffff, key: 0x6a1020, feet: 0x8a5a10, inside: 0x3a1a10, gem: 0x29e0ff },
+  legendary: { body: [0x3a2a6a, 0x2e2058, 0x4a3a80], seam: 0x22183e, metal: 0xffc21a, metalL: 0xffe680, lock: 0xff4fa3, key: 0x2a0a1a, feet: 0x1a1030, inside: 0x0e0a1e, rune: 0x3ff2c8, gem: 0xff4fa3 },
+  tech: { body: [0xd8dce8, 0xc8ccd8, 0xeef0f8], seam: 0x8f98aa, metal: 0x29e0ff, metalL: 0x9ff4ff, lock: 0x8f9bff, key: 0x1a1e3a, feet: 0x6b7386, inside: 0x1a1e28 },
 };
-const CW = 6, CD = 4, CH = 5; // half width, half depth, body height
-/** Chest body, top open (dark inside). Bottom at y = 0. */
+const CW = 7, CD = 5, CH = 6; // half width, half depth, body height (voxels)
+/** Chest body, top open (a heap of coins inside). Bottom at y = 0. */
 function chestBodyGrid(tier, glow) {
   const C = CHEST[tier], g = new VoxGrid();
+  const bx = CW - 3; // strap columns
   for (let x = -CW; x <= CW - 1; x++) for (let z = -CD; z <= CD - 1; z++) for (let y = 0; y < CH; y++) {
     const ex = x === -CW || x === CW - 1, ez = z === -CD || z === CD - 1;
     const inside = !ex && !ez;
-    if (inside && y === CH - 1) { g.set(x, y, z, 0x2a1a10); continue; }
-    if (inside && y > 0) continue;
-    const band = x === -CW + 2 || x === CW - 3;
-    const rim = y === CH - 1 || y === 0;
-    const c = band ? C.band : rim ? C.bodyD : (y === CH - 2 ? C.bodyL : C.body);
-    g.set(x, y, z, c, glow && (band || (rim && y === CH - 1)));
+    if (y === 0) { // feet at the corners only
+      if ((x <= -CW + 1 || x >= CW - 2) && (z <= -CD + 1 || z >= CD - 2)) g.set(x, 0, z, C.feet);
+      continue;
+    }
+    if (inside) {
+      if (y === CH - 2) g.set(x, y, z, ((x * 3 + z * 5) & 3) === 0 ? 0xffe680 : ((x + z) & 1) ? 0xffc21a : 0xe0a010); // treasure
+      else if (y === 1) g.set(x, y, z, C.inside);
+      continue;
+    }
+    const strap = x === -bx || x === bx - 1;
+    const corner = (ex && ez) || ((ex || ez) && (y <= 2 || y >= CH - 2) && (ex ? Math.abs(z + 0.5) >= CD - 2.5 : Math.abs(x + 0.5) >= CW - 2.5));
+    const rim = y === CH - 1 || y === 1;
+    let c = C.body[(y >> 1) % 3];
+    if (tier === 'wood' && (y & 1) === 0) c = C.seam; // plank seams
+    if (tier === 'iron' && (x === 0 || z === 0)) c = C.seam; // plate seams
+    if (rim) c = C.seam;
+    let gl = false;
+    if (strap || corner) { c = (y === CH - 1 || y === 1) ? C.metalL : C.metal; gl = glow && strap; }
+    if (C.rivet && corner && ((x + y + z) & 1) === 0) c = C.rivet;
+    if (tier === 'legendary' && !strap && !corner && !rim && ez && ((x * 7 + y * 3) % 5 === 0)) { c = C.rune; gl = true; }
+    g.set(x, y, z, c, gl);
   }
-  // lock plate on the front
-  g.box(-1, CH - 3, CD, 0, CH - 1, CD, C.lock, glow);
+  // lock plate + keyhole on the front
+  g.box(-2, CH - 4, CD, 1, CH - 1, CD, C.lock, glow);
+  g.set(0, CH - 3, CD, C.key).set(-1, CH - 3, CD, C.key).set(0, CH - 4, CD, C.key);
+  if (C.gem) for (const x of [-CW + 1, CW - 2]) g.set(x, CH - 3, CD, C.gem, true);
   return g;
 }
-/** Chest lid; hinge on its back-bottom edge at local (0, 0, 0), extending toward +z. */
+/** Barrel-top chest lid; hinge on its back-bottom edge at local (0, 0, 0), extending toward +z. */
 function chestLidGrid(tier, glow) {
   const C = CHEST[tier], g = new VoxGrid();
-  for (let x = -CW; x <= CW - 1; x++) for (let z = 0; z < CD * 2; z++) for (let y = 0; y < 4; y++) {
-    if (y === 3 && (z === 0 || z === CD * 2 - 1)) continue; // rounded top
-    const band = x === -CW + 2 || x === CW - 3;
-    const c = band ? (y === 3 ? C.bandL : C.band) : y === 0 ? C.bodyD : y === 3 ? C.bodyL : C.body;
-    g.set(x, y, z, c, glow && (band || y === 0));
+  const bx = CW - 3, D2 = CD * 2;
+  const inset = [0, 0, 0, 1, 2];
+  for (let y = 0; y < 5; y++) for (let x = -CW; x <= CW - 1; x++) for (let z = inset[y]; z < D2 - inset[y]; z++) {
+    const shell = y === 4 || z === inset[y] || z === D2 - 1 - inset[y] || x === -CW || x === CW - 1 || y === 0;
+    if (!shell) continue;
+    const strap = x === -bx || x === bx - 1;
+    const edge = x === -CW || x === CW - 1;
+    let c = y === 0 ? C.seam : C.body[(z >> 1) % 3];
+    if (tier === 'wood' && (z & 1) === 0 && y > 0) c = C.seam;
+    let gl = false;
+    if (strap || (edge && y > 0)) { c = y === 4 ? C.metalL : C.metal; gl = glow && strap; }
+    if (C.rivet && edge && ((y + z) & 1) === 0) c = C.rivet;
+    if (tier === 'legendary' && y === 4 && !strap && ((x + z) % 4 === 0)) { c = C.rune; gl = true; }
+    g.set(x, y, z, c, gl);
   }
-  g.box(-1, 0, CD * 2, 0, 1, CD * 2, C.lock, glow);
+  // hasp over the lock + a gem on the lid for the fancy tiers
+  g.box(-2, 0, D2, 1, 2, D2, C.lock, glow);
+  g.set(0, 1, D2, C.key).set(-1, 1, D2, C.key);
+  if (C.gem) g.box(-1, 4, CD - 1, 0, 5, CD, C.gem, true);
   return g;
 }
-/** Closed chest in one grid (body + lid), for the instanced bouncing chests. */
+/** Closed chest in one grid (body + lid), for the instanced hopping chests. */
 function chestClosedGrid(tier, glow) {
   const g = chestBodyGrid(tier, glow);
   chestLidGrid(tier, glow).forEach((x, y, z, c, gl) => g.set(x, y + CH, z - CD, c, gl));
+  return g;
+}
+/** Pixel coin for the spill: an octagon-ish disc with a rim and a stamped B. */
+function coinGrid() {
+  const g = new VoxGrid();
+  const M = ['.####.', '#oooo#', '#oBBo#', '#oBBo#', '#oooo#', '.####.'];
+  M.forEach((row, r) => [...row].forEach((ch, c) => {
+    if (ch === '.') return;
+    g.set(c, 5 - r, 0, ch === '#' ? 0xc8901a : ch === 'B' ? 0xffe680 : 0xffc21a);
+  }));
   return g;
 }
 /** Little claimed flag: pole + green pennant with a white check on both faces. */
@@ -131,8 +187,8 @@ function flagGrid() {
   return g;
 }
 
-/** Arena gate: two brick pillars + a beam with the trophy plate (both faces). Road runs along local z. */
-function gateGrid(num, color) {
+/** Arena gate: two brick pillars + a beam (no text: the trophy count rides on a sign that faces the camera). Road runs along local z. */
+function gateGrid(color) {
   const g = new VoxGrid();
   const col = hex(color), colD = shade(col, -0.3), colL = shade(col, 0.35);
   const half = 15; // inner half width (voxels)
@@ -157,24 +213,11 @@ function gateGrid(num, color) {
     g.box(cx - 1, top + 3, -1, cx + 1, top + 5, 1, 0xffb84a, true);
     g.set(cx, top + 6, 0, 0xffe08a, true);
   }
-  // beam
+  // beam with a stud row
   const by0 = top - 6, by1 = top - 1;
   g.box(-half - PW, by0, -2, half + PW, by1, 2, (x, y) => (y === by0 ? colD : y === by1 ? colL : col));
   g.box(-half - PW, by1 + 1, -2, half + PW, by1 + 1, 2, 0xffc21a);
-  // trophy plate on both faces
-  const label = String(num);
-  const tw = textW(label) + 7;
-  const x0 = -Math.ceil(tw / 2) - 2, x1 = x0 + tw + 3;
-  for (const f of [1, -1]) {
-    const z = f * 3;
-    const yb = by0;
-    g.box(x0, yb - 2, z, x1, yb + 6, z, 0x3a2a18);
-    g.box(x0 + 1, yb - 1, z, x1 - 1, yb + 5, z, 0xfff6dc);
-    const tx = f > 0 ? x0 + 3 : x1 - 3;
-    TROPHY.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') g.set(tx + (f > 0 ? c : -c), yb + 4 - r, z + f, r < 2 ? 0xffd23f : 0xe0a010); }));
-    if (f > 0) text(g, label, tx + 7, yb, z + f, '+z', 0x6a3a10);
-    else text(g, label, tx - 7, yb, z + f, '-z', 0x6a3a10);
-  }
+  for (let x = -half; x <= half; x += 4) for (const z of [-3, 3]) g.set(x, by0 + 2, z, 0xffe680);
   // hanging pennants under the beam
   for (const px of [-half + 2, half - 4]) {
     for (let y = 0; y < 7; y++) for (let x = 0; x < 3; x++) {
@@ -182,6 +225,26 @@ function gateGrid(num, color) {
       g.set(px + x, by0 - 1 - y, 0, y === 1 || y === 4 ? colL : col);
     }
   }
+  return g;
+}
+/** The gate's trophy sign: a framed board with a trophy + the count, on two posts (faces +z). */
+function gateSignGrid(num, color) {
+  const g = new VoxGrid();
+  const col = hex(color), colD = shade(col, -0.35);
+  const label = String(num);
+  const tw = textW(label, 1) + 8;
+  const hw = Math.ceil(tw / 2) + 2;
+  // posts
+  for (const x of [-hw + 3, hw - 3]) g.box(x, 0, 0, x, 4, 0, 0x3d4352);
+  // board: dark frame, arena-colour border, cream face
+  g.box(-hw, 5, -1, hw, 19, 0, colD);
+  g.box(-hw + 1, 6, 1, hw - 1, 18, 1, col);
+  g.box(-hw + 2, 7, 1, hw - 2, 17, 1, 0xfff6dc);
+  const tx = -Math.floor(tw / 2);
+  TROPHY.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#') g.set(tx + c, 15 - r, 2, r < 2 ? 0xffd23f : 0xe0a010); }));
+  text(g, label, tx + 7, 8, 2, '+z', 0x6a3a10, { sy: 2 });
+  // little crown of studs on top
+  for (let x = -hw + 2; x <= hw - 2; x += 3) g.set(x, 20, -1, 0xffc21a);
   return g;
 }
 /** Portcullis between the gate pillars (iron bars). */
@@ -194,6 +257,39 @@ function portcullisGrid() {
     g.set(x, y, 0, bar ? (y === 0 ? 0x3d4352 : 0x6b7386) : 0x4a5262);
     if (bar && y === 0) g.set(x, -1, 0, 0x3d4352);
   }
+  return g;
+}
+/** Trail sign at the start of one trail of a fork: a post with a board (the trail's name over an up arrow). Faces +z. */
+function trailSignGrid(tr) {
+  const g = new VoxGrid();
+  const c = hex(tr.color), d = hex(tr.dark), l = shade(c, 0.35);
+  const w = textW(tr.name) + 6;
+  const hw = Math.ceil(w / 2);
+  g.box(-1, 0, -1, 0, 26, 0, (x, y) => ((y & 3) === 0 ? 0x6e4224 : 0x8a5a30));
+  // board: dark frame, trail colour face with a light top edge
+  g.box(-hw, 15, -1, hw, 27, 0, d);
+  g.box(-hw + 1, 16, 1, hw - 1, 26, 1, c);
+  g.box(-hw + 1, 26, 1, hw - 1, 26, 1, l);
+  text(g, tr.name, -hw + 4, 18, 2, '+z', d);
+  text(g, tr.name, -hw + 3, 19, 2, '+z', 0xffffff);
+  // arrow on top pointing up the trail
+  for (let k = 0; k < 5; k++) g.box(-4 + k, 28 + k, 0, 3 - k, 28 + k, 0, k === 4 ? l : c);
+  g.box(-1, 28, 0, 0, 28, 0, d);
+  return g;
+}
+/** Wooden barricade with hazard stripes + a padlock (blocks a trail that is not open yet). Faces +z, spans x. */
+function barricadeGrid() {
+  const g = new VoxGrid();
+  const W = 13;
+  for (const x of [-W + 2, W - 2]) {
+    g.box(x - 1, 0, -1, x, 9, 0, 0x6e4224);
+    g.box(x - 3, 0, -2, x + 2, 0, 1, 0x4a3018);
+  }
+  for (const [y0, y1] of [[4, 5], [8, 9]]) g.box(-W, y0, 1, W, y1, 1, (x) => (((x + 40) >> 2) & 1 ? 0xffffff : 0xe8343c));
+  // padlock in the middle
+  g.box(-2, 5, 2, 1, 8, 2, 0xffc21a);
+  g.box(-1, 9, 2, 0, 10, 2, 0x8f98aa);
+  g.set(-1, 6, 3, 0x3a2a18);
   return g;
 }
 /** Floating tech tile (orbit road). */
@@ -281,36 +377,9 @@ function makeBillboards(n, map) {
 }
 
 // ---------------------------------------------------------------------------
+// Polylines: arc length, position, tangent
 
-/**
- * zones: the island's zone specs ({ id, x, z, y, ground, color }) in arena order;
- * roadIdx[k]: index of zone k's centre in roadPoints.
- */
-export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, exclude, updaters }) {
-  const group = new THREE.Group();
-  group.name = 'trophyRoad';
-  root.add(group);
-
-  // ------------------------------------------------ the path polyline (+ orbit extension)
-  const pts = roadPoints.map((p) => p.clone());
-  const last = zones[zones.length - 1];
-  const lastArena = ARENAS[ARENAS.length - 1];
-  const beyond = TROPHY_ROAD.filter((m) => m.t > lastArena.trophies && !m.arena);
-  const skyStart = pts.length;
-  if (beyond.length) {
-    // out across the anchor plaza, then a rising half-turn in front of the elevator tether
-    const cx = last.x, cz = last.z, gy = (last.ground ?? last.y);
-    const R = 12, a0 = 0, turn = Math.PI * 1.05;
-    const rise = Math.min(20, (last.y - gy) - 6);
-    for (let r = 1; r <= R; r++) pts.push(V(cx + r, gy + Math.max(0, r - 8) * 0.2, cz));
-    const y0 = gy + 0.8;
-    const len = R * turn;
-    const n = Math.ceil(Math.hypot(len, rise));
-    for (let i = 1; i <= n; i++) {
-      const u = i / n, a = a0 + u * turn; // +a swings south (toward the camera) first
-      pts.push(V(cx + Math.cos(a) * R, y0 + rise * (u * 0.85 + u * u * 0.15), cz + Math.sin(a) * R));
-    }
-  }
+function polyline(pts) {
   const arc = new Float32Array(pts.length);
   for (let i = 1; i < pts.length; i++) arc[i] = arc[i - 1] + pts[i].distanceTo(pts[i - 1]);
   const length = arc[pts.length - 1];
@@ -329,22 +398,108 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     const a = posAt(s - 1.5), b = posAt(s + 1.5);
     return out.copy(b).sub(a).setY(0).normalize();
   };
+  return { pts, arc, length, idxAt, posAt, tangentAt };
+}
 
-  // ------------------------------------------------ zone gates + chapter ranges
-  const zS = zones.map((Z, k) => arc[roadIdx[k]]);
+// ---------------------------------------------------------------------------
+
+/**
+ * zones: the island's zone specs ({ id, x, z, y, ground, color }) in arena order;
+ * roadIdx[k]: index of zone k's centre in roadPoints; forks: data/roadForks.js FORKS;
+ * T.branches: the side trails the terrain carved ({ chapter, k0, k1, side, pts }).
+ */
+export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, exclude, updaters, forks = [] }) {
+  const group = new THREE.Group();
+  group.name = 'trophyRoad';
+  root.add(group);
+
+  // ------------------------------------------------ the main road polyline (+ orbit extension)
+  const main = roadPoints.map((p) => p.clone());
+  const last = zones[zones.length - 1];
+  const lastArena = ARENAS[ARENAS.length - 1];
+  const beyond = TROPHY_ROAD.filter((m) => m.t > lastArena.trophies && !m.arena);
+  const skyStart = main.length;
+  if (beyond.length) {
+    // out across the anchor plaza, then a rising half-turn in front of the elevator tether
+    const cx = last.x, cz = last.z, gy = (last.ground ?? last.y);
+    const R = 12, a0 = 0, turn = Math.PI * 1.05;
+    const rise = Math.min(20, (last.y - gy) - 6);
+    for (let r = 1; r <= R; r++) main.push(V(cx + r, gy + Math.max(0, r - 8) * 0.2, cz));
+    const y0 = gy + 0.8;
+    const len = R * turn;
+    const n = Math.ceil(Math.hypot(len, rise));
+    for (let i = 1; i <= n; i++) {
+      const u = i / n, a = a0 + u * turn; // +a swings south (toward the camera) first
+      main.push(V(cx + Math.cos(a) * R, y0 + rise * (u * 0.85 + u * u * 0.15), cz + Math.sin(a) * R));
+    }
+  }
+  main.forEach((p, i) => { p.mi = i; });
+  const M0 = polyline(main);
+
+  // ------------------------------------------------ forks: the side trails as 1-unit polylines
+  const nearestMain = (p, i0 = 0, i1 = main.length - 1) => {
+    let bi = i0, bd = Infinity;
+    for (let i = i0; i <= i1; i++) { const d = (main[i].x - p.x) ** 2 + (main[i].z - p.z) ** 2; if (d < bd) { bd = d; bi = i; } }
+    return bi;
+  };
+  const fks = [];
+  for (const F of forks) {
+    const B = T.branches?.find((b) => b.chapter === F.chapter);
+    if (!B) continue;
+    const iF = nearestMain(T.road[B.k0]), iJ = nearestMain(T.road[B.k1]);
+    if (iJ - iF < 8) continue;
+    const bp = [];
+    for (let k = 0; k < B.pts.length; k += 4) { const q = B.pts[k]; bp.push(V(q.x, T.heightAt(q.x, q.z), q.z)); }
+    const qe = B.pts[B.pts.length - 1];
+    bp.push(V(qe.x, T.heightAt(qe.x, qe.z), qe.z));
+    // the trail's ends meet the main road: pin them to it
+    bp[0].copy(main[iF]);
+    bp[bp.length - 1].copy(main[iJ]);
+    bp.forEach((p, i) => { p.mi = iF + ((iJ - iF) * i) / (bp.length - 1); });
+    fks.push({ F, id: F.id, chapter: F.chapter, B, iF, iJ, bpts: bp, BL: polyline(bp), side: B.side });
+  }
+  const forkById = Object.fromEntries(fks.map((f) => [f.id, f]));
+
+  // ------------------------------------------------ the route (main road with the picked trails swapped in)
+  let route = M0;
+  let choices = {};
+  function buildRoute() {
+    const out = [];
+    for (let i = 0; i < main.length; i++) {
+      const f = fks.find((q) => q.iF === i);
+      if (f && choices[f.id] === 'b') { out.push(...f.bpts.slice(0, -1)); i = f.iJ - 1; continue; }
+      out.push(main[i]);
+    }
+    route = polyline(out);
+  }
+  /** Arc length on the current route at main-road index mi (fractional). */
+  const sOfMi = (mi) => {
+    const pts = route.pts;
+    let lo = 0, hi = pts.length - 1;
+    if (mi <= pts[0].mi) return 0;
+    if (mi >= pts[hi].mi) return route.length;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid].mi <= mi) lo = mid; else hi = mid; }
+    const a = pts[lo], b = pts[hi];
+    const u = b.mi > a.mi ? (mi - a.mi) / (b.mi - a.mi) : 0;
+    return route.arc[lo] + (route.arc[hi] - route.arc[lo]) * u;
+  };
+  const miOfS0 = (s) => { const i = M0.idxAt(s); const j = Math.min(main.length - 1, i + 1); const u = M0.arc[j] > M0.arc[i] ? (s - M0.arc[i]) / (M0.arc[j] - M0.arc[i]) : 0; return i + u; };
+
+  // ------------------------------------------------ zone gates + chapter ranges (main-road indices)
   const near = (p, Z, r) => Math.hypot(p.x - Z.x, p.z - Z.z) < r;
-  const exitS = zones.map((Z, k) => {
+  const zoneMi = zones.map((Z, k) => roadIdx[k]);
+  const exitMi = zones.map((Z, k) => {
     let i = roadIdx[k];
-    while (i < roadPoints.length - 1 && near(pts[i], Z, plinthR + 2.4)) i++;
-    return arc[i];
+    while (i < roadPoints.length - 1 && near(main[i], Z, plinthR + 2.4)) i++;
+    return i;
   });
-  const gateS = zones.map((Z, k) => {
+  const gateMi = zones.map((Z, k) => {
     if (k === 0) return 0;
     let i = roadIdx[k];
-    while (i > 0 && near(pts[i], Z, plinthR + 3.2)) i--;
-    return arc[i];
+    while (i > 0 && near(main[i], Z, plinthR + 3.2)) i--;
+    return i;
   });
-  if (beyond.length) exitS[zones.length - 1] = arc[skyStart + 10] ?? exitS[zones.length - 1];
+  if (beyond.length) exitMi[zones.length - 1] = Math.min(main.length - 1, skyStart + 10);
 
   // ------------------------------------------------ milestones
   const arenaIdx = (t) => { let k = 0; for (let i = 0; i < ARENAS.length; i++) if (t >= ARENAS[i].trophies) k = i; return k; };
@@ -355,29 +510,49 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     if (k > 0) gates.set(k, m);
     else chapters[arenaIdx(m.t)].push(m);
   }
+  // list entries: { m, s0 (arc on the main road), chapter, gate, fork, side, onBranch, bs (arc on the branch) }
   const list = [];
+  const spread = (items, a, b, chapter) => {
+    const n = items.length;
+    items.forEach((m, i) => {
+      const s0 = n === 1 ? (a + b) / 2 : a + ((b - a) * i) / Math.max(1, n - 1);
+      list.push({ m, s0, chapter, gate: false });
+    });
+  };
   ARENAS.forEach((A, k) => {
     if (k >= zones.length) return;
     const g = gates.get(k);
-    if (g) list.push({ m: g, s: gateS[k] - 2.6, chapter: k, gate: true });
-    const items = chapters[k].sort((a, b) => a.t - b.t);
-    const a = exitS[k] + 1.4;
-    const b = k + 1 < zones.length ? gateS[k + 1] - (gates.get(k + 1) ? 5.2 : 3.2) : length - 2;
-    const n = items.length;
-    // even spacing along the chapter (Clash Royale style), never closer than the pedestal size
-    items.forEach((m, i) => {
-      const s = n === 1 ? (a + b) / 2 : a + ((b - a) * i) / Math.max(1, n - 1);
-      list.push({ m, s, chapter: k, gate: false });
-    });
+    if (g) list.push({ m: g, s0: M0.arc[gateMi[k]] - 2.6, chapter: k, gate: true });
+    const items = chapters[k].sort((x, y) => x.t - y.t);
+    const a = M0.arc[exitMi[k]] + 2.2;
+    const b = k + 1 < zones.length ? M0.arc[gateMi[k + 1]] - (gates.get(k + 1) ? 6.4 : 3.6) : M0.length - 2;
+    const f = fks.find((q) => q.chapter === k);
+    if (!f) { spread(items, a, b, k); return; }
+    // trunk milestones before + after the fork, two bonus chests on each trail inside it
+    const sF = M0.arc[f.iF], sJ = M0.arc[f.iJ];
+    const nb = Math.min(items.length, f.F.nBefore);
+    const before = items.slice(0, nb), after = items.slice(nb);
+    // before: from the arena exit to just short of the fork sign; after: from the rejoin to the gate
+    if (before.length) spread(before, a, Math.max(a, sF - 4.5), k);
+    if (after.length) spread(after, Math.min(b, sJ + 3.5), b, k);
+    for (const side of ['a', 'b']) {
+      const tr = f.F[side];
+      tr.items.forEach((m, j) => {
+        const u = (j + 1) / (tr.items.length + 1);
+        if (side === 'a') list.push({ m, s0: sF + (sJ - sF) * (0.12 + u * 0.76), chapter: k, gate: false, fork: f.id, side });
+        else list.push({ m, s0: sF, bs: f.BL.length * (0.12 + u * 0.76), chapter: k, gate: false, fork: f.id, side, onBranch: true });
+      });
+    }
   });
-  list.sort((a, b) => a.m.t - b.m.t);
+  list.sort((x, y) => x.m.t - y.m.t || (x.side ?? '').localeCompare(y.side ?? ''));
 
   const color = (k) => hex(ARENAS[k]?.color ?? '#29b6f6');
   const tierOf = (m) => {
     const r = m.reward ?? {};
-    if (m.arena || ['mega', 'labSkin', 'banner', 'cmdSkin', 'skin', 'commander', 'entrance'].includes(r.type)) return 'gold';
-    if (r.type === 'vial' && ['megaLab', 'cashCase', 'hyperchrome'].includes(r.id)) return 'gold';
-    if (r.type === 'card' || r.type === 'vial') return 'blue';
+    if (['mega', 'commander', 'entrance', 'labSkin'].includes(r.type) || (r.type === 'vial' && r.id === 'cashCase')) return 'legendary';
+    if (m.arena || ['banner', 'cmdSkin', 'skin'].includes(r.type)) return 'gold';
+    if (r.type === 'vial' && ['megaLab', 'hyperchrome'].includes(r.id)) return 'gold';
+    if (r.type === 'card' || r.type === 'vial' || r.type === 'bucks') return 'iron';
     return 'wood';
   };
   const chestGeos = {};
@@ -386,7 +561,7 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     if (chestGeos[key]) return chestGeos[key];
     const fn = part === 'b' ? () => chestBodyGrid(tier, look === 'glow') : () => chestLidGrid(tier, look === 'glow');
     const grid = look === 'grey' ? () => P.greyGrid(fn()) : fn;
-    return (chestGeos[key] = P.geo(`trChest_${key}`, grid, PV, [0, 0, 0]));
+    return (chestGeos[key] = P.geo(`trChest2_${key}`, grid, PV, [0, 0, 0]));
   };
   const flagGeo = P.geo('trFlag', flagGrid, PV, 'bottom');
   const skyTileGeo = P.geo('trSkyTile', skyTileGrid, PV, 'bottom');
@@ -397,14 +572,20 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
   let side = 1;
   for (const L of list) {
     const k = L.chapter;
-    const sky = idxAt(L.s) >= skyStart;
-    // pick a side + a dry, level-ish spot (nudge along the road if the bank is wet or steep)
+    const f = L.fork ? forkById[L.fork] : null;
+    const line = L.onBranch ? f.BL : M0;
+    const s0 = L.onBranch ? L.bs : L.s0;
+    const sky = !L.onBranch && M0.idxAt(s0) >= skyStart;
+    // which side of the road: fork chests sit on the outside of their trail
+    let sides = [side, -side];
+    if (f) { const out = L.side === 'a' ? -f.side : f.side; sides = [out]; }
+    // a dry, level-ish spot (nudged along the road if the bank is wet or steep)
     let spot = null;
-    for (const ds of [0, 0.8, -0.8, 1.6, -1.6, 2.4]) {
-      for (const sd of L.gate ? [side, -side] : [side, -side]) {
-        const s = L.s + ds;
-        posAt(s, tmp);
-        tangentAt(s, tan);
+    for (const ds of [0, 0.8, -0.8, 1.6, -1.6, 2.4, -2.4]) {
+      for (const sd of sides) {
+        const s = s0 + ds;
+        line.posAt(s, tmp);
+        line.tangentAt(s, tan);
         let dir = sd;
         if (sky) dir = Math.hypot(tmp.x - tan.z - last.x, tmp.z + tan.x - last.z) > Math.hypot(tmp.x + tan.z - last.x, tmp.z - tan.x - last.z) ? 1 : -1;
         const off = sky ? 2.4 : SIDE;
@@ -413,27 +594,30 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
           const id = T.colAt(x, z);
           if (id < 0 || T.riverD[id] < T.riverW[id] + 1.4) continue;
           if (T.roadD[id] < T.RW + 0.6) continue;
-          const lo = T.minHeight(x, z, 0.75), hi = T.maxHeight(x, z, 0.75);
+          const lo = T.minHeight(x, z, 0.8), hi = T.maxHeight(x, z, 0.8);
           if (hi - lo > 1.6 || Math.abs(hi - tmp.y) > 2.2) continue;
           if (zones.some((Z) => Math.hypot(x - Z.x, z - Z.z) < plinthR + 1.2)) continue;
-          spot = { s, sd, x, z, y: hi };
-        } else spot = { s, sd, x, z, y: tmp.y };
+          spot = { s, sd, x, z, y: hi, rp: tmp.clone() };
+        } else spot = { s, sd, x, z, y: tmp.y, rp: tmp.clone() };
         break;
       }
       if (spot) break;
     }
     if (!spot) {
-      posAt(L.s, tmp);
-      tangentAt(L.s, tan);
-      spot = { s: L.s, sd: side, x: tmp.x - tan.z * SIDE * side, z: tmp.z + tan.x * SIDE * side, y: T.heightAt(tmp.x - tan.z * SIDE * side, tmp.z + tan.x * SIDE * side) };
+      line.posAt(s0, tmp);
+      line.tangentAt(s0, tan);
+      const sd = sides[0];
+      const x = tmp.x - tan.z * SIDE * sd, z = tmp.z + tan.x * SIDE * sd;
+      spot = { s: s0, sd, x, z, y: T.heightAt(x, z), rp: tmp.clone() };
     }
-    if (!L.gate) side = -spot.sd;
+    if (!L.gate && !f) side = -spot.sd;
     const g = new THREE.Group();
     g.name = 'milestone:' + L.m.key;
     g.position.set(spot.x, spot.y + PH, spot.z);
     g.rotation.y = FACE_Y;
     group.add(g);
-    const ped = P.mesh(P.geo(`trPed_${L.m.t}_${k}${sky ? 't' : ''}`, () => pedestalGrid(L.m.t, color(k), sky), PV, [0, 0, 0]), { receive: true });
+    const trim = f ? hex(TRAILS[L.side].color) : color(k);
+    const ped = P.mesh(P.geo(`trPed2_${L.m.t}_${trim.toString(16)}${sky ? 't' : ''}`, () => pedestalGrid(L.m.t, trim, sky), PV, [0, 0, 0]), { receive: true });
     g.add(ped);
     if (sky) {
       const pad = P.mesh(padGeo, { receive: true });
@@ -443,22 +627,24 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     const tier = sky && tierOf(L.m) === 'wood' ? 'tech' : tierOf(L.m);
     const chest = new THREE.Group();
     chest.name = 'chest';
-    chest.position.y = 0;
     g.add(chest);
     const body = P.mesh(chestGeo(tier, 'norm', 'b'), {});
     const lid = P.mesh(chestGeo(tier, 'norm', 'l'), {});
     lid.position.set(0, CH * PV, -CD * PV);
     chest.add(body, lid);
     const flag = P.mesh(flagGeo, {});
-    flag.position.set(-0.55, 0, -0.25);
+    flag.position.set(-0.8, 0, -0.45);
     flag.visible = false;
     g.add(flag);
-    if (!sky) exclude.push([spot.x, spot.z, 2.4]);
+    if (!sky) exclude.push([spot.x, spot.z, 2.6]);
     const anchor = V(spot.x, spot.y + PH, spot.z);
+    // main-road index this milestone belongs to (branch chests: their spot along the trail's span)
+    const mi = L.onBranch ? f.iF + ((f.iJ - f.iF) * spot.s) / f.BL.length : miOfS0(spot.s);
     ms.push({
-      m: L.m, key: L.m.key, t: L.m.t, s: spot.s, chapter: k, gate: L.gate, color: color(k), tier, sky,
-      anchor, rewardPos: anchor.clone().add(V(0, 1.75, 0)), group: g, chest, body, lid, flag,
-      state: 'norm', lidA: 0, lidT: -1, phase: list.indexOf(L) * 1.7,
+      m: L.m, key: L.m.key, t: L.m.t, s: 0, mi, chapter: k, gate: L.gate, fork: L.fork ?? null, side: L.side ?? null, onBranch: !!L.onBranch,
+      color: trim, tier, sky, roadPos: spot.rp,
+      anchor, rewardPos: anchor.clone().add(V(0, 1.9, 0)), group: g, chest, body, lid, flag,
+      state: 'norm', lidA: 0, lidT: -1, phase: ms.length * 1.7,
     });
   }
 
@@ -469,7 +655,7 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     let H = hops[M.tier];
     if (!H) {
       const n = ms.filter((q) => q.tier === M.tier).length;
-      const im = new THREE.InstancedMesh(P.geo(`trChestC_${M.tier}`, () => chestClosedGrid(M.tier, true), PV, [0, 0, 0]), Mats.pair, n);
+      const im = new THREE.InstancedMesh(P.geo(`trChestC2_${M.tier}`, () => chestClosedGrid(M.tier, true), PV, [0, 0, 0]), Mats.pair, n);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.frustumCulled = false;
       im.castShadow = true;
@@ -482,38 +668,88 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     M.hop = H;
   }
 
-  // ------------------------------------------------ arena gates (arches + portcullis)
+  // ------------------------------------------------ arena gates (arches + portcullis + a camera-facing trophy sign)
   const gateObjs = {};
   zones.forEach((Z, k) => {
     if (k === 0) return;
     const A = ARENAS[k];
     if (!A) return;
-    const s = gateS[k] + 0.6;
-    posAt(s, tmp);
-    tangentAt(s, tan);
+    const s = M0.arc[gateMi[k]] + 0.6;
+    M0.posAt(s, tmp);
+    M0.tangentAt(s, tan);
     const ry = Math.atan2(tan.x, tan.z);
     const y = Math.min(T.minHeight(tmp.x, tmp.z, 2.6), tmp.y);
-    const arch = P.mesh(P.geo(`trGate_${A.id}_${A.trophies}`, () => gateGrid(A.trophies, A.color), GV, [0, 0, 0]), { receive: true });
+    const arch = P.mesh(P.geo(`trGate2_${A.id}`, () => gateGrid(A.color), GV, [0, 0, 0]), { receive: true });
     arch.position.set(tmp.x, y, tmp.z);
     arch.rotation.y = ry;
     arch.name = 'gate:' + A.id;
     group.add(arch);
+    const sign = P.mesh(P.geo(`trGateSign_${A.id}_${A.trophies}`, () => gateSignGrid(A.trophies, A.color), GV, 'bottom'), {});
+    sign.position.set(tmp.x, y + 35 * GV, tmp.z);
+    sign.rotation.y = FACE_Y;
+    sign.name = 'gateSign';
+    group.add(sign);
     const bars = P.mesh(P.geo('trPortcullis', portcullisGrid, GV, [0, 0, 0]), {});
     bars.position.set(tmp.x, Math.max(y, tmp.y - 0.05), tmp.z);
     bars.rotation.y = ry;
     bars.visible = false;
     group.add(bars);
     exclude.push([tmp.x, tmp.z, 3.4]);
-    gateObjs[A.id] = { arch, bars, s, y0: bars.position.y, lift: null };
+    gateObjs[A.id] = { arch, bars, y0: bars.position.y, lift: null };
   });
+
+  // ------------------------------------------------ fork trail signs + barricades
+  for (const f of fks) {
+    f.signs = {};
+    f.bars = {};
+    for (const sd of ['a', 'b']) {
+      // a sign on the outside of each trail, a few units after the split
+      const pl = sd === 'a' ? M0 : f.BL;
+      const out = sd === 'a' ? -f.side : f.side;
+      const s1 = sd === 'a' ? M0.arc[f.iF] + 4.5 : 4.5;
+      pl.posAt(s1, tmp);
+      pl.tangentAt(s1, tan);
+      let sx = 0, sz = 0;
+      for (const off of [SIDE + 0.4, SIDE + 1.4, SIDE + 2.4]) {
+        sx = tmp.x - tan.z * off * out; sz = tmp.z + tan.x * off * out;
+        const id = T.colAt(sx, sz);
+        if (id >= 0 && T.roadD[id] > T.RW + 0.5) break;
+      }
+      const sign = P.mesh(P.geo(`trTrailSign_${sd}`, () => trailSignGrid(TRAILS[sd]), 0.09, 'bottom'), {});
+      const sy = T.heightAt(sx, sz);
+      sign.position.set(sx, sy - 0.05, sz);
+      sign.rotation.y = FACE_Y;
+      sign.name = 'trailSign:' + f.id + sd;
+      group.add(sign);
+      exclude.push([sx, sz, 2.4]);
+      f.signs[sd] = { mesh: sign, pos: V(sx, sy + 2, sz) };
+      // the barricade across this trail's entrance (shown when the other trail was picked)
+      const s2 = sd === 'a' ? M0.arc[f.iF] + 8.5 : 8.5;
+      pl.posAt(s2, tmp);
+      pl.tangentAt(s2, tan);
+      const bar = P.mesh(P.geo('trBarricade', barricadeGrid, PV, 'bottom'), {});
+      bar.position.set(tmp.x, T.heightAt(tmp.x, tmp.z), tmp.z);
+      bar.rotation.y = Math.atan2(tan.x, tan.z);
+      bar.visible = false;
+      bar.name = 'barricade';
+      group.add(bar);
+      f.bars[sd] = bar;
+    }
+    // the fork's own spot (for the camera + taps): between the two signs
+    f.signPos = f.signs.a.pos.clone().add(f.signs.b.pos).multiplyScalar(0.5);
+    f.signGroup = f.signs.a.mesh;
+    f.s0 = 0; f.s1 = 0;
+    const mid = Math.round((f.iF + f.iJ) / 2);
+    const bm = f.bpts[Math.round((f.bpts.length - 1) / 2)];
+    f.mid = V((main[mid].x + bm.x) / 2, (main[mid].y + bm.y) / 2, (main[mid].z + bm.z) / 2);
+  }
 
   // ------------------------------------------------ orbit road tiles
   if (beyond.length) {
     const tiles = [];
-    const mPos = ms.filter((M) => M.sky).map((M) => M.anchor);
-    for (let s = arc[skyStart + 9] ?? length; s < length; s += 1.25) {
-      posAt(s, tmp);
-      tangentAt(s, tan);
+    for (let s = M0.arc[skyStart + 9] ?? M0.length; s < M0.length; s += 1.25) {
+      M0.posAt(s, tmp);
+      M0.tangentAt(s, tan);
       tiles.push([tmp.x, tmp.y - 0.05, tmp.z, Math.atan2(tan.x, tan.z), 1]);
     }
     const im = new THREE.InstancedMesh(skyTileGeo, Mats.pair, tiles.length);
@@ -523,6 +759,34 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     im.computeBoundingSphere();
     im.name = 'orbitRoad';
     group.add(im);
+  }
+
+  // ------------------------------------------------ coin spill (one instanced pool shared by every chest)
+  const COINS = 40;
+  const coinIM = new THREE.InstancedMesh(P.geo('trCoin', coinGrid, 0.055, 'center', 0), Mats.pair, COINS);
+  coinIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  coinIM.frustumCulled = false;
+  coinIM.castShadow = false;
+  coinIM.name = 'chestCoins';
+  for (let i = 0; i < COINS; i++) coinIM.setMatrixAt(i, ZERO);
+  group.add(coinIM);
+  const coins = Array.from({ length: COINS }, () => ({ t: -1, p: new THREE.Vector3(), v: new THREE.Vector3(), floor: 0, spin: 0, ax: 0, life: 0 }));
+  let coinHead = 0;
+  function spill(M, n) {
+    for (let k = 0; k < n; k++) {
+      const c = coins[coinHead];
+      coinHead = (coinHead + 1) % COINS;
+      const a = Math.random() * Math.PI * 2, sp = 1.1 + Math.random() * 1.6;
+      c.t = -k * 0.025; // a quick stream, not one blob
+      c.p.copy(M.anchor).add(V((Math.random() - 0.5) * 0.5, 0.75, (Math.random() - 0.5) * 0.3));
+      c.v.set(Math.cos(a) * sp, 3.6 + Math.random() * 2.4, Math.sin(a) * sp * 0.7 + 0.6);
+      c.floor = M.anchor.y + 0.03;
+      c.edge = M.anchor;
+      c.spin = (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 8);
+      c.ax = Math.random() * 6.28;
+      c.life = 1.6 + Math.random() * 0.6;
+      c.bounced = 0;
+    }
   }
 
   // ------------------------------------------------ billboards (reward art, rays, focus arrow)
@@ -562,13 +826,13 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
   let focus = -1;
   const place = (i) => {
     const M = ms[i];
-    const big = M.gate || M.tier === 'gold';
-    const sz = (painted[i] ? 1.55 : 0) * (big ? 1.18 : 1);
+    const big = M.gate || M.tier === 'gold' || M.tier === 'legendary';
+    const sz = (painted[i] ? 1.6 : 0) * (big ? 1.18 : 1);
     bb.set(i, M.rewardPos, sz);
     bb.tint(i, M.state === 'grey' ? 0.42 : M.state === 'open' ? 0.0 : 1);
     if (M.state === 'open') bb.set(i, hide, 0);
     const rays = M.state === 'glow';
-    bb.set(RAYS + i, rays ? tmp.copy(M.anchor).add(V(0, 1.15, 0)) : hide, rays ? 3.1 : 0);
+    bb.set(RAYS + i, rays ? tmp.copy(M.anchor).add(V(0, 1.2, 0)) : hide, rays ? (M.tier === 'legendary' ? 3.8 : 3.2) : 0);
   };
 
   // ------------------------------------------------ state + animation
@@ -594,6 +858,7 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     const M = ms[i];
     M.lidT = 0;
     M.state = 'opening';
+    M.spilled = false;
     M.body.geometry = chestGeo(M.tier, 'glow', 'b');
     M.lid.geometry = chestGeo(M.tier, 'glow', 'l');
     M.lid.rotation.x = 0;
@@ -608,7 +873,8 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     focus = i;
     if (i < 0) bb.set(ARROW, hide, 0);
   }
-  const _a = new THREE.Vector3(), _o = new THREE.Object3D();
+  const _a = new THREE.Vector3(), _o = new THREE.Object3D(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s1 = new THREE.Vector3(1, 1, 1), _m4 = new THREE.Matrix4();
+  let coinsLive = false;
   updaters.push((dt, t) => {
     bb.uTime.value = t % 1000;
     for (let i = 0; i < N; i++) {
@@ -617,29 +883,68 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
         // hop + squash, a beat apart from the neighbours
         const k = (t * 1.6 + M.phase) % 2;
         const hop = k < 0.5 ? Math.sin((k / 0.5) * Math.PI) : 0;
-        M.chest.position.y = hop * 0.28;
         const sq = k < 0.5 ? 1 + Math.sin((k / 0.5) * Math.PI * 2) * 0.06 : 1 - Math.max(0, Math.sin(((k - 0.5) / 0.25) * Math.PI)) * 0.08 * (k < 0.75 ? 1 : 0);
         _o.position.copy(M.anchor);
         _o.position.y += hop * 0.28;
-        _o.rotation.set(0, FACE_Y, 0);
+        _o.rotation.set(0, FACE_Y, Math.sin(t * 9 + M.phase) * 0.04 * hop);
         _o.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
         _o.updateMatrix();
         M.hop.im.setMatrixAt(M.slot, _o.matrix);
         M.hop.im.instanceMatrix.needsUpdate = true;
       } else if (M.state === 'opening') {
         M.lidT += dt;
-        const u = Math.min(1, M.lidT / 0.45);
+        // a rattle, then the lid bursts open with an overshoot and the coins spill out
+        const rattle = M.lidT < 0.22 ? Math.sin(M.lidT * 70) * 0.06 * (1 - M.lidT / 0.22) : 0;
+        M.chest.rotation.z = rattle;
+        const u = clamp((M.lidT - 0.18) / 0.4, 0, 1);
         const e = 1 - Math.pow(1 - u, 3);
-        M.lidA = 2.15 * e - Math.sin(u * Math.PI) * 0.1;
+        M.lidA = 2.2 * e - Math.sin(u * Math.PI) * 0.15;
         M.lid.rotation.x = -M.lidA;
-        const s = 1 + Math.sin(Math.min(1, M.lidT / 0.3) * Math.PI) * 0.18;
-        M.chest.scale.set(s, 2 - s, s);
-        M.chest.position.y = Math.sin(Math.min(1, M.lidT / 0.3) * Math.PI) * 0.15;
+        const k = clamp((M.lidT - 0.12) / 0.3, 0, 1);
+        const sq = 1 + Math.sin(k * Math.PI) * 0.16;
+        M.chest.scale.set(sq, 2 - sq, sq);
+        M.chest.position.y = Math.sin(k * Math.PI) * 0.18;
+        if (!M.spilled && M.lidT > 0.26) {
+          M.spilled = true;
+          const r = M.m.reward ?? {};
+          spill(M, r.type === 'coins' ? 26 : M.tier === 'legendary' ? 22 : 12);
+          coinsLive = true;
+        }
         // the reward pops up and out
-        const ru = Math.min(1, M.lidT / 0.55);
-        bb.set(i, _a.copy(M.rewardPos).add(V(0, ru * 1.4, 0)), (1.55 + Math.sin(ru * Math.PI) * 0.8) * (1 - ru * ru));
-        if (M.lidT > 0.6) { M.state = 'norm'; M.lidT = -1; setState(i, 'claimed'); M.lidA = 1.95; M.lid.rotation.x = -1.95; }
+        const ru = clamp((M.lidT - 0.2) / 0.55, 0, 1);
+        bb.set(i, _a.copy(M.rewardPos).add(V(0, ru * 1.4, 0)), (1.6 + Math.sin(ru * Math.PI) * 0.8) * (1 - ru * ru));
+        if (M.lidT > 0.85) { M.state = 'norm'; M.lidT = -1; M.chest.rotation.z = 0; setState(i, 'claimed'); M.lidA = 1.95; M.lid.rotation.x = -1.95; }
       }
+    }
+    // spilled coins: ballistic arcs, one bounce on the pedestal (or the ground), then they shrink away
+    if (coinsLive) {
+      let any = false;
+      for (let i = 0; i < COINS; i++) {
+        const c = coins[i];
+        if (c.t === -1) continue;
+        c.t += dt;
+        if (c.t < 0) { coinIM.setMatrixAt(i, ZERO); any = true; continue; }
+        if (c.t > c.life) { c.t = -1; coinIM.setMatrixAt(i, ZERO); continue; }
+        any = true;
+        c.v.y -= 16 * dt;
+        c.p.addScaledVector(c.v, dt);
+        // off the pedestal top: fall on to the ground below it
+        const onTop = Math.abs(c.p.x - c.edge.x) < 1.0 && Math.abs(c.p.z - c.edge.z) < 0.75;
+        const floor = onTop ? c.floor : c.floor - PH + 0.02;
+        if (c.p.y < floor) {
+          c.p.y = floor;
+          if (c.bounced < 2) { c.v.y = Math.abs(c.v.y) * 0.38; c.v.x *= 0.6; c.v.z *= 0.6; c.bounced++; } else { c.v.set(0, 0, 0); }
+        }
+        c.ax += c.spin * dt * (c.bounced < 2 ? 1 : 0.2);
+        const lie = c.bounced >= 2 ? Math.PI / 2 : 0;
+        _e.set(lie, c.ax, 0, 'YXZ');
+        _q.setFromEuler(_e);
+        const sc = c.t > c.life - 0.3 ? Math.max(0.001, (c.life - c.t) / 0.3) : 1;
+        _s1.setScalar(sc);
+        coinIM.setMatrixAt(i, _m4.compose(c.p, _q, _s1));
+      }
+      coinIM.instanceMatrix.needsUpdate = true;
+      coinsLive = any;
     }
     for (const id in gateObjs) {
       const G = gateObjs[id];
@@ -649,27 +954,88 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
       G.bars.position.y = G.y0 + (u < 0.5 ? Math.sin(u * 50) * 0.04 : Math.pow(Math.min(1, (u - 0.5) / 1.1), 2) * 3.6);
       if (u > 1.6) { G.bars.visible = false; G.bars.position.y = G.y0; G.lift = null; }
     }
+    for (const f of fks) {
+      for (const sd of ['a', 'b']) {
+        const A = f.bars[sd].anim;
+        if (!A) continue;
+        A.t += dt;
+        const bar = f.bars[sd];
+        if (A.out) {
+          // the barricade topples backwards and sinks
+          bar.rotation.x = -(Math.min(1, A.t / 0.5) ** 2) * 1.4;
+          bar.position.y = A.y0 - Math.max(0, A.t - 0.4) * 3;
+          if (A.t > 1.0) { bar.visible = false; bar.rotation.x = 0; bar.position.y = A.y0; f.bars[sd].anim = null; }
+        } else {
+          const k = Math.min(1, A.t / 0.35);
+          bar.scale.set(1, 0.2 + 0.8 * (1 - Math.pow(1 - k, 3)) + Math.sin(k * Math.PI) * 0.15, 1);
+          if (A.t > 0.35) { bar.scale.set(1, 1, 1); f.bars[sd].anim = null; }
+        }
+      }
+    }
     if (focus >= 0) {
       const M = ms[focus];
-      bb.set(ARROW, _a.copy(M.rewardPos).add(V(0, M.state === 'open' ? 0.2 : 1.55, 0)), 0.9);
+      bb.set(ARROW, _a.copy(M.rewardPos).add(V(0, M.state === 'open' ? 0.2 : 1.6, 0)), 0.9);
     }
   });
 
-  return {
-    group, milestones: ms, length, posAt, tangentAt, camDir: CAM_DIR.clone(),
-    zoneS: zS, gateS, exitS,
-    sOfTrophies(t) {
-      // keypoints: each arena's threshold sits just past its plinth, each milestone at its pedestal
+  // ------------------------------------------------ route + s values
+  function reroute() {
+    buildRoute();
+    for (const M of ms) M.s = sOfMi(M.mi);
+    for (const f of fks) { f.s0 = sOfMi(f.iF); f.s1 = sOfMi(f.iJ); f.sSign = f.s0 + 2; }
+    api.length = route.length;
+    api.zoneS = zoneMi.map(sOfMi);
+    api.exitS = exitMi.map(sOfMi);
+    api.gateS = gateMi.map(sOfMi);
+  }
+
+  const api = {
+    group, milestones: ms, forks: fks, length: 0, camDir: CAM_DIR.clone(), faceY: FACE_Y,
+    zoneS: [], gateS: [], exitS: [],
+    posAt: (s, out) => route.posAt(s, out),
+    tangentAt: (s, out) => route.tangentAt(s, out),
+    /** Reroute through the picked trails: { forkId: 'a' | 'b' } (unpicked forks follow the main road). */
+    setChoices(c) {
+      const next = { ...c };
+      const same = fks.every((f) => (next[f.id] ?? 'a') === (choices[f.id] ?? 'a'));
+      choices = next;
+      if (!same || !route.pts.length || api.length === 0) reroute();
+    },
+    /** Barricade across one trail's entrance (side 'a' | 'b'), or none (null). animate: it pops up / topples. */
+    setBarrier(id, sd, o = {}) {
+      const f = forkById[id];
+      if (!f) return;
+      for (const k of ['a', 'b']) {
+        const bar = f.bars[k];
+        const want = k === sd;
+        if (bar.visible === want && !bar.anim) continue;
+        if (want) { bar.visible = true; bar.anim = o.animate ? { t: 0, out: false } : null; if (!o.animate) bar.scale.set(1, 1, 1); }
+        else if (o.animate && bar.visible) bar.anim = { t: 0, out: true, y0: bar.position.y };
+        else { bar.visible = false; bar.anim = null; }
+      }
+    },
+    sOfTrophies(t, ch = choices) {
+      // keypoints: each arena's threshold sits just past its plinth, each milestone at its pedestal;
+      // a fork with no trail picked keeps you at its signpost
       const keys = [];
-      ARENAS.forEach((A, k) => { if (k < zones.length) keys.push([A.trophies, exitS[k] - 1.3]); });
-      for (const M of ms) if (!M.gate) keys.push([M.t, M.s]);
+      ARENAS.forEach((A, k) => { if (k < zones.length) keys.push([A.trophies, api.exitS[k] - 1.3]); });
+      for (const M of ms) {
+        if (M.gate) continue;
+        if (M.fork && M.side !== (ch[M.fork] ?? 'a')) continue;
+        if (M.fork && !ch[M.fork]) continue;
+        keys.push([M.t, M.s]);
+      }
+      for (const f of fks) {
+        if (ch[f.id]) continue;
+        keys.push([f.F.lo + 0.001, f.sSign], [f.F.hi - 0.001, f.sSign]);
+      }
       keys.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
       if (t <= keys[0][0]) return keys[0][1];
       for (let i = 0; i < keys.length - 1; i++) {
         const [t0, s0] = keys[i], [t1, s1] = keys[i + 1];
         if (t >= t0 && t < t1) return s0 + (s1 - s0) * ((t - t0) / (t1 - t0));
       }
-      return Math.min(length - 1, keys[keys.length - 1][1] + 1.5);
+      return Math.min(api.length - 1, keys[keys.length - 1][1] + 1.5);
     },
     setState(i, st) { setState(i, st); },
     /** Portcullis down (locked) or up; animate: it rattles and slides up out of sight. */
@@ -688,6 +1054,8 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     },
     dispose() { bb.dispose(); tex.dispose(); },
   };
+  reroute();
+  return api;
 }
 
 // ---------------------------------------------------------------------------

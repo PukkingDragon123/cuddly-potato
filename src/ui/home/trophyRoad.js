@@ -18,11 +18,15 @@ import { state, trophyRoadClaimable, claimTrophyRoad } from '../../game/state.js
 import { ARENAS, TROPHY_ROAD, arenaById, currentArena, bossOfArena } from '../../data/arenas.js';
 import { cardsOfArena } from '../../data/cards.js';
 import { rewardTile, rewardLabel, rewardKind, showRewards, refreshCtx, fmtN, charImg, flyText, isBigReward } from './common.js';
+import { forkClaimable, pendingForks, forkChoice, forkItemState } from '../../game/roadForks.js';
+import { TRAILS } from '../../data/roadForks.js';
 import { openBoss } from './boss.js';
 
 export function trophyRoadBadge() {
-  return trophyRoadClaimable().length;
+  return trophyRoadClaimable().length + forkClaimable().length + pendingForks().length;
 }
+/** Claimable rewards on the road, fork bonus chests included. */
+const claimCount = () => trophyRoadClaimable().length + forkClaimable().length;
 
 const SMALL = new Set(['coins', 'bucks', 'calories']);
 
@@ -261,9 +265,9 @@ function pixelPop(x, y, n = 56) {
 
 const arenaNo = (A) => (A.legendary ? 'LEGENDARY ARENA' : `ARENA ${A.index + 1}`);
 
-/** HUD over the island road. road: the controller from scenes/homeRoad.js. */
+/** HUD over the island road. road: the controller from scenes/homeRoad.js (road.stops: chests + forks). */
 export function mountIslandRoad(road, ctx) {
-  const ms = road.milestones;
+  const stops = road.stops;
   const p = state.p;
   const troVal = h('b', { class: 't-d outline trd-tro-n' }, fmtN(p.trophies));
   const bestEl = h('span', { class: 'trd-tro-best' });
@@ -282,7 +286,7 @@ export function mountIslandRoad(road, ctx) {
   // YOU tag over your Commander
   const youVal = h('span', {}, fmtN(p.trophies));
   const youTag = h('div', { class: 'trd-you t-d' }, icon('trophy'), youVal);
-  // reward card
+  // reward card (chests) / trail picker (forks)
   const cardArt = h('div', { class: 'trd-art' });
   const kindEl = h('div', { class: 'trd-kind' });
   const nameEl = h('div', { class: 'trd-name t-d outline' });
@@ -290,13 +294,15 @@ export function mountIslandRoad(road, ctx) {
   const actEl = h('div', { class: 'trd-act' });
   const prev = button('', () => road.step(-1), 'gray icon-only sm trd-step', { icon: 'arrowL', sound: 'tap' });
   const next = button('', () => road.step(1), 'gray icon-only sm trd-step', { icon: 'arrowR', sound: 'tap' });
-  const card = h('div', { class: 'panel sk-panel-dark trd-card' }, prev, cardArt, h('div', { class: 'trd-info' }, kindEl, nameEl, reqEl), actEl, next);
+  const body = h('div', { class: 'trd-body' }, cardArt, h('div', { class: 'trd-info' }, kindEl, nameEl, reqEl), actEl);
+  const forkEl = h('div', { class: 'trd-fork' });
+  const card = h('div', { class: 'panel sk-panel-dark trd-card' }, prev, body, forkEl, next);
   const root = h('div', { class: 'trd' }, h('div', { class: 'trd-vig' }), youTag, top, sub, card);
   $overlay().appendChild(root);
   requestAnimationFrame(() => root.classList.add('in'));
 
   let shownIdx = -1, shownState = '';
-  const stateOf = (i) => road.stateOf(i);
+  const stateOf = (k) => road.stateOf(k);
   function setPills() {
     coinPill.set(state.p.coins);
     buckPill.set(state.p.bucks);
@@ -307,90 +313,152 @@ export function mountIslandRoad(road, ctx) {
     youVal.textContent = fmtN(P.trophies);
     bestEl.textContent = P.bestTrophies > P.trophies ? `Best ${fmtN(P.bestTrophies)}` : '';
     bestEl.style.display = bestEl.textContent ? '' : 'none';
-    const n = trophyRoadClaimable().length;
-    readyN.textContent = n === 1 ? '1 TO CLAIM' : `${n} TO CLAIM`;
-    readyBtn.style.display = n ? '' : 'none';
+    const n = claimCount(), pick = pendingForks().length;
+    readyN.textContent = n ? (n === 1 ? '1 TO CLAIM' : `${n} TO CLAIM`) : 'PICK A TRAIL';
+    readyBtn.style.display = n || pick ? '' : 'none';
   }
-  function chapter(i) {
-    const M = ms[i];
-    const A = ARENAS[M.chapter];
+  function chapter(k) {
+    const st = stops[k];
+    const A = ARENAS[st.kind === 'chest' ? st.M.chapter : st.F.chapter];
     if (!A) return;
     chap.style.setProperty('--ac', A.color);
     chapNo.textContent = arenaNo(A);
     chapName.textContent = A.name.toUpperCase();
   }
-  /** Fill the reward card for milestone i. */
-  function fill(i, pop) {
-    const M = ms[i];
-    const st = stateOf(i);
-    shownIdx = i;
-    shownState = st;
-    chapter(i);
+  /** Fill the card for stop k. */
+  function fill(k, pop) {
+    const st = stops[k];
+    const ss = stateOf(k);
+    shownIdx = k;
+    shownState = ss;
+    chapter(k);
+    prev.classList.toggle('off', k <= 0);
+    next.classList.toggle('off', k >= stops.length - 1);
+    if (st.kind === 'fork') fillFork(st, ss);
+    else fillChest(st.M, ss);
+    if (pop) bump(card, 'trd-pop');
+  }
+  function fillChest(M, ss) {
+    card.className = `panel sk-panel-dark trd-card ${ss}`;
     clear(cardArt);
     cardArt.appendChild(rewardTile(M.m.reward));
     const A = M.gate ? ARENAS[M.chapter] : null;
-    kindEl.textContent = A ? `${arenaNo(A)} REWARD` : rewardKind(M.m.reward).toUpperCase();
+    const tr = M.fork ? TRAILS[M.side] : null;
+    kindEl.textContent = A ? `${arenaNo(A)} REWARD` : tr ? `${tr.name} BONUS` : rewardKind(M.m.reward).toUpperCase();
+    kindEl.style.color = tr ? tr.color : '';
     nameEl.textContent = rewardLabel(M.m.reward);
     clear(reqEl);
     reqEl.append(icon('trophy', 's'), h('span', { class: 't-d' }, fmtN(M.t)));
     clear(actEl);
-    card.className = `panel sk-panel-dark trd-card ${st}`;
-    if (st === 'ready') {
-      const b = button('CLAIM', () => claim(i), 'green trd-claim pulse', { icon: 'gift', sound: 'tap' });
+    if (ss === 'ready') {
+      const b = button('CLAIM', () => claim(shownIdx), 'green trd-claim pulse', { icon: 'gift', sound: 'tap' });
       b.dataset.guide = 'road-claim';
       actEl.append(b);
-    }
-    else if (st === 'claimed') actEl.append(h('div', { class: 'trd-got t-d outline' }, icon('check', 's'), 'CLAIMED'));
-    else {
+    } else if (ss === 'claimed') actEl.append(h('div', { class: 'trd-got t-d outline' }, icon('check', 's'), 'CLAIMED'));
+    else if (M.fork && state.p.bestTrophies >= M.t) {
+      // reached, but on the trail you did not pick (or have not picked yet)
+      const F = stops.find((s) => s.kind === 'fork' && s.F.id === M.fork)?.F;
+      const picked = forkChoice(M.fork);
+      actEl.append(h('div', { class: 'trd-need trd-need-w' }, h('div', { class: 'trd-need-t t-d outline' }, icon('lock', 's'), h('span', {}, 'LOCKED')),
+        h('div', { class: 'trd-need-s' }, picked ? `Opens at ${F?.next?.name ?? 'the next arena'}` : 'Pick this trail at the fork')));
+    } else {
       const need = M.t - state.p.bestTrophies;
       const f = Math.max(0, Math.min(1, state.p.trophies / M.t));
       actEl.append(h('div', { class: 'trd-need' }, h('div', { class: 'trd-need-t t-d outline' }, icon('lock', 's'), h('span', {}, `${fmtN(need)} to go`)),
         h('div', { class: 'trd-need-bar' }, h('i', { style: { width: (f * 100).toFixed(1) + '%' } }))));
     }
-    if (A && !(st === 'locked')) actEl.append(button('', () => road.viewArena(A.id), 'blue icon-only sm trd-view', { icon: 'eye', sound: 'tap', tip: `Fly to *${A.name}*` }));
-    prev.classList.toggle('off', i <= 0);
-    next.classList.toggle('off', i >= ms.length - 1);
-    if (pop) bump(card, 'trd-pop');
+    if (A && ss !== 'locked') actEl.append(button('', () => road.viewArena(A.id), 'blue icon-only sm trd-view', { icon: 'eye', sound: 'tap', tip: `Fly to *${A.name}*` }));
+  }
+  /** The trail picker: both trails side by side with their two chests each. */
+  function fillFork(st, ss) {
+    const F = st.F;
+    card.className = `panel sk-panel-dark trd-card fork ${ss}`;
+    clear(forkEl);
+    const picked = forkChoice(F.id);
+    const title = ss === 'pick' ? 'PICK A TRAIL' : ss === 'ahead' ? 'FORK IN THE ROAD' : ss === 'open' ? 'BOTH TRAILS OPEN' : `${TRAILS[picked].name} PICKED`;
+    const note = ss === 'pick' ? `The other trail opens at ${F.next.name}.`
+      : ss === 'ahead' ? `Reach ${fmtN(F.lo)} trophies to pick one. The other opens at ${F.next.name}.`
+        : ss === 'open' ? 'Every chest on both trails is yours.'
+          : `The other trail opens at ${F.next.name}.`;
+    const opt = (sd) => {
+      const tr = TRAILS[sd];
+      const items = F[sd].items;
+      const mine = picked === sd;
+      const open = ss === 'open' || mine;
+      const tiles = items.map((m) => {
+        const is = forkItemState(m);
+        return h('div', { class: `trd-fk-it ${is}` }, rewardTile(m.reward), h('span', { class: 'trd-fk-t t-d outline' }, icon('trophy', 's'), fmtN(m.t)),
+          is === 'claimed' ? h('i', { class: 'trd-fk-ck' }, icon('check', 's')) : null);
+      });
+      let foot;
+      if (ss === 'pick') {
+        foot = button('PICK', () => choose(sd), `${sd === 'a' ? 'yellow' : 'blue'} sm trd-pick pulse`, { icon: tr.icon, sound: 'tap' });
+        foot.dataset.guide = 'road-fork';
+      } else if (open) foot = h('div', { class: 'trd-fk-st on t-d outline' }, icon('check', 's'), mine && ss !== 'open' ? 'YOUR TRAIL' : 'OPEN');
+      else if (picked) foot = h('div', { class: 'trd-fk-st t-d outline' }, icon('lock', 's'), 'LOCKED');
+      else foot = h('div', { class: 'trd-fk-st t-d outline' }, icon('lock', 's'), fmtN(F.lo));
+      return h('div', { class: `trd-fk-opt ${sd} ${mine ? 'mine' : ''} ${picked && !mine && ss !== 'open' ? 'dim' : ''}`, style: { '--tc': tr.color, '--td': tr.dark } },
+        h('div', { class: 'trd-fk-n t-d outline' }, icon(tr.icon, 's'), tr.name),
+        h('div', { class: 'trd-fk-row' }, ...tiles), foot);
+    };
+    forkEl.append(
+      h('div', { class: 'trd-fk-head' }, h('div', { class: 'trd-kind' }, `FORK AT ${fmtN(F.lo)}`), h('div', { class: 'trd-name t-d outline' }, title), h('div', { class: 'trd-fk-note' }, note)),
+      h('div', { class: 'trd-fk-opts' }, opt('a'), opt('b')));
+  }
+  function choose(sd) {
+    const k = shownIdx;
+    if (!road.choose(k, sd)) return;
+    const btn = forkEl.querySelector(`.trd-fk-opt.${sd}`);
+    if (btn) { burst(btn, { color: TRAILS[sd].color, count: 18 }); }
+    refreshCtx(ctx);
+    header();
+    fill(k, true);
   }
   let claiming = false;
-  function claim(i) {
-    if (claiming || stateOf(i) !== 'ready') return;
-    const M = ms[i];
+  function claim(k) {
+    if (claiming || stateOf(k) !== 'ready') return;
+    const st = stops[k];
+    if (st.kind !== 'chest') return;
+    const M = st.M;
     const from = road.screenOf(M.rewardPos);
-    const got = road.claim(i);
+    const got = road.claim(k);
     if (!got.length) return;
     claiming = true;
     header();
     // pixel confetti out of the chest, then the reward art flies from the chest to the UI
     const chest = road.screenOf(M.anchor);
-    pixelPop(chest.x, chest.y - (from.y - chest.y) * 0.35);
+    setTimeout(() => pixelPop(chest.x, chest.y - (from.y - chest.y) * 0.35), 220);
     const anchor = h('div', { class: 'trd-anchor', style: { left: from.x + 'px', top: from.y + 'px' } });
     $overlay().appendChild(anchor);
     sparkle(anchor, { count: 16, spread: 80, colors: ['#ffffff', '#ffd84a', '#fff6b8', '#7aff4a'] });
     const small = got.every((g) => g.kind === 'coins' || g.kind === 'bucks' || g.kind === 'calories');
-    const done = () => { anchor.remove(); claiming = false; refreshCtx(ctx); fill(i, true); header(); };
+    const done = () => { anchor.remove(); claiming = false; refreshCtx(ctx); fill(k, true); header(); };
     if (small) {
-      for (const g of got) {
-        const to = g.kind === 'coins' ? coinPill : g.kind === 'bucks' ? buckPill : null;
-        flyText(anchor, `+${fmtN(g.amount)}`, g.kind === 'bucks' ? 'c-pink' : 'c-gold');
-        flyIcons(anchor, g.kind === 'coins' ? 'coin' : g.kind === 'bucks' ? 'bucks' : 'calorie', to, { count: 7, size: 30 }).then(() => setPills());
-      }
-      setTimeout(done, 900);
+      setTimeout(() => {
+        for (const g of got) {
+          const to = g.kind === 'coins' ? coinPill : g.kind === 'bucks' ? buckPill : null;
+          flyText(anchor, `+${fmtN(g.amount)}`, g.kind === 'bucks' ? 'c-pink' : 'c-gold');
+          flyIcons(anchor, g.kind === 'coins' ? 'coin' : g.kind === 'bucks' ? 'bucks' : 'calorie', to, { count: 7, size: 30 }).then(() => setPills());
+        }
+      }, 300);
+      setTimeout(done, 1200);
       return;
     }
     // bigger rewards: the tile springs out of the chest into the reward screen
-    const tile = h('div', { class: 'trd-fly' }, rewardTile(got[0]));
-    anchor.appendChild(tile);
+    setTimeout(() => {
+      const tile = h('div', { class: 'trd-fly' }, rewardTile(got[0]));
+      anchor.appendChild(tile);
+    }, 280);
     const big = isBigReward(got[0]) || M.gate;
     setTimeout(() => {
       anchor.remove();
       showRewards(got, { title: `${fmtN(M.t)} TROPHIES!`, note: got.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null, color: big ? 'gold' : undefined })
         .then(() => { setPills(); done(); });
-    }, 640);
+    }, 920);
   }
   const api = {
     el: root,
-    focus(i) { if (i !== shownIdx || stateOf(i) !== shownState) fill(i, i !== shownIdx); },
+    focus(k) { if (k !== shownIdx || stateOf(k) !== shownState) fill(k, k !== shownIdx); },
     claim,
     refresh() { header(); if (shownIdx >= 0 && stateOf(shownIdx) !== shownState && !claiming) fill(shownIdx, false); },
     frame() {

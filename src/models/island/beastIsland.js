@@ -33,57 +33,83 @@ import { makeArenaZone } from '../arenas/index.js';
 import { Mats } from '../../core/voxel.js';
 import { instanced } from '../props/common.js';
 import { mulberry32, clamp } from '../../core/util.js';
-import { buildTerrain, MAT, VY, X0, Z0, NX, NZ, CS } from './terrain.js';
+import { buildTerrain, MAT, VY, X0, Z0, NX, NZ, CS, SC } from './terrain.js';
 import { makeOcean, makeRiver, lagoonTexture, lavaLakeTexture, columnWater } from './water.js';
 import { makeSky, Billboards, makeDistantIslands, HORIZON } from './sky.js';
 import * as P from './props.js';
 import { addIslandExtras, makeCloudUniforms, patchCloudShadows } from './extras.js';
 import { addTrophyPath } from './trophyPath.js';
+import { FORKS } from '../../data/roadForks.js';
 
 export const ZONE_ORDER = ['lab', 'circle', 'factory', 'mart', 'redlight', 'antarctica', 'reactor', 'pyramid', 'island', 'jungle', 'laser', 'haunted', 'reef', 'volcano', 'space'];
 
-// Zone layout: plinth top height y, plateau radius rp, blend width rb.
+// Everything below is laid out in design units (the old, smaller island) and scaled by SC (terrain.js) into
+// the world: the arenas keep their size, the land between them grows (Beast Town, forests, coves, cliffs).
+const W = (v) => v * SC;
+const WP = ([x, z]) => [x * SC, z * SC];
+
+// Zone layout: plinth top height y, plateau radius rp, blend width rb (world units).
 // Optional: cam [dx, dz] (direction from the zone toward its camera), pitch (deg), ground (terrain
 // height under a floating zone).
 const ZONES = [
-  { id: 'lab', name: 'BEAST LAB', trophies: 0, color: 0x29b6f6, x: -30, z: 50, y: 1.0, rp: 10, rb: 8 },
-  { id: 'circle', name: 'THE CIRCLE', trophies: 300, color: 0xff4a4a, x: 10, z: 44, y: 3.0, rp: 10, rb: 6 },
-  { id: 'factory', name: 'CHOCO FACTORY', trophies: 600, color: 0xff4fa3, x: 50, z: 26, y: 5.5, rp: 10, rb: 5 },
-  { id: 'mart', name: 'BEAST MART', trophies: 1000, color: 0xffd23f, x: 42, z: -4, y: 8.0, rp: 10, rb: 5 },
-  { id: 'redlight', name: 'RED LIGHT', trophies: 1400, color: 0xff8ab4, x: 2, z: 12, y: 10.5, rp: 10, rb: 5 },
-  { id: 'antarctica', name: 'ANTARCTICA', trophies: 1800, color: 0x9ff2ff, x: -46, z: 8, y: 13.0, rp: 10, rb: 4 },
-  { id: 'reactor', name: 'REACTOR', trophies: 2300, color: 0x7cff3a, x: -44, z: -30, y: 16.0, rp: 10, rb: 4 },
-  { id: 'pyramid', name: 'LOST PYRAMID', trophies: 2800, color: 0xffb84a, x: -6, z: -40, y: 19.0, rp: 10, rb: 4 },
-  { id: 'island', name: 'PARADISE', trophies: 3400, color: 0x3ff2c8, x: 38, z: -44, y: 23.0, rp: 14, rb: 3 },
+  { id: 'lab', name: 'BEAST LAB', trophies: 0, color: 0x29b6f6, x: -30, z: 50, y: 1.0, rp: 10, rb: 10 },
+  { id: 'circle', name: 'THE CIRCLE', trophies: 300, color: 0xff4a4a, x: 10, z: 44, y: 3.0, rp: 10, rb: 8 },
+  { id: 'factory', name: 'CHOCO FACTORY', trophies: 600, color: 0xff4fa3, x: 50, z: 26, y: 5.5, rp: 10, rb: 7 },
+  { id: 'mart', name: 'BEAST MART', trophies: 1000, color: 0xffd23f, x: 42, z: -4, y: 8.0, rp: 10, rb: 7 },
+  { id: 'redlight', name: 'RED LIGHT', trophies: 1400, color: 0xff8ab4, x: 2, z: 12, y: 10.5, rp: 10, rb: 7 },
+  { id: 'antarctica', name: 'ANTARCTICA', trophies: 1800, color: 0x9ff2ff, x: -46, z: 8, y: 13.0, rp: 10, rb: 6 },
+  { id: 'reactor', name: 'REACTOR', trophies: 2300, color: 0x7cff3a, x: -44, z: -30, y: 16.0, rp: 10, rb: 6 },
+  { id: 'pyramid', name: 'LOST PYRAMID', trophies: 2800, color: 0xffb84a, x: -6, z: -40, y: 19.0, rp: 10, rb: 6 },
+  { id: 'island', name: 'PARADISE', trophies: 3400, color: 0x3ff2c8, x: 38, z: -44, y: 23.0, rp: 14, rb: 5 },
   // ---- the Northern Wilds
-  { id: 'jungle', name: 'JUNGLE TEMPLE', trophies: 4000, color: 0x5fdc4a, x: 68, z: -100, y: 13.0, rp: 10, rb: 5 },
-  { id: 'laser', name: 'LASER VAULT', trophies: 4600, color: 0xff3d55, x: 100, z: -132, y: 21.0, rp: 10, rb: 4 },
-  { id: 'haunted', name: 'HAUNTED HILL', trophies: 5200, color: 0xb05cff, x: 56, z: -164, y: 27.0, rp: 10, rb: 4 },
-  { id: 'reef', name: 'TEAMSEAS REEF', trophies: 5800, color: 0x29e0ff, x: 4, z: -108, y: 3.0, rp: 10, rb: 5 },
-  { id: 'volcano', name: 'VOLCANO FORGE', trophies: 6500, color: 0xff6a1f, x: -30, z: -146, y: 33.0, rp: 10, rb: 4, cam: [0.47, 0.88] },
-  { id: 'space', name: 'SPACE STATION', trophies: 7200, color: 0x8f9bff, x: 12, z: -182, y: 64.0, ground: 37.0, rp: 9, rb: 4, pitch: 26 },
-];
-// Trophy road control points (passes through every zone centre, in trophy order).
+  { id: 'jungle', name: 'JUNGLE TEMPLE', trophies: 4000, color: 0x5fdc4a, x: 68, z: -100, y: 13.0, rp: 10, rb: 7 },
+  { id: 'laser', name: 'LASER VAULT', trophies: 4600, color: 0xff3d55, x: 100, z: -132, y: 21.0, rp: 10, rb: 6 },
+  { id: 'haunted', name: 'HAUNTED HILL', trophies: 5200, color: 0xb05cff, x: 56, z: -164, y: 27.0, rp: 10, rb: 6 },
+  { id: 'reef', name: 'TEAMSEAS REEF', trophies: 5800, color: 0x29e0ff, x: 4, z: -108, y: 3.0, rp: 10, rb: 7 },
+  { id: 'volcano', name: 'VOLCANO FORGE', trophies: 6500, color: 0xff6a1f, x: -30, z: -146, y: 33.0, rp: 10, rb: 6, cam: [0.47, 0.88] },
+  { id: 'space', name: 'SPACE STATION', trophies: 7200, color: 0x8f9bff, x: 12, z: -182, y: 64.0, ground: 37.0, rp: 9, rb: 6, pitch: 26 },
+].map((Z) => ({ ...Z, x: W(Z.x), z: W(Z.z) }));
+// Trophy road control points (passes through every zone centre, in trophy order). The first chapter
+// winds from the Lab down through Beast Town and along the harbour before it climbs to the Circle.
 const ROAD = [
-  [-30, 50], [-12, 53], [10, 44], [24, 40], [36, 36], [50, 26], [56, 12], [42, -4], [30, 2], [16, 6], [2, 12],
-  [-12, 20], [-28, 16], [-46, 8], [-55, -8], [-54, -20], [-44, -30], [-32, -42], [-18, -36], [-6, -40], [6, -50], [20, -52], [38, -44],
+  // the Lab -> down through Beast Town -> along the harbour -> up to the Circle
+  [-30, 50], [-38, 55], [-41, 63], [-35.5, 70], [-25.5, 72.5], [-15, 73], [-5, 71], [3, 66], [6, 58], [3.5, 51], [10, 44],
+  // the Circle -> south over the river near its mouth -> the Choco Factory
+  [20, 50], [31, 53], [42, 49], [51, 43], [57, 35], [50, 26],
+  // the Factory -> along the east bluffs -> Beast Mart
+  [61, 17], [66, 6], [61, -5], [51, -10], [42, -4],
+  // Beast Mart -> over the river -> Red Light
+  [34, 9], [24, 17.5], [12, 21], [2, 12],
+  // Red Light -> the pine forest -> Antarctica
+  [-8, 22], [-20, 26], [-32, 22], [-40, 16], [-46, 8],
+  // Antarctica -> the west cliffs -> the Reactor
+  [-57, 2], [-64, -8], [-63, -20], [-55, -28], [-44, -30],
+  // the Reactor -> the flower meadows -> the Lost Pyramid
+  [-36, -19], [-24, -16], [-15, -24], [-13, -34], [-6, -40],
+  // the Pyramid -> under the north peak -> Paradise
+  [-4, -50], [6, -56], [18, -57], [30, -53], [38, -44],
   // over the isthmus into the Northern Wilds
   [52, -52], [62, -62], [67, -76], [66, -90], [68, -100],
-  [80, -106], [91, -116], [100, -132],
+  [70, -113], [77, -123], [88, -131], [100, -132],
   [98, -146], [86, -158], [70, -166], [56, -164],
   [44, -156], [34, -142], [24, -126], [14, -112], [4, -108],
   [-8, -114], [-18, -124], [-26, -136], [-30, -146],
   [-22, -160], [-8, -172], [4, -180], [12, -182],
-];
-const RIVER = [[28, -38], [27, -33], [26, -28.5], [24.5, -23], [21.5, -17], [19.5, -10], [21, -3], [24.5, 3], [25, 10], [22.5, 17], [25, 24], [30, 30], [29.5, 38], [31, 46], [29, 54], [31.5, 62], [33, 70], [34, 80]];
-const JUNGLE_RIVER = [[72, -150], [75, -140], [79, -128], [85, -116], [90, -104], [96, -95], [101, -90.5]];
-const LAVA_RIVER = [[-44, -172], [-47, -163], [-51, -152], [-56, -140], [-60, -131], [-64, -123.5]];
-const BASINS = [[24.5, -21.5, 9.5, 6, 3], [72, -150, 24.5, 4.6, 3]];
-const LAGOON = [28, -38, 4.4, 22.5];
+].map(WP);
+const RIVER = [[28, -38], [27, -33], [26, -28.5], [24.5, -23], [21.5, -17], [19.5, -10], [21, -3], [24.5, 3], [25, 10], [22.5, 17], [25, 24], [30, 30], [29.5, 38], [31, 46], [29, 54], [31.5, 62], [33, 70], [34, 80]].map(WP);
+const JUNGLE_RIVER = [[72, -150], [75, -140], [79, -128], [85, -116], [90, -104], [96, -95], [101, -90.5]].map(WP);
+const LAVA_RIVER = [[-44, -172], [-47, -163], [-51, -152], [-56, -140], [-60, -131], [-64, -123.5]].map(WP);
+// the glacier stream: from the frozen peak's spring, over the west cliffs into Glacier Cove
+const SNOW_RIVER = [[-70, 22], [-74, 25], [-78, 29.5], [-81.5, 34], [-84, 38]].map(WP);
+const BASINS = [[24.5, -21.5, 9.5, 6, 3], [72, -150, 24.5, 4.6, 3]].map(([x, z, y, r, b]) => [W(x), W(z), y, r * 1.25, b * 1.4]);
+// level ground for Beast Town's streets and the harbour front: [x, z, y, r, blend]
+const FLATS = [[W(-18), W(65), 1.5, 15, 9], [W(-1), W(62), 2.0, 8, 7]];
+const LAGOON = [W(28), W(-38), 5.4, 22.5];
 const LAGOONS = [
   { x: LAGOON[0], z: LAGOON[1], r: LAGOON[2], y: LAGOON[3] },
-  { x: 72, z: -150, r: 3.2, y: 24.5 }, // jungle river spring
-  { x: -44, z: -172, r: 4.8, y: 44, lava: true, rim: true }, // volcano crater lake
+  { x: W(72), z: W(-150), r: 3.8, y: 24.5 }, // jungle river spring
+  { x: W(-44), z: W(-172), r: 6.2, y: 44, lava: true, rim: true }, // volcano crater lake
+  { x: W(-70), z: W(22), r: 3.4, y: 16.5 }, // glacier spring under the frozen peak
 ];
 const BIOMES = [
   { id: 1, x: -46, z: 8, r: 24, mat: MAT.SNOW, plaza: [0xe8f2fc, 0xc8dcf0, 0xf6fbff] },
@@ -99,21 +125,44 @@ const BIOMES = [
   { id: 11, x: -40, z: -160, r: 30, mat: MAT.BASALT, plaza: [0x4a4048, 0x2e2830, 0x5c5260] },
   { id: 12, x: 12, z: -182, r: 13, mat: MAT.TECH, plaza: [0xd8dce8, 0xb0b6c8, 0xeef0f8] },
   { id: 13, x: 26, z: -132, r: 18, mat: MAT.LUSH },
-];
-const VOLCANO = { x: -44, z: -172 };
+  // the bigger island's new country: Beast Town, the pine forests, the flower meadows
+  { id: 14, x: -16, z: 66, r: 13, mat: MAT.TOWN, plaza: [0xe8dcc4, 0xd2c4a8, 0xf4ecda] },
+  { id: 15, x: -24, z: 30, r: 13, mat: MAT.FOREST },
+  { id: 16, x: 66, z: -14, r: 12, mat: MAT.FOREST },
+  { id: 17, x: -22, z: -14, r: 14, mat: MAT.MEADOW },
+  { id: 18, x: 22, z: 24, r: 11, mat: MAT.MEADOW },
+  { id: 19, x: -6, z: -138, r: 14, mat: MAT.FOREST },
+  { id: 20, x: 46, z: 56, r: 10, mat: MAT.MEADOW },
+].map((B) => ({ ...B, x: W(B.x), z: W(B.z), r: W(B.r) }));
+const VOLCANO = { x: W(-44), z: W(-172) };
 const PEAKS = [
-  [12, -62, 31, 7], [60, -40, 25, 6], [-24, -60, 25, 6], [-62, -42, 23, 7], [-70, 22, 15, 5],
+  [10, -70, 31, 7], [60, -40, 25, 6], [-24, -60, 25, 6], [-62, -42, 23, 7], [-70, 22, 18, 5.5],
   // Northern Wilds: the volcano (cone + crater) and the ridge peaks around the lobe
-  [VOLCANO.x, VOLCANO.z, 66, 11, { cone: true, base: 2.6, exp: 1.1, crater: [7, 8], mat: MAT.BASALT, matR: 2.5 }],
+  [-44, -172, 66, 11, { cone: true, base: 2.6, exp: 1.1, crater: [7, 8], mat: MAT.BASALT, matR: 2.5 }],
   [90, -180, 30, 7], [30, -200, 26, 7], [-64, -194, 30, 7], [116, -154, 24, 6], [-70, -150, 20, 6],
-];
-// extra landmasses: the north lobe (Northern Wilds) + the jungle isthmus joining it to the summit
+  // the bigger island's new hills: the east bluffs, the forest hill, the town's lookout and the meadow knolls
+  [74, -8, 17, 5], [-22, 38, 12, 4.5], [-24, 61, 6, 3], [24, 66, 8, 3.5], [-28, -2, 10, 4], [-10, -130, 15, 5],
+].map(([x, z, h, r, o]) => {
+  const out = [W(x), W(z), h, r * 1.3];
+  if (o) out.push({ ...o, crater: o.crater ? [o.crater[0] * 1.3, o.crater[1]] : undefined });
+  return out;
+});
+// extra landmasses: Beast Town's south shore, the north lobe (Northern Wilds) + the jungle isthmus joining it to the summit
 const LOBES = [
-  { x: 26, z: -146, rx: 92, rz: 58, seed: 1.7, cliff: (th) => clamp(0.55 - 0.55 * Math.sin(th) + 0.3 * Math.max(0, Math.cos(th)), 0, 1) },
-  { x: 66, z: -82, rx: 22, rz: 24, seed: 4.1, cliff: () => 0.35 },
+  { x: W(-12), z: W(70), rx: W(31), rz: W(14), seed: 2.6, cliff: (th) => clamp(0.15 + 0.6 * Math.max(0, -Math.cos(th)) * Math.max(0, Math.sin(th)), 0, 1) },
+  { x: W(26), z: W(-146), rx: W(92), rz: W(58), seed: 1.7, cliff: (th) => clamp(0.55 - 0.55 * Math.sin(th) + 0.3 * Math.max(0, Math.cos(th)), 0, 1) },
+  { x: W(66), z: W(-82), rx: W(22), rz: W(24), seed: 4.1, cliff: () => 0.35 },
+];
+// coves bitten out of the coast: Glacier Cove (west, cliffs + the glacier falls), Treasure Cove (the hidden X),
+// Crab Cove (east beach), Shipwreck Bay keeps its own shape (between the lobes)
+const COVES = [
+  { x: W(-86), z: W(40), r: W(8), d: 0.42, cliff: 0.9 },
+  { x: W(-48), z: W(80), r: W(6.5), d: 0.36, cliff: 0.1 },
+  { x: W(70), z: W(42), r: W(7), d: 0.4, cliff: 0.05 },
+  { x: W(84), z: W(-22), r: W(6), d: 0.38, cliff: 0.8 },
 ];
 // island centre + extent (overview framing, clouds, boats)
-const CX = 18, CZ = -66;
+const CX = W(18), CZ = W(-66);
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const PLINTH_R = (P.PLINTH_A * 0.25);
@@ -134,14 +183,16 @@ export async function makeBeastIsland(opts = {}) {
   const T = buildTerrain({
     // floating zones shape the ground under them at their anchor height
     zones: ZONES.map((z) => ({ ...z, y: z.ground ?? z.y, plinthR: PLINTH_R })),
-    road: ROAD, peaks: PEAKS, biomes: BIOMES, lobes: LOBES,
+    road: ROAD, peaks: PEAKS, biomes: BIOMES, lobes: LOBES, coves: COVES,
+    forks: FORKS.filter((F) => F.chapter < ZONES.length - 1).map((F) => ({ chapter: F.chapter, frac: F.frac })),
     biomeById: Object.fromEntries(BIOMES.map((b) => [b.id, b])),
     rivers: [
-      { pts: RIVER, startY: LAGOON[3] - 0.35, width: (u) => 1.05 + u * 1.25 },
-      { pts: JUNGLE_RIVER, startY: LAGOONS[1].y - 0.35, width: (u) => 0.9 + u * 1.15 },
-      { pts: LAVA_RIVER, startY: LAGOONS[2].y - 0.35, width: (u) => 0.8 + u * 0.7, lava: true },
+      { pts: RIVER, startY: LAGOON[3] - 0.35, width: (u) => 1.2 + u * 1.5 },
+      { pts: JUNGLE_RIVER, startY: LAGOONS[1].y - 0.35, width: (u) => 1.0 + u * 1.3 },
+      { pts: LAVA_RIVER, startY: LAGOONS[2].y - 0.35, width: (u) => 0.9 + u * 0.8, lava: true },
+      { pts: SNOW_RIVER, startY: LAGOONS[3].y - 0.35, width: (u) => 0.8 + u * 0.9 },
     ],
-    lagoons: LAGOONS, basins: BASINS,
+    lagoons: LAGOONS, basins: BASINS, flats: FLATS,
     roadHalf: 1.5,
     log: opts.log === 'verbose',
   });
@@ -426,7 +477,7 @@ export async function makeBeastIsland(opts = {}) {
   // the trophy road's milestones (pedestals, chests, arena gates) claim their spots before the scatter
   let trophyPath = null;
   try {
-    trophyPath = addTrophyPath({ T, root, roadPoints, roadIdx, zones: ZONES, plinthR: PLINTH_R, exclude, updaters });
+    trophyPath = addTrophyPath({ T, root, roadPoints, roadIdx, zones: ZONES, plinthR: PLINTH_R, exclude, updaters, forks: FORKS });
   } catch (e) {
     console.error('trophy road failed', e);
   }
@@ -466,9 +517,10 @@ export async function makeBeastIsland(opts = {}) {
     /** Fog range that keeps the island crisp for a camera this far from its target. */
     fogFor: (camDist) => ({ color: HORIZON, near: Math.max(260, camDist * 1.25), far: Math.max(900, camDist * 3.6) }),
     lights: { sky: 0xd8f0ff, ground: 0x8a7a5a, hemi: 1.0, sun: 2.75, sunColor: 0xffe8cc, dir: [34, 62, 44], rim: 0.85, rimColor: 0xa8dcff, shadowExtent: 34 },
-    overview: { camPos: V(CX, 322, CZ + 258), camLook: V(CX, 4, CZ - 4) },
+    overview: { camPos: V(CX, 322 * SC, CZ + 258 * SC), camLook: V(CX, 4, CZ - 4) },
     heightAt: (x, z) => T.heightAt(x, z),
     terrain: T,
+    debug: { branches: T.branches.map((B) => ({ c: B.chapter, side: B.side, D: B.D, score: +B.score.toFixed(2), n: B.pts.length })), forks: FORKS.length, fd: T.forkDebug },
     dispose() {
       root.removeFromParent();
       for (const g of T.meshes) g.dispose();
@@ -606,7 +658,7 @@ function addLandmarks({ T, root, updaters, exclude }) {
   });
 
   // --- lighthouse on the south-west headland
-  let lx = -58, lz = 40;
+  let lx = W(-58), lz = W(40);
   for (let k = 0; k < 40 && T.heightAt(lx, lz) < 1; k++) { lx += 0.8; lz -= 0.5; }
   const lh = P.mesh(P.geo('lighthouse', P.lighthouseGrid, 0.25, [0, 0, 0]), {});
   const ly = T.maxHeight(lx, lz, 1.2);
@@ -618,7 +670,7 @@ function addLandmarks({ T, root, updaters, exclude }) {
   // (off to the north-west of the summit so it doesn't block the view up to the Northern Wilds)
   const S8 = ZONES[SUMMIT], sd = summitDir();
   const side = new THREE.Vector2(-sd.y, sd.x);
-  const hx = S8.x - sd.x * 12 + side.x * 13, hz = S8.z - sd.y * 12 + side.y * 13;
+  const hx = S8.x - sd.x * 17 + side.x * 18, hz = S8.z - sd.y * 17 + side.y * 18;
   const head = P.mesh(P.geo('pantherHead', P.pantherHeadGrid, 0.25, 'bottom'), { receive: true });
   head.position.set(hx, T.minHeight(hx, hz, 3) - 1.2, hz);
   head.rotation.y = Math.atan2(S8.x + sd.x * 40 - hx, S8.z + sd.y * 40 - hz); // faces the summit camera
@@ -628,7 +680,7 @@ function addLandmarks({ T, root, updaters, exclude }) {
 
   // --- icebergs off the frozen coast
   const bergs = [];
-  for (const [x, z, s] of [[-74, 14, 1], [-70, -4, 0.8], [-80, 4, 1.2], [-66, 28, 0.7], [-76, 26, 0.9], [-84, -10, 1]]) {
+  for (const [x, z, s] of [[-74, 14, 1], [-70, -4, 0.8], [-80, 4, 1.2], [-66, 28, 0.7], [-76, 26, 0.9], [-84, -10, 1]].map(([x, z, s]) => [W(x), W(z), s])) {
     if (T.heightAt(x, z) > 0) continue;
     const m = P.mesh(P.geo('berg' + (bergs.length % 3), () => P.icebergGrid(bergs.length % 3 + 1), 0.3, 'bottom'), {});
     m.position.set(x, -0.9, z);
@@ -641,7 +693,7 @@ function addLandmarks({ T, root, updaters, exclude }) {
 
   // --- beach umbrellas near the lab
   const um = [];
-  for (const [x, z, c] of [[-44, 58, 0], [-18, 59, 1], [-12, 58.5, 0], [-50, 54, 1]]) {
+  for (const [x, z, c] of [[-44, 58, 0], [-18, 59, 1], [-12, 58.5, 0], [-50, 54, 1]].map(([x, z, c]) => [W(x), W(z), c])) {
     if (T.matAt(x, z) !== MAT.SAND) continue;
     um.push([x, T.heightAt(x, z), z, x * 0.7, 1, c]);
   }
@@ -723,7 +775,7 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
   updaters.push((dt, t) => { for (const u of fxUpd) u(t); fx.commit(); });
 
   // ---- shipwreck run aground in Shipwreck Bay
-  const ws = [[-30, -83], [-26, -82], [-34, -84], [-20, -82], [-38, -86]].find(([x, z]) => T.maxHeight(x, z, 7) === 0) ?? [-30, -83];
+  const ws = [[-30, -83], [-26, -82], [-34, -84], [-20, -82], [-38, -86]].map(WP).find(([x, z]) => T.maxHeight(x, z, 7) === 0) ?? WP([-30, -83]);
   const wreck = P.mesh(P.geo('shipwreck', P.shipwreckGrid, 0.25, 'bottom'), {});
   wreck.position.set(ws[0], -1.5, ws[1]);
   wreck.rotation.set(-0.06, 2.2, 0.17, 'YXZ');
@@ -882,8 +934,8 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
   });
   updaters.push((dt, t) => {
     balloons.forEach((m, i) => {
-      const a = t * (0.012 + i * 0.004) + i * 2.1, r = 22 + i * 9;
-      m.position.set(30 + Math.cos(a) * r, 40 + i * 5 + Math.sin(t * 0.25 + i) * 1.2, -128 + Math.sin(a) * r * 0.6);
+      const a = t * (0.012 + i * 0.004) + i * 2.1, r = W(22 + i * 9);
+      m.position.set(W(30) + Math.cos(a) * r, 40 + i * 5 + Math.sin(t * 0.25 + i) * 1.2, W(-128) + Math.sin(a) * r * 0.6);
       m.rotation.y = t * 0.05 + i;
     });
   });
@@ -892,7 +944,7 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
   const Rf = Zid('reef');
   const corals = [];
   for (let i = 0; i < 240 && corals.length < 26; i++) {
-    const a = R() * 6.28, r = 10 + R() * 18;
+    const a = R() * 6.28, r = W(10 + R() * 18);
     const x = Rf.x + Math.cos(a) * r, z = Rf.z + Math.sin(a) * r;
     if (T.heightAt(x, z) > 0 || T.maxHeight(x, z, 3.5) === 0) continue;
     corals.push([x, -0.35 + R() * 0.15, z, R() * 6.28, 0.8 + R() * 0.6]);
@@ -904,13 +956,13 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
   const boomPts = [];
   for (let i = 0; i < 26; i++) {
     const u = i / 25;
-    boomPts.push([Rf.x - 16 + u * 30, Rf.z + 22 + Math.sin(u * Math.PI) * 4.5]);
+    boomPts.push([Rf.x + W(-16 + u * 30), Rf.z + W(22 + Math.sin(u * Math.PI) * 4.5)]);
   }
   const boomOk = boomPts.filter(([x, z]) => T.heightAt(x, z) === 0);
   const boom = liveIM(P.geo('boom', P.boomGrid, 0.1, 'center'), Math.max(1, boomOk.length));
   root.add(boom);
   const trashGeo = [0, 1].map((k) => P.geo('trash' + k, () => P.trashGrid(k + 3), 0.08, 'center'));
-  const trashItems = Array.from({ length: 16 }, () => [Rf.x - 12 + R() * 22, Rf.z + 25 + R() * 6, R() * 6.28]).filter(([x, z]) => T.heightAt(x, z) === 0);
+  const trashItems = Array.from({ length: 16 }, () => [Rf.x + W(-12 + R() * 22), Rf.z + W(25 + R() * 6), R() * 6.28]).filter(([x, z]) => T.heightAt(x, z) === 0);
   const trash = trashGeo.map((g) => { const im = liveIM(g, Math.max(1, trashItems.length)); root.add(im); return im; });
   const cBoats = [0, 1].map((i) => {
     const m = P.mesh(P.geo('cleanupBoat', P.cleanupBoatGrid, 0.13, 'bottom'), {});
@@ -928,7 +980,7 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
     for (const im of trash) im.instanceMatrix.needsUpdate = true;
     cBoats.forEach((m, i) => {
       const a = t * 0.05 + i * Math.PI;
-      const x = Rf.x - 2 + Math.cos(a) * 22, z = Rf.z + 30 + Math.sin(a) * 4;
+      const x = Rf.x + W(-2) + Math.cos(a) * W(22), z = Rf.z + W(30) + Math.sin(a) * W(4);
       m.position.set(x, -0.15 + Math.sin(t * 2 + i) * 0.05, z);
       m.rotation.set(0, Math.atan2(-Math.sin(a) * 22, Math.cos(a) * 4), Math.sin(t * 1.5 + i) * 0.04, 'YXZ');
     });
@@ -960,8 +1012,8 @@ function addRoadside({ T, root, bridges, exclude }) {
 
 // ---------------------------------------------------------------------------
 // Vegetation + scenery scatter (instanced per kind and per spatial tile so each can be culled)
-const NORTH_Z = -76;
-const DECOR_TILE_X = (NX * CS) / 3, DECOR_TILE_Z = (NZ * CS) / 5; // 3 x 5 decor tiles (frustum + shadow culling)
+const NORTH_Z = W(-76);
+const DECOR_TILE_X = (NX * CS) / 6, DECOR_TILE_Z = (NZ * CS) / 9; // 6 x 9 decor tiles (frustum + shadow culling)
 function addDecor({ T, root, exclude, R }) {
   const LP = P.LOWPOLY;
   const kinds = {
@@ -1019,6 +1071,8 @@ function addDecor({ T, root, exclude, R }) {
     [MAT.SPOOKY]: [['spooky', 0.1], ['spooky2', 0.08], ['tomb', 0.07], ['tomb2', 0.06], ['pumpkin', 0.05], ['lantern', 0.025], ['purplebush', 0.07], ['glowshroom', 0.02]],
     [MAT.BASALT]: [['obsidian', 0.07], ['obsidian2', 0.06], ['basaltrock', 0.08], ['dead', 0.05]],
     [MAT.TECH]: [['techrock', 0.03], ['tuft', 0.02]],
+    [MAT.FOREST]: [['pine', 0.24], ['round', 0.1], ['round2', 0.08], ['bush', 0.05], ['fern', 0.07], ['shroom', 0.025], ['rock', 0.03]],
+    [MAT.MEADOW]: [['flowers', 0.09], ['flowers2', 0.09], ['tuft', 0.08], ['bush', 0.03], ['round2', 0.025], ['sakura', 0.01]],
   };
   const items = {};
   const step = 2.1;
@@ -1065,7 +1119,7 @@ function addLife({ T, root, updaters, R }) {
   // boats
   const boats = [];
   // boats circle the whole (bigger) island, outside the coastline
-  for (const [kind, rx, rz, sp, ph] of [['speed', 128, 160, 0.05, 0.3], ['sail', 140, 172, -0.022, 2.2], ['tug', 134, 166, 0.03, 4.1], ['speed', 146, 178, -0.04, 5.3], ['sail', 130, 168, 0.025, 3.3]]) {
+  for (const [kind, rx, rz, sp, ph] of [['speed', 128, 160, 0.034, 0.3], ['sail', 140, 172, -0.016, 2.2], ['tug', 134, 166, 0.021, 4.1], ['speed', 146, 178, -0.028, 5.3], ['sail', 130, 168, 0.018, 3.3]].map(([k, rx, rz, sp, ph]) => [k, W(rx), W(rz), sp, ph])) {
     const m = P.mesh(P.geo('boat_' + kind, () => P.boatGrid(kind), 0.13, 'bottom'), {});
     m.name = 'boat:' + kind;
     root.add(m);
@@ -1083,7 +1137,7 @@ function addLife({ T, root, updaters, R }) {
   });
   const boatList = boats;
   // gulls
-  const flocks = [[-30, 9, 60], [-56, 16, 38], [30, 30, -30], [52, 14, 30], [-6, 26, -40], [-8, 12, -86], [20, 10, -96], [112, 26, -120]];
+  const flocks = [[-30, 9, 60], [-56, 16, 38], [30, 30, -30], [52, 14, 30], [-6, 26, -40], [-8, 12, -86], [20, 10, -96], [112, 26, -120], [-12, 12, 78], [70, 14, 30], [-80, 18, 20]].map(([x, y, z]) => [W(x), y, W(z)]);
   const gulls = [];
   flocks.forEach(([x, y, z], f) => {
     for (let i = 0; i < 3; i++) gulls.push({ cx: x + (R() - 0.5) * 6, cy: y + R() * 4, cz: z + (R() - 0.5) * 6, r: 5 + R() * 6, sp: (0.35 + R() * 0.25) * (f % 2 ? -1 : 1), ph: R() * 6.28, fl: 6 + R() * 3 });

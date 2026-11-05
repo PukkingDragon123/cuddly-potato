@@ -19,6 +19,7 @@ import { h, icon, animIcon, iconURL, button, pill, bar, modal, toast, bigBanner,
 import { charPortrait, swarmThumb } from '../ui/thumbs.js';
 import { cardEl } from '../ui/cards.js';
 import { rankMedal, setRankMedal } from '../ui/rankMedal.js';
+import { myAvatarEl } from '../ui/avatar.js';
 import * as M from './homeMotion.js';
 import { setupIslandRoad } from './homeRoad.js';
 import { createSwarm } from '../models/swarmModels.js';
@@ -364,7 +365,9 @@ export class HomeScene {
     this.lvlEl = rankMedal(labXpInfo().level, { cls: 'hm-rank' });
     this.nameEl = h('div', { class: 'nm' }, p.name);
     this.xpBar = bar(0, 'blue', '');
-    const prof = h('div', { class: 'hm-prof hit', 'data-tip': 'Your *Lab Level*: upgrade cards and win battles for Lab XP', onclick: () => this.openModal('profile', 'openProfile') }, h('div', { class: 'hm-lvlw' }, this.lvlEl), h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
+    // your profile picture in its frame (src/ui/avatar.js; it follows equips by itself)
+    this.avEl = myAvatarEl({ cls: 'hm-av' });
+    const prof = h('div', { class: 'hm-prof hit', 'data-tip': 'Your *Lab Level*: upgrade cards and win battles for Lab XP', onclick: () => this.openModal('profile', 'openProfile') }, this.avEl, h('div', { class: 'hm-lvlw' }, this.lvlEl), h('div', { class: 'hm-pname' }, this.nameEl, this.xpBar));
     // pills start at what they showed last time; refresh() after the entrance rolls them up
     this.coinPill = pill('coin', shown.coins ?? p.coins, { plus: () => this.setTab('shop'), cls: 'hm-pill-coin' });
     this.buckPill = pill('bucks', shown.bucks ?? p.bucks, { plus: () => this.setTab('shop'), cls: 'hm-pill-buck' });

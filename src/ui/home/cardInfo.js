@@ -17,6 +17,7 @@ import { SWARMS, SERIES, VARIANTS, ROLE_INFO, traitText, swarmStats, speedName, 
 import { spellPower } from '../../data/spells.js';
 import { SWARM_SKINS } from '../../data/season.js';
 import { arenaById } from '../../data/arenas.js';
+import { masteryPanel } from './masteryUI.js';
 import {
   RARITY_RIBBON, chip, deny, flyText, slam, swarmImg, unlockHint, refreshCtx, showRewards, markCardSeen, notify, labBadge, fmtN,
 } from './common.js';
@@ -283,6 +284,9 @@ export function openCardInfo(id, ctx, opts = {}) {
       const tr = traitText(def);
       if (tr.length) statHost.appendChild(h('div', { class: 'row wrap gap-s mn-ci-traits' }, ...tr.map((t) => chip([icon('star', 's'), t], 'trait'))));
     }
+
+    // --- TROOP MASTERY (src/ui/home/masteryUI.js): levels, tasks, rewards, claim
+    if (!spell && !def.special) { const mp = masteryPanel(id, ctx); if (mp) body.appendChild(mp); }
 
     // --- finishes / skins / mega (troops you own)
     if (!spell && own) {

@@ -10,8 +10,8 @@
 // Clash Royale style, every card stack flies out as its 3D toy onto a pedestal
 // next to the pixel card (count, NEW!, level, copies bar filling) with rarity
 // fanfares, and a summary of everything gained. A card found for the first
-// time gets the NEW CARD cutscene (newCardCutscene.js) with the player's
-// equipped entrance animation.
+// time gets the NEW CARD cutscene (newCardCutscene.js); its reveal style follows
+// the card's rarity (data/entrances.js cardReveal; bought entrances play in battles).
 //
 // game.go('vialopen', { type, slot?, source?: 'slot'|'free'|'crown'|'shop'|'reward', result?, back = 'home', backParams,
 //                       preview?: { entrance, card } })
@@ -20,7 +20,7 @@
 // remembers the pending vial in the save (state.setOpeningVial, recovered on the
 // next load if the tab dies) and applies the rewards exactly once when the vial
 // pops (or on SKIP / leaving), then saves. `preview` only plays the cutscene
-// (shop entrance previews). Dev URL params: &forceUpgrade=1 (every shake upgrades),
+// (dev). Dev URL params: &forceUpgrade=1 (every shake upgrades),
 // &newcut=1 (cutscene for every card), &entrance=<id>, &preview=<entrance>&card=<id>.
 import * as THREE from 'three';
 import './vialOpen.css';
@@ -41,7 +41,8 @@ import { vialThumb } from '../ui/vialThumb.js';
 import { VIALS, vialId, VIAL_SHAKES, VIAL_UPGRADE_CHANCE, VIAL_TIER_LOOK, maxVialUpgrades, vialTier, upgradedName } from '../data/vials.js';
 import { cardDef, isSpell, RARITIES } from '../data/cards.js';
 import { VARIANTS, SERIES } from '../data/swarms.js';
-import { state, rollVial, applyVial, owned, upgradeInfo, setOpeningVial, equippedEntrance, stat } from '../game/state.js';
+import { state, rollVial, applyVial, owned, upgradeInfo, setOpeningVial, stat } from '../game/state.js';
+import { cardReveal } from '../data/entrances.js';
 import { game } from '../game/game.js';
 import { spellThumbAsync } from '../ui/thumbs.js';
 import { ShakeInput, TiltInput, requestMotion, motionNeedsPermission, isTouchDevice } from './vialGestures.js';
@@ -1450,7 +1451,8 @@ export class VialOpenScene {
     animate(0.3, (e) => this.ped.scale.setScalar(Math.max(0.001, ped0 * (1 - e))), { ease: 'inBack' });
     await this.beat(0.3);
     if (this.halt()) return;
-    const cut = new NewCardCutscene(this, st, { entrance: this.devOpts.entrance ?? equippedEntrance() });
+    // the NEW CARD reveal style follows the card's rarity (bought entrances play in battles)
+    const cut = new NewCardCutscene(this, st, { entrance: this.devOpts.entrance ?? cardReveal(st.rarity, !!st.spell) });
     await cut.play();
     if (this.halt()) { cut.dispose(); return; }
     const toy = cut.release();

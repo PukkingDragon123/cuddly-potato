@@ -33,6 +33,8 @@ export function playerSide() {
     name: p.name, deck, commander, research: researchLevels(), labLevel: labLevel(), mega: equippedMega(),
     labStyle: p.cosmetics.labSkin === 'default' ? 'default' : p.cosmetics.labSkin,
     banner: p.cosmetics.banner, trophies: p.trophies, lineupSlots: slots,
+    // profile looks (src/ui/avatar.js): VS intro, HUD name plates, Beast News
+    avatar: p.cosmetics.avatar, frame: p.cosmetics.frame, title: p.cosmetics.title,
     // LAB MODULES bolted onto the base (src/data/labModules.js)
     modules: featureOpen('labModules') ? equippedLoadout() : null,
   };

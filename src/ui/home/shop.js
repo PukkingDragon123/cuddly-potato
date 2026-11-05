@@ -4,7 +4,7 @@
 //   stick-on mustache. Tap him (or TALK) for a voiced chat with choices, one haggle
 //   a day for a small discount, and he reacts to every sale and every empty wallet.
 //   The goods: the daily gift, the free vial, 6 daily card deals (the counter), the
-//   featured vial (the vault), featured cosmetics, entrance cutscenes, vials for
+//   featured vial (the vault), featured cosmetics, battle entrances (live preview), vials for
 //   Beast Bucks (opened right away via ctx.openVial) and coin bundles. Everything
 //   resets at local midnight (the CRT says when).
 import './shop.css';
@@ -17,14 +17,14 @@ import {
   state, upgradeInfo, shopOffers, shopBought, markBought, spendBucks, spendCoins, addCoins, grantReward, refreshDaily, freeVialStatus,
   ownsEntrance, equipEntrance, equippedEntrance,
 } from '../../game/state.js';
-import { cardDef, isSpell, RARITIES } from '../../data/cards.js';
+import { cardDef, RARITIES } from '../../data/cards.js';
 import { VIALS } from '../../data/vials.js';
 import { BANNERS, SWARM_SKINS, CMD_SKINS } from '../../data/season.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { ENTRANCES } from '../../data/entrances.js';
+import { featureUnlocked, featureHint, lockInfo } from '../../game/progression.js';
 import { CHARACTERS, voiceOf } from '../../data/characters.js';
 import { entranceArt } from '../entranceArt.js';
-import { game } from '../../game/game.js';
 import {
   screenShell, countdown, midnightMs, vialArt, rewardArt, rewardLabel, showRewards, confirmBox,
   refreshCtx, fmtN, bannerEl, swarmImg, cmdFullImg, cmdSkinOwned, charFullImg,
@@ -626,41 +626,58 @@ export function mount(el, ctx) {
     return tile;
   }
 
-  /** Preview an entrance with one of your best troops (plays the cutscene, then comes back here). */
+  /** Preview a battle entrance: the real cinematic on a little test range (entrancePreview.js), then back here. */
   function previewEntrance(id) {
-    const owned = Object.keys(state.p.cards).filter((c) => cardDef(c) && !isSpell(c));
-    const order = (c) => RARITIES[cardDef(c).rarity]?.order ?? 0;
-    const card = owned.sort((a, b) => order(b) - order(a))[0] ?? 'panther';
-    game.go('vialopen', { type: 'testTube', preview: { entrance: id, card }, back: 'home', backParams: { tab: 'shop' } });
+    if (talking) closeDialogue();
+    import('../../game/battle/entrancePreview.js')
+      .then((m) => m.playEntrancePreview(id, { onClose: () => { if (!disposed) bk.attach(); } }))
+      .catch((err) => console.warn('entrance preview', err));
   }
 
   function entranceTile(e) {
     const owned = ownsEntrance(e.id);
     const equipped = equippedEntrance() === e.id;
     const key = 'ent:' + e.id;
-    const tile = h('div', { class: `bk-plate bk-ent ${owned ? 'owned' : ''} ${equipped ? 'eq' : ''}`, style: { '--ec': e.color } },
-      equipped ? ribbon('EQUIPPED', 'teal') : e.pass && !owned ? ribbon('FOOD PASS', 'pink') : null,
+    const open = featureUnlocked('entrances');
+    const best = Math.max(state.p.bestTrophies ?? 0, state.p.trophies ?? 0);
+    const claim = !owned && e.trophies && best >= e.trophies;
+    const equip = () => { equipEntrance(e.id); audio.play('upgrade'); sparkle(tile, { count: 14 }); shell.render(); };
+    let act;
+    if (!open) act = h('div', { class: 'bk-pass bk-ent-lock t-d' }, icon('lock', 's'), lockInfo('entrances').short);
+    else if (owned) act = equipped ? h('div', { class: 'bk-owned t-d' }, icon('check', 's'), 'IN USE') : button('EQUIP', equip, 'yellow sm', { sound: 'tap' });
+    else if (e.pass) act = h('div', { class: 'bk-pass t-d' }, icon('calorie', 's'), 'PASS REWARD');
+    else if (claim) {
+      act = button('CLAIM', async () => {
+        const got = grantReward({ type: 'entrance', id: e.id });
+        equipEntrance(e.id);
+        await showRewards(got, { title: 'NEW ENTRANCE!', note: 'Equipped. You walk into your next battle with it.' });
+        shell.render();
+      }, 'green sm', { sound: 'tap' });
+    } else if (e.trophies) act = h('div', { class: 'bk-pass bk-ent-tro t-d' }, icon('trophy', 's'), fmtN(e.trophies));
+    else {
+      act = priceButton('bucks', e.price, false, () => buy({
+        key, cur: 'bucks', price: e.price, tile, kind: 'entrance',
+        title: 'ENTRANCE', art: entranceArt(e.id, 'mn-ent-confirm'), text: `Get the <b>${e.name}</b> entrance?`,
+        sub: h('div', { class: 'center-t t-sm c-muted' }, 'Plays when you walk into a battle.'),
+        async onPaid() {
+          const got = grantReward({ type: 'entrance', id: e.id });
+          equipEntrance(e.id);
+          await showRewards(got, { title: 'NEW ENTRANCE!', note: 'Equipped. You walk into your next battle with it.' });
+        },
+      }), { cls: 'green sm' });
+    }
+    const tile = h('div', { class: `bk-plate bk-ent ${owned ? 'owned' : ''} ${equipped && open ? 'eq' : ''}`, style: { '--ec': e.color } },
+      equipped && open ? ribbon('EQUIPPED', 'teal') : e.pass && !owned ? ribbon('FOOD PASS', 'pink') : e.trophies && !owned ? ribbon(claim ? 'CLAIM IT' : 'TROPHY REWARD', 'gold') : null,
       h('div', { class: 'bk-ent-art' }, entranceArt(e.id)),
       h('div', { class: 'bk-plate-n t-d' }, e.name),
       h('div', { class: 'bk-plate-s' }, e.desc),
       h('div', { class: 'bk-ent-btns' },
         button('', () => previewEntrance(e.id), 'blue sm bk-ent-pv', { icon: 'play', sound: 'tap' }),
-        owned
-          ? equipped ? h('div', { class: 'bk-owned t-d' }, icon('check', 's'), 'IN USE')
-            : button('EQUIP', () => { equipEntrance(e.id); audio.play('upgrade'); sparkle(tile, { count: 14 }); shell.render(); }, 'yellow sm', { sound: 'tap' })
-          : e.pass ? h('div', { class: 'bk-pass t-d' }, icon('calorie', 's'), 'PASS REWARD')
-            : priceButton('bucks', e.price, false, () => buy({
-              key, cur: 'bucks', price: e.price, tile, kind: 'entrance',
-              title: 'ENTRANCE', art: entranceArt(e.id, 'mn-ent-confirm'), text: `Get the <b>${e.name}</b> entrance?`,
-              sub: h('div', { class: 'center-t t-sm c-muted' }, 'Plays every time you unlock a NEW card.'),
-              async onPaid() {
-                const got = grantReward({ type: 'entrance', id: e.id });
-                equipEntrance(e.id);
-                await showRewards(got, { title: 'NEW ENTRANCE!', note: 'Equipped! It plays when you unlock a new card.' });
-              },
-            }), { cls: 'green sm' })));
+        act));
     return tile;
   }
+  /** Shop order: free, Beast Bucks by price, trophy rewards, then Food Pass ones. */
+  const entOrder = (e) => (e.free ? 0 : e.price ? 1 + e.price / 1e4 : e.trophies ? 2 + e.trophies / 1e5 : 3);
 
   function vialTile(o) {
     const v = VIALS[o.id];
@@ -733,7 +750,10 @@ export function mount(el, ctx) {
     const feat = featuredOffers();
     if (feat.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('FEATURED LOOKS', 'New every day.'), h('div', { class: 'bk-grid3' }, ...feat.map(featuredTile))));
     // entrance cutscenes
-    inner.appendChild(h('div', { class: 'bk-sec' }, head('ENTRANCES', 'Your NEW card cutscene.'), h('div', { class: 'bk-ents' }, ...Object.values(ENTRANCES).map(entranceTile))));
+    const entHint = featureHint('entrances');
+    inner.appendChild(h('div', { class: 'bk-sec', 'data-guide': 'entrances' }, head('ENTRANCES', 'How you walk into every battle. Tap play to watch.'),
+      entHint ? h('div', { class: 'bk-ent-hint' }, icon('lock', 's'), h('span', { html: rich(entHint) })) : null,
+      h('div', { class: 'bk-ents' }, ...Object.values(ENTRANCES).sort((x, y) => entOrder(x) - entOrder(y)).map(entranceTile))));
     // vials
     const restVials = off.vials.filter((v) => v.id !== hero?.heroId);
     if (restVials.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('VIALS', 'No timers. Shake right away.'), h('div', { class: 'bk-grid3' }, ...restVials.map(vialTile))));

@@ -14,6 +14,7 @@ import { screenShell, secHead, chip, isCardNew, markCardSeen, refreshCtx, fmtN }
 import { lazyImg, swarmThumb } from '../thumbs.js';
 import { MEGAS, MEGA_IDS } from '../../data/megas.js';
 import { openCardInfo } from './cardInfo.js';
+import { masteryBadge } from './masteryUI.js';
 
 const SORTS = [
   { id: 'rarity', label: 'By Rarity', short: 'Rarity', icon: 'star' },
@@ -137,6 +138,8 @@ export function mount(el, ctx) {
         const ce = cardEl(id, { progress: true, priority: true });
         ce.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.appendChild(ce);
+        const mb = masteryBadge(id);
+        if (mb) cell.appendChild(mb);
         if (up && !up.max && up.ok) cell.classList.add('can-up');
       } else if (i >= slots) {
         // locked deck slot: opens at a trophy count
@@ -231,7 +234,7 @@ export function mount(el, ctx) {
     coll.forEach((c, i) => {
       const up = upgradeInfo(c.id);
       const cell = h('div', { class: `mn-cc ${up && !up.max && up.ok ? 'can-up' : ''}`, style: { '--i': Math.min(i, 20) } },
-        cardEl(c.id, { progress: true, isNew: isCardNew(c.id) }));
+        cardEl(c.id, { progress: true, isNew: isCardNew(c.id) }), masteryBadge(c.id));
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
         openPop(cell, c.id, 'coll');

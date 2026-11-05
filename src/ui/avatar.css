@@ -1,0 +1,90 @@
+/* =========================================================================
+   Profile avatars (src/ui/avatar.js): picture + pixel-art frame. Size with
+   --av. The box is the frame ring's outer edge; the frame image (crests,
+   horns, flames) hangs outside it. Animated frames use a masked shine band
+   or a sprite strip slid with a stepped translate (composited, no repaint).
+   ========================================================================= */
+.pav {
+  --av: calc(var(--u) * 12);
+  position: relative; display: inline-block; flex: none; vertical-align: middle;
+  width: var(--av); height: var(--av); line-height: 1; pointer-events: inherit;
+}
+.pav > .pav-pic {
+  position: absolute; left: 11.905%; top: 11.905%; width: 76.19%; height: 76.19%;
+  object-fit: cover; image-rendering: auto; pointer-events: none; background: #141a4a;
+  clip-path: polygon(7.8% 0, 92.2% 0, 100% 7.8%, 100% 92.2%, 92.2% 100%, 7.8% 100%, 0 92.2%, 0 7.8%);
+}
+.pav > .pav-pic:not(.loaded) { background: linear-gradient(#2a3a8a, #141a4a); }
+.pav > .pav-frm, .pav > .pav-strip {
+  position: absolute; left: -26.19%; top: -26.19%; width: 152.381%; height: 152.381%; pointer-events: none;
+}
+.pav > .pav-frm { image-rendering: auto; }
+/* empty window (frame picker tiles) */
+.pav.pav-empty > .pav-pic { opacity: 0; }
+.pav.pav-empty::before {
+  content: ''; position: absolute; left: 11.905%; top: 11.905%; width: 76.19%; height: 76.19%;
+  background: var(--tx-grid) 0 0 / calc(8 * var(--px)) calc(8 * var(--px)), linear-gradient(#2a3a8a, #10163e);
+  clip-path: polygon(7.8% 0, 92.2% 0, 100% 7.8%, 100% 92.2%, 92.2% 100%, 7.8% 100%, 0 92.2%, 0 7.8%);
+}
+/* sprite strips: n phases side by side, slid in steps */
+.pav > .pav-strip { overflow: hidden; }
+.pav > .pav-strip > .pav-stripimg {
+  position: absolute; left: 0; top: 0; height: 100%; width: calc(var(--n, 6) * 100%); max-width: none;
+  animation: pavStrip var(--pav-sd, 1.5s) steps(var(--n, 6)) infinite;
+}
+.pav.pav-strip-on > .pav-frm { visibility: hidden; }
+@keyframes pavStrip { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+/* shine: a band masked by the frame art, sweeping now and then */
+.pav.pav-a-shine::after {
+  content: ''; position: absolute; left: -26.19%; top: -26.19%; width: 152.381%; height: 152.381%; pointer-events: none; overflow: hidden;
+  -webkit-mask: var(--pav-img) center / 100% 100% no-repeat; mask: var(--pav-img) center / 100% 100% no-repeat;
+  background: linear-gradient(115deg, transparent 0 40%, rgba(255, 255, 255, 0.7) 40% 47%, transparent 47% 52%, rgba(255, 255, 255, 0.35) 52% 56%, transparent 56%) no-repeat;
+  background-size: 300% 100%; background-position: 120% 0;
+  animation: pavShine 5s steps(14) infinite; animation-delay: var(--pav-d, 0s);
+}
+@keyframes pavShine { 0%, 70% { background-position: 120% 0; } 100% { background-position: -20% 0; } }
+/* legendary frames get a soft pixel glow behind them */
+.pav.pav-a-holo > .pav-strip, .pav.pav-a-holo > .pav-frm { filter: drop-shadow(0 0 calc(var(--av) * 0.04) rgba(255, 140, 220, 0.7)); }
+.pav.pav-a-flame > .pav-strip, .pav.pav-a-flame > .pav-frm { filter: drop-shadow(0 0 calc(var(--av) * 0.05) rgba(255, 120, 30, 0.7)); }
+.pav.pav-a-cosmic > .pav-strip, .pav.pav-a-cosmic > .pav-frm { filter: drop-shadow(0 0 calc(var(--av) * 0.04) rgba(140, 120, 255, 0.75)); }
+@media (prefers-reduced-motion: reduce) {
+  .pav > .pav-strip > .pav-stripimg { animation: none; }
+  .pav.pav-a-shine::after { animation: none; opacity: 0; }
+}
+/* title line (under a name) */
+.pav-title { display: block; font-size: 0.78em; line-height: 1.1; color: #ffe27a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--outline-thin); }
+
+/* ---- shared placements (reward tiles, troop mastery banners) */
+.mn-ra.look > .pav.mn-ra-av { --av: 100%; width: 64%; height: auto; aspect-ratio: 1; }
+.mn-ra.title { padding: 0 6%; }
+.mn-ra-ttl {
+  width: 100%; padding: 0.35em 0.2em; text-align: center; font-size: 0.82em; line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
+  background: linear-gradient(#3a2a8a, #1c1450); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(255, 255, 255, 0.3), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.3);
+  overflow-wrap: anywhere;
+}
+/* troop mastery banners: the troop stands on the right */
+.mn-banner > .mn-ban-troop {
+  position: absolute; right: 2%; bottom: -18%; height: 150%; width: auto; aspect-ratio: 0.8; object-fit: contain; pointer-events: none;
+  filter: drop-shadow(calc(var(--px) * 1.5) 0 0 rgba(0, 0, 0, 0.35)) drop-shadow(0 0 0 var(--ink));
+}
+.mn-ra .mn-banner.mini > .mn-ban-troop { right: -4%; bottom: -10%; height: 130%; }
+/* battle HUD name plates (tug-of-war bar ends): picture first, then the rank medal */
+.tw-nm .pav.tw-av { --av: 1.7em; margin: -0.32em 0.12em -0.32em 0; top: 0.06em; }
+.tw-nm.s0 .pav.tw-av { margin-left: calc(var(--u) * 3.6); }
+.tw-nm.s1 .pav.tw-av { margin-right: calc(var(--u) * 3.6); margin-left: 0.12em; }
+.tw-nm.s0 .pav.tw-av + .rmedal.tw-rank { margin-left: 0; }
+.tw-nm.s1 .pav.tw-av + .rmedal.tw-rank { margin-right: 0; }
+body.landscape .tw-nm .pav.tw-av { --av: 1.9em; margin-block: -0.4em; }
+/* VS intro: picture beside the name block (right-aligned blocks put it on the right) */
+.vsx-who { display: flex; align-items: center; gap: calc(var(--u) * 1.4); }
+.vsx-whot { display: flex; flex-direction: column; gap: calc(var(--u) * 0.6); align-items: flex-start; min-width: 0; }
+.vsx.portrait .vsx-info.s0 .vsx-who, .vsx.landscape .vsx-info.s1 .vsx-who { flex-direction: row-reverse; }
+.vsx.portrait .vsx-info.s0 .vsx-whot, .vsx.landscape .vsx-info.s1 .vsx-whot { align-items: flex-end; }
+.vsx-who .pav.vsx-av { --av: calc(var(--u) * 15); }
+.vsx.landscape .vsx-who .pav.vsx-av { --av: calc(var(--u) * 13); }
+.vsx-ttl { font-family: var(--font-d); font-size: clamp(12px, 0.95em, 18px); line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; }
+/* Beast News result: picture by each name in BASE HP LEFT */
+.cn-base .pav.cn-av { --av: clamp(26px, 1.9em, 38px); margin: 0 0.15em 0 0; }
+.cn-ups .cn-up-ms { color: #ffd84a; }
+/* home top bar: picture, then the rank medal, then name + XP */
+.hm-prof .pav.hm-av { --av: calc(var(--u) * 10.5); margin: calc(var(--u) * 0.4) calc(var(--u) * -0.2) calc(var(--u) * 0.2) calc(var(--u) * 0.6); }

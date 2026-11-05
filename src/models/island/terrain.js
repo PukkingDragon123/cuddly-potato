@@ -10,13 +10,17 @@ import { hash3, clamp } from '../../core/util.js';
 
 export const CS = 0.5; // column size (world units)
 export const VY = 0.5; // height step
-// x in [-92, 128], z in [-214, 88]: the original island (south) + the Northern Wilds (north lobe + isthmus)
-export const X0 = -92, Z0 = -214, NX = 440, NZ = 604;
+// The island is laid out in "design units" and built SC times bigger in the world, so the arenas keep
+// their size but get far more room between them (towns, forests, coves, cliffs...).
+export const SC = 1.5;
+// x in [-138, 192], z in [-321, 150]: the original island (south) + Beast Town on its south shore +
+// the Northern Wilds (north lobe + isthmus)
+export const X0 = -138, Z0 = -321, NX = 660, NZ = 942;
 const TPC = 2; // colour-map texels per column (0.25 units / texel)
 
 export const MAT = {
   WATER: 0, SAND: 1, GRASS: 2, ROCK: 3, SNOW: 4, DESERT: 5, ASH: 6, CANDY: 7, ROAD: 8, LUSH: 9, PASTEL: 10, CHANNEL: 11, PLAZA: 12,
-  JUNGLE: 13, SPOOKY: 14, BASALT: 15, TECH: 16, LAVACH: 17,
+  JUNGLE: 13, SPOOKY: 14, BASALT: 15, TECH: 16, LAVACH: 17, FOREST: 18, TOWN: 19, MEADOW: 20,
 };
 
 export const smooth = (a, b, x) => {
@@ -61,8 +65,17 @@ const SIDES = {
   [MAT.BASALT]: [0x3a3238, 0.2, 0x262028, 0x1c181e, 0x30282e, 0x5a2216, 0x221c22],
   [MAT.TECH]: [0xc8ced8, 0.14, 0x8e96a4, 0x7c8494, 0x9ea6b4, 0x6c7484],
   [MAT.LAVACH]: [null, 0, 0x3a2a26, 0x24181a, 0x6a2410],
+  [MAT.FOREST]: [0x3a9a3e, 0.3, 0x9a6a3c, 0x7e5430, 0xa8784a, 0x6a4428, 0x8a5e36],
+  [MAT.TOWN]: [0xd8ccb4, 0.16, 0xb8a888, 0xa89878, 0xc8b898, 0x988868],
+  [MAT.MEADOW]: [0x6ad154, 0.28, 0xc98d55, 0xb57a46, 0xd9a066, 0xa86c3c, 0xc48450],
 };
 const FACE_SHADE = { px: 0.9, nx: 0.86, pz: 1.0, nz: 0.8 };
+// road pavers per tag: [curb, edge, grout, paver A, paver B]; 0 = the trunk road, 1 / 2 = the two trails of a fork
+export const ROAD_PAL = [
+  [0xc79a5a, 0xf6e2b0, 0xe0cc9c, 0xfff4d8, 0xfbe9c0],
+  [0xc0821a, 0xffd86a, 0xe8b040, 0xffe9a0, 0xffdc78],
+  [0x6a3aa8, 0xd8b8ff, 0xa888e0, 0xeadcff, 0xdcc6ff],
+];
 
 /**
  * Build the island terrain.
@@ -91,19 +104,20 @@ export function buildTerrain(spec) {
   const landF = new Float32Array(N);
   const cliffF = new Float32Array(N);
   const lobes = spec.lobes ?? [];
+  const coves = spec.coves ?? [];
   for (let j = 0; j < NZ; j++) {
-    const z = cz(j);
+    const z = cz(j), zd = z / SC;
     for (let i = 0; i < NX; i++) {
-      const x = cx(i);
+      const x = cx(i), xd = x / SC;
       let L, cliff;
-      const em = (x / 76) ** 2 + ((z + 1) / 70) ** 2;
+      const em = (xd / 76) ** 2 + ((zd + 1) / 70) ** 2;
       if (em > 2.0) { L = 1 - Math.sqrt(em); cliff = 1; } // far from the original island (open sea): skip the noise
       else {
-        const th = Math.atan2(z, x);
-        const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(x * 0.035, z * 0.035, 2, 3) - 0.5) * 0.22;
+        const th = Math.atan2(zd, xd);
+        const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(xd * 0.035, zd * 0.035, 2, 3) - 0.5) * 0.22;
         L = 1 - Math.sqrt(em) / R;
         // cliffy north + west coasts, beaches south + east
-        const north = clamp(-z / 50, 0, 1), west = clamp(-x / 55, 0, 1);
+        const north = clamp(-zd / 50, 0, 1), west = clamp(-xd / 55, 0, 1);
         cliff = clamp(Math.max(north * 1.1, west * 0.95) - 0.12, 0, 1);
       }
       for (const B of lobes) {
@@ -111,9 +125,17 @@ export function buildTerrain(spec) {
         const e = dx * dx + dz * dz;
         if (e > 2.0 || (L > 0.35 && e > 0.25)) continue; // open sea, or deep inside another landmass
         const th = Math.atan2(dz, dx), s = B.seed ?? 0;
-        const R = 1 + 0.06 * Math.sin(3 * th + s) + 0.045 * Math.sin(5 * th + 2.1 + s) + 0.03 * Math.sin(11 * th + s * 0.7) + (fbm(x * 0.035, z * 0.035, 2, 3 + s) - 0.5) * 0.22;
+        const R = 1 + 0.06 * Math.sin(3 * th + s) + 0.045 * Math.sin(5 * th + 2.1 + s) + 0.03 * Math.sin(11 * th + s * 0.7) + (fbm(xd * 0.035, zd * 0.035, 2, 3 + s) - 0.5) * 0.22;
         const Lb = 1 - Math.sqrt(e) / R;
         if (Lb > L) { L = Lb; cliff = B.cliff ? B.cliff(th, x, z) : 0.3; }
+      }
+      // coves: bays bitten out of the coast ({ x, z, r, d, cliff })
+      for (const C of coves) {
+        const d2 = (x - C.x) ** 2 + (z - C.z) ** 2;
+        if (d2 > 9 * C.r * C.r) continue;
+        const k = Math.exp(-d2 / (2 * C.r * C.r));
+        L -= C.d * k;
+        if (C.cliff !== undefined) cliff = cliff + (C.cliff - cliff) * Math.min(1, k * 1.5);
       }
       cliffF[j * NX + i] = cliff;
       landF[j * NX + i] = L;
@@ -125,10 +147,10 @@ export function buildTerrain(spec) {
   for (const RV of rivers) stamp(RV.dense.filter((_, k) => k % 4 === 0), 16, (id, d) => { if (d < rDist[id]) rDist[id] = d; });
   // columns that zones or peaks can raise above the sea (everything else far offshore is open sea)
   const lift = new Uint8Array(N);
-  for (const Z of zones) forDisc(Z.x, Z.z, Z.rp + Z.rb + 10, (id) => { lift[id] = 1; });
+  for (const Z of zones) forDisc(Z.x, Z.z, Z.rp + Z.rb + 15, (id) => { lift[id] = 1; });
   for (const [px, pz, , pr, po] of spec.peaks) forDisc(px, pz, pr * (po?.cone ? po.base ?? 2.8 : 3), (id) => { lift[id] = 1; });
   // zone RBF base height + hills + peaks
-  const sig2 = 2 * 20 * 20;
+  const sig2 = 2 * (20 * SC) ** 2;
   for (let j = 0; j < NZ; j++) {
     const z = cz(j);
     for (let i = 0; i < NX; i++) {
@@ -140,7 +162,7 @@ export function buildTerrain(spec) {
       for (const Z of zones) {
         const d2 = (x - Z.x) ** 2 + (z - Z.z) ** 2;
         const R0 = Z.rp + Z.rb;
-        if (d2 < (R0 + 10) ** 2) near = Math.max(near, 1 - smooth(R0, R0 + 10, Math.sqrt(d2)));
+        if (d2 < (R0 + 15) ** 2) near = Math.max(near, 1 - smooth(R0, R0 + 15, Math.sqrt(d2)));
         const w = Math.exp(-d2 / sig2) + 1e-6;
         ws += w;
         hs += w * (Z.y - 0.5);
@@ -152,10 +174,10 @@ export function buildTerrain(spec) {
       const coast = smooth(0, coastW, L);
       const inland = smooth(0.05, 0.3, L);
       const rd = rDist[id];
-      const calm = smooth(3, 13, rd);
-      let h = (base + 0.4) * coast + (fbm(x * 0.045, z * 0.045, 3, 11) - 0.5) * (z < -80 ? 6.5 : 8) * inland * calm;
+      const calm = smooth(3, 16, rd);
+      let h = (base + 0.4) * coast + (fbm(x * 0.045, z * 0.045, 3, 11) - 0.5) * (z < -80 * SC ? 6.5 : 8) * inland * calm;
       // gentle river valley (never below the beach level inland)
-      if (rd < 16 && L > 0) h = Math.max(Math.min(h, 1.5), h - 3 * Math.exp(-(rd * rd) / (2 * 6 * 6)) * inland);
+      if (rd < 16 && L > 0) h = Math.max(Math.min(h, 1.5), h - 3 * Math.exp(-(rd * rd) / (2 * 8 * 8)) * inland);
       // rolling beach dunes
       if (L > 0 && L < 0.12 && cliff < 0.4) h = Math.max(h, 0.55 + vnoise(x * 0.12, 5, z * 0.12) * 0.6);
       if (L <= 0) h = Math.min(h, L * 40); // open sea
@@ -199,7 +221,7 @@ export function buildTerrain(spec) {
         H[id] = lerp(Z.y - 0.5, H[id], s);
         fine[id] = 1;
       }
-      for (const [bx, bz, by, br, bb] of spec.basins ?? []) {
+      for (const [bx, bz, by, br, bb] of [...(spec.basins ?? []), ...(spec.flats ?? [])]) {
         const d = Math.hypot(x - bx, z - bz);
         if (d > br + bb) continue;
         const s = smooth(br, br + bb, d + (vnoise(x * 0.25, 6, z * 0.25) - 0.5) * 2);
@@ -231,8 +253,23 @@ export function buildTerrain(spec) {
     p.y = Math.max(0.5, lerp(A.y, B.y, u) - 0.5);
     p.seg = seg;
   }
+  // forks: a second trail leaves the road between two arenas and rejoins it before the next gate
+  for (const p of road) p.tag = 0;
+  const branches = [], forkDebug = [];
+  for (const F of spec.forks ?? []) {
+    const B = planBranch(F.chapter, F.frac ?? 0.4);
+    if (!B) continue;
+    branches.push(B);
+    const cut = 14; // ~3.5 units at each end stay plain where the two trails overlap
+    for (let k = B.k0 + cut; k <= B.k1 - cut; k++) road[k].tag = 1;
+    B.pts.forEach((p, i) => { p.tag = i < cut || i > B.pts.length - 1 - cut ? 0 : 2; });
+  }
+  const roadTag = new Uint8Array(N);
   stamp(road, RW + SH, (id, d, p) => {
-    if (d < roadD[id]) { roadD[id] = d; roadY[id] = p.y; }
+    if (d < roadD[id]) { roadD[id] = d; roadY[id] = p.y; roadTag[id] = p.tag; }
+  });
+  for (const B of branches) stamp(B.pts, RW + SH, (id, d, p) => {
+    if (d < roadD[id]) { roadD[id] = d; roadY[id] = p.y; roadTag[id] = p.tag; }
   });
   for (let id = 0; id < N; id++) {
     if (roadD[id] > RW + SH) continue;
@@ -369,10 +406,86 @@ export function buildTerrain(spec) {
   function stamp(pts, r, fn) {
     for (const p of pts) forDisc(p.x, p.z, r, (id, d) => fn(id, d, p));
   }
+  /**
+   * The side trail of chapter c (zone c -> zone c + 1): the stretch of road in the middle `frac` of the
+   * chapter, pushed sideways by up to D units (smooth ramps at both ends). Tries both sides and a few
+   * widths, scoring sea, rivers, other arenas, lagoons and the rest of the road; null when nothing fits.
+   */
+  function planBranch(c, frac) {
+    if (c < 0 || c >= zones.length - 1) return null;
+    const ZA = zones[c], ZB = zones[c + 1];
+    let kA = zIdx[c], kB = zIdx[c + 1];
+    while (kA < kB && Math.hypot(road[kA].x - ZA.x, road[kA].z - ZA.z) < ZA.rp + 4) kA++;
+    while (kB > kA && Math.hypot(road[kB].x - ZB.x, road[kB].z - ZB.z) < ZB.rp + 9) kB--;
+    const n = kB - kA;
+    forkDebug.push({ c, len: Math.round(n * 0.25) });
+    if (n * 0.25 < 40) return null;
+    const others = [];
+    const tan = (k) => {
+      const a = road[Math.max(0, k - 8)], b = road[Math.min(road.length - 1, k + 8)];
+      const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+      return [(b.x - a.x) / l, (b.z - a.z) / l];
+    };
+    let best = null;
+    // centred in the chapter if it fits, else slid toward either end (around a river crossing)
+    for (const shift of [0, -0.13, 0.13, -0.22, 0.22]) {
+      const k0 = kA + Math.round(n * (0.5 - frac / 2 + shift)), k1 = kA + Math.round(n * (0.5 + frac / 2 + shift));
+      if (k0 < kA || k1 > kB) continue;
+      const Lf = (k1 - k0) * 0.25;
+      others.length = 0;
+      for (let k = 0; k < road.length; k += 6) if (k < k0 - 60 || k > k1 + 60) others.push(road[k]);
+      for (const D of [12, 10, 8]) {
+        for (const side of [1, -1]) {
+          const r = clamp((D * 3) / Lf, 0.2, 0.46);
+          const raw = [];
+          for (let k = k0; k <= k1; k++) {
+            const u = (k - k0) / (k1 - k0);
+            const b = smooth(0, r, u) * smooth(0, r, 1 - u);
+            const [tx, tz] = tan(k);
+            raw.push({ x: road[k].x - tz * side * D * b, z: road[k].z + tx * side * D * b, y: road[k].y, b });
+          }
+          // score: sea, rivers (on the branch or the main road beside it), arenas, lagoons, the rest of the road, steep cuts
+          let score = 0;
+          for (let i = 0; i < raw.length; i += 4) {
+            const p = raw[i];
+            const m = road[k0 + i];
+            const im = colAt(m.x, m.z);
+            if (im >= 0 && rDist[im] < 3) score += 5;
+            if (p.b < 0.25) continue;
+            const id = colAt(p.x, p.z);
+            if (id < 0) { score += 10; continue; }
+            if (landF[id] < 0.05) score += 3;
+            if (rDist[id] < 6) score += 5;
+            for (const Z of zones) if (Math.hypot(p.x - Z.x, p.z - Z.z) < Z.rp + Z.rb * 0.5 + 3) score += 5;
+            for (const LG of spec.lagoons ?? []) if (Math.hypot(p.x - LG.x, p.z - LG.z) < LG.r + 5) score += 5;
+            for (const [bx, bz, , br] of spec.basins ?? []) if (Math.hypot(p.x - bx, p.z - bz) < br + 4) score += 5;
+            for (const q of others) if (Math.abs(q.x - p.x) < 12 && Math.abs(q.z - p.z) < 12 && Math.hypot(q.x - p.x, q.z - p.z) < RW * 2 + 6) { score += 5; break; }
+            if (Math.abs(H[id] - p.y) > 7) score += 0.25;
+          }
+          score += Math.abs(shift) * 2 + (12 - D) * 0.04; // prefer centred + wide
+          if (!best || score < best.score - 1e-6) best = { score, D, side, raw, k0, k1 };
+        }
+        if (best.score < 1) break;
+      }
+      if (best && best.score < 1) break;
+    }
+    forkDebug[forkDebug.length - 1].score = best && +best.score.toFixed(2);
+    if (!best || best.score >= 4) return null;
+    // even spacing (0.25) through the offset points
+    const ctrl = best.raw.filter((_, i) => i % 8 === 0 || i === best.raw.length - 1);
+    const pts = densify(ctrl.map((p) => [p.x, p.z]), 0.25);
+    for (const p of pts) {
+      // height: the road's height at the nearest base point
+      let bk = 0, bd = Infinity;
+      for (let i = 0; i < best.raw.length; i += 2) { const q = best.raw[i]; const d = (q.x - p.x) ** 2 + (q.z - p.z) ** 2; if (d < bd) { bd = d; bk = i; } }
+      p.y = best.raw[bk].y;
+    }
+    return { chapter: c, k0: best.k0, k1: best.k1, side: best.side, D: best.D, pts, score: best.score };
+  }
 
   const api = {
-    hv, mat, roadD, roadY, riverD, riverW, riverY, riverK, landF, colBiome,
-    road, zIdx, rivers: riverInfos, river: riverInfos[0], RW,
+    hv, mat, roadD, roadY, roadTag, riverD, riverW, riverY, riverK, landF, colBiome,
+    road, zIdx, branches, forkDebug, rivers: riverInfos, river: riverInfos[0], RW,
     colAt,
     forDisc,
     /** Top surface height (world y) at x,z (0 for water). */
@@ -595,6 +708,9 @@ function paintColorMap(T, spec) {
     [MAT.BASALT]: [0x3c363e, 0x2e2a32, 0x4a424c, 0x5e5660, 0x201c22],
     [MAT.TECH]: [0xbcc2cc, 0xaab0bc, 0xc8ced8, 0xe2e6ee, 0x8e96a2],
     [MAT.LAVACH]: [0x6a1e10, 0x4a1410, 0x8a2a12, 0x8a2a12, 0x3a1010],
+    [MAT.FOREST]: [0x3a9a40, 0x2f8a38, 0x48aa4a, 0x6ac25a, 0x23702e],
+    [MAT.TOWN]: [0xd8ccb4, 0xc4b69c, 0xe6dcc6, 0xf2ead8, 0x9a8a70],
+    [MAT.MEADOW]: [0x74d65a, 0x62c84c, 0x86e066, 0xa8f07a, 0x4fae44],
   };
   const put = (o, hex) => { d[o] = (hex >> 16) & 255; d[o + 1] = (hex >> 8) & 255; d[o + 2] = hex & 255; d[o + 3] = 255; };
   const lcache = new Map();
@@ -623,13 +739,13 @@ function paintColorMap(T, spec) {
       }
       // per-column values
       const P = m === MAT.PLAZA ? (spec.biomeById[T.colBiome[id]]?.plaza ?? pal[MAT.PLAZA]) : (pal[m] ?? pal[MAT.GRASS]);
-      const natural = m !== MAT.ROAD && m !== MAT.PLAZA && m !== MAT.TECH;
+      const natural = m !== MAT.ROAD && m !== MAT.PLAZA && m !== MAT.TECH && m !== MAT.TOWN;
       const n0 = natural ? vnoise(xc * 0.12, 3.3, zc * 0.12) : 0;
       let flower = -1;
-      if (m === MAT.GRASS || m === MAT.LUSH || m === MAT.PASTEL || m === MAT.JUNGLE) {
+      if (m === MAT.GRASS || m === MAT.LUSH || m === MAT.PASTEL || m === MAT.JUNGLE || m === MAT.MEADOW) {
         const fl = hash3(i, j, 5);
         const fz = vnoise(xc * 0.09, 8.1, zc * 0.09);
-        if (fz > (m === MAT.LUSH || m === MAT.PASTEL || m === MAT.JUNGLE ? 0.55 : 0.66) && fl < 0.05) {
+        if (fz > (m === MAT.MEADOW ? 0.3 : m === MAT.LUSH || m === MAT.PASTEL || m === MAT.JUNGLE ? 0.55 : 0.66) && fl < (m === MAT.MEADOW ? 0.11 : 0.05)) {
           flower = m === MAT.PASTEL ? [0xff9ec8, 0xffffff, 0xffc2dc][Math.floor(fl * 60) % 3]
             : m === MAT.JUNGLE ? [0xff4fa3, 0xb05cff, 0xffd23f, 0xff6a3a][Math.floor(fl * 80) % 4] : FLOWERS[Math.floor(fl * 100) % FLOWERS.length];
         }
@@ -654,11 +770,20 @@ function paintColorMap(T, spec) {
         if (m === MAT.ROAD) {
           const rd = roadD[id];
           const gx = ti & 3, gz = tj & 3;
-          if (rd > RW - 0.32) c = 0xc79a5a; // curb
-          else if (rd > RW - 0.6) c = 0xf6e2b0;
-          else if (gx === 0 || gz === 0) c = 0xe0cc9c;
-          else c = ((ti >> 2) + (tj >> 2)) & 1 ? 0xfff4d8 : 0xfbe9c0;
+          // trail colours where the road forks (tag 1 = the main branch, 2 = the side branch)
+          const RP = ROAD_PAL[T.roadTag[id]] ?? ROAD_PAL[0];
+          if (rd > RW - 0.32) c = RP[0]; // curb
+          else if (rd > RW - 0.6) c = RP[1];
+          else if (gx === 0 || gz === 0) c = RP[2];
+          else c = ((ti >> 2) + (tj >> 2)) & 1 ? RP[3] : RP[4];
           if (hs < 0.04 && rd < RW - 0.6 && gx && gz) c = lighten(c, -0.05);
+        } else if (m === MAT.TOWN) {
+          // cobblestones: staggered rows of 3x2-texel stones with dark grout, a few mossy or pale ones
+          const row = tj >> 1, off = (row & 1) * 2;
+          const gx = (ti + off) % 4, gz = tj & 1;
+          const st = hash3((ti + off) >> 2, row, 41);
+          c = gx === 0 || (gz === 0 && ((ti + off) & 3) === 2) ? P[4] : st < 0.33 ? P[0] : st < 0.66 ? P[1] : st < 0.94 ? P[2] : P[3];
+          if (gx !== 0 && hash3(ti, tj, 43) < 0.025) c = 0x8aa070;
         } else if (m === MAT.PLAZA) {
           const gx = ti % 3, gz = tj % 3;
           c = gx === 0 || gz === 0 ? P[1] : (((Math.floor(ti / 3) + Math.floor(tj / 3)) & 1) ? P[0] : P[2]);
@@ -695,6 +820,11 @@ function paintColorMap(T, spec) {
             if (hs > 0.94 && hs <= 0.955) c = 0xc8642a;
             else if (hs > 0.995) c = 0xe8e2d4;
             else if (vnoise(x * 0.3, 4, z * 0.3) > 0.7) c = (ti & 1) ? 0x4a3a40 : 0x54444a;
+          } else if (m === MAT.FOREST) {
+            // needle + leaf litter under the trees, the odd red mushroom
+            if (hs > 0.92 && hs <= 0.955) c = (ti & 1) ? 0x8a6a3a : 0x6e5430;
+            else if (hash3(ti, tj, 91) < 0.004) c = 0xe8343c;
+            else if (vnoise(x * 0.35, 3, z * 0.35) > 0.7) c = (ti + tj) & 1 ? 0x2a7a34 : 0x33863a;
           } else if (m === MAT.BASALT) {
             // cooling lava cracks between the obsidian plates
             const cr = vnoise(x * 0.45, 7, z * 0.45);

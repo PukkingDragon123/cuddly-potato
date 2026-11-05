@@ -31,6 +31,8 @@ import { BASE_UPGRADES } from '../../data/labs.js';
 import { cardDef } from '../../data/cards.js';
 import { cardArtImg } from '../../ui/thumbs.js';
 import { rankMedal, setRankMedal } from '../../ui/rankMedal.js';
+import { sideAvatarEl } from '../../ui/avatar.js';
+import { MASTERY_NAMES } from '../../data/mastery.js';
 import { Stage3D } from '../../ui/stage3d.js';
 import { VoxGrid, makeMesh } from '../../core/voxel.js';
 
@@ -492,15 +494,19 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
   // bases: HP left (each name carries its Lab Level rank medal)
   let levels = opts.levels;
   if (!levels) { try { levels = engine.current?.cfg?.sides?.map((sd) => sd?.labLevel) ?? []; } catch (e) { levels = []; } }
+  // profile pictures (src/ui/avatar.js) from the battle's side configs
+  let sideCfgs = opts.sides;
+  if (!sideCfgs) { try { sideCfgs = engine.current?.cfg?.sides ?? []; } catch (e) { sideCfgs = []; } }
   const baseRow = (i) => {
     const b = bases[i];
     const fill = h('i', { class: 'f' });
     const pct = h('span', { class: 'pc' }, '100%');
     const lv = levels[i];
     const medal = lv ? rankMedal(lv, { cls: 'cn-rank', shine: false }) : null;
+    const av = sideCfgs?.[i] ? sideAvatarEl(sideCfgs[i], { cls: 'cn-av', anim: false }) : null;
     const who = [h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')];
     const el = h('div', { class: `cn-base s${i}` },
-      medal ? h('div', { class: 'nm rk' }, medal, h('div', { class: 'nmc' }, who)) : h('div', { class: 'nm' }, who),
+      medal || av ? h('div', { class: 'nm rk' }, av, medal, h('div', { class: 'nmc' }, who)) : h('div', { class: 'nm' }, who),
       h('b', { class: 'bar sk-well' }, h('i', { class: 'fw' }, fill), pct));
     return { el, fill, pct, b, medal };
   };
@@ -663,6 +669,10 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     const labTo = r.labUps?.length ? r.labUps[r.labUps.length - 1].level ?? r.labUps[r.labUps.length - 1] : null;
     const labMedal = labTo ? rankMedal(Math.max(1, labTo - r.labUps.length), { cls: 'cn-up-rank' }) : null;
     if (labTo) ups.push(h('span', { class: 'cn-up-lab' }, labMedal, `Lab Level ${labTo}!`));
+    // TROOP MASTERY: levels that just became claimable (claim them from the card's info)
+    const ms = (r.mastery ?? []).filter((x) => cardDef(x.id));
+    for (const x of ms.slice(0, 2)) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `${cardDef(x.id).name}: ${MASTERY_NAMES[x.level - 1]} mastery ready!`));
+    if (ms.length > 2) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `+${ms.length - 2} more mastery rewards in CARDS`));
     if (ups.length) {
       const el = h('div', { class: 'cn-ups' }, ups);
       board.appendChild(el);

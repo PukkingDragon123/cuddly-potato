@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { VoxGrid, Mats } from '../../core/voxel.js';
 import { text } from '../props/common.js';
 import { mulberry32, hash3, shade } from '../../core/util.js';
-import { MAT } from './terrain.js';
+import { MAT, SC } from './terrain.js';
 import * as P from './props.js';
 
 const _o = new THREE.Object3D();
@@ -272,7 +272,7 @@ export function addIslandExtras(ctx) {
     root.add(blimp);
     updaters.push((dt, t) => {
       const a = t * 0.018 + 1.2;
-      const x = CX + Math.cos(a) * 118, z = CZ + 40 + Math.sin(a) * 150;
+      const x = CX + Math.cos(a) * 118 * SC, z = CZ + 40 * SC + Math.sin(a) * 150 * SC;
       blimp.position.set(x, 58 + Math.sin(t * 0.21) * 1.5, z);
       blimp.rotation.set(Math.sin(t * 0.3) * 0.03, Math.atan2(-Math.sin(a) * 118, Math.cos(a) * 150), Math.sin(t * 0.17) * 0.04, 'YXZ');
       prop.rotation.z = t * 6;
@@ -293,7 +293,7 @@ export function addIslandExtras(ctx) {
     const p0 = new THREE.Vector3(), p1 = new THREE.Vector3();
     const path = (t, out) => {
       const a = t * 0.045;
-      return out.set(CX - 5 + Math.sin(a) * 95, 42 + Math.sin(a * 2) * 3, CZ + 70 + Math.sin(a * 2) * 48);
+      return out.set(CX + (-5 + Math.sin(a) * 95) * SC, 42 + Math.sin(a * 2) * 3, CZ + (70 + Math.sin(a * 2) * 48) * SC);
     };
     updaters.push((dt, t) => {
       path(t, p0); path(t + 0.25, p1);
@@ -315,7 +315,7 @@ export function addIslandExtras(ctx) {
     const spout = liveIM(spoutGeo, 18);
     root.add(spout);
     const SP = Array.from({ length: 18 }, () => ({ a: R() * 6.28, r: R(), up: 0.6 + R() * 0.6, ph: R() }));
-    const spots = [[CX + 128, CZ + 30], [CX + 120, CZ + 120], [CX - 120, CZ + 90], [CX - 125, CZ - 40]];
+    const spots = [[CX + 128 * SC, CZ + 30 * SC], [CX + 120 * SC, CZ + 120 * SC], [CX - 120 * SC, CZ + 90 * SC], [CX - 125 * SC, CZ - 40 * SC]];
     const per = 22;
     updaters.push((dt, t) => {
       const cyc = Math.floor(t / per), k = (t % per) / per;
@@ -345,7 +345,7 @@ export function addIslandExtras(ctx) {
     const D = [0, 1, 2].map((i) => ({ ph: i * 0.33, off: i * 2.2 }));
     updaters.push((dt, t) => {
       const a = t * 0.06;
-      const cx = -36 + Math.cos(a) * 26, cz = 82 + Math.sin(a) * 8;
+      const cx = -48 + Math.cos(a) * 36, cz = 138 + Math.sin(a) * 10;
       const hx = -Math.sin(a), hz = Math.cos(a) * 0.3;
       const yaw = Math.atan2(hx, hz);
       for (let i = 0; i < 3; i++) {
@@ -393,8 +393,8 @@ export function addIslandExtras(ctx) {
   // ---- beach life on the south sand (around the lab beach)
   {
     const sandSpots = [];
-    for (let i = 0; i < 1400 && sandSpots.length < 70; i++) {
-      const x = -70 + R() * 120, z = 40 + R() * 40;
+    for (let i = 0; i < 2400 && sandSpots.length < 90; i++) {
+      const x = (-70 + R() * 120) * SC, z = (40 + R() * 50) * SC;
       if (T.matAt(x, z) !== MAT.SAND) continue;
       const id = T.colAt(x, z);
       if (id < 0 || T.roadD[id] < T.RW + 1.5) continue;

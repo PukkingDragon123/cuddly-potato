@@ -40,12 +40,12 @@ export const ENTRANCES = {
   },
   glitchTeleport: {
     name: 'Glitch Teleport', icon: 'bolt', color: '#3ff2e0', pass: true, ghost: 700,
-    desc: 'FOOD PASS: beams in through a glitching column of pixels. Mostly in one piece.',
+    desc: 'Beams in through a glitching column of pixels. Arrives mostly in one piece.',
     line: 'Did I lag? I lagged.',
   },
   rocketDrop: {
     name: 'Rocket Drop', icon: 'rocket', color: '#ff8a2a', pass: true, ghost: 900,
-    desc: 'FOOD PASS: rides a soda rocket in and bails out at the last second.',
+    desc: 'Rides a soda rocket in and bails out at the last second.',
     line: 'Who needs brakes?',
   },
   redCarpet: {
@@ -74,8 +74,8 @@ export const ENTRANCES = {
     line: 'Keep it running.',
   },
   moneyRain: {
-    name: 'Money Rain', icon: 'bucksPile', color: '#5fdc4a', price: 800, ghost: 3400,
-    desc: 'It rains Beast Bucks. You stroll through it like it is a normal Tuesday.',
+    name: 'Money Rain', icon: 'bag', color: '#5fdc4a', price: 800, ghost: 3400,
+    desc: 'It rains cash. You stroll through it like it is a normal Tuesday.',
     line: 'Keep the change.',
   },
   hypeParade: {

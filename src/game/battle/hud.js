@@ -21,6 +21,7 @@ import './lineup.css';
 import { h, icon, iconURL, button, bigBanner, speech, sparkle, bump, burst, $overlay } from '../../ui/ui.js';
 import { cardEl } from '../../ui/cards.js';
 import { rankMedal } from '../../ui/rankMedal.js';
+import { sideAvatarEl } from '../../ui/avatar.js';
 import { charPortrait, cardArtImg, swarmThumb, baseSpin } from '../../ui/thumbs.js';
 import { cardDef } from '../../data/cards.js';
 import { SPELLS } from '../../data/spells.js';
@@ -209,6 +210,8 @@ export class BattleHUD {
     const end = (i) => {
       const c = cfg.sides[i];
       const nm = h('span', { class: `tw-nm s${i}` },
+        // profile picture + frame (src/ui/avatar.js), then the rank medal
+        sideAvatarEl(c, { cls: 'tw-av', anim: false }),
         c.labLevel ? rankMedal(c.labLevel, { cls: 'tw-rank', shine: false }) : null,
         h('b', {}, c.name ?? (i ? 'Rival' : 'You')),
         c.trophies !== undefined ? h('i', { class: 'tr' }, icon('trophy'), String(c.trophies)) : null);

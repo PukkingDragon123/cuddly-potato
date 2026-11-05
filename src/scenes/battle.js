@@ -29,6 +29,8 @@ import { BattleHUD, EMOTES } from '../game/battle/hud.js';
 import { Placement } from '../game/battle/placement.js';
 import { FIELD } from '../game/battle/field.js';
 import { vsIntro } from '../game/battle/vsIntro.js';
+import { setupEntrances } from '../game/battle/entranceCine.js';
+import { featureUnlocked } from '../game/progression.js';
 import { showResult, finalBlow } from '../game/battle/result.js';
 import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
@@ -43,6 +45,7 @@ import { net } from '../net/p2p.js';
 import { HostSync, RemoteSim } from '../game/battle/netsync.js';
 import { lobby } from '../net/lobby.js';
 import { commanderCfg, playerSide, deckEntry } from '../game/battle/loadout.js';
+import { ghostLook, AVATARS } from '../data/profileItems.js';
 import { prewarmBattle } from '../game/battle/prewarm.js';
 import { battleLocks, applyBattleLocks, battleAllowed, battleLessons } from '../ui/guide.js';
 
@@ -84,6 +87,7 @@ export class BattleScene {
       enemy = {
         name: 'Jimmy', deck: ['toiletRollRipper', 'trashedCan'].map((id) => deckEntry(id, 1)),
         commander: commanderCfg('jimmy', 1), handicap: { regen: -0.5 }, labStyle: 'mansion', labLevel: 1, hpMult: 0.4, clan: 'MrBeast Lab',
+        avatar: 'cmd_jimmy', frame: 'gold',
       };
       aiOpts = { difficulty: 0.05, maxLab: 0, noSpells: true, sigDelay: 9999 };
     } else if (mode === 'boss') {
@@ -93,6 +97,7 @@ export class BattleScene {
         name: b.name, deck: b.deck.map((id) => deckEntry(id, b.level)), commander: b.commander ? commanderCfg(b.commander, Math.min(10, b.level)) : null,
         research: researchForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString(b.id ?? b.name))), labStyle: b.lab ?? 'rival', labLevel: b.level + 1, hpMult: 1.2, clan: 'BOSS CHALLENGE',
         modules: modulesForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString((b.id ?? b.name) + ':mods'))),
+        avatar: AVATARS['troop_' + b.boss] ? 'troop_' + b.boss : 'lab_skull', frame: 'boss',
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
       aiOpts = { difficulty: Math.min(0.9, 0.5 + b.level * 0.05) };
@@ -104,7 +109,7 @@ export class BattleScene {
     } else if (mode === 'practice') {
       enemy = {
         name: 'Training Bot', deck: ['panther', 'trashedCan', 'cloggedToilet', 'pizzaSlicer', 'fryFiend', 'toiletRollRipper', 'foodThrow', 'moneyDrop'].slice(0, Math.max(3, me.deck.length)).map((id) => deckEntry(id, 1)),
-        commander: commanderCfg('recruit', 1), labStyle: 'rival', labLevel: 1, clan: 'Practice',
+        commander: commanderCfg('recruit', 1), labStyle: 'rival', labLevel: 1, clan: 'Practice', avatar: 'lab_goggles', frame: 'hazard',
       };
       aiOpts = { difficulty: 0.25, maxLab: 1 };
     } else {
@@ -112,6 +117,8 @@ export class BattleScene {
       enemy = {
         name: g.name, deck: g.deck.map((id) => deckEntry(id, g.level)), commander: commanderCfg(g.commander, g.cmdLevel), research: g.research ?? {}, handicap: g.handicap ?? null, perks: g.perks ?? {}, hpMult: g.hpMult, mega: g.mega ?? null,
         labStyle: ['rival', 'martLab', 'chocoLab', 'default'][g.name.length % 4], labLevel: g.labLevel, banner: g.banner, trophies: g.trophies, clan: g.clan, ghost: true,
+        // profile looks like a player at these trophies (src/data/profileItems.js)
+        ...ghostLook(g.trophies ?? 0, g.name),
         // LAB MODULES like a player at these trophies (src/data/labModules.js)
         modules: g.modules ?? modulesForTrophies(g.trophies ?? 0, g.labLevel ?? 1, mulberry32(hashString(g.name + ':mods'))),
       };
@@ -189,6 +196,8 @@ export class BattleScene {
     if (params.dev) window.__battle = this;
     this.bindInput();
     audio.music(mode === 'boss' ? 'boss' : 'battle');
+    // battle ENTRANCES (entranceCine.js): both Commanders walk on after the VS intro (props baked now)
+    try { this.entrances = featureUnlocked('entrances') ? setupEntrances(this.view, cfg, mode) : null; } catch (e) { console.warn('entrances', e); this.entrances = null; }
     await prewarmBattle(this); // deck models + shaders now (behind the loading screen), not on each card's first deploy
     if (this.dead) return;
     this.intro();
@@ -201,11 +210,16 @@ export class BattleScene {
     v.autoFollow = false;
     v.focus(20, 99);
     v.updateCamera(0, true);
-    const vs = vsIntro($overlay(), this.cfg, { hold: this.mode === 'tutorial' ? 1600 : 2000, arena: arenaById(this.arenaId), boss: this.mode === 'boss' });
-    await wait(0.6);
-    v.focus(-20, 99);
+    const ent = this.entrances;
+    const vs = vsIntro($overlay(), this.cfg, { hold: this.mode === 'tutorial' ? 1600 : ent ? 1500 : 2000, arena: arenaById(this.arenaId), boss: this.mode === 'boss' });
+    // with entrances the camera stays on the rival's base: their walk-in comes first
+    if (!ent) { await wait(0.6); v.focus(-20, 99); }
     await vs;
     if (this.dead) return;
+    if (ent) {
+      await ent.play();
+      if (this.dead) return;
+    }
     v.manualT = 0;
     v.autoFollow = true;
     this.hud.setVisible(true);
@@ -483,7 +497,12 @@ export class BattleScene {
     if ((ev.type === 'hit' || ev.type === 'towerHit') && ev.src?.card && ev.src.side === 0) {
       const d = (this.cardDmg ??= {});
       d[ev.src.card] = (d[ev.src.card] ?? 0) + (ev.amount ?? 0);
+      // TROOP MASTERY (src/data/mastery.js): damage to bases per card
+      if (ev.type === 'towerHit') { const b = (this.cardBase ??= {}); b[ev.src.card] = (b[ev.src.card] ?? 0) + (ev.amount ?? 0); }
     }
+    // TROOP MASTERY: card plays (not units) and knockouts per card
+    if (ev.type === 'deploy' && ev.side === 0 && ev.card) { const c = (this.cardPlays ??= {}); c[ev.card] = (c[ev.card] ?? 0) + 1; }
+    else if (ev.type === 'death' && ev.killerSide === 0 && !ev.silent && ev.src?.card && ev.src.side === 0) { const k = (this.cardKos ??= {}); k[ev.src.card] = (k[ev.src.card] ?? 0) + 1; }
     if (ev.type === 'end') this.endReason = ev.reason;
     else if (ev.type === 'labUp' && ev.side === 0) this.baseUps = (this.baseUps ?? 0) + 1;
     else if (ev.type === 'megaStart') {
@@ -668,6 +687,7 @@ export class BattleScene {
 
   exit() {
     this.dead = true;
+    this.entrances?.abort();
     const c = engine.canvas;
     c.removeEventListener('pointerdown', this.onDown);
     window.removeEventListener('pointermove', this.onMove);
@@ -935,7 +955,8 @@ export class BattleScene {
     if (this.mode === 'tutorial') return this.tutorialEnd(win, bases, names);
     if (this.mode === 'friend') return this.friendEnd(res, bases, names);
     if (this.mode === 'online') return this.onlineEnd(res, bases, names);
-    const rewards = battleRewards({ result: res, margin: bases[0].frac, arenaId: this.arenaId, mode: this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId });
+    const mastery = { deck: (this.cfg.sides[0].deck ?? []).map((d) => d.id), plays: this.cardPlays ?? {}, kos: this.cardKos ?? {}, dmg: this.cardDmg ?? {}, base: this.cardBase ?? {} };
+    const rewards = battleRewards({ result: res, margin: bases[0].frac, arenaId: this.arenaId, mode: this.mode, opponentTrophies: this.opponentTrophies ?? state.p.trophies, bossId: this.params.bossId, mastery });
     state.save();
     const again = this.mode === 'boss' ? 'RETRY' : this.mode === 'practice' ? 'AGAIN' : null;
     const btns = [{ id: 'ok', label: 'OK', color: 'blue' }];

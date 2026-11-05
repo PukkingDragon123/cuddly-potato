@@ -334,3 +334,9 @@ body.landscape .cdlg.bk-dlg .cdlg-panel { left: calc(var(--bk-left) + (100vw - v
   .bk-shutter, .bk-curtain { transition: none; }
   .bk-burst, .bk-vault-glow, .bk-vault-vial, .bk-coin-art, .bk-vtile-art .mn-vial, .bk-wide-art > * { animation: none !important; }
 }
+/* battle entrances: lock hint + trophy / locked labels (entrance tiles) */
+.bk-ent-hint { display: flex; align-items: center; justify-content: center; gap: 0.4em; margin: 0 0 calc(var(--u) * 1.2); padding: calc(var(--u) * 1) calc(var(--u) * 1.6); font-size: 0.9em; color: #fff; background: rgba(5, 3, 20, 0.55); box-shadow: 0 0 0 var(--px) var(--ink); text-shadow: var(--outline-thin); }
+.bk-ent-hint .pi { width: 1.2em; height: 1.2em; flex: none; }
+.bk-ent-hint b { color: #ffd84a; }
+.bk-pass.bk-ent-tro { color: #ffd84a; }
+.bk-pass.bk-ent-lock { color: #c8d0ff; }

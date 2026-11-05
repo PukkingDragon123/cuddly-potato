@@ -1,12 +1,16 @@
 // Trophy Road mode of the home lobby: the road is part of Beast Island
 // (models/island/trophyPath.js), so "opening" it flies the island camera down
 // onto the road at your position. Drag pans along the road (with inertia, then
-// it settles on the nearest milestone), tapping a chest focuses it, CLAIM pops
-// the chest. Also owns the YOU marker (your Commander + a YOU flag standing at
-// your trophy count) and paints the floating reward art into the road's atlas.
+// it settles on the nearest stop), tapping a chest focuses it, CLAIM pops the
+// chest. Stops are the chests plus the fork signposts: at a fork you pick the
+// COIN TRAIL or the VIAL TRAIL (game/roadForks.js) and the camera route, the
+// barricades and the YOU marker follow your pick. Also owns the YOU marker (your
+// Commander + a YOU flag standing at your trophy count) and paints the floating
+// reward art into the road's atlas.
 //
 //   const road = setupIslandRoad(home);   // after the island + populate, before static batching
 //   road.open(key?)  road.close()  road.active  road.refresh()  road.update(dt)  road.dispose()
+//   road.stops[i]  { kind: 'chest', i (milestone), M } | { kind: 'fork', f (TP fork), F (data) }
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
@@ -20,7 +24,8 @@ import { ARENAS } from '../data/arenas.js';
 import { SPELLS } from '../data/spells.js';
 import { cardDef } from '../data/cards.js';
 import { state, claimTrophyRoad } from '../game/state.js';
-import { iconURL } from '../ui/ui.js';
+import { forkChoice, forkItemState, claimForkItem, chooseFork, pendingForks, forkReached, forkDone } from '../game/roadForks.js';
+import { iconURL, speech } from '../ui/ui.js';
 import { swarmThumbAsync, spellThumbAsync, labSkinThumb } from '../ui/thumbs.js';
 import { cmdOverride } from '../ui/home/common.js';
 
@@ -81,24 +86,58 @@ export function setupIslandRoad(home) {
   you.rotation.y = faceY;
   let youS = 0;
   function placeYou() {
-    youS = TP.sOfTrophies(state.p.trophies);
+    youS = TP.sOfTrophies(state.p.trophies, picks());
     TP.posAt(youS, _v);
     you.position.set(_v.x, _v.y, _v.z);
   }
-  placeYou();
+
+  // ------------------------------------------------ stops: every chest + every fork signpost, in road order
+  const forks = TP.forks ?? [];
+  const stops = [];
+  ms.forEach((M, i) => stops.push({ kind: 'chest', i, M, t: M.t, ord: M.side === 'b' ? 2 : M.side === 'a' ? 1 : 0 }));
+  for (const f of forks) stops.push({ kind: 'fork', f, F: f.F, t: f.F.lo, ord: 0.5 });
+  stops.sort((a, b) => a.t - b.t || a.ord - b.ord);
+  const stopOfMs = new Map(stops.map((st, k) => [st.kind === 'chest' ? st.i : -1 - forks.indexOf(st.f), k]));
+  const picks = () => Object.fromEntries(forks.map((f) => [f.id, forkChoice(f.id)]).filter(([, c]) => c));
 
   // ------------------------------------------------ chest states (+ taps on the island open the road)
-  const stateOf = (M) => (state.p.trophyRoad[M.key] ? 'claimed' : state.p.bestTrophies >= M.t ? 'ready' : 'locked');
+  const stateOf = (M) => {
+    if (M.fork) return forkItemState(M.m);
+    return state.p.trophyRoad[M.key] ? 'claimed' : state.p.bestTrophies >= M.t ? 'ready' : 'locked';
+  };
+  /** 'ready' | 'claimed' | 'locked' for chests; 'pick' | 'picked' | 'open' | 'ahead' for forks. */
+  const stopState = (k) => {
+    const st = stops[k];
+    if (!st) return 'locked';
+    if (st.kind === 'chest') return stateOf(st.M);
+    if (forkDone(st.F)) return 'open';
+    if (forkChoice(st.F.id)) return 'picked';
+    return forkReached(st.F) ? 'pick' : 'ahead';
+  };
+  function applyRoute(animate = false) {
+    const ch = picks();
+    TP.setChoices?.(ch);
+    for (const f of forks) {
+      const c = ch[f.id];
+      TP.setBarrier?.(f.id, c && !forkDone(f.F) ? (c === 'a' ? 'b' : 'a') : null, { animate });
+    }
+  }
   function applyStates() {
     ms.forEach((M, i) => { if (M.state !== 'opening') TP.setState(i, stateOf(M)); });
     for (const A of ARENAS) TP.setGateLocked(A.id, I.isLocked(A.id));
   }
+  applyRoute();
   applyStates();
+  placeYou();
+  const roadLocked = () => home.roadBtn?.classList.contains('pg-lock');
   ms.forEach((M, i) => home.addPick(M.chest, () => {
     // the road button knows whether the Trophy Road is unlocked yet (ui/guide.js gates its taps)
-    if (home.roadBtn?.classList.contains('pg-lock')) { home.roadBtn.click(); return; }
+    if (roadLocked()) { home.roadBtn.click(); return; }
     ctl.open(i);
   }, { radius: 1.3 }));
+  for (const f of forks) for (const sd of ['a', 'b']) {
+    home.addPick(f.signs[sd].mesh, () => { if (roadLocked()) { home.roadBtn.click(); return; } ctl.open('fork:' + f.id); }, { radius: 1.4, tagH: 2.4 });
+  }
 
   // ------------------------------------------------ reward art (painted progressively, nearest first)
   const atlas = TP.atlas;
@@ -191,13 +230,14 @@ export function setupIslandRoad(home) {
   }
 
   // ------------------------------------------------ road camera
-  let pitchTab = null, pitchDist = 0;
+  let pitchTab = null, pitchDist = 0, pitchLen = 0;
   const camDist = () => {
     const a = home.camera.aspect;
     return a < 1 ? 31 * Math.min(1.9, Math.max(1, 0.8 / a)) : a < 1.4 ? 34 : 31;
   };
   function buildPitch(dist) {
     pitchDist = dist;
+    pitchLen = TP.length;
     const n = Math.ceil(TP.length) + 1;
     const raw = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -227,15 +267,34 @@ export function setupIslandRoad(home) {
     const u = Math.max(0, Math.min(1, s - i));
     return pitchTab[i] + (pitchTab[i + 1] - pitchTab[i]) * u;
   };
+  // sideways framing offset: a chest on the trail you are not following, or a whole fork, sits off the route
+  const lat = new THREE.Vector3(), latTo = new THREE.Vector3();
   function camFor(s, out) {
     const dist = pitchDist;
     TP.posAt(s, _w);
-    const look = out.look.set(_w.x, _w.y + 1.1, _w.z);
+    const look = out.look.set(_w.x + lat.x, _w.y + 1.1, _w.z + lat.z);
     // the bottom card covers the lower screen: aim a touch below the road so it sits above the card
     look.y -= dist * 0.012;
     const r = (pitchAt(s) * Math.PI) / 180;
     out.pos.set(look.x + camDir.x * Math.cos(r) * dist, look.y + Math.sin(r) * dist, look.z + camDir.y * Math.cos(r) * dist);
     return out;
+  }
+  /** Route position + sideways offset that frame stop k. */
+  function stopFrame(k) {
+    const st = stops[k];
+    if (st.kind === 'chest') {
+      const M = st.M;
+      TP.posAt(M.s, _w);
+      latTo.set(M.roadPos.x - _w.x, 0, M.roadPos.z - _w.z);
+      if (latTo.lengthSq() < 4) latTo.set(0, 0, 0);
+      return M.s;
+    }
+    // a fork: both trail signs and the first stretch of both trails
+    const f = st.f;
+    const sMid = f.sSign + 4;
+    TP.posAt(sMid, _w);
+    latTo.set(f.signPos.x - _w.x, 0, f.signPos.z - _w.z).multiplyScalar(0.9);
+    return sMid;
   }
 
   // ------------------------------------------------ the mode itself
@@ -243,45 +302,63 @@ export function setupIslandRoad(home) {
   let active = false, flying = false, disposed = false;
   let s = 0, v = 0, target = null, focus = -1, drag = null, lastShadow = -99;
   const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
-  const nearestMilestone = (sv) => {
+  const stopS = (k) => { const st = stops[k]; return st.kind === 'chest' ? st.M.s : st.f.sSign + 4; };
+  const nearestStop = (sv) => {
     let bi = -1, bd = Infinity;
-    ms.forEach((M, i) => { const d = Math.abs(M.s - sv); if (d < bd) { bd = d; bi = i; } });
+    stops.forEach((st, k) => {
+      // stops on the trail you are not following are skipped when settling after a drag
+      if (st.kind === 'chest' && st.M.fork && (forkChoice(st.M.fork) ?? 'a') !== st.M.side) return;
+      const d = Math.abs(stopS(k) - sv);
+      if (d < bd) { bd = d; bi = k; }
+    });
     return bi;
   };
-  function setFocus(i, fly = true) {
-    if (i < 0 || i >= ms.length) return;
-    focus = i;
-    TP.setFocus(i);
-    if (fly) target = ms[i].s;
-    hud?.focus(i);
+  function setFocus(k, fly = true) {
+    if (k < 0 || k >= stops.length) return;
+    focus = k;
+    const st = stops[k];
+    TP.setFocus(st.kind === 'chest' ? st.i : -1);
+    if (fly) target = stopFrame(k);
+    else stopFrame(k);
+    hud?.focus(k);
   }
   function firstFocus(key) {
     if (key !== undefined && key !== null) {
+      if (typeof key === 'string' && key.startsWith('fork:')) {
+        const j = stops.findIndex((st) => st.kind === 'fork' && st.f.id === key.slice(5));
+        if (j >= 0) return j;
+      }
       const i = typeof key === 'number' ? key : ms.findIndex((M) => M.key === key);
-      if (i >= 0) return i;
+      if (i >= 0 && stopOfMs.has(i)) return stopOfMs.get(i);
     }
-    // a claimable reward near you, else the next reward ahead of you
-    const ready = ms.map((M, i) => i).filter((i) => stateOf(ms[i]) === 'ready');
-    const close = ready.filter((i) => Math.abs(ms[i].s - youS) < 26);
+    // a fork waiting for your pick first, then a claimable reward near you, else the next reward ahead
+    const pend = pendingForks()[0];
+    if (pend) { const j = stops.findIndex((st) => st.kind === 'fork' && st.f.id === pend.id); if (j >= 0) return j; }
+    const ready = stops.map((st, k) => k).filter((k) => stopState(k) === 'ready');
+    const close = ready.filter((k) => Math.abs(stopS(k) - youS) < 30);
     if (close.length) return close[close.length - 1];
-    const next = ms.findIndex((M) => M.t > state.p.trophies);
-    return next >= 0 ? next : ms.length - 1;
+    if (ready.length) return ready[ready.length - 1];
+    const next = stops.findIndex((st) => st.t > state.p.trophies && (st.kind === 'fork' || !st.M.fork || (forkChoice(st.M.fork) ?? 'a') === st.M.side));
+    return next >= 0 ? next : stops.length - 1;
   }
 
   const ctl = {
     get active() { return active; },
     milestones: ms,
+    stops,
     get focus() { return focus; },
-    stateOf: (i) => stateOf(ms[i]),
+    stateOf: (k) => stopState(k),
     async open(key) {
       if (active || disposed) { if (active && key !== undefined) setFocus(firstFocus(key)); return; }
       active = true;
       flying = true;
       const dist = camDist();
-      if (!pitchTab || Math.abs(dist - pitchDist) > 0.5) buildPitch(dist);
-      const i0 = firstFocus(key);
-      // start at your position, then glide to the focused reward
-      s = Math.abs(ms[i0].s - youS) < 30 ? youS : ms[i0].s;
+      if (!pitchTab || Math.abs(dist - pitchDist) > 0.5 || pitchLen !== TP.length) buildPitch(dist);
+      const k0 = firstFocus(key);
+      // start at your position, then glide to the focused stop
+      const s0 = stopFrame(k0);
+      lat.copy(latTo);
+      s = Math.abs(s0 - youS) < 30 ? youS : s0;
       v = 0;
       target = null;
       focus = -1;
@@ -297,16 +374,17 @@ export function setupIslandRoad(home) {
         hudMod = hudMod ?? (await import('../ui/home/trophyRoad.js'));
         if (!active) return;
         hud = hudMod.mountIslandRoad(ctl, home.ctx());
-        // the card shows the focused reward while the camera is still flying in
-        focus = i0;
-        TP.setFocus(i0);
-        hud.focus(i0);
+        // the card shows the focused stop while the camera is still flying in
+        focus = k0;
+        const st = stops[k0];
+        TP.setFocus(st.kind === 'chest' ? st.i : -1);
+        hud.focus(k0);
       } catch (e) { console.warn('trophy road hud', e); }
       bindInput();
       await arrived;
       if (!active) return;
       flying = false;
-      setFocus(i0, true);
+      setFocus(k0, true);
     },
     close() {
       if (!active) return;
@@ -320,28 +398,57 @@ export function setupIslandRoad(home) {
       home.root?.classList.remove('hm-road');
       home.placeZone(home.zoneIdx, false, 1.1);
     },
-    /** Pan to and focus milestone i. */
-    focusOn(i) { setFocus(i, true); },
-    step(d) { setFocus(Math.max(0, Math.min(ms.length - 1, (focus < 0 ? nearestMilestone(s) : focus) + d)), true); },
+    /** Pan to and focus stop k. */
+    focusOn(k) { setFocus(k, true); },
+    step(d) {
+      let k = focus < 0 ? nearestStop(s) : focus;
+      k = Math.max(0, Math.min(stops.length - 1, k + d));
+      setFocus(k, true);
+    },
     nextClaimable() {
-      const list = ms.map((M, i) => i).filter((i) => stateOf(ms[i]) === 'ready');
+      const list = stops.map((st, k) => k).filter((k) => stopState(k) === 'ready' || stopState(k) === 'pick');
       if (!list.length) return;
-      const after = list.find((i) => i > focus);
+      const after = list.find((k) => k > focus);
       setFocus(after ?? list[0], true);
     },
     youS: () => youS,
     youObj: () => you,
-    /** Claim milestone i: the chest pops open (the HUD adds the pixel confetti + the reward flying to the UI). Returns the granted rewards. */
-    claim(i) {
-      const M = ms[i];
-      if (!M || stateOf(M) !== 'ready') return [];
-      TP.open(i); // before the claim: its state change refreshes every chest
-      const got = claimTrophyRoad(M.m);
-      if (!got.length) { TP.setState(i, stateOf(M)); return got; }
+    debug: () => ({ s, target, flying, focus, lat: lat.toArray().map((x) => +x.toFixed(2)), active }),
+    /** Claim the chest at stop k: it pops open (the HUD adds the pixel confetti + the reward flying to the UI). Returns the granted rewards. */
+    claim(k) {
+      const st = stops[k];
+      if (!st || st.kind !== 'chest') return [];
+      const M = st.M;
+      if (stateOf(M) !== 'ready') return [];
+      TP.open(st.i); // before the claim: its state change refreshes every chest
+      const got = M.fork ? claimForkItem(M.m) : claimTrophyRoad(M.m);
+      if (!got.length) { TP.setState(st.i, stateOf(M)); return got; }
       audio.play('chaching');
       audio.play('pop', { pitch: 1.2 });
+      setTimeout(() => audio.play('coin', { pitch: 1.1 }), 260);
       engine.shake(0.12);
       return got;
+    },
+    /** Pick a trail at fork stop k. */
+    choose(k, sd) {
+      const st = stops[k];
+      if (!st || st.kind !== 'fork' || !chooseFork(st.f.id, sd)) return false;
+      applyRoute(true);
+      buildPitch(camDist());
+      applyStates();
+      placeYou();
+      // stay on the fork, now framed from the picked trail
+      s = Math.max(0, Math.min(TP.length, stopS(k)));
+      setFocus(k, true);
+      audio.play('upgrade');
+      audio.play('whoosh', { pitch: 1.2 });
+      chibi?.play('cheer', { restart: true, dur: 1.3, then: 'idle' });
+      // a word from your Commander if they are in the shot
+      const ys = engine.toScreen(_v.copy(you.position).setY(you.position.y + 2.6), home.camera);
+      if (ys.visible && ys.y > engine.height * 0.22 && ys.y < engine.height * 0.62 && ys.x > 40 && ys.x < engine.width - 40) {
+        try { speech(chibi, sd === 'a' ? 'Coin trail it is. Shiny.' : 'Vial trail. Smells like science.', 2.4); } catch (e) { /* no bubble layer */ }
+      }
+      return true;
     },
     screenOf(pos) { return engine.toScreen(pos, home.camera); },
     viewArena(id) {
@@ -349,6 +456,8 @@ export function setupIslandRoad(home) {
       setTimeout(() => home.ctx().focusArena?.(id), 60);
     },
     refresh() {
+      applyRoute();
+      if (pitchLen !== TP.length && active) buildPitch(camDist());
       applyStates();
       buildChibi();
       placeYou();
@@ -369,16 +478,19 @@ export function setupIslandRoad(home) {
       if (Math.abs(camDist() - pitchDist) > 0.5) buildPitch(camDist());
       if (!flying) {
         if (drag) {
-          // the finger owns s
+          // the finger owns s; the sideways framing relaxes back onto the route
+          latTo.set(0, 0, 0);
         } else if (Math.abs(v) > 0.4) {
           s += v * dt;
           v *= Math.exp(-dt * 3.2);
-          if (Math.abs(v) <= 2.2) { v = 0; setFocus(nearestMilestone(s), true); }
+          latTo.set(0, 0, 0);
+          if (Math.abs(v) <= 2.2) { v = 0; setFocus(nearestStop(s), true); }
         } else if (target !== null) {
           const d = target - s;
           s += d * Math.min(1, dt * 5.5);
           if (Math.abs(d) < 0.02) { s = target; target = null; }
         }
+        lat.lerp(latTo, Math.min(1, dt * 4));
         s = Math.max(0, Math.min(TP.length, s));
         camFor(s, cam);
         home.cam.pos.copy(cam.pos);
@@ -394,7 +506,7 @@ export function setupIslandRoad(home) {
     },
   };
 
-  // ------------------------------------------------ input: drag to pan along the road, tap a chest
+  // ------------------------------------------------ input: drag to pan along the road, tap a chest or a fork sign
   // A drag along the road's on-screen direction grabs the ground (the road follows the finger);
   // a drag across it still pans: finger down = further up the road (like scrolling the old list).
   const _sa = new THREE.Vector3(), _sb = new THREE.Vector3();
@@ -415,18 +527,30 @@ export function setupIslandRoad(home) {
     return along ? -Math.sign(along) * Math.abs(dx) / ppu : 0;
   }
   function pick(x, y) {
-    let bi = -1, bd = Infinity;
-    ms.forEach((M, i) => {
-      const a = engine.toScreen(M.rewardPos, home.camera), b = engine.toScreen(M.anchor, home.camera);
+    let bk = -1, bd = Infinity;
+    stops.forEach((st, k) => {
+      let a, b;
+      if (st.kind === 'chest') { a = engine.toScreen(st.M.rewardPos, home.camera); b = engine.toScreen(st.M.anchor, home.camera); }
+      else {
+        // either of the fork's two trail signs
+        for (const sd of ['a', 'b']) {
+          const P0 = st.f.signs[sd].pos;
+          const c = engine.toScreen(_sa.copy(P0).setY(P0.y + 1.0), home.camera);
+          if (!c.visible) continue;
+          const d = Math.hypot(x - c.x, y - c.y) * 0.8;
+          if (d < bd) { bd = d; bk = k; }
+        }
+        return;
+      }
       if (!a.visible) return;
-      // distance to the segment pedestal -> reward
+      // distance to the segment base -> top
       const vx = a.x - b.x, vy = a.y - b.y, l2 = vx * vx + vy * vy || 1;
       const u = Math.max(0, Math.min(1, ((x - b.x) * vx + (y - b.y) * vy) / l2));
       const d = Math.hypot(x - (b.x + vx * u), y - (b.y + vy * u));
-      if (d < bd) { bd = d; bi = i; }
+      if (d < bd) { bd = d; bk = k; }
     });
     const rad = Math.max(30, Math.min(engine.width, engine.height) * 0.07);
-    return bd < rad ? bi : -1;
+    return bd < rad ? bk : -1;
   }
   const onDown = (e) => {
     if (!active || flying || e.button > 0) return;
@@ -453,15 +577,15 @@ export function setupIslandRoad(home) {
     const d = drag;
     drag = null;
     if (d.moved < 10) {
-      const i = pick(e.clientX, e.clientY);
-      if (i >= 0) {
-        if (i === focus && stateOf(ms[i]) === 'ready') hud?.claim(i);
-        else { audio.play('tap'); setFocus(i, true); }
+      const k = pick(e.clientX, e.clientY);
+      if (k >= 0) {
+        if (k === focus && stopState(k) === 'ready') hud?.claim(k);
+        else { audio.play('tap'); setFocus(k, true); }
       } else {
         // tapped your Commander?
         const ys = engine.toScreen(_v.copy(you.position).setY(you.position.y + 1.4), home.camera);
         if (Math.hypot(ys.x - e.clientX, ys.y - e.clientY) < 50) { chibi?.play('cheer', { restart: true, dur: 1.2, then: 'idle' }); audio.play('pop'); }
-        else setFocus(nearestMilestone(s), true);
+        else setFocus(nearestStop(s), true);
       }
       return;
     }
@@ -469,7 +593,7 @@ export function setupIslandRoad(home) {
     const rec = d.vs.filter(([, t]) => now - t < 140);
     v = rec.length ? rec.reduce((a, [vv]) => a + vv, 0) / rec.length : 0;
     v = Math.max(-90, Math.min(90, v));
-    if (Math.abs(v) <= 2.2) { v = 0; setFocus(nearestMilestone(s), true); }
+    if (Math.abs(v) <= 2.2) { v = 0; setFocus(nearestStop(s), true); }
   };
   const onKey = (e) => {
     if (!active) return;

@@ -15,6 +15,7 @@ import './vsIntro.css';
 import * as THREE from 'three';
 import { h, icon } from '../../ui/ui.js';
 import { rankMedal } from '../../ui/rankMedal.js';
+import { sideAvatarEl, titleName } from '../../ui/avatar.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { Chibi } from '../../core/chibi.js';
@@ -115,9 +116,14 @@ export async function vsIntro(parent, cfg, opts = {}) {
     const pills = [];
     if (s.trophies !== undefined && s.trophies !== null) pills.push(h('span', { class: 'vsx-pill tr sk-well' }, icon('trophy'), h('b', {}, String(s.trophies))));
     if (s.labLevel) pills.unshift(rankMedal(s.labLevel, { cls: 'vsx-rank' }));
+    // profile picture in its frame beside the name, the title under it (src/ui/avatar.js) [engineer F]
+    const ttl = titleName(s.title);
     return h('div', { class: `vsx-info s${i}` },
-      h('div', { class: `vsx-tag ${i ? 'sk-chip-red' : 'sk-chip-blue'}` }, i ? (s.clan || 'CHALLENGER') : 'YOU'),
-      h('div', { class: 'vsx-nm', style: { '--nk': String(Math.min(1, 9 / Math.max(9, (s.name ?? '').length))) } }, s.name ?? (i ? 'Rival' : 'You')),
+      h('div', { class: 'vsx-who' }, sideAvatarEl(s, { cls: 'vsx-av' }),
+        h('div', { class: 'vsx-whot' },
+          h('div', { class: `vsx-tag ${i ? 'sk-chip-red' : 'sk-chip-blue'}` }, i ? (s.clan || 'CHALLENGER') : 'YOU'),
+          h('div', { class: 'vsx-nm', style: { '--nk': String(Math.min(1, 9 / Math.max(9, (s.name ?? '').length))) } }, s.name ?? (i ? 'Rival' : 'You')),
+          ttl ? h('div', { class: 'vsx-ttl' }, ttl) : null)),
       pills.length ? h('div', { class: 'vsx-pills' }, pills) : null);
   };
   const panel = (i) => h('div', { class: `vsx-panel s${i}`, style: { '--tc': TEAM[i] } },

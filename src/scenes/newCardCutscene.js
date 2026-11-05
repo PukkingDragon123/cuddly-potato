@@ -2,9 +2,9 @@
 // the first time a card is unlocked.
 //
 //   1. ENTRANCE - the Swarm (or the spell's object / a holo card for SPECIAL
-//      cards) arrives in the style the player has equipped (data/entrances.js):
-//      Classic Strut, Superhero Landing, Lab Explosion, Red Carpet, Rocket Drop,
-//      Glitch Teleport. Letterbox bars, low tracking camera.
+//      cards) arrives in a reveal style picked by the card's rarity (data/entrances.js
+//      cardReveal: Classic Strut, Superhero Landing, Lab Explosion, Rocket Drop, Red
+//      Carpet, Glitch Teleport). Letterbox bars, low tracking camera.
 //   2. THE BOTTLE - a lab vial drops in, rumbles in the card's rarity colour and
 //      the Swarm smacks the cap off: POP, flash, hit-stop and slow-mo.
 //   3. THE POSE - the attack wind-up freezes into a pose while the camera
@@ -244,7 +244,8 @@ export class NewCardCutscene {
     const e = entranceDef(this.entrance);
     this.el = h('div', { class: `vo-cut r-${this.st.rarity} ${portrait ? 'port' : 'land'}`, style: { '--rc': this.rar.color } },
       h('div', { class: 'vo-cut-bar top' }), h('div', { class: 'vo-cut-bar bot' }),
-      h('div', { class: 'vo-cut-ent' }, icon('play', 'vo-cut-ent-ic'), h('span', {}, e.name.toUpperCase())));
+      // the reveal style's name only on the dev preview (bought entrances play in battles, not here)
+      this.preview ? h('div', { class: 'vo-cut-ent' }, icon('play', 'vo-cut-ent-ic'), h('span', {}, e.name.toUpperCase())) : null);
     this.skipBtn = button(this.preview ? 'BACK' : 'SKIP', (ev) => { ev?.stopPropagation?.(); this.hurry(); if (this.stage === 'hold') this.tap(); }, 'gray sm vo-cut-skip', { icon: 'arrowR', sound: 'tap' });
     this.skipBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
     this.el.appendChild(this.skipBtn);

@@ -22,6 +22,9 @@ import { TROPHY_ROAD, SECRETS, BOSSES } from '../../data/arenas.js';
 import { ENTRANCES } from '../../data/entrances.js';
 import { entranceArt } from '../entranceArt.js';
 import { rankMedal } from '../rankMedal.js';
+// profile looks (pictures / frames / titles) [engineer F]
+import { avatarEl } from '../avatar.js';
+import { AVATARS, FRAMES, TITLES } from '../../data/profileItems.js';
 
 export { fmt, fmtTime };
 
@@ -383,6 +386,8 @@ export function bannerEl(id, cls = '', ...children) {
   const b = BANNERS[id] || BANNERS.default;
   const el = h('div', { class: `mn-banner ${b.animated ? 'anim anim-' + b.animated : ''} ${cls}` });
   el.appendChild(h('div', { class: 'mn-ban-bg', style: { background: b.css } }));
+  // Troop Mastery banners (src/data/profileItems.js): the troop stands on the right
+  if (b.troop) el.appendChild(swarmImg(b.troop, 'base', null, 128, 'mn-ban-troop'));
   el.appendChild(h('div', { class: 'mn-ban-sheen' }));
   if (children.length) el.appendChild(h('div', { class: 'mn-ban-c' }, ...children));
   return el;
@@ -492,6 +497,9 @@ export function rewardLabel(r) {
     case 'serum': return `Mega ${SWARMS[r.id]?.name ?? 'Serum'}`;
     case 'mega': return `${r.variant === 'gold' ? 'Golden ' : ''}${MEGAS[r.id]?.name ?? 'MEGA'}`;
     case 'entrance': return ENTRANCES[r.id]?.name ?? 'Entrance';
+    case 'avatar': return AVATARS[r.id]?.name ?? 'Picture';
+    case 'frame': return FRAMES[r.id]?.name ?? 'Frame';
+    case 'title': return TITLES[r.id]?.name ?? 'Title';
     default: return '???';
   }
 }
@@ -500,7 +508,8 @@ export function rewardKind(r) {
   return {
     coins: 'Beast Coins', bucks: 'Beast Bucks', calories: 'Season Calories', vial: 'Vial', card: 'Card', swarm: 'Card', spell: 'Spell Card',
     commander: 'Commander', skin: 'Swarm Skin', labSkin: 'Lab Skin', cmdSkin: 'Commander Outfit', banner: 'Banner', serum: 'Mega Serum',
-    mega: r.variant === 'gold' ? 'Metallic Gold MEGA' : 'MEGA Ultimate', entrance: 'Entrance Animation',
+    mega: r.variant === 'gold' ? 'Metallic Gold MEGA' : 'MEGA Ultimate', entrance: 'Battle Entrance',
+    avatar: 'Profile Picture', frame: 'Profile Frame', title: 'Profile Title',
   }[r.type] ?? '';
 }
 /** Short amount label shown on reward tiles. */
@@ -536,6 +545,9 @@ export function rewardArt(r, opts = {}) {
     case 'serum': return wrap('serum', swarmImg(r.id, 'base', null, 128), h('div', { class: 'mn-ra-corner' }, icon('mega')));
     case 'mega': return wrap(`mega ${r.variant === 'gold' ? 'gold' : ''}`, swarmImg(r.id, r.variant ?? 'base', null, 160), h('div', { class: 'mn-ra-corner' }, icon('mega')));
     case 'entrance': return wrap('entrance', entranceArt(r.id));
+    case 'avatar': return wrap('look', avatarEl(r.id, state.p.cosmetics.frame, { cls: 'mn-ra-av' }));
+    case 'frame': return wrap('look', avatarEl(state.p.cosmetics.avatar, r.id, { cls: 'mn-ra-av' }));
+    case 'title': return wrap('title', h('div', { class: 'mn-ra-ttl t-d' }, TITLES[r.id]?.name ?? 'Title'));
     default: return wrap('', icon('star', 'mn-ra-ic'));
   }
 }
@@ -551,7 +563,7 @@ export function rewardTile(r, opts = {}) {
     d.isNew ? h('div', { class: 'new-tag', style: { right: '-6%', top: '-6%' } }, 'NEW!') : null);
 }
 
-const BIG_KINDS = new Set(['mega', 'cmdSkin', 'labSkin', 'skin', 'commander', 'serum', 'banner', 'entrance']);
+const BIG_KINDS = new Set(['mega', 'cmdSkin', 'labSkin', 'skin', 'commander', 'serum', 'banner', 'entrance', 'avatar', 'frame', 'title']);
 /** Is this reward worth the big celebration (burst + rays)? */
 export function isBigReward(d) {
   d = rewardDef(d);

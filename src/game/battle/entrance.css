@@ -1,0 +1,128 @@
+/* Battle ENTRANCE overlay (entranceCine.js): letterbox with a stepped pixel trim, the
+   entrance's name in the top bar, a skip hint, a flash, the title card (rank medal, name,
+   trophies on the player's banner) and a pixel speech bubble for the voiced line.
+   Text is never rotated or skewed. */
+.ent {
+  --pxl: max(2px, calc(var(--px, 3px) * 0.9)); --bar: 10.5%;
+  position: absolute; inset: 0; z-index: 58; overflow: hidden; pointer-events: auto; touch-action: none; cursor: pointer;
+}
+.ent-bar {
+  position: absolute; left: 0; right: 0; height: var(--bar); background: #05030c; z-index: 3;
+  transition: transform 0.32s cubic-bezier(.2, .9, .3, 1);
+}
+.ent-bar.t { top: 0; transform: translateY(-101%); }
+.ent-bar.b { bottom: 0; transform: translateY(101%); }
+.ent.in .ent-bar { transform: none; }
+.ent.out .ent-bar { transition-duration: 0.45s; }
+.ent.out .ent-bar.t { transform: translateY(-101%); }
+.ent.out .ent-bar.b { transform: translateY(101%); }
+.ent-trim {
+  position: absolute; left: 0; right: 0; height: calc(var(--pxl) * 3); display: block;
+  background:
+    linear-gradient(90deg, #ffd84a 0 50%, transparent 50%) 0 0 / calc(var(--pxl) * 8) var(--pxl) repeat-x,
+    linear-gradient(#ffd84a, #ffd84a) 0 var(--pxl) / 100% var(--pxl) no-repeat,
+    linear-gradient(90deg, transparent 0 50%, #8a6a10 50%) 0 calc(var(--pxl) * 2) / calc(var(--pxl) * 8) var(--pxl) repeat-x;
+}
+.ent-bar.t .ent-trim { bottom: calc(var(--pxl) * -3); transform: scaleY(-1); }
+.ent-bar.b .ent-trim { top: calc(var(--pxl) * -3); }
+
+/* the entrance's name, small, in the top bar */
+.ent-kick {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--font-d); font-size: clamp(14px, min(3.6vw, 4.8vh), 22px); letter-spacing: 0.16em; line-height: 1; color: #fff;
+  opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap;
+}
+.ent-kick-ic { width: 1em; height: 1em; image-rendering: pixelated; }
+.ent.kick .ent-kick { opacity: 0.95; }
+
+/* skip hint + a stepped pixel chevron */
+.ent-skip {
+  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 16px); top: 50%; translate: 0 -50%; display: flex; align-items: center; gap: 7px;
+  font-family: var(--font-d); font-size: clamp(12px, 2.8vw, 16px); letter-spacing: 0.14em; color: #c8d0ff; opacity: 0; transition: opacity 0.3s 0.5s; pointer-events: none;
+}
+.ent.in .ent-skip { opacity: 0.85; }
+.ent.out .ent-skip, .ent.idle .ent-skip { opacity: 0; transition-delay: 0s; }
+.ent-chev { flex: none; width: 9px; height: 13px; background: #c8d0ff;
+  clip-path: polygon(0 0, 33% 0, 33% 12%, 50% 12%, 50% 25%, 67% 25%, 67% 38%, 84% 38%, 84% 62%, 67% 62%, 67% 75%, 50% 75%, 50% 88%, 33% 88%, 33% 100%, 0 100%, 0 88%, 17% 88%, 17% 75%, 33% 75%, 33% 62%, 50% 62%, 50% 38%, 33% 38%, 33% 25%, 17% 25%, 17% 12%, 0 12%); }
+
+.ent-flash { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: var(--fc, #fff); opacity: 0; }
+.ent-flash.go { animation: entFlash 0.32s steps(4) forwards; }
+@keyframes entFlash { 0% { opacity: var(--fa, 0.8); } 100% { opacity: 0; } }
+
+/* ---- title card: rank medal + name + trophies on the player's banner */
+.ent-card {
+  --tc: #2b8cf2;
+  position: absolute; z-index: 4; display: block; pointer-events: none;
+  box-shadow: 0 0 0 var(--pxl) #05030c, 0 0 0 calc(var(--pxl) * 2.5) var(--tc), 0 0 0 calc(var(--pxl) * 3.5) #05030c, 0 calc(var(--pxl) * 5) 0 calc(var(--pxl) * 3.5) rgba(5, 3, 12, 0.55);
+  opacity: 0;
+}
+.ent-card.land { bottom: calc(var(--bar) + 5vh); width: min(46vw, 440px); }
+.ent-card.land.s0 { right: calc(env(safe-area-inset-right, 0px) + 5vw); transform: translateX(130%); }
+.ent-card.land.s1 { left: calc(env(safe-area-inset-left, 0px) + 5vw); transform: translateX(-130%); }
+.ent-card.port { left: 16px; right: 16px; bottom: calc(var(--bar) + 3.5vh); }
+.ent-card.port.s0 { transform: translateX(115%); }
+.ent-card.port.s1 { transform: translateX(-115%); }
+.ent-card.in.land, .ent-card.in.port { opacity: 1; transform: none; transition: transform 0.34s cubic-bezier(.2, 1.4, .4, 1), opacity 0.05s; }
+.ent-card.out.land, .ent-card.out.port { opacity: 0; transition: transform 0.28s cubic-bezier(.6, 0, .9, .4), opacity 0.2s 0.08s; }
+.ent-card.out.s0.land, .ent-card.out.s0.port { transform: translateX(-30%); }
+.ent-card.out.s1.land, .ent-card.out.s1.port { transform: translateX(30%); }
+.ent-card-bn { position: absolute; inset: 0; display: block; background-size: auto; image-rendering: pixelated; }
+.ent-card-shade { position: absolute; inset: 0; display: block; background: linear-gradient(90deg, rgba(5, 3, 20, 0.9) 0 34%, rgba(5, 3, 20, 0.6) 72%, rgba(5, 3, 20, 0.3)); }
+.ent-card.s1 .ent-card-shade { background: linear-gradient(90deg, rgba(5, 3, 20, 0.9) 0 46%, rgba(5, 3, 20, 0.62) 80%, rgba(5, 3, 20, 0.35)); }
+/* stepped pixel trim along the top in the entrance's colour */
+.ent-card-trim { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--pxl) * 3); display: block;
+  background:
+    linear-gradient(var(--ec, #ffd84a), var(--ec, #ffd84a)) 0 0 / 100% var(--pxl) no-repeat,
+    linear-gradient(90deg, var(--ec, #ffd84a) 0 50%, transparent 50%) 0 var(--pxl) / calc(var(--pxl) * 6) var(--pxl) repeat-x,
+    linear-gradient(90deg, transparent 0 50%, color-mix(in srgb, var(--ec, #ffd84a) 55%, #000) 50%) 0 calc(var(--pxl) * 2) / calc(var(--pxl) * 6) var(--pxl) repeat-x; }
+.ent-card-in { position: relative; display: flex; align-items: center; gap: clamp(10px, 2.4vmin, 18px); padding: calc(clamp(10px, 2.2vmin, 16px) + var(--pxl) * 2) clamp(12px, 2.8vmin, 20px) clamp(10px, 2.2vmin, 16px); }
+.ent-card-rk { --rm: clamp(52px, 13vmin, 84px); }
+.ent-card-tx { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(4px, 1vmin, 8px); min-width: 0; flex: 1 1 auto; }
+.ent-card-tag { font-family: var(--font-d); font-size: clamp(12px, 2.8vmin, 16px); letter-spacing: 0.1em; line-height: 1; padding: 4px 8px 3px; color: #fff; white-space: nowrap; }
+.ent-card-nm {
+  font-family: var(--font-d); line-height: 0.95; letter-spacing: 0.03em; color: #fff; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  font-size: calc(clamp(30px, 8.4vmin, 54px) * var(--nk, 1));
+  text-shadow: 0 3px 0 #05030c, 3px 0 0 #05030c, -3px 0 0 #05030c, 0 -3px 0 #05030c, 2px 2px 0 #05030c, -2px 2px 0 #05030c;
+}
+.ent-card-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-family: var(--font-d); font-size: clamp(14px, 3.2vmin, 19px); line-height: 1; color: #fff; letter-spacing: 0.06em; }
+.ent-card-tr { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 5px; background: rgba(5, 3, 20, 0.7); box-shadow: 0 0 0 2px #05030c; }
+.ent-card-tr b { color: #ffd84a; font-weight: 400; }
+.ent-card-ic { width: 1.15em; height: 1.15em; image-rendering: pixelated; }
+.ent-card-en { color: color-mix(in srgb, var(--ec, #c8d0ff) 70%, #fff); text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
+.ent-card-in .ent-card-tag { box-shadow: none; }
+
+/* ---- the voiced line: a pixel speech bubble over the Commander's head */
+.ent-say {
+  --tx: 50%;
+  position: absolute; left: 0; top: 0; z-index: 4; max-width: min(72vw, 380px); pointer-events: none;
+  padding: clamp(8px, 1.8vmin, 12px) clamp(12px, 2.6vmin, 16px);
+  background: #fff; color: #15121f; font-family: var(--font-d); font-size: clamp(17px, 4.4vmin, 26px); line-height: 1.05; letter-spacing: 0.03em; text-align: center;
+  box-shadow: 0 0 0 var(--pxl) #15121f, 0 calc(var(--pxl) * 2) 0 var(--pxl) rgba(5, 3, 12, 0.5);
+  opacity: 0; scale: 0.6; transition: opacity 0.12s, scale 0.22s cubic-bezier(.2, 1.6, .4, 1);
+}
+.ent-say.on { opacity: 1; scale: 1; }
+.ent-say > span { display: block; }
+.ent-say-tail {
+  position: absolute; top: 100%; left: var(--tx); width: 16px; height: 12px; translate: -50% 0; display: block; background: #15121f;
+  clip-path: polygon(0 0, 100% 0, 100% 25%, 75% 25%, 75% 50%, 62% 50%, 62% 75%, 50% 75%, 50% 100%, 38% 100%, 38% 50%, 25% 50%, 25% 25%, 0 25%);
+}
+.ent-say-tail::after {
+  content: ''; position: absolute; left: 3px; top: -1px; width: 10px; height: 8px; background: #fff;
+  clip-path: polygon(0 0, 100% 0, 100% 30%, 70% 30%, 70% 65%, 50% 65%, 50% 100%, 30% 100%, 30% 30%, 0 30%);
+}
+
+/* ---- shop preview stage (entrancePreview.js): the shop hides while the 3D plays */
+body.ent-pv-on #ui, body.ent-pv-on #world-ui, body.ent-pv-on #overlay > :not(.ent):not(.ent-pv-ui) { visibility: hidden; }
+.ent-pv-ui { position: absolute; inset: 0; z-index: 59; pointer-events: none; }
+.ent-pv-btns {
+  position: absolute; left: 0; right: 0; bottom: calc(10.5% + 18px); display: flex; justify-content: center; gap: 12px; pointer-events: auto;
+  opacity: 0; transform: translateY(12px); transition: opacity 0.25s, transform 0.25s;
+}
+.ent-pv-ui.done .ent-pv-btns { opacity: 1; transform: none; }
+.ent-pv-load {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; font-family: var(--font-d); font-size: clamp(16px, 4vmin, 22px); letter-spacing: 0.12em; color: #fff;
+  text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c;
+}
+.ent-pv-bg { position: absolute; inset: 0; background: #0b0d22; z-index: -1; transition: opacity 0.3s; }
+.ent-pv-ui.live .ent-pv-bg { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .ent-card, .ent-say, .ent-bar { transition: none !important; } }

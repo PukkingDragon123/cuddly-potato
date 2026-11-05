@@ -32,7 +32,7 @@ export const MASTERY_CARDS = ALL_CARDS.filter((c) => !isSpell(c.id) && !c.specia
 const A = {};
 const av = (id, o) => { A[id] = { id, ...o }; };
 // commander faces (plate = two-tone backdrop behind the portrait)
-av('cmd_recruit', { name: 'Lab Recruit', kind: 'cmd', char: 'recruit', plate: ['#ff8a2a', '#7a2a6a'], rarity: 'common', get: { free: true }, desc: 'Helmet stays on. Always.' });
+av('cmd_recruit', { name: 'Lab Recruit', kind: 'cmd', char: 'recruit', full: true, plate: ['#ff8a2a', '#7a2a6a'], rarity: 'common', get: { free: true }, desc: 'Helmet stays on. Always.' });
 av('cmd_jimmy', { name: 'Jimmy', kind: 'cmd', char: 'jimmy', plate: ['#29b6f6', '#163c8a'], rarity: 'rare', get: { cmd: 'jimmy' }, desc: 'The beard. The legend.' });
 av('cmd_nolan', { name: 'Nolan', kind: 'cmd', char: 'nolan', plate: ['#ffd23f', '#b8461e'], rarity: 'rare', get: { cmd: 'nolan' }, desc: 'Professional fall guy.' });
 av('cmd_juan', { name: 'Juan', kind: 'cmd', char: 'juan', plate: ['#1f9e4a', '#0c3a4a'], rarity: 'rare', get: { cmd: 'juan' }, desc: 'Number 10. Every season.' });
@@ -55,7 +55,7 @@ av('lab_goggles', { name: 'Lab Goggles', kind: 'lab', art: 'goggles', plate: ['#
 av('lab_barrel', { name: 'Toxic Barrel', kind: 'lab', art: 'barrel', plate: ['#7cff3a', '#1a4a1a'], rarity: 'rare', get: { trophies: 1200 }, desc: 'Contents: yes.' });
 av('lab_brain', { name: 'Brain Jar', kind: 'lab', art: 'brain', plate: ['#ff8ac4', '#4a1a6a'], rarity: 'rare', get: { lab: 6 }, desc: 'Smarter than the intern.' });
 av('lab_skull', { name: 'Boss Skull', kind: 'lab', art: 'skull', plate: ['#b05cff', '#1a0a2a'], rarity: 'epic', get: { bosses: 3 }, desc: 'Proof you were there.' });
-av('lab_mustache', { name: 'Stick-On Mustache', kind: 'lab', art: 'mustache', plate: ['#d8a548', '#4a2a18'], rarity: 'common', get: { shop: 'coins', price: 999 }, desc: "Lonan's spare. Barely used." });
+av('lab_mustache', { name: 'Fake Mustache', kind: 'lab', art: 'mustache', plate: ['#d8a548', '#4a2a18'], rarity: 'common', get: { shop: 'coins', price: 999 }, desc: "Lonan's spare. Barely used." });
 av('lab_choco', { name: 'Feastables Bar', kind: 'lab', art: 'choco', plate: ['#ff4fa3', '#5a1a3a'], rarity: 'rare', get: { shop: 'coins', price: 2400 }, desc: 'One bite missing. Not us.' });
 av('lab_duck', { name: 'Hazmat Duck', kind: 'lab', art: 'duck', plate: ['#ffd23f', '#2a5a8a'], rarity: 'epic', get: { shop: 'coins', price: 3600 }, desc: 'Squeaks through a gas mask.' });
 av('lab_ticket', { name: 'Golden Ticket', kind: 'lab', art: 'ticket', plate: ['#ffe46a', '#a8461e'], rarity: 'epic', get: { shop: 'bucks', price: 120 }, desc: 'Admits one. Probably.' });
@@ -78,7 +78,7 @@ fr('bronze', { name: 'Bronze Bolts', rarity: 'common', get: { lab: 2 }, desc: 'B
 fr('silver', { name: 'Silver Circuit', rarity: 'rare', get: { lab: 4 }, desc: 'Runs on one AA battery.' });
 fr('gold', { name: 'Golden Lab', rarity: 'epic', get: { lab: 7 }, anim: 'shine', desc: 'Real gold. Ask no questions.' });
 fr('hazard', { name: 'Hazard Tape', rarity: 'rare', get: { shop: 'coins', price: 2500 }, desc: 'Do not cross. Do look.' });
-fr('choco', { name: 'Wrapper Frame', rarity: 'rare', get: { shop: 'coins', price: 4000 }, desc: 'Smells like a candy bar.' });
+fr('choco', { name: 'Choco Wrapper', rarity: 'rare', get: { shop: 'coins', price: 4000 }, desc: 'Smells like a candy bar.' });
 fr('neonGoo', { name: 'Neon Goo', rarity: 'epic', get: { shop: 'bucks', price: 150 }, anim: 'goo', desc: 'Still wet. Do not touch.' });
 fr('boss', { name: 'Boss Slayer', rarity: 'epic', get: { bosses: 3 }, desc: 'Horns sold separately.' });
 fr('laser', { name: 'Laser Vault', rarity: 'epic', get: { trophies: 2500 }, anim: 'laser', desc: 'Lasers on. Hands off.' });
