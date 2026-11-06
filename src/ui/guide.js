@@ -672,24 +672,26 @@ function updateTracker() {
   trackerKey = key;
   const bang = (st.done && !st.finished) || side > 0;
   el.className = `gd-qt ${el.classList.contains('papered') ? 'papered' : ''} ${st.done && !st.finished ? 'ready' : ''} ${bang ? 'bang' : ''}`;
-  let art, title, row;
+  let art, title, row, how = null;
   if (st.finished) {
     art = 'end';
-    title = 'Story Complete';
+    title = 'Story complete';
+    if (side <= 0) how = 'Daily and crew quests are on the board';
     row = side > 0 ? claimChip(side) : h('div', { class: 'gd-qt-row' }, h('span', { class: 'gd-qt-oi' }, icon('quest')), h('b', { class: 'gd-qt-cnt done' }, `${st.steps}/${st.steps}`));
   } else {
     art = q.id;
     title = q.title;
+    how = st.done ? 'Done! Tap to claim the reward' : q.tip ?? null;
     if (st.done) row = claimChip();
     else if (st.locked) {
       // locked: the feature's icon under a padlock + how many wins it takes
       const L = lockInfo(st.locked), f = FEATURES[st.locked]?.alias ? FEATURES[FEATURES[st.locked].alias] : FEATURES[st.locked];
       row = h('div', { class: 'gd-qt-row lock' },
         h('span', { class: 'gd-qt-oi' }, icon(f?.icon ?? 'lock'), h('i', { class: 'gd-qt-oib' }, icon('lock'))),
-        h('b', { class: 'gd-qt-cnt' }, f?.trophies ? `${f.trophies}` : `${L.left ?? 1} ${(L.left ?? 1) === 1 ? 'WIN' : 'WINS'}`));
+        h('b', { class: 'gd-qt-cnt' }, f?.trophies ? `UNLOCKS AT ${f.trophies.toLocaleString('en-US')}` : `UNLOCKS IN ${L.left ?? 1} ${(L.left ?? 1) === 1 ? 'WIN' : 'WINS'}`));
     } else {
       const small = st.need <= 12;
-      // (the picture on the left already shows what to do: the row is progress + reward)
+      // title + one short line on how, then progress + reward
       row = h('div', { class: 'gd-qt-row' },
         small
           ? h('img', { class: 'gd-qt-tally', src: tallyURL(st.prog, st.need), alt: '', style: { width: (st.need <= 1 ? 28 : Math.ceil(st.need / 5) * 30 + 4) + 'px' } })
@@ -703,10 +705,10 @@ function updateTracker() {
     paper,
     h('i', { class: 'gd-qt-pin', 'aria-hidden': 'true' }),
     h('img', { class: 'gd-qt-art', src: questArt(art), alt: '', draggable: 'false' }),
-    h('div', { class: 'gd-qt-txt' }, h('b', { class: 'gd-qt-n' }, title), row),
+    h('div', { class: 'gd-qt-txt' }, h('b', { class: 'gd-qt-n' }, title), how ? h('span', { class: 'gd-qt-how' }, how) : null, row),
     bang ? h('i', { class: 'gd-qt-bang', 'aria-hidden': 'true' }, h('b', {}, '!')) : null,
   ].filter(Boolean));
-  el.setAttribute('aria-label', `Quest board: ${title}`);
+  el.setAttribute('aria-label', `Quest: ${title}. ${how ?? ''} Open the quest board`);
   if (fresh) { el.classList.add('gd-qt-in'); setTimeout(() => el.classList.remove('gd-qt-in'), 700); }
   requestAnimationFrame(() => {
     if (!el.isConnected) return;
@@ -774,7 +776,7 @@ export async function battleLessons(sc) {
   };
   // 1) base upgrades (your first ranked battle)
   if (!lessonDone('baseUp') && featureUnlocked('baseUp') && !sc.locks?.base) {
-    const ok = await until(() => quiet() && sim.sides[0].energy >= (sim.overclockInfo(0).cost ?? 99) && sim.t > 6, 70);
+    const ok = await until(() => quiet() && sim.sides[0].energy >= (sim.overclockInfo(0).cost ?? Infinity) && sim.t > 6, 70);
     if (gone()) return;
     setLessonDone('baseUp');
     if (ok) {

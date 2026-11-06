@@ -345,3 +345,18 @@ body.landscape .cdlg.bk-dlg .cdlg-panel { left: calc(var(--bk-left) + (100vw - v
 .bk-head-n { font-size: 1.25em; color: var(--bk-cream, #f2e6c8); text-shadow: var(--outline-thin); white-space: nowrap; }
 .bk-wide-t { display: inline-flex; align-items: center; gap: 0.3em; }
 .bk-note-foot .pi { width: 1.6em; height: 1.6em; }
+
+/* round 9 polish ---------------------------------------------------------------
+   where free Beast Bucks come from: labelled icons instead of a "gem = icons" rebus */
+.bk-note-foot { flex-direction: column; gap: calc(var(--u) * 1); padding: calc(var(--u) * 1) calc(var(--u) * 2) calc(var(--u) * 2.4); }
+.bk-nf-k { display: flex; align-items: center; gap: 0.35em; font-size: 0.95em; letter-spacing: 0.04em; color: #e8dcc0; text-shadow: var(--outline-thin); }
+.bk-nf-l { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--u) * 1) calc(var(--u) * 2.2); }
+.bk-nf-i { display: flex; flex-direction: column; align-items: center; gap: 0.2em; min-width: calc(var(--u) * 9); }
+.bk-nf-i small { font-size: 0.78em; line-height: 1; letter-spacing: 0.03em; color: #c8bca0; white-space: nowrap; }
+/* deal crates: NEW in the card's free top-right corner, so it never covers the "1 LEFT" tag */
+.bk-crate-art .bk-new { top: calc(var(--px) * -3); bottom: auto; right: calc(var(--px) * -4); }
+/* the goods panel is solid: the bunker's 3D props and their stencil labels (crates under the
+   counter) no longer ghost through behind the DAILY DEALS header and the first rows */
+.bk-goods.mn-scroll { background: linear-gradient(180deg, rgba(14, 10, 8, 0.97) 0, rgba(12, 9, 7, 0.98) calc(var(--u) * 26), rgba(8, 6, 5, 0.985) 100%); }
+body.landscape .bk-goods.mn-scroll { background: linear-gradient(90deg, rgba(12, 9, 7, 0.98), rgba(12, 9, 7, 0.96)); }
+.bk-flat .bk-goods.mn-scroll { background: linear-gradient(180deg, rgba(12, 9, 7, 0.9), rgba(8, 6, 5, 0.94)); }

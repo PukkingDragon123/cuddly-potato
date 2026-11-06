@@ -310,3 +310,190 @@ body.landscape .lx-sheet { padding-left: calc(var(--u) * 2.2); }
 /* pixel type (round 8): four segment labels fit one row with the wider pixel face */
 .lx-seg .mn-seg-b { font-size: 0.7em; padding: 0 0.15em; }
 .lx-seg .mn-seg-b .pi { width: 1.15em; height: 1.15em; }
+
+/* =========================================================================
+   PAINTED LAB (round 9): every panel is pixel art from labArt.js, painted at
+   one CSS px per texel and put behind the element's content by dress().
+   [data-lxp] asks for a painting; .lxp-on means it has one (the flat CSS look
+   underneath is only the fallback for the frame before it paints).
+   ========================================================================= */
+.lx, .lb2-tree { --lx-ink: #1c1a2c; --lx-ink2: #4a4660; --lx-pen: #1d3f9a; }
+/* zero specificity: elements that are absolutely placed (HUD, bench, wall) keep that */
+:where(.lx [data-lxp], .lb2-tree [data-lxp]) { position: relative; }
+.lx [data-lxp], .lb2-tree [data-lxp] { isolation: isolate; }
+.lxp-b { position: absolute; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+.lxp-g { position: absolute; z-index: 4; pointer-events: none; image-rendering: pixelated; }
+.lx .lxp-on, .lb2-tree .lxp-on { background: transparent !important; box-shadow: none !important; border-image: none !important; }
+.lx .lxp-on.panel::after { display: none; }
+
+/* pegboard wall behind the panel (fixed while the panel scrolls) */
+.lx-wall { position: absolute; left: 0; right: 0; bottom: 0; top: calc(var(--lx-split) + var(--lx-seg)); z-index: 2; pointer-events: none; background: #141a28; }
+body.landscape .lx-wall { left: var(--lx-split); top: var(--lx-seg); }
+.lx-panel.mn-scroll { background: none; }
+
+/* label-maker tape */
+.lx-dymo {
+  display: inline-flex; align-items: center; align-self: flex-start; flex: none; padding: 3px 9px 2px 10px; min-height: 19px;
+  font-size: 0.74em; line-height: 1; letter-spacing: 0.14em; white-space: nowrap; color: #f6f6f2;
+  background: #18181e; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 -1px 0 rgba(255, 255, 255, 0.12);
+}
+.lx-dymo-t { position: relative; top: 1px; }
+
+/* section divider: tape label + hazard paint */
+.lx-div { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lx-div-hz { flex: 1 1 auto; min-width: 12px; height: 10px; background: var(--lx-hz) 0 0 / 20px 10px repeat-x; image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35)); }
+.lx-div-r { flex: none; font-size: 0.74em; color: #aab6d8; white-space: nowrap; }
+.lx-paper .lx-div-r { color: var(--lx-ink2); }
+
+/* sticky note hint */
+.lx-sticky.lx-cathint, .lx-sticky.lx-note.big {
+  display: flex; align-items: flex-start; gap: 0.55em; padding: 12px 16px 14px 12px; margin: 2px 4px 0 2px;
+  color: var(--lx-ink); font-size: 0.9em; line-height: 1.28; background: #ffe76a; box-shadow: none;
+}
+.lx-sticky.lx-note.big { background: #9ed8ff; }
+.lx-sticky b { color: var(--lx-ink); }
+.lx-sticky > .pi { flex: none; margin-top: 0.1em; }
+
+/* ---- HUD nameplate */
+.lx-hud.lxp-on { padding: 9px 20px 10px 11px; }
+.lx-hud .lx-lv { color: #fff6c8; }
+
+/* ---- workbench + drawers (segments) */
+.lx-segbar.lxp-on { background: #2e170a; }
+.lx-segbar.lxp-on::before { display: none; }
+body.landscape .lx-segbar.lxp-on::before { display: block; }
+.lx-seghost { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; height: 100%; padding-top: 5px; }
+.lx-seg.mn-seg { gap: calc(var(--u) * 1); }
+.lx-seg .mn-seg-b.lx-drw {
+  min-height: calc(var(--u) * 9.2); padding: 0 8px 7px; color: var(--lx-ink); text-shadow: none; filter: none; transform: none;
+  background: #4c5872; box-shadow: 0 0 0 var(--px) var(--ink); transition: translate 0.12s;
+}
+.lx-seg .mn-seg-b.lx-drw.lxp-on { background: transparent; box-shadow: none; }
+.lx-seg .mn-seg-b.lx-drw > span { top: 0; }
+.lx-seg .mn-seg-b.lx-drw.on { translate: 0 2px; }
+.lx-seg .mn-seg-b.lx-drw:active { translate: 0 3px; transform: none; }
+.lx-seg .mn-seg-b.lx-drw[data-lxo*="lock=1"] { color: #3a3846; }
+.lx-seg .mn-seg-b.lx-drw > .badge { top: -6px; right: -4px; z-index: 5; }
+
+/* ---- LAB: base plate */
+.lx-base.lxp-on { padding: 16px 14px 14px; gap: 10px; }
+.lx-base-t { gap: 6px; }
+.lx-base > .lx-div { margin: 2px 0 0; }
+.lx-tiers { gap: 5px; }
+.lx-tierb[data-lxp] { padding: 0 2px 6px; gap: 1px; background: #262e42; color: #c8d4f0; }
+.lx-tierb[data-lxp]::before { content: ''; display: block; width: calc(100% - 4px); aspect-ratio: 1.45; margin: 3px 0 2px; flex: none; }
+.lx-tierb[data-lxp] b { font-size: 1em; color: #fff; text-shadow: var(--outline-thin); }
+.lx-tierb[data-lxp] span { font-size: 0.58em; color: #c8d4f0; }
+.lx-tierb.on[data-lxp] b { color: var(--lx-ink); text-shadow: none; }
+.lx-tierb.on[data-lxp] span { color: var(--lx-ink); font-weight: 700; }
+.lx-tierb.on[data-lxp] { transform: translateY(-1px); }
+.lx-slots { gap: 6px; }
+.lx-slot[data-lxp] { padding: 3px 7px 9px; gap: 2px; background: #141a2c; }
+.lx-slot[data-lxp] .lx-slot-k { margin: 0; min-height: 13px; display: flex; align-items: center; font-size: 0.62em; color: var(--lx-ink); text-shadow: none; letter-spacing: 0.04em; padding-left: 8px; }
+.lx-slot[data-lxp] .lx-modimg, .lx-slot[data-lxp] .lx-slot-plus { width: 92%; margin-top: 4px; }
+.lx-slot[data-lxp] .lx-slot-n { font-size: 0.66em; min-height: 2.3em; text-shadow: var(--outline-thin); }
+.lx-slot[data-lxp] .lx-slot-lv { top: 20px; left: 7px; right: auto; font-size: 0.66em; }
+.lx-slot[data-lxp] .lx-upar { top: 30px; left: auto; right: 6px; }
+
+/* ---- LAB: research card (blueprint sheet) */
+.lx-rcard.lxp-on { padding: 16px 16px 16px; }
+.lx-rcard.lxp-on .lx-rc-ic { background: rgba(4, 16, 48, 0.55); box-shadow: 0 0 0 2px #cfe6ff; }
+.lx-rcard.lxp-on .lx-rc-d { color: #e2f0ff; }
+.lx-rcard.lxp-on .lx-rc-k { color: #fff; }
+.lx-rcard.lxp-on .lx-rc-dot { background: var(--bc); box-shadow: 0 0 0 1px var(--ink); }
+
+/* ---- LAB: Lab Level clipboard (graph paper) */
+.lx-lvhead { padding: 0 2px; }
+.lx-paper.lxp-on { color: var(--lx-ink); }
+.lx-lvpanel.lxp-on { padding: 26px 16px 16px 26px; gap: 10px; }
+.lx-paper .mn-labstats { gap: 6px; }
+.lx-paper .mn-labst { background: rgba(255, 255, 255, 0.5); box-shadow: inset 0 0 0 2px rgba(29, 63, 154, 0.35); padding: 6px 10px; }
+.lx-paper .mn-labst .mn-st-v { color: var(--lx-ink); text-shadow: none; }
+.lx-paper .mn-labst .mn-st-l { color: var(--lx-ink2); }
+.lx-paper .mn-labroad { gap: 8px; padding: 14px 4px 8px; background: linear-gradient(#6a5a48, #6a5a48) 0 6px / 100% 2px no-repeat local; }
+.lx-paper .lx-how { color: var(--lx-ink); font-size: 0.86em; }
+.lx-paper .lx-how b { color: #b0202c; }
+/* specimen tags (Lab Level + Commander level roads) */
+.lx .mn-labn[data-lxp], .lx .mn-lvn[data-lxp] {
+  width: calc(var(--u) * 17); padding: 26px 4px 10px; gap: 4px; color: var(--lx-ink); background: #e2c07a; box-shadow: none; animation: none;
+}
+.lx .mn-labn[data-lxp] .mn-labn-r { color: var(--lx-ink); text-shadow: none; }
+.lx .mn-labn[data-lxp] .mn-labn-xp { color: var(--lx-ink2); font-weight: 700; }
+.lx .mn-labn.next[data-lxp] .mn-labn-xp { color: #a01c28; }
+.lx .mn-lvn[data-lxp] { width: calc(var(--u) * 19); }
+.lx .mn-lvn[data-lxp] .mn-lvn-l { color: var(--lx-ink); text-shadow: none; }
+.lx .mn-lvn[data-lxp] .mn-lvn-t { color: var(--lx-ink); font-weight: 700; }
+.lx .mn-lvn.next[data-lxp] .mn-lvn-l { color: #a01c28; }
+
+/* ---- MODULES */
+.lx-cats-tray { padding: 8px 8px 10px; background: linear-gradient(#3a1f0c, #2a1608); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 3px 0 rgba(255, 210, 160, 0.15), inset 0 -3px 0 rgba(0, 0, 0, 0.35); }
+.lx-cat[data-lxp] { padding: 7px 8px 13px; gap: 1px; color: var(--lx-ink); background: #4c5872; }
+.lx-cat[data-lxp] .lx-cat-n { color: var(--lx-ink); text-shadow: none; font-size: 0.74em; }
+.lx-cat[data-lxp] .lx-cat-e { color: var(--lx-ink2); font-weight: 700; font-size: 0.6em; }
+.lx-cat[data-lxp] .lx-cat-ic { width: 1.35em; height: 1.35em; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4)); }
+.lx-cat.on[data-lxp] { translate: 0 2px; }
+.lx-cat.on[data-lxp] .lx-cat-e { color: var(--lx-ink); }
+.lx-mod[data-lxp] { padding: 14px 14px 14px 18px; background: #232a3e; }
+.lx-mod.locked[data-lxp] .lx-mod-n { color: #c8cede; }
+.lx-mod-art[data-lxp] { padding: 6px 6px 14px; background: #10162a; }
+.lx-mod-art.lxp-on .lx-modimg { position: relative; z-index: 1; }
+.lx-mod-art > .lx-new { z-index: 5; left: -4px; top: -6px; }
+.lx-pips i { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+.lx-pips i.on { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 6px color-mix(in srgb, var(--cc) 60%, transparent); }
+.lx-mod .lx-fx.next { padding: 4px 8px; background: rgba(4, 30, 12, 0.55); box-shadow: inset 0 0 0 1px rgba(124, 255, 58, 0.3); }
+.lx-mod .lx-lock { padding: 12px 8px 6px; background: var(--lx-hz) 0 0 / 16px 8px repeat-x, rgba(0, 0, 0, 0.45); box-shadow: none; }
+/* preview: white corner brackets */
+.lx-mod.pv::after, .lx-skin.pv::after, .mn-pk.pv .mn-pk-art::after, .mn-rost.view .mn-rost-art::after {
+  content: ''; position: absolute; inset: -5px; z-index: 6; pointer-events: none; --kc: #fff;
+  background:
+    linear-gradient(var(--kc), var(--kc)) top left / 12px 3px no-repeat, linear-gradient(var(--kc), var(--kc)) top left / 3px 12px no-repeat,
+    linear-gradient(var(--kc), var(--kc)) top right / 12px 3px no-repeat, linear-gradient(var(--kc), var(--kc)) top right / 3px 12px no-repeat,
+    linear-gradient(var(--kc), var(--kc)) bottom left / 12px 3px no-repeat, linear-gradient(var(--kc), var(--kc)) bottom left / 3px 12px no-repeat,
+    linear-gradient(var(--kc), var(--kc)) bottom right / 12px 3px no-repeat, linear-gradient(var(--kc), var(--kc)) bottom right / 3px 12px no-repeat;
+  filter: drop-shadow(1px 1px 0 var(--ink));
+}
+.mn-rost.view .mn-rost-art::after { --kc: #ffd23f; }
+
+/* ---- SKINS */
+.lx-skins { gap: 10px; }
+.lx-skin[data-lxp] { padding: 12px 12px 14px; gap: 6px; background: #1c2130; }
+.lx-skin-art[data-lxp] { padding: 6px 6px 12px; background: #10162a; }
+.lx-skin-art.lxp-on .lx-skin-3d { position: relative; z-index: 1; }
+.lx-skin-art .lx-skin-lock { z-index: 2; }
+.lx-skin .lx-dymo.lx-skin-n { font-size: 0.7em; max-width: 100%; white-space: normal; line-height: 1.1; letter-spacing: 0.08em; }
+.lx-skin-tick { z-index: 6; }
+
+/* ---- COMMANDER: dossier clipboard (lined paper) */
+.lx-cmd.lxp-on { padding: 26px 16px 18px 28px; gap: 8px; }
+.lx-paper .lx-cmd-name { color: var(--lx-ink); text-shadow: none; }
+.lx-paper .lx-cmd-desc { color: var(--lx-ink); font-weight: 700; }
+.lx-paper .lx-cmd-lock { color: var(--lx-ink); background: rgba(255, 231, 106, 0.55); box-shadow: inset 0 0 0 2px rgba(184, 154, 42, 0.6); }
+.lx-paper .lx-cmd-lock b { color: #a01c28; }
+.lx .mn-box[data-lxp] { padding: 14px 14px 16px; gap: 10px; background: #232a3e; }
+.lx .mn-box[data-lxp] > .mn-sub { margin: 0; }
+.lx-roster { gap: 8px; }
+.lx .mn-rost { background: none; box-shadow: none; padding: 0 0 2px; gap: 3px; }
+.lx .mn-rost.view, .lx .mn-rost.lock, .lx .mn-rost.lock.view { background: none; box-shadow: none; }
+.lx .mn-rost-art[data-lxp], .lx .mn-pk-art[data-lxp] { padding: 5px 5px 10px; background: #10162a; }
+.lx .mn-rost-art.lxp-on img, .lx .mn-pk-art.lxp-on img { position: relative; z-index: 1; }
+.lx .mn-rost-n { font-size: 0.82em; }
+.lx .mn-rost-eq { z-index: 6; rotate: none; }
+.lx .mn-pk, .lx .mn-pk.sel { background: none; box-shadow: none; padding: 0 0 2px; gap: 3px; }
+.lx .mn-pk-lock { z-index: 3; }
+.lx .mn-pk.sel .mn-pk-s { color: #ffd23f; }
+.lx .mn-pk-tick { z-index: 6; }
+.lx .mn-abil { background: rgba(6, 10, 22, 0.55); box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(170, 200, 255, 0.18); }
+.lx .mn-abil.sig { background: linear-gradient(90deg, rgba(160, 20, 90, 0.45), rgba(6, 10, 22, 0.55)); }
+.lx .mn-lvroad { gap: 8px; padding: 14px 4px 8px; background: linear-gradient(#5a6480, #5a6480) 0 6px / 100% 2px no-repeat local; }
+
+/* ---- research screen: steel frame + header plate */
+.lb2-tree-crt.lxp-on { padding: 0 7px 7px; background: #0b1020 !important; }
+.lb2-tree-art { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; image-rendering: pixelated; }
+.lb2-tree-crt.lxp-on > .lb2-tree-head { background: none; box-shadow: none; padding-left: calc(var(--u) * 1.4 + 4px); }
+.lb2-tree-crt.lxp-on > .lb2-tree-body { margin-top: 7px; z-index: 1; }
+.lb2-tree-count.lx-dymo { font-size: 0.66em; }
+.lb2-tree-scan { background: none; }
+.lx-paper .bar, .lx-paper .mn-chip, .lx-paper .btn, .lx-paper .lx-eq, .lx-paper .lx-cmd-lv { color: #fff; }
+.lb2-tree-tt { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.lb2-tree-crt.lxp-on .lb2-tree-title { line-height: 1; }
+body.landscape .lb2-tree-tt { flex-direction: row; align-items: center; gap: 12px; }

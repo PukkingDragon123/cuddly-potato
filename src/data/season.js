@@ -89,19 +89,20 @@ export function tierForCalories(cal) {
   return Math.min(PASS_TIERS.length, Math.floor(cal / SEASON.calPerTier));
 }
 
-// Season challenges reset daily (seeded) - progress tracked in profile.quests.season
+// Season challenges reset daily (seeded) - progress tracked in profile.quests.season.
+// text = the goal (the quest's title), how = exactly what to do (quest board + pass drawer)
 export const SEASON_CHALLENGES = [
-  { id: 'winBattles', text: 'Win {n} battles', n: 3, cal: 150, stat: 'wins' },
-  { id: 'deployFood', text: 'Deploy {n} Snack Squad troops', n: 15, cal: 120, stat: 'deployFood' },
-  { id: 'useFoodThrow', text: 'Use Food Throw {n} times', n: 4, cal: 100, stat: 'castfoodThrow' },
-  { id: 'martBattles', text: 'Battle {n} times at Beast Mart', n: 2, cal: 120, stat: 'martBattles' },
-  { id: 'openVials', text: 'Open {n} vials', n: 2, cal: 100, stat: 'vialsOpened' },
-  { id: 'unleashMega', text: 'Use your MEGA {n} times', n: 2, cal: 160, stat: 'megasUsed' },
-  { id: 'useSignature', text: 'Use your Commander ULTIMATE {n} times', n: 4, cal: 110, stat: 'signatures' },
-  { id: 'deployTroops', text: 'Deploy {n} troops', n: 40, cal: 110, stat: 'deployed' },
-  { id: 'smashCarts', text: 'Smash {n} shopping carts', n: 6, cal: 90, stat: 'cartsSmashed' },
-  { id: 'bases', text: 'Destroy {n} rival bases', n: 3, cal: 120, stat: 'basesDestroyed' },
-  { id: 'baseUp', text: 'Upgrade your base {n} times', n: 6, cal: 150, stat: 'baseUpgrades' },
+  { id: 'winBattles', text: 'Win {n} battles', n: 3, cal: 150, stat: 'wins', how: "Tap BATTLE and destroy the rival's base." },
+  { id: 'deployFood', text: 'Deploy {n} Snack Squad troops', n: 15, cal: 120, stat: 'deployFood', how: 'Put Snack Squad cards (from Snack Packs) in your deck and play them in battles.' },
+  { id: 'useFoodThrow', text: 'Use Food Throw {n} times', n: 4, cal: 100, stat: 'castfoodThrow', how: 'Keep Food Throw in your deck. In battle, drop it on your troops.' },
+  { id: 'martBattles', text: 'Battle {n} times at Beast Mart', n: 2, cal: 120, stat: 'martBattles', how: 'Battle in the Beast Mart arena. It opens at 1,000 trophies.' },
+  { id: 'openVials', text: 'Open {n} vials', n: 2, cal: 100, stat: 'vialsOpened', how: 'Tap a vial in the slots by BATTLE, unlock it, then open it.' },
+  { id: 'unleashMega', text: 'Use your MEGA {n} times', n: 2, cal: 160, stat: 'megasUsed', how: 'In battle, tap the MEGA button when it reaches 100%.' },
+  { id: 'useSignature', text: 'Use your Commander ULTIMATE {n} times', n: 4, cal: 110, stat: 'signatures', how: 'In battle, tap your Commander (the ULT button) when it reaches 100%.' },
+  { id: 'deployTroops', text: 'Deploy {n} troops', n: 40, cal: 110, stat: 'deployed', how: 'Play any troop card on the field in battles.' },
+  { id: 'smashCarts', text: 'Smash {n} shopping carts', n: 6, cal: 90, stat: 'cartsSmashed', how: 'Battle at Beast Mart and knock over the carts on the field.' },
+  { id: 'bases', text: 'Destroy {n} rival bases', n: 3, cal: 120, stat: 'basesDestroyed', how: "Win battles by destroying the rival's base." },
+  { id: 'baseUp', text: 'Upgrade your base {n} times', n: 6, cal: 150, stat: 'baseUpgrades', how: 'In battle, tap the base model beside your cards when its POWER bar is full.' },
 ];
 
 export const BANNERS = {

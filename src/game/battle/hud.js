@@ -6,7 +6,7 @@
 //            lane strip (camera window, tap / drag to pan) and pause
 //   dock   - Battle Cats layout: the big BASE UPGRADE button ("Worker Cat":
 //            a 3D model of the next base tier, its cost and a fill bar) on
-//            the left, the POWER wallet ("12/30" + a fill bar that ticks up)
+//            the left, the POWER wallet ("60/100" + a fill bar, a tick every 10)
 //            in the middle, the Commander ULTIMATE ("Cat Cannon": a 3D render
 //            in a charging energy ring) on the right, and the hand of 4 cards
 //            (up to 6 with DRAW specials) with the NEXT card underneath. The
@@ -190,6 +190,9 @@ export function ultCutIn({ img, title, kicker = 'ULTIMATE', sub = '', color = '#
   return wrap;
 }
 
+/** Cost badge size class: 2-digit prices are the norm, 3-digit ones get a tighter font. */
+const costDigits = (n) => (String(Math.round(n)).length >= 3 ? ' d3' : '');
+
 export class BattleHUD {
   /**
    * handlers: { press(slot, event), signature(), skill(k), overclock(), mega(), pause(), emote(i), minimap(x) }
@@ -334,9 +337,9 @@ export class BattleHUD {
     this.modelTier = 0;
     this.spinFrames = null;
 
-    // POWER wallet: big rolling counter + a fill bar with one tick per point
+    // POWER wallet: big rolling counter + a fill bar with one tick per 10 POWER
     this.pwrNow = h('b', { class: 'pw-now' }, '0');
-    this.pwrMax = h('span', { class: 'pw-max' }, '/12');
+    this.pwrMax = h('span', { class: 'pw-max' }, '/100');
     this.pwrFill = h('i', { class: 'pw-f' });
     this.pwrMark = h('i', { class: 'pw-mark' }, icon('up'));
     this.rate = h('span', { class: 'pw-rate' }, '');
@@ -510,7 +513,7 @@ export class BattleHUD {
   /** Card face markup for a hand card (also cloned for the fly / drag ghosts). */
   cardFace(c, cost, extra = {}) {
     const def = cardDef(c.id);
-    const base = def?.elixir ?? 3;
+    const base = def?.elixir ?? 30;
     const sp = c.special ? SPELLS[c.unit] : null;
     const desktop = engine.width > engine.height || !('ontouchstart' in window);
     return h('div', { class: 'cf' },
@@ -522,7 +525,7 @@ export class BattleHUD {
       c.temp ? h('div', { class: 'tmp' }, 'COPY') : null,
       h('div', { class: 'need' }),
       h('div', { class: 'flash' }),
-      h('div', { class: `cost${cost < base ? ' cheap' : ''}` }, h('b', {}, String(cost))),
+      h('div', { class: `cost${cost < base ? ' cheap' : ''}${costDigits(cost)}` }, h('b', {}, String(cost))),
       desktop && extra.key ? h('div', { class: 'key' }, String(extra.key)) : null);
   }
   slotClass(c, i, s) {
@@ -971,13 +974,15 @@ export class BattleHUD {
     if (max !== this.lastMax) {
       this.lastMax = max;
       this.pwrMax.textContent = '/' + max;
-      this.ebar.style.setProperty('--segs', max);
+      this.energyRow.classList.toggle('w3', max >= 100);
+      this.ebar.style.setProperty('--segs', Math.max(1, Math.round(max / 10)));
     }
     if (Math.abs(e - this.lastE) > 0.004) {
       this.lastE = e;
       const whole = Math.floor(e + 1e-6);
       if (whole !== this.shownE) {
-        const up = whole > this.shownE && this.shownE >= 0;
+        // the counter hops each time it rolls past a tick of the bar (every 10), not on every point
+        const up = whole > this.shownE && this.shownE >= 0 && Math.floor(whole / 10) > Math.floor(this.shownE / 10);
         const spent = this.shownE - whole;
         this.shownE = whole;
         this.pwrNow.textContent = String(whole);
@@ -989,7 +994,7 @@ export class BattleHUD {
     }
     const rate = sim.energyRate?.(0);
     if (rate) {
-      const rt = `+${rate.toFixed(1)}/s`;
+      const rt = `+${Math.round(rate)}/s`;
       if (rt !== this.lastRate) { this.lastRate = rt; this.rate.textContent = rt; }
     }
     this.energyRow.classList.toggle('x2', sim.doubleEnergy && !sim.overtime);

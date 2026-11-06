@@ -1005,6 +1005,13 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
 .gcard .cost::before { inset: -14%; clip-path: none; background: var(--ic-energy) center / 100% 100% no-repeat; image-rendering: pixelated; }
 .gcard .cost::after { display: none; }
 @media (max-resolution: 1.99dppx) { .gcard .cost::before { image-rendering: auto; } }
+/* POWER prices are 2 digits (the odd one 3): a tighter number that stays inside the gem */
+.gcard .cost { font-size: calc(var(--u) * 4.1); letter-spacing: -0.04em; }
+.gcard.mini .cost { font-size: calc(var(--u) * 3); }
+.gcard.big .cost { font-size: calc(var(--u) * 5.8); }
+.gcard .cost.d3 { font-size: calc(var(--u) * 3.2); }
+.gcard.mini .cost.d3 { font-size: calc(var(--u) * 2.4); }
+.gcard.big .cost.d3 { font-size: calc(var(--u) * 4.6); }
 
 /* House rule: text is never tilted or skewed (no rotate/skew on text, ever). */
 .t-d, .t-b, .outline, h1, h2, h3, [class*="name"], [class*="title"], [class*="slam"], [class*="label"], [class*="tag"], [class*="kicker"], [class*="banner"] { font-style: normal; }
@@ -1042,3 +1049,35 @@ i, em { font-style: normal; }
   --skip-m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h1v1h-1v1h-1v1h-1v1h-1zM4 0h1v1h1v1h1v1h1v1h-1v1h-1v1h-1v1h-1zM9 0h2v7h-2z'/%3E%3C/svg%3E");
   -webkit-mask: var(--skip-m) 0 0 / 100% 100% no-repeat; mask: var(--skip-m) 0 0 / 100% 100% no-repeat;
 }
+
+/* ---------------------------------------------------------------- no default browser chrome (round 9 polish)
+   no focus rings on tap / click (keyboard focus keeps a pixel ring), no blue text selection, no image
+   ghost-drag, and any scroller that isn't .scroll-y / .scroll-x still gets the slim game scrollbar */
+:focus:not(:focus-visible) { outline: none; }
+button:focus-visible, [role='button']:focus-visible, a:focus-visible { outline: calc(var(--px) * 2) solid #7fe6ff; outline-offset: calc(var(--px) * 1); }
+::selection { background: rgba(127, 230, 255, 0.35); color: inherit; }
+img { -webkit-user-drag: none; }
+/* (zero specificity: any screen's own scrollbar rule still wins) */
+:where(#ui, #overlay) ::-webkit-scrollbar { width: calc(var(--px) * 2); height: calc(var(--px) * 2); }
+:where(#ui, #overlay) ::-webkit-scrollbar-thumb { background: rgba(127, 230, 255, 0.45); }
+:where(#ui, #overlay) ::-webkit-scrollbar-track { background: rgba(4, 6, 24, 0.35); }
+:where(#ui, #overlay) ::-webkit-scrollbar-corner { background: transparent; }
+/* a modal's footer sits on a pixel divider, so body content scrolled under it reads as scrolled, not as overlapping */
+.modal-foot { position: relative; padding-top: calc(var(--u) * 1.6); }
+.modal-foot::before {
+  content: ''; position: absolute; left: calc(var(--u) * 2.4); right: calc(var(--u) * 2.4); top: 0; height: calc(var(--px) * 2);
+  background: rgba(127, 230, 255, 0.28); box-shadow: 0 calc(var(--px) * -3) calc(var(--px) * 4) rgba(4, 8, 30, 0.45); pointer-events: none;
+}
+/* locked cards: a readable ghost silhouette of the Swarm instead of a black-on-black blank */
+.gcard.locked .art { filter: grayscale(1) brightness(0.6); }
+.gcard.locked .art img { filter: brightness(0) invert(1) opacity(0.22); }
+/* card art still rendering: three pixel blocks tick in the empty tank instead of a blank card */
+.gcard:not(.locked) .art img.thumb:not(.loaded) {
+  background:
+    linear-gradient(#7fe6ff, #7fe6ff) calc(50% - var(--pxs) * 5) 46% / calc(var(--pxs) * 3) calc(var(--pxs) * 3) no-repeat,
+    linear-gradient(#7fe6ff, #7fe6ff) 50% 46% / calc(var(--pxs) * 3) calc(var(--pxs) * 3) no-repeat,
+    linear-gradient(#7fe6ff, #7fe6ff) calc(50% + var(--pxs) * 5) 46% / calc(var(--pxs) * 3) calc(var(--pxs) * 3) no-repeat;
+  animation: thumbWait 0.9s steps(3) infinite;
+}
+@keyframes thumbWait { 0% { opacity: 0.25; } 100% { opacity: 0.9; } }
+@media (prefers-reduced-motion: reduce) { .gcard .art img.thumb:not(.loaded) { animation: none; opacity: 0.6; } }

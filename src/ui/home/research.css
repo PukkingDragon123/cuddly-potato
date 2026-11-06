@@ -309,3 +309,43 @@
 }
 .rs-root.land .rs-sh-x { position: absolute; top: calc(var(--u) * 1.6); right: calc(var(--u) * 1.8); z-index: 2; }
 .rs-root.land .rs-sh-col.b > .rs-fxbox { margin-right: calc(var(--u) * 10); }
+
+/* ---------------------------------------------------------------- painted dressing (labArt.js, round 9)
+   pegboard wall behind, a taped blueprint sheet under the tree (pans + zooms with it), steel pipes with
+   flanges, enamel branch signs, the lab bench (walnut + steel) and the node sheet on a steel clipboard. */
+.rs-wall { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; image-rendering: pixelated; }
+.rs-root.painted { background: #141a28; --ink-p: #1c1a2c; }
+.rs-root.painted .rs-view { background: none; }
+.rs-root.painted .rs-view::after { background: linear-gradient(180deg, rgba(5, 8, 20, 0.45), transparent 12%, transparent 84%, rgba(5, 8, 20, 0.5)); }
+.rs-sheetart { position: absolute; pointer-events: none; image-rendering: pixelated; }
+.rs-root.painted .rs-pipe { box-shadow: 3px 4px 0 0 rgba(2, 6, 24, 0.5); }
+.rs-root.painted .rs-pipe.h { background: var(--rs-pipe-h) 0 0 / 40px 16px repeat-x; image-rendering: pixelated; }
+.rs-root.painted .rs-pipe.v { background: var(--rs-pipe-v) 0 0 / 16px 40px repeat-y; image-rendering: pixelated; }
+.rs-root.painted .rs-tag {
+  height: auto; padding: 0 3px 0 0; translate: -50% -8px; clip-path: none; box-shadow: none;
+  border: 8px solid transparent; border-image: var(--sign) 8 fill / 8px; image-rendering: pixelated; background: none;
+  filter: drop-shadow(3px 4px 0 rgba(2, 6, 24, 0.5));
+}
+.rs-root.painted .rs-tag > span { top: 2px; }
+.rs-bench[data-lxp] { padding: 14px 16px 12px 22px; background: #232a3e; }
+.rs-bench.lxp-on .rs-bench-glass { filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.45)); }
+.rs-root.land .rs-bench[data-lxp] { padding: 11px 12px 8px 18px; }
+/* the node sheet: graph paper on a clipboard, so the type is ink */
+.rs-sheet[data-lxp] { padding: 28px 18px 16px 26px; background: #f4f2ea; color: var(--ink-p); }
+.rs-root.land .rs-sheet[data-lxp] { padding: 26px 18px 14px 26px; }
+.rs-sheet[data-lxp] .rs-sh-title, .rs-sheet[data-lxp] .rs-cost b, .rs-sheet[data-lxp] .rs-sh-lv .t-d { color: var(--ink-p); text-shadow: none; }
+.rs-sheet[data-lxp] .rs-sh-line { color: #4a4660; font-weight: 700; }
+.rs-sheet[data-lxp] .rs-fx { background: rgba(255, 255, 255, 0.72); box-shadow: inset 0 0 0 2px rgba(29, 63, 154, 0.3); color: var(--ink-p); }
+.rs-sheet[data-lxp] .rs-fx > b { color: #4a4660; }
+.rs-sheet[data-lxp] .rs-fx.next { background: rgba(160, 240, 120, 0.4); box-shadow: inset 0 0 0 2px rgba(40, 140, 40, 0.45); }
+.rs-sheet[data-lxp] .rs-fx.next > b { color: #1d7a22; }
+.rs-sheet[data-lxp] .rs-fx.next > span { color: #10361a; font-weight: 700; }
+.rs-sheet[data-lxp] .rs-req { font-weight: 700; }
+.rs-sheet[data-lxp] .rs-req.ok { color: #1d6a22; }
+.rs-sheet[data-lxp] .rs-req.no { color: #a01c28; }
+.rs-sheet[data-lxp] .rs-req.busy { color: #0a5a7a; }
+.rs-sheet[data-lxp] .rs-req b { color: inherit; }
+.rs-sheet[data-lxp] .rs-sh-cost.poor .rs-cost:first-child b { color: #c0202c; }
+.rs-sheet[data-lxp] .rs-sh-left { color: #0a5a7a; text-shadow: none; }
+.rs-sheet[data-lxp] .rs-pips > i { background: #d8dce8; box-shadow: 0 0 0 2px var(--ink-p), inset 0 2px 0 #fff; }
+.rs-sheet[data-lxp] .rs-pips > i.on { background: linear-gradient(180deg, #c8ff9a 0 3px, #3cc23a 3px); box-shadow: 0 0 0 2px var(--ink-p); }

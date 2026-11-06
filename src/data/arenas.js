@@ -324,7 +324,7 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId, opts = {}) {
   // a full Clash Royale deck from Arena 2 on
   const size = trophies < 300 ? Math.max(3, Math.min(DECK_SIZE, opts.deckSize ?? rivalDeckSize(trophies))) : DECK_SIZE;
   // a sensible archetype: a cheap card, a tank, ranged support, a spell, then fill
-  want((c) => c.kind === 'troop' && c.elixir <= 2 * PU);
+  want((c) => c.kind === 'troop' && c.elixir <= 2.5 * PU);
   want((c) => c.kind === 'troop' && (c.role === 'tank' || c.role === 'siege'));
   want((c) => c.kind === 'troop' && c.role === 'ranged');
   if (size >= 5) want((c) => c.kind === 'spell' && c.id !== 'labShield');

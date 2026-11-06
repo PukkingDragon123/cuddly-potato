@@ -152,7 +152,7 @@ export function mount(el, ctx) {
         // an empty slot: '+' when a card is waiting in the collection, else a hint to go find more
         const spare = Object.keys(p.cards).some((cid) => !deck.includes(cid));
         const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: spare ? null : { flexDirection: 'column', gap: '0.1em' } },
-          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.55 } }, '?'), h('span', { class: 'c-muted', style: { fontSize: 'calc(var(--u) * 2.1)', fontWeight: 700, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' } }, 'Win more')]));
+          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.55 } }, '?'), h('span', { class: 'c-muted', style: { fontSize: 'calc(var(--u) * 2.1)', fontWeight: 700, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' } }, 'Open vials')]));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.appendChild(em);
       }
@@ -173,7 +173,7 @@ export function mount(el, ctx) {
     }
     const avg = avgElixir(deck);
     const foot = h('div', { class: 'mn-deck-foot' },
-      h('div', { class: 'mn-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average POWER'), h('b', { class: 't-d outline t-lg' }, avg ? avg.toFixed(1) : '-'))),
+      h('div', { class: 'mn-avg' }, icon('energy', 'l'), h('div', { class: 'col', style: { gap: 0 } }, h('span', { class: 't-xs c-muted' }, 'Average POWER'), h('b', { class: 't-d outline t-lg' }, avg ? String(Math.round(avg)) : '-'))),
       h('span', { class: 'spacer' }),
       chip([icon('cards', 's'), h('b', {}, `${deck.length}/${deckSlotCount()}`)], deck.length < deckSlotCount() ? 'warn' : ''));
     const box = h('div', { class: 'panel sk-panel mn-deckbox' }, tabs, grid, foot);
@@ -247,7 +247,8 @@ export function mount(el, ctx) {
         h('div', { class: 'mn-collbar' }, h('i', { style: { width: (foundAll.length / ALL_CARDS.length) * 100 + '%' } }))),
     ];
     if (coll.length) out.push(grid);
-    else out.push(h('div', { class: 'mn-empty-note' }, 'All your cards are in your deck! Open vials to find more Swarms.'));
+    else out.push(h('div', { class: 'mn-empty-note mn-empty-card' }, icon('vial', 'mn-empty-ic'),
+      h('div', { class: 'mn-empty-txt' }, h('b', { class: 't-d outline' }, 'Every card you own is in your deck'), h('span', {}, 'Win battles to earn vials. New cards from vials show up here.'))));
     if (missing.length) {
       const mg = h('div', { class: 'mn-cgrid locked' });
       missing.forEach((c) => {

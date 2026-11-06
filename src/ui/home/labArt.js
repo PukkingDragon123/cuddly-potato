@@ -32,7 +32,7 @@ import {
 
 // ============================================================================ palettes + cache
 
-const PLATE = ramp('#080b16', '#10162a', '#18203a', '#202a48', '#293556', '#334166', '#3e4e78', '#4c5e8a', '#60739e', '#7e92b8', '#a8b8d6');
+const PLATE = ramp('#090c15', '#111622', '#191f2f', '#21293d', '#2a334a', '#343e57', '#3f4a66', '#4d5a78', '#63708e', '#8290ae', '#aab6d0');
 const ALU = ramp('#262c40', '#3e465e', '#5a6280', '#78809c', '#959db6', '#b2bace', '#d0d6e4', '#eef1f7');
 const GUN = ramp('#0c0e16', '#161a26', '#212634', '#2c3242', '#383f52', '#465064', '#58627a', '#707c96');
 const RIV = ramp('#121828', '#2c3550', '#525e7c', '#8692b0', '#c4cee2');
@@ -46,7 +46,7 @@ const SHADOW = cl('#02030a');
 const WHITE = cl('#ffffff');
 
 const MEMO = new Map();
-const CAPS = { wall: 3, tframe: 3, slate: 3, sheet: 2, bench: 4 };
+const CAPS = { wall: 3, tframe: 3, slate: 3, sheet: 2, bench: 4, plate: 28, clip: 10, blueprint: 8, case: 40, glass: 40, socket: 16, drawer: 24, tier: 24, tag: 40, note: 12 };
 function memo(key, fn) {
   const kind = key.slice(0, key.indexOf('|'));
   let c = MEMO.get(kind);
@@ -70,6 +70,9 @@ const rampOf = (hex, n = 6) => {
 };
 
 // ============================================================================ shared bits
+
+/** Brushed-metal streaks (horizontal, a few px tall, soft) for steel faces: -0.07..0.07. */
+const brush = (x, y, s = 0) => (nzB(((x >> 1) + s * 37) & 255, (y * 7 + s * 11) & 255) - 0.5) * 0.11 + (hash(s, y, 91) - 0.5) * 0.035;
 
 /** Inside test + edge distance for a chamfered rect (corner cut c). Edge distance is Manhattan on the cut. */
 function chamfer(w, h, c) {
@@ -254,7 +257,7 @@ export function benchCanvas(w, h, vertical = false) {
 export function drawerCanvas(w, h, o = {}) {
   w = Math.round(w); h = Math.round(h);
   const M = 4;
-  return memo(`drawer|${w}x${h}|${o.on ? 1 : 0}|${o.lock ? 1 : 0}|${o.seed | 0}`, () => {
+  return memo(`drawer|${w}x${h}|${o.on ? 1 : 0}|${o.lock ? 1 : 0}|${o.seed | 0}|${o.c ?? ''}`, () => {
     noiseTex();
     const P = new Px(w + 2 * M, h + 2 * M);
     const S = chamfer(w, h, 2);
@@ -264,7 +267,7 @@ export function drawerCanvas(w, h, o = {}) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (!S.in(x, y)) continue;
       const d = S.d(x, y);
-      let v = 0.52 + (nzF(x + o.seed * 30, y) - 0.5) * 0.16 + (nzB(x, y) - 0.5) * 0.1 - y / h * 0.14;
+      let v = 0.52 + brush(x, y, o.seed | 0) * 1.1 + (nzB(x, y) - 0.5) * 0.08 - y / h * 0.14;
       let c;
       if (d === 0) c = INK;
       else if (d === 1) c = rampAt(FACE, v + (y < h / 2 || x < 3 ? 0.34 : -0.24), x, y);
@@ -302,7 +305,7 @@ export function drawerCanvas(w, h, o = {}) {
     }
     for (const xx of [px0 - 1, px0 + pw]) for (let j = 0; j < 4; j++) P.put(xx + M, py + j + M, j === 3 ? INK : STEEL[2]);
     // status lamp in the corner of the face
-    if (!o.lock) lampDot(P, w - 4 + M, h - 5 + M, o.on ? '#7aff4a' : null, 1.6);
+    if (!o.lock) lampDot(P, w - 5 + M, h - 5 + M, o.on ? o.c || '#7aff4a' : null, 1.6);
     // wear
     const R = rng(40 + (o.seed | 0));
     scratches(P, M, Math.round(w / 14), (x, y) => S.in(x, y) && S.d(x, y) > 1 && !(x >= hx0 && x <= hx1 && y >= hy0 && y <= hy1), R, WHITE, 0.18);
@@ -328,7 +331,7 @@ export function plateCanvas(w, h, o = {}) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (!S.in(x, y)) continue;
       const d = S.d(x, y);
-      let v = 0.46 + (nzB(x + ox, y) - 0.5) * 0.16 + (nzF(x + ox, y) - 0.5) * 0.16 - (y / h) * 0.12 + (hash(x, y, 3) - 0.5) * 0.04;
+      let v = 0.46 + (nzB(x + ox, y) - 0.5) * 0.18 + brush(x, y, o.seed | 0) - (y / h) * 0.12 + (hash(x, y, 3) - 0.5) * 0.04;
       // grime toward the bottom (dithered blotches)
       v -= smooth(0.55, 1, y / h) * (0.06 + nzB((x * 2 + ox) & 255, (y * 2) & 255) * 0.1);
       const lit = y < h / 2 ? (x < w / 2 ? y <= x * 1.2 || true : true) : false;
@@ -402,7 +405,7 @@ export function socketCanvas(w, h, o = {}) {
       let col;
       if (d === 0) col = INK;
       else if (d < bz) {
-        const v = 0.6 + (nzF(x, y * 2) - 0.5) * 0.14 + (d === 1 ? (y < h / 2 ? 0.3 : -0.15) : d === bz - 1 ? (y < h / 2 ? -0.25 : 0.2) : 0);
+        const v = 0.6 + brush(x, y, 3) + (d === 1 ? (y < h / 2 ? 0.3 : -0.15) : d === bz - 1 ? (y < h / 2 ? -0.25 : 0.2) : 0);
         col = rampAt(STEEL, v - y / h * 0.15, x, y);
       } else if (d === bz) col = INK;
       else {
@@ -479,11 +482,11 @@ export function tierCanvas(w, h, o = {}) {
     const S = chamfer(w, h, 3);
     shadowUnder(P, M, w, h, S.in, 0, o.on ? 2 : 3, 2, 0.6);
     const KEY = o.on ? ALU : ramp('#1a2030', '#262e42', '#343e56', '#46526c', '#5a6884', '#76849e', '#96a2ba');
-    const sh = Math.round(h * 0.58); // screen height
+    const sh = Math.round(Math.min(h * 0.62, (w - 6) / 1.45 + 3)); // screen bottom (the key's ::before spacer matches)
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (!S.in(x, y)) continue;
       const d = S.d(x, y);
-      const v = 0.5 + (nzF(x * 2, y) - 0.5) * 0.14 - y / h * 0.16;
+      const v = 0.5 + brush(x, y, 4) - y / h * 0.16;
       P.put(x + M, y + M, d === 0 ? INK : d === 1 ? rampAt(KEY, v + (y < h / 2 ? 0.35 : -0.25), x, y) : rampAt(KEY, v, x, y));
     }
     // the screen (blueprint glass)
@@ -556,7 +559,7 @@ export function caseCanvas(w, h, o = {}) {
       let col;
       if (d === 0 || d === fr) col = INK;
       else if (d < fr) {
-        const v = 0.58 + (nzF(x * 2, y) - 0.5) * 0.12 + (d === 1 ? (y < h / 2 ? 0.3 : -0.2) : d === fr - 1 ? (y < h / 2 ? -0.22 : 0.18) : 0) - y / h * 0.18;
+        const v = 0.58 + brush(x, y, 9) + (d === 1 ? (y < h / 2 ? 0.3 : -0.2) : d === fr - 1 ? (y < h / 2 ? -0.22 : 0.18) : 0) - y / h * 0.18;
         col = rampAt(FRAME, v, x, y);
       } else if (y >= h - fr - plH) {
         // plinth: a lit top face then a darker front
@@ -597,15 +600,16 @@ export function glassCanvas(w, h, o = {}) {
     for (let x = fr; x < w - fr; x++) P.put(x, fr, WHITE, 0.3);
     for (let y = fr; y < h - fr; y++) P.put(fr, y, WHITE, 0.18);
     if (o.lock) {
-      // two strips of caution tape crossing the glass
-      const tw = Math.max(5, Math.round(Math.min(w, h) * 0.09));
-      for (const dir of [1, -1]) for (let y = fr; y < h - fr; y++) for (let x = fr; x < w - fr; x++) {
-        const u = dir > 0 ? x - (y - h * 0.18) * (w / h) : x - (h * 0.82 - y) * (w / h);
-        const dd = Math.abs(u - w * 0.08);
+      // one strip of caution tape across the lower glass (shallow slope, torn short of the frame)
+      const tw = Math.max(6, Math.round(Math.min(w, h) * 0.1));
+      const y0 = h * 0.7, slope = -0.22;
+      for (let y = fr; y < h - fr; y++) for (let x = fr + 2; x < w - fr - 2; x++) {
+        const dd = Math.abs(y - (y0 + (x - w / 2) * slope));
         if (dd > tw / 2) continue;
-        const stripe = Math.floor((x + (dir > 0 ? -y : y) * 0.4 + 400) / 6) % 2 === 0;
+        const stripe = Math.floor((x - y * 0.9 + 400) / 5) % 2 === 0;
         const edge = dd > tw / 2 - 1;
-        P.put(x, y, edge ? INK : stripe ? HZY[3] : HZK[1], 0.95);
+        P.put(x, y + 1, SHADOW, 0.35);
+        P.put(x, y, edge ? INK : stripe ? HZY[3] : HZK[1], 0.97);
       }
     }
     return P.canvas();
@@ -627,7 +631,7 @@ export function clipCanvas(w, h, o = {}) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       if (!S.in(x, y)) continue;
       const d = S.d(x, y);
-      const v = 0.52 + (nzF(x + 20, y) - 0.5) * 0.24 + (nzB(x, y) - 0.5) * 0.08 - y / h * 0.14;
+      const v = 0.52 + brush(x, y, 5) * 1.6 + (nzB(x, y) - 0.5) * 0.1 - y / h * 0.14;
       P.put(x + M, y + M, d === 0 ? INK : d === 1 ? rampAt(ALU, v + (y < h / 2 ? 0.34 : -0.26), x, y) : d === 2 ? rampAt(ALU, v + (y < h / 2 ? 0.1 : -0.1), x, y) : rampAt(ALU, v, x, y));
     }
     // the sheet
@@ -863,7 +867,7 @@ export function hudCanvas(w, h) {
       if (d === 0) col = INK;
       else if (d < 4) col = rampAt(BRASS, 0.58 + (d === 1 ? (y < h / 2 ? 0.35 : -0.25) : d === 3 ? (y < h / 2 ? -0.3 : 0.15) : 0) + (hash(x, y, 4) - 0.5) * 0.1 - y / h * 0.15, x, y);
       else if (d === 4) col = INK;
-      else col = rampAt(PLATE, 0.36 + (nzF(x, y) - 0.5) * 0.16 + (nzB(x, y) - 0.5) * 0.1 - y / h * 0.12 + (d < 7 && y < h / 2 ? -0.12 : 0), x, y);
+      else col = rampAt(PLATE, 0.36 + brush(x, y, 6) + (nzB(x, y) - 0.5) * 0.12 - y / h * 0.12 + (d < 7 && y < h / 2 ? -0.12 : 0), x, y);
       P.put(x + M, y + M, col);
     }
     for (const [x, y] of [[2, Math.round(h / 2)], [w - 3, Math.round(h / 2)]]) screw(P, x + M, y + M, x, 1.3, ramp('#3a2204', '#6a420c', '#c8962a', '#fde27a', '#fff6c8'));
@@ -901,7 +905,7 @@ export function treeFrameCanvas(w, h, head, free) {
         if (v > 0) P.put(x, y, SHADOW, v);
         continue;
       }
-      let v = 0.42 + (nzB(x, y) - 0.5) * 0.18 + (nzF(x + 30, y) - 0.5) * 0.18 - (inHead ? y / Math.max(1, head) * 0.12 : 0);
+      let v = 0.42 + (nzB(x, y) - 0.5) * 0.18 + brush(x, y, 7) - (inHead ? y / Math.max(1, head) * 0.12 : 0);
       let col;
       if (d === 0) col = INK;
       else if (d === 1) col = rampAt(PLATE, v + (y < h / 2 ? 0.42 : -0.2), x, y);
@@ -1045,7 +1049,7 @@ export function rbenchCanvas(w, h) {
         col = d === 0 ? INK : rampAt(WOOD, 0.62 + (y === 1 ? 0.25 : 0) - (ring < 0.18 ? 0.14 : 0) - y * 0.03, x, y);
         if (y === top - 1) col = INK;
       } else {
-        const v = 0.42 + (nzF(x, y) - 0.5) * 0.16 + (nzB(x, y) - 0.5) * 0.12 - (y - top) / h * 0.14;
+        const v = 0.42 + brush(x, y, 8) + (nzB(x, y) - 0.5) * 0.14 - (y - top) / h * 0.14;
         col = d === 0 ? INK : d === 1 ? rampAt(PLATE, v + (x < w / 2 ? 0.2 : -0.2), x, y) : y === top ? rampAt(PLATE, v + 0.3, x, y) : rampAt(PLATE, v, x, y);
       }
       P.put(x + M, y + M, col);
@@ -1104,12 +1108,23 @@ export function signURL(color) {
   });
 }
 
+/** Worn hazard-stripe tile (24 x 12, tiles horizontally) for dividers. */
+export function hazardURL() {
+  return memo('hz|tile', () => {
+    noiseTex();
+    const W = 24, H = 12, P = new Px(W, H);
+    for (let x = 0; x < W; x++) { P.put(x, 0, INK); P.put(x, H - 1, INK); P.put(x, 1, STEEL[5]); P.put(x, H - 2, STEEL[1]); }
+    hazard(P, 0, 2, W, H - 4, 0, 12, 0.18);
+    return P.url();
+  });
+}
+
 // ============================================================================ dress: paint the elements that ask for it
 
 const PAINT = {
   wall: (w, h) => ({ c: wallCanvas(w, h), m: 0 }),
   bench: (w, h, o) => ({ c: benchCanvas(w, h, o.v === '1'), m: 0 }),
-  drawer: (w, h, o) => ({ c: drawerCanvas(w, h, { on: o.on === '1', lock: o.lock === '1', seed: +o.s || 0 }), m: 4 }),
+  drawer: (w, h, o) => ({ c: drawerCanvas(w, h, { on: o.on === '1', lock: o.lock === '1', seed: +o.s || 0, c: o.c }), m: 4 }),
   plate: (w, h, o) => ({ c: plateCanvas(w, h, { seed: +o.s || 0, hazard: o.hz === '1', accent: o.a, serial: o.sn === '1', tone: o.t, glow: o.g }), m: 8 }),
   socket: (w, h, o) => ({ c: socketCanvas(w, h, { color: o.c, lit: o.lit === '1', seed: +o.s || 0 }), m: 6 }),
   tier: (w, h, o) => ({ c: tierCanvas(w, h, { tier: +o.t || 1, on: o.on === '1' }), m: 4 }),
@@ -1147,7 +1162,7 @@ export function dress(root, { budget = 12 } = {}) {
     const w = el.offsetWidth, h = el.offsetHeight;
     if (w < 6 || h < 6 || !el.isConnected) continue;
     const key = `${el.dataset.lxp}|${el.dataset.lxo ?? ''}|${w}x${h}`;
-    if (el._lxk === key) continue;
+    if (el._lxk === key && el.querySelector(':scope > canvas.lxp-b')) continue;
     jobs.push({ el, w, h, key });
   }
   let i = 0, dead = false;
@@ -1156,7 +1171,7 @@ export function dress(root, { budget = 12 } = {}) {
     const t0 = performance.now();
     while (i < jobs.length && (performance.now() - t0 < budget || i === 0)) {
       const { el, w, h, key } = jobs[i++];
-      if (!el.isConnected || el._lxk === key) continue;
+      if (!el.isConnected || (el._lxk === key && el.querySelector(':scope > canvas.lxp-b'))) continue;
       const fn = PAINT[el.dataset.lxp];
       if (!fn) continue;
       let r;

@@ -23,6 +23,7 @@ import { BRANCHES, BRANCH, NODES, NODE_LIST, TOTAL_LEVELS, nodeFx, nodeText, req
 import { rankMedal, rankName } from '../rankMedal.js';
 import { rsIconURL, frameURL, lampURL, chainURL, junctionURL, drawBeaker, drawBlueprint, BEAKER_W, BEAKER_H } from './researchArt.js';
 import { deny, notify, fmtN, fmtLong, confirmBox } from './common.js';
+import { dress, wallCanvas, worldSheet, pipeTile, signURL } from './labArt.js';
 import './research.css';
 
 // world layout (world px; the world is scaled by the zoom)
@@ -55,6 +56,17 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
   view.appendChild(world);
   root.appendChild(view);
   el.appendChild(root);
+  // painted dressing (labArt.js): pegboard wall behind, a taped blueprint sheet under the tree, steel pipes
+  const wallCv = h('canvas', { class: 'rs-wall', 'aria-hidden': 'true' });
+  root.insertBefore(wallCv, view);
+  root.style.setProperty('--rs-pipe-h', `url(${pipeTile('h')})`);
+  root.style.setProperty('--rs-pipe-v', `url(${pipeTile('v')})`);
+  const sheetArt = worldSheet(WW, WH);
+  const sheetCv = h('canvas', { class: 'rs-sheetart', 'aria-hidden': 'true', width: sheetArt.width, height: sheetArt.height,
+    style: { left: -sheetArt._m / sheetArt._k + 'px', top: -sheetArt._m / sheetArt._k + 'px', width: sheetArt.width / sheetArt._k + 'px', height: sheetArt.height / sheetArt._k + 'px' } });
+  sheetCv.getContext('2d').drawImage(sheetArt, 0, 0);
+  world.appendChild(sheetCv);
+  root.classList.add('painted');
 
   // ------------------------------------------------------------------ build the tree
   const nodes = new Map(); // id -> { el, fr, lamp, lv, mini, n }
@@ -100,7 +112,7 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
   for (const br of BRANCHES) {
     const first = NODE_LIST.filter((n) => n.branch === br.id).sort((a, b) => a.col - b.col)[0];
     const p = pos(first);
-    world.appendChild(h('div', { class: 'rs-tag t-d', style: { left: p.x + 'px', top: p.y - T / 2 - 40 + 'px', '--bc': br.color, '--bi': br.ink } },
+    world.appendChild(h('div', { class: 'rs-tag t-d', style: { left: p.x + 'px', top: p.y - T / 2 - 40 + 'px', '--bc': br.color, '--bi': br.ink, '--sign': `url(${signURL(br.color)})` } },
       h('img', { class: 'rs-tag-ic', src: rsIconURL(br.icon), alt: '', draggable: 'false' }), h('span', {}, br.name)));
   }
   const CHAIN = chainURL();
@@ -145,7 +157,7 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
   const benchT2 = h('div', { class: 'rs-bench-n t-d outline' });
   const benchT3 = h('div', { class: 'rs-bench-t t-d' });
   const benchBtn = h('div', { class: 'rs-bench-act' });
-  const bench = h('div', { class: 'rs-bench sk-panel-dark' }, h('div', { class: 'rs-bench-glass' }, benchCv), h('div', { class: 'rs-bench-txt' }, benchT1, benchT2, benchT3), benchBtn);
+  const bench = h('div', { class: 'rs-bench', 'data-lxp': 'rbench' }, h('div', { class: 'rs-bench-glass' }, benchCv), h('div', { class: 'rs-bench-txt' }, benchT1, benchT2, benchT3), benchBtn);
   bench.addEventListener('click', (e) => {
     if (e.target.closest('.btn')) return;
     const a = state.p.research.active;
@@ -379,6 +391,9 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
 
   // ------------------------------------------------------------------ detail sheet
   let sheet = null;
+  const sheetRO = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (sheet) dress(sheet.el); }) : null;
+  const benchRO = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => dress(bench)) : null;
+  benchRO?.observe(bench);
   function openSheet(id) {
     const n = NODES[id];
     if (!n) return;
@@ -391,6 +406,9 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
     sheetHost.appendChild(sheet.el);
     root.classList.add('sheet-open');
     sheet.paint();
+    dress(sheet.el);
+    sheetRO?.disconnect();
+    sheetRO?.observe(sheet.el);
     for (const k of nodes.keys()) nodes.get(k).el.classList.toggle('sel', k === id);
     // keep the node visible next to the sheet
     requestAnimationFrame(() => {
@@ -420,6 +438,7 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
   }
   function closeSheet() {
     if (!sheet) return;
+    sheetRO?.disconnect();
     const s = sheet;
     sheet = null;
     root.classList.remove('sheet-open');
@@ -448,7 +467,7 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
           h('div', { class: 'row gap-s wrap' }, h('span', { class: 'rs-chip t-d', style: { '--bc': br.color, '--bi': br.ink } }, br.name), n.sig ? h('span', { class: 'rs-chip sig t-d' }, 'SIGNATURE') : null)), close),
         h('div', { class: 'rs-sh-line' }, n.line), lvl),
       h('div', { class: 'rs-sh-col b' }, h('div', { class: 'rs-fxbox' }, now, next), reqs));
-    const el = h('div', { class: 'rs-sheet sk-panel', 'data-id': n.id }, body, h('div', { class: 'rs-sh-bottom' }, cost, foot));
+    const el = h('div', { class: 'rs-sheet', 'data-id': n.id, 'data-lxp': 'rsheet' }, body, h('div', { class: 'rs-sh-bottom' }, cost, foot));
     el.addEventListener('pointerdown', (e) => e.stopPropagation());
     let footKey = '';
     const self = {
@@ -653,6 +672,15 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
     root.classList.toggle('land', vw > vh * 1.25);
     root.classList.toggle('short', vh < 380);
     root.classList.toggle('narrow', vw < 380);
+    // the wall behind the blueprint (cached per size)
+    const wc = wallCanvas(vw, vh);
+    if (wallCv.width !== wc.width || wallCv.height !== wc.height || !wallCv._ok) {
+      wallCv.width = wc.width; wallCv.height = wc.height;
+      wallCv.getContext('2d').drawImage(wc, 0, 0);
+      wallCv._ok = true;
+    }
+    wallCv.style.width = wc.width + 'px'; wallCv.style.height = wc.height + 'px';
+    dress(bench);
     // the zoom buttons sit just above a bottom bench
     zoomBox.style.bottom = root.classList.contains('land') ? '' : bench.offsetHeight + 16 + 'px';
     if (first) {
@@ -704,6 +732,8 @@ export function mountResearchTree(el, ctx = {}, opts = {}) {
       cancelAnimationFrame(zoomAnim);
       offRes();
       ro?.disconnect();
+      sheetRO?.disconnect();
+      benchRO?.disconnect();
       window.removeEventListener('keydown', onKey);
       root.remove();
     },

@@ -198,3 +198,13 @@ body.landscape .gd-qt-art { width: 50px; height: 50px; }
 .pg-blk > :not(.pg-pad) { filter: var(--pg-sil) !important; animation: none !important; }
 .pg-blk .u-pct, .pg-blk .u-rays, .pg-blk .bb-info, .pg-blk .bb-rays { visibility: hidden; }
 .pg-blk > .pg-pad { right: auto; bottom: auto; left: 50%; top: 50%; translate: -50% -50%; width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); }
+/* round 9: the tracker says what to do: title (wraps to 2 lines, never cut), a short how-to line, progress */
+.gd-qt { align-items: flex-start; }
+.gd-qt-art { align-self: center; }
+.gd-qt-txt { gap: 4px; }
+.gd-qt-n { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.05; font-size: 1.2em; overflow-wrap: break-word; }
+.gd-qt-how { font-family: var(--font-b); font-size: 0.86em; line-height: 1.2; color: #4a3520; overflow-wrap: break-word; padding-right: 6px; }
+.gd-qt-row { min-height: 28px; }
+.gd-qt-row.lock .gd-qt-cnt { font-size: 1em; }
+body.landscape .gd-qt-n { font-size: 1.1em; }
+body.landscape .gd-qt-how { font-size: 0.8em; }

@@ -684,6 +684,7 @@ export function mount(el, ctx, opts = {}) {
         h('div', { class: 'mn-chal-ic' }, icon(CH_ICON[c.stat] ?? 'star')),
         h('div', { class: 'mn-chal-t' },
           h('b', { class: 'mn-chal-n' }, c.text),
+          c.how && !c.claimed ? h('span', { class: 'mn-chal-how' }, c.how) : null,
           bar(c.prog / c.n, c.done ? 'green' : 'orange', `${c.prog}/${c.n}`, { cls: 'mn-chal-bar' })),
         h('div', { class: 'mn-chal-r' },
           h('div', { class: 'mn-chal-cal t-d outline' }, icon('calorie', 's'), '+' + c.cal),
@@ -753,11 +754,11 @@ export function mount(el, ctx, opts = {}) {
     const body = has
       ? h('div', { class: 'mn-quest-done' }, icon('check', 'l'), h('span', {}, 'You beat Jimmy! He joined your Lab as a Commander.'))
       : h('div', { class: 'mn-quest' },
-        h('b', { class: 't-d outline c-gold mn-quest-t' }, 'The Rematch'),
-        h('span', { class: 'mn-quest-x' }, b.desc),
+        h('b', { class: 't-d outline c-gold mn-quest-t' }, 'Beat Jimmy in a rematch'),
+        h('span', { class: 'mn-quest-x' }, ok ? 'Tap FIGHT and win the boss battle. Win it and Jimmy joins as a Commander.' : `Reach ${b.minTrophies.toLocaleString('en-US')} trophies, then tap FIGHT and win the boss battle.`),
         h('div', { class: 'row between wrap gap-s' },
           h('div', { class: 'row wrap gap-s mn-qrew' }, h('span', { class: 't-xs c-muted' }, 'Reward:'), chip([rewardTile({ type: 'commander', id: 'jimmy' }, { cls: 'xs' }), 'Jimmy (Commander)'], 'rwchip')),
-          button(ok ? 'FIGHT' : `${b.minTrophies}`, () => openBoss('jimmyRematch', ctx), ok ? 'red sm' : 'gray sm', { icon: ok ? 'boss' : 'trophy' })));
+          button(ok ? 'FIGHT' : b.minTrophies.toLocaleString('en-US'), () => openBoss('jimmyRematch', ctx), ok ? 'red sm' : 'gray sm', { icon: ok ? 'boss' : 'trophy' })));
     return h('div', { class: 'mn-npc n-jimmy' }, h('div', { class: 'mn-npc-port' }, charImg('jimmy', { size: 128 })), h('div', { class: 'mn-npc-main' }, h('div', { class: 'mn-npc-head' }, h('b', { class: 't-d outline mn-npc-name' }, 'Jimmy')), body));
   }
   function rewardsOf(b) {

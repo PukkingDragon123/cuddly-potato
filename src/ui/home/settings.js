@@ -55,7 +55,7 @@ export function openSettings(ctx) {
     body.append(
       subHead('SOUND'),
       row(s.muted ? 'x' : 'sound', 'All Sound', toggle(!s.muted, (on) => { s.muted = !on; audio.setMuted(!on); state.emit('settings'); if (on) audio.play('click'); }), s.muted ? 'Everything is muted' : null),
-      row('sound', 'Sound Effects', slider(s.sfx, (v) => { s.sfx = v; audio.setVolumes(s.sfx, s.music); }, () => { state.emit('settings'); audio.play('coin'); })),
+      row('sound', 'Effects', slider(s.sfx, (v) => { s.sfx = v; audio.setVolumes(s.sfx, s.music); }, () => { state.emit('settings'); audio.play('coin'); })),
       row('music', 'Music', slider(s.music, (v) => { s.music = v; audio.setVolumes(s.sfx, s.music); }, () => state.emit('settings'))),
       subHead('GRAPHICS'),
       row('star', 'Quality', seg([['low', 'LOW'], ['medium', 'MED'], ['high', 'HIGH']], s.graphics ?? engine.quality, (q) => { s.graphics = q; apply(); state.emit('settings'); })),

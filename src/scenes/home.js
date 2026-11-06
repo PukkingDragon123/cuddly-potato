@@ -13,6 +13,7 @@ import './home.css';
 import './home-mega.css';
 import './home-motion.css';
 import { engine, addLights } from '../core/engine.js';
+import { fmtTime as fmtDur } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/particles.js';
 import { h, icon, animIcon, iconURL, button, pill, bar, modal, toast, bigBanner, say, pointAt, bump, burst, rollNumber, $ui, $overlay, speech, ribbon } from '../ui/ui.js';
@@ -49,12 +50,7 @@ const TABS = [
   { id: 'pass', label: 'PASS', icon: 'calorie' },
 ];
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
-const fmtTime = (sec) => {
-  sec = Math.max(0, Math.ceil(sec));
-  if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
-  if (sec >= 60) return `${Math.floor(sec / 60)}m ${sec % 60}s`;
-  return `${sec}s`;
-};
+const fmtTime = (sec) => fmtDur(sec); // one duration style everywhere (core/util.js)
 const fmtN = (n) => Math.round(n).toLocaleString('en-US');
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const NPC_OF_ZONE = Object.fromEntries(Object.entries(QUEST_NPC_ZONE).map(([npc, z]) => [z, npc]));

@@ -774,8 +774,9 @@ export function paintFrame(W, H, o = {}) {
         P.hl(X + 4, X + 9, Y + 2, STEEL[4]); P.hl(X + 4, X + 9, Y + 3, cl('#1e0e04'), 0.3);
       }
     }
-    // sticky notes stuck on two corners (half on the wall)
-    if (o.notes !== false) {
+    // sticky notes stuck on two corners (half on the wall). Off by default: at 20 px they read as
+    // tappable star / heart buttons floating over the frame
+    if (o.notes === true) {
       const sticky = (x, y, fill, doodle) => {
         const S = 20, F = cl(fill);
         const mask = new Float32Array(P.w * P.h);

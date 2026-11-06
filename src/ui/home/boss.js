@@ -52,7 +52,7 @@ export function openBoss(bossId, ctx) {
       b.bossHp ? h('div', { class: 'mn-st' }, icon('hp', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Boss Hitpoints'), h('b', { class: 'mn-st-v t-d outline' }, fmtN(b.bossHp)))) : null,
       h('div', { class: 'mn-st' }, rankMedal(eLab, { cls: 'mn-st-rank', shine: false }), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Enemy Lab Level'), h('b', { class: 'mn-st-v t-d outline' }, String(eLab)))),
       h('div', { class: 'mn-st' }, icon('cards', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Your Deck (avg.)'), h('b', { class: `mn-st-v t-d outline ${ready ? 'ok' : 'warn'}` }, `LV ${avgLv.toFixed(1)}`)))));
-  const deckRow = h('div', { class: 'mn-boss-deck' }, ...b.deck.map((id) => cardEl(id, { size: 'mini', level: b.level, locked: false, owned: { level: b.level }, artSize: 128 })));
+  const deckRow = h('div', { class: 'mn-boss-deck' }, ...b.deck.map((id) => cardEl(id, { size: 'mini', level: b.level, locked: false, owned: { level: b.level }, artSize: 160 })));
   const first = bundleList(b.reward);
   const rew = h('div', { class: 'mn-boss-rew' },
     ...first.map((r) => h('div', { class: `mn-boss-rw ${wins ? 'got' : ''}` }, rewardTile(r), h('span', { class: 'mn-boss-rwn' }, rewardLabel(r)), wins ? h('div', { class: 'mn-ptile-ck' }, icon('check')) : null)));
@@ -61,7 +61,7 @@ export function openBoss(bossId, ctx) {
     subHead('BOSS DECK', h('span', { class: 't-xs c-muted' }, `All cards level ${b.level}`)), deckRow,
     subHead(wins ? 'FIRST CLEAR REWARDS (CLAIMED)' : 'FIRST CLEAR REWARDS', road
       ? (bank ? h('span', { class: 't-d outline mn-boss-bank' }, icon('trophy', 's'), `+${fmtN(bank)}`) : null)
-      : h('span', { class: 't-xs c-muted' }, `Repeat wins: ${fmtN(Math.round((b.reward.coins ?? 300) * 0.25))} coins`)), rew);
+      : h('span', { class: 't-xs c-muted mn-boss-rep' }, 'Repeat win', icon('coin', 's'), fmtN(Math.round((b.reward.coins ?? 300) * 0.25)))), rew);
   const fight = road && wins
     ? h('div', { class: 'mn-boss-locked' }, icon('check'), h('b', {}, 'BEATEN'))
     : locked

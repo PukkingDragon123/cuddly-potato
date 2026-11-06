@@ -388,6 +388,8 @@ export class VialOpenScene {
     flask.position.set(2.35, 0, -1.5);
     s.add(flask);
     this.flaskTop = new THREE.Vector3(2.35, 0.62, -1.5);
+    this.benchProps = { rack, flask };
+    this.placeBenchProps();
     this.buildJug();
     // ---- reveal pieces: pedestal + rarity ring, rays, light beam
     this.ped = new THREE.Group();
@@ -1569,8 +1571,9 @@ export class VialOpenScene {
         g.fillRect(42 - wd, 18 + r * 7, wd * 2, 7);
       }
       g.fillStyle = '#fff';
-      g.font = 'bold 30px sans-serif';
-      g.fillText(String(d.elixir ?? 0), 42, 53);
+      const cost = String(d.elixir ?? 0);
+      g.font = `bold ${cost.length > 2 ? 21 : 27}px sans-serif`;
+      g.fillText(cost, 42, 53);
     };
     draw(null);
     const tx = new THREE.CanvasTexture(c);
@@ -1939,9 +1942,20 @@ export class VialOpenScene {
   }
 
   // ===================================================================== frame
+  /** Portrait screens are narrow: pull the bench rack + flask in so neither sits cut in half at the screen edge. */
+  placeBenchProps() {
+    const bp = this.benchProps;
+    if (!bp) return;
+    const narrow = (this.camera?.aspect ?? engine.aspect) < 0.8;
+    bp.rack.position.set(narrow ? -1.2 : -1.95, 0, narrow ? -1.9 : -0.8);
+    bp.flask.position.set(narrow ? 1.25 : 2.35, 0, narrow ? -2.1 : -1.5);
+    this.flaskTop?.set(bp.flask.position.x, 0.62, bp.flask.position.z);
+  }
+
   resize(w, hh) {
     this.camera.aspect = w / hh;
     this.camera.updateProjectionMatrix();
+    this.placeBenchProps();
     this.framing(this.frameKind ?? 'vial', true);
     if (this.vial) this.placeJug();
     if (this.phase === 'reveal' && this.vial && this.vialHome) {

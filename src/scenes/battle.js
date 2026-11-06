@@ -34,6 +34,7 @@ import { showResult } from '../game/battle/result.js';
 import { playEndCine } from '../game/battle/endCine.js';
 import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
+import { SPELLS } from '../data/spells.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
 import { roadBossBattle } from '../data/roadBosses.js';
 import { STARTER_CARDS } from '../data/cards.js';
@@ -822,7 +823,7 @@ export class BattleScene {
     if (ch) ch.expr('happy', 'grin', 3);
     await talk("Welcome to the *Beast Lab* arena! Your base is on the LEFT - right now it's just a *Camp Lab* (a folding table under a tarp). Mine's on the RIGHT. *Smash my base to win!*");
     // 1) pick a card up, then drop it on the field
-    sim.sides[0].energy = Math.max(sim.sides[0].energy, 6);
+    sim.sides[0].energy = Math.max(sim.sides[0].energy, SWARMS.panther.elixir + 40);
     await talk('These are your *cards*. *Tap* a card to pick it up, then *tap the glowing floor* to drop that Swarm right there. Send a *Panther*!');
     this.lockInput = 'deploy';
     await teach('panther', 'Tap!', 'Drop here!', () => zoneSpot());
@@ -832,7 +833,7 @@ export class BattleScene {
     await talk('Cards cost *POWER* (the yellow bar). It fills up fast! A *new card* slides in after each play. Your deck *cycles* forever!');
     await talk("You can only drop troops in *your zone*. The *hazard tape* is the line - and it moves up with your *front Swarm*! Short on POWER? Drop it anyway: it *waits there* until you can pay.");
     // 3) the ranged unit
-    sim.sides[0].energy = Math.max(sim.sides[0].energy, 5);
+    sim.sides[0].energy = Math.max(sim.sides[0].energy, SWARMS.cloggedToilet.elixir + 20);
     const tslot = slotOf('cloggedToilet');
     if (tslot >= 0) {
       await talk('Now your *Clogged Toilet*: it shoots from behind, so drop it *behind your Panther*. Tanks in front, shooters behind! Tip: you can also *drag* a card straight onto the field.');
@@ -847,7 +848,7 @@ export class BattleScene {
     await waitFor(() => sim.alliesOf(0).some((u) => u.hp < u.maxHp * 0.7) || sim.t > 50);
     const fslot = slotOf('foodThrow');
     if (fslot >= 0 && !sim.over) {
-      sim.sides[0].energy = Math.max(sim.sides[0].energy, 4);
+      sim.sides[0].energy = Math.max(sim.sides[0].energy, SPELLS.foodThrow.elixir + 10);
       this.view.focus(sim.frontAllyX(0), 5);
       this.noPush = true;
       await talk('Your Swarms are getting HANGRY! *Food Throw* heals them and makes them *BIGGER*. Tap it, then tap your troops!');

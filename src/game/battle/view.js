@@ -1845,7 +1845,7 @@ export class BattleView {
         audio.play('heal');
         break;
       case 'refund':
-        if (ev.side === 0) floatText(new THREE.Vector3(this.sim.sides[0].labX, 2.4, 0), '+1', 'energy', { life: 1.1 });
+        if (ev.side === 0) floatText(new THREE.Vector3(this.sim.sides[0].labX, 2.4, 0), `+${Math.round(ev.amount ?? 10)}`, 'energy', { life: 1.1 });
         break;
       case 'energyGain':
         if (ev.side === 0) audio.play('chaching');

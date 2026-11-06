@@ -6,9 +6,9 @@
 //   DAILY  the daily challenges (Juan's Food Season calories, data/season.js) on sticky notes
 //   CREW   the crew's quest chains (data/arenas.js QUEST_CHAINS) + Jimmy's rematch, as case files
 //
-// Pictures carry the meaning, not sentences: every note has an illustration of its objective
-// (questBoardArt.js questArt), the objective as an icon + count with hand-drawn progress, rewards as
-// icons + amounts, a short title, and a polaroid of whoever posted it. Tap the polaroid (or a daily
+// Every note says what to do: a plain title naming the goal ("Open a vial"), one line on exactly how
+// to do it, an illustration of the objective (questBoardArt.js questArt), the objective as an icon +
+// count with hand-drawn progress, the reward as icons + amounts, and a polaroid of whoever posted it. Tap the polaroid (or a daily
 // note's picture) and they say their line in a speech bubble, in their own voice. Stamps (NEW /
 // CLAIMED) mark what changed; claiming slams a CLAIMED stamp, flies the rewards into the counters
 // and throws confetti.
@@ -47,11 +47,8 @@ const CREW = {
 };
 const crew = (id) => CREW[id] ?? CREW.jimmy;
 
-// Juan posts the daily list: a short title for each special, and what he says about it
-const DAILY_TITLE = {
-  winBattles: 'Win Battles', deployFood: 'Snack Squad', useFoodThrow: 'Food Throw', martBattles: 'Beast Mart', openVials: 'Open Vials',
-  unleashMega: 'MEGA Time', useSignature: 'ULTIMATES', deployTroops: 'Troop Drop', smashCarts: 'Cart Smash', bases: 'Base Breaker', baseUp: 'Build It Up',
-};
+// Juan posts the daily list: the title is the challenge itself (data/season.js "Win 3 battles"), its
+// `how` says what to do, and DAILY_LINES is what he says about it
 const DAILY_LINES = {
   winBattles: 'Three wins today. I am keeping score on a napkin, so no pressure.',
   deployFood: 'Deploy Snack Squad troops. Deploy them. Do not eat them. Nolan.',
@@ -122,11 +119,14 @@ function progressEl(prog, need, done) {
 /** Objective row: picture + progress. */
 const objRow = (key, prog, need, done) => h('div', { class: `qb-obj ${done ? 'full' : ''}` }, objIcon(key), progressEl(prog, need, done));
 
-/** A locked objective: padlock + what opens it, in two words (the GO button tells the full story). */
+/** The instruction line: exactly what to tap / do. */
+const howEl = (text, cls = '') => (text ? h('p', { class: `qb-how ${cls}` }, text) : null);
+
+/** A locked objective: padlock + what opens it (the GO button's toast tells the full story). */
 function lockRow(feature) {
   const L = lockInfo(feature);
   const f = FEATURES[feature]?.alias ? FEATURES[FEATURES[feature].alias] : FEATURES[feature];
-  const txt = L.left !== undefined && !f?.trophies ? `${L.left} ${L.left === 1 ? 'WIN' : 'WINS'}` : f?.trophies ? `${f.trophies}` : 'SOON';
+  const txt = L.left !== undefined && !f?.trophies ? `UNLOCKS IN ${L.left} ${L.left === 1 ? 'WIN' : 'WINS'}` : f?.trophies ? `UNLOCKS AT ${fmt(f.trophies)}` : 'LOCKED';
   return h('div', { class: 'qb-obj lock' }, h('span', { class: 'qb-oi' }, icon(f?.icon ?? 'lock'), h('i', { class: 'qb-oi-b' }, icon('lock'))),
     h('span', { class: 'qb-lockt' }, f?.trophies ? icon('trophy') : null, txt));
 }
@@ -151,7 +151,7 @@ function rewardChip(r) {
   try { art = rewardArt(rewardDef(r)); } catch (e) { art = icon('gift'); }
   return h('span', { class: `qb-rw art k-${r.type}`, 'data-rw': r.type }, h('span', { class: 'qb-rw-art' }, art), r.copies > 1 ? h('b', {}, 'x' + r.copies) : null);
 }
-const rewardsRow = (b) => h('div', { class: 'qb-rws' }, h('i', { class: 'qb-rws-k', 'aria-hidden': 'true' }, icon('gift')), h('div', { class: 'qb-rws-l' }, rewardList(b).map(rewardChip)));
+const rewardsRow = (b) => h('div', { class: 'qb-rws', 'aria-label': 'Reward' }, h('i', { class: 'qb-rws-k', 'aria-hidden': 'true' }, icon('gift'), h('small', {}, 'REWARD')), h('div', { class: 'qb-rws-l' }, rewardList(b).map(rewardChip)));
 
 /** A locked button, blacked out like the home buttons: silhouette + padlock; tap = what opens it. */
 function lockedBtn(label, text, cls = '') {
@@ -485,7 +485,7 @@ export function openQuestBoard(hm, opts = {}) {
         h('span', { class: 'qb-chap-no' }, h('small', {}, 'CH'), String(ch.n)),
         h('b', { class: 'qb-chap-t' }, ch.title),
         h('div', { class: 'qb-chap-boxes' }, inCh.map((q, i) => h('span', { class: `qb-box ${i < doneN ? 'on' : i === doneN ? 'cur' : ''}`, title: q.title },
-          h('img', { src: tallyURL(i < doneN ? 1 : 0, 1), alt: '' }))))));
+          h('img', { src: tallyURL(i < doneN ? 1 : 0, 1), alt: '' }))), h('span', { class: 'qb-chap-c' }, `${doneN}/${inCh.length} DONE`))));
   }
 
   function heroNote(st) {
@@ -497,13 +497,14 @@ export function openQuestBoard(hm, opts = {}) {
     if (st.done) act = button('CLAIM', () => claimMain(note), 'green qb-act qb-claim pulse', { icon: 'gift', sound: 'tap' });
     else if (locked) act = lockedBtn('GO', lockInfo(locked).text);
     else if (q.go) act = button('GO', () => go(q.go), 'blue qb-act qb-go', { icon: 'arrowR', sound: 'tap' });
-    const note = h('div', { class: `qb-note qb-hero qb-in ${st.done ? 'ready' : ''}`, 'data-paper': 'letter', 'data-seed': String(q.index + 3), 'data-pin': 'hero', 'aria-label': `${q.title}: ${q.goal}` },
+    const note = h('div', { class: `qb-note qb-hero qb-in ${st.done ? 'ready' : ''}`, 'data-paper': 'letter', 'data-seed': String(q.index + 3), 'data-pin': 'hero', 'aria-label': `${q.title}. ${q.how}` },
       pinEl(crew(q.by).pin, 'top'),
       h('div', { class: 'qb-hero-top' },
         h('div', { class: 'qb-taped' }, poster(q.by, q.line, 'big', bubHost), tapeEl('', 'pt')),
         h('div', { class: 'qb-hero-art' }, artEl(q.id, 'big'))),
       isNew ? stampEl('new', 'qb-corner') : null,
       h('b', { class: 'qb-title' }, q.title),
+      howEl(q.how),
       locked ? lockRow(locked) : objRow(q.id, st.prog, st.need, st.done),
       h('div', { class: 'qb-foot' }, rewardsRow(q.reward), act));
     return note;
@@ -512,7 +513,7 @@ export function openQuestBoard(hm, opts = {}) {
   function nextNote(q) {
     return h('div', { class: 'qb-note qb-next qb-in', 'data-paper': 'notebook', 'data-seed': '5', 'data-pin': 'next', 'aria-label': `Next: ${q.title}` },
       pinEl(crew(q.by).pin, 'top'),
-      h('div', { class: 'qb-next-row' }, artEl(q.id, 'md'), h('b', { class: 'qb-title sm' }, q.title)),
+      h('div', { class: 'qb-next-row' }, artEl(q.id, 'md'), h('div', { class: 'qb-next-t' }, h('b', { class: 'qb-title sm' }, q.title), howEl(q.how, 'sm'))),
       h('div', { class: 'qb-foot' }, rewardsRow(q.reward), stampEl('next', 'sm qb-inl')));
   }
 
@@ -520,7 +521,8 @@ export function openQuestBoard(hm, opts = {}) {
     return h('div', { class: 'qb-note qb-folder qb-in', 'data-paper': 'manila', 'data-pin': 'folder', 'aria-label': `${more} more quests` },
       pinEl('red', 'top'),
       stampEl('secret', 'qb-folder-stamp'),
-      h('div', { class: 'qb-folder-n' }, icon('quest'), h('b', {}, '+' + more)));
+      h('div', { class: 'qb-folder-n' }, icon('quest'), h('b', {}, '+' + more)),
+      h('span', { class: 'qb-note-k' }, more === 1 ? 'MORE QUEST' : 'MORE QUESTS'));
   }
 
   function pileNote(idx) {
@@ -529,6 +531,7 @@ export function openQuestBoard(hm, opts = {}) {
       pinEl('yellow', 'top'),
       stampEl('claimed', 'qb-pile-stamp'),
       h('div', { class: 'qb-pile-n' }, icon('check'), h('b', {}, String(idx))),
+      h('span', { class: 'qb-note-k' }, pileOpen ? 'HIDE DONE' : 'DONE'),
       h('i', { class: 'qb-pile-eye', 'aria-hidden': 'true' }, icon(pileOpen ? 'x' : 'eye')));
     b.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -555,7 +558,8 @@ export function openQuestBoard(hm, opts = {}) {
         h('div', { class: 'qb-taped' }, poster('jimmy', 'Chapter four is on a napkin. Hang tight.', 'big', bubHost), tapeEl('', 'pt')),
         h('div', { class: 'qb-hero-art' }, artEl('end', 'big'))),
       stampEl('claimed', 'qb-corner'),
-      h('b', { class: 'qb-title' }, 'Story Complete'),
+      h('b', { class: 'qb-title' }, 'Story complete'),
+      howEl('You finished every story quest. Daily and crew quests are still on the board.'),
       h('div', { class: 'qb-obj full' }, h('span', { class: 'qb-oi' }, icon('quest')), h('b', { class: 'qb-cnt' }, `${MAIN_QUESTS.length}/${MAIN_QUESTS.length}`)));
   }
 
@@ -568,8 +572,9 @@ export function openQuestBoard(hm, opts = {}) {
       tapeEl('', 'tc'),
       poster('juan', 'Fresh specials every morning. Eat up.', 'big', bubHost),
       h('div', { class: 'qb-dhead-t' },
-        h('b', { class: 'qb-title' }, 'Daily Specials'),
-        h('span', { class: 'qb-timer', title: 'New list in' }, icon('clock'), countdown(midnightMs()))));
+        h('b', { class: 'qb-title' }, 'Daily Quests'),
+        howEl('Finish them for Calories. Calories fill the Food Pass.', 'sm'),
+        h('div', { class: 'qb-timer-w' }, h('small', { class: 'qb-timer-k' }, 'NEW LIST IN'), h('span', { class: 'qb-timer', title: 'New list in' }, icon('clock'), countdown(midnightMs())))));
     const notes = list.map((c, i) => {
       const key = `d:${day}:${c.id}`;
       const isNew = !seen[key] && !c.done && !c.claimed;
@@ -581,13 +586,14 @@ export function openQuestBoard(hm, opts = {}) {
       const note = h('div', { class: `qb-note qb-daily qb-in ${c.claimed ? 'claimed' : c.done ? 'ready' : ''}`, 'data-paper': DAILY_PAPER[i % DAILY_PAPER.length], 'data-seed': String(i + 2), 'data-pin': 'd' + i, 'aria-label': c.text },
         pinEl(['red', 'blue', 'green'][i % 3], 'top'),
         h('div', { class: 'qb-daily-top' }, pic,
-          h('div', { class: 'qb-daily-t' }, h('b', { class: 'qb-title sm' }, DAILY_TITLE[c.id] ?? c.text), objRow(c.stat, c.prog, c.n, c.done))),
+          h('div', { class: 'qb-daily-t' }, h('b', { class: 'qb-title sm' }, c.text), objRow(c.stat, c.prog, c.n, c.done))),
+        howEl(c.how),
         // the stamp sits where the CLAIM button would be
         h('div', { class: 'qb-foot' }, rewardsRow({ calories: c.cal }), act ?? (kind ? stampEl(kind, 'qb-inl') : null)));
       return note;
     });
     const out = [headCard, h('div', { class: 'qb-dgrid' }, notes)];
-    if (!list.length) out.push(h('div', { class: 'qb-note qb-in qb-empty', 'data-paper': 'index' }, h('b', {}, 'No specials today. Juan ate the list.')));
+    if (!list.length) out.push(h('div', { class: 'qb-note qb-in qb-empty', 'data-paper': 'index' }, h('b', {}, 'No daily quests right now. A new list comes at midnight.')));
     return out;
   }
 
@@ -612,7 +618,7 @@ export function openQuestBoard(hm, opts = {}) {
     let body, kind = null, act = null;
     if (!st || st.finished) {
       kind = 'claimed';
-      body = h('div', { class: 'qb-case-body' }, artEl('end', 'md'), h('div', { class: 'qb-case-q' }, h('b', { class: 'qb-title sm' }, 'All done'),
+      body = h('div', { class: 'qb-case-body' }, artEl('end', 'md'), h('div', { class: 'qb-case-q' }, h('b', { class: 'qb-title sm' }, `All ${c.name}'s quests done`),
         h('div', { class: 'qb-obj full' }, h('span', { class: 'qb-oi' }, icon('check')), h('b', { class: 'qb-cnt' }, `${chain.length}/${chain.length}`))));
     } else {
       const q = st.quest;
@@ -626,12 +632,13 @@ export function openQuestBoard(hm, opts = {}) {
         h('div', { class: 'qb-case-q' },
           h('b', { class: 'qb-title sm' }, q.title),
           st.accepted || q.boss || q.secret ? objRow(q.id, st.prog, st.need, st.done) : h('div', { class: 'qb-obj' }, objIcon(q.id), h('b', { class: 'qb-cnt' }, 'x' + (q.n ?? 1)))));
-      body = [body, h('div', { class: 'qb-foot' }, rewardsRow(q.reward), act)];
+      body = [body, howEl(st.text), h('div', { class: 'qb-foot' }, rewardsRow(q.reward), act)];
     }
     const head = h('div', { class: 'qb-case-head' },
       h('div', { class: 'qb-clipped' }, poster(npc, st && !st.finished ? CHAIN_LINES[st.quest.id] : `Thanks for the help. ${c.name} owes you one. Maybe two.`, 'big', bubHost), h('i', { class: 'qb-clip', 'aria-hidden': 'true' })),
       h('div', { class: 'qb-case-meta' },
         h('b', { class: 'qb-case-n' }, c.name.toUpperCase()),
+        h('span', { class: 'qb-case-s' }, st?.finished || !st ? 'ALL DONE' : `QUEST ${st.step + 1} OF ${chain.length}`),
         chainSteps(chain.length, st?.finished ? chain.length : st?.step ?? 0, !!st?.finished, finalCmd ? CREW[finalCmd]?.char ?? finalCmd : null)));
     const card = h('div', { class: `qb-note qb-case qb-in ${st && !st.finished && st.done ? 'ready' : ''}`, 'data-paper': 'file', 'data-seed': String(npc.length), 'data-pin': 'c-' + npc, 'aria-label': `${c.name}'s quests` },
       pinEl(c.pin, 'top'), kind ? stampEl(kind, 'qb-corner') : null, head, body);
@@ -645,6 +652,7 @@ export function openQuestBoard(hm, opts = {}) {
       h('div', { class: 'qb-clipped' }, poster('jimmy', has ? 'Fine. You won. I am on your team now. I still want that pizza.' : CHAIN_LINES.jimmyRematch, 'big', bubHost), h('i', { class: 'qb-clip', 'aria-hidden': 'true' })),
       h('div', { class: 'qb-case-meta' },
         h('b', { class: 'qb-case-n' }, 'JIMMY'),
+        h('span', { class: 'qb-case-s' }, has ? 'ALL DONE' : 'BOSS REMATCH'),
         chainSteps(1, has ? 1 : 0, has, 'jimmy')));
     let act = null;
     if (!has) act = ok ? button('FIGHT', () => { close(); openBoss('jimmyRematch', ctx); }, 'red qb-act', { icon: 'boss', sound: 'tap' })
@@ -652,11 +660,14 @@ export function openQuestBoard(hm, opts = {}) {
     const body = h('div', { class: 'qb-case-body' },
       artEl('jimmyRematch', 'md'),
       h('div', { class: 'qb-case-q' },
-        h('b', { class: 'qb-title sm' }, 'The Rematch'),
+        h('b', { class: 'qb-title sm' }, 'Beat Jimmy in a rematch'),
         has ? h('div', { class: 'qb-obj full' }, h('span', { class: 'qb-oi' }, icon('check')), h('b', { class: 'qb-cnt' }, '1/1'))
           : h('div', { class: `qb-obj ${ok ? 'full' : ''}` }, h('span', { class: 'qb-oi' }, icon('trophy')), h('b', { class: 'qb-cnt' }, `${fmt(Math.min(P().bestTrophies, b.minTrophies))}/${fmt(b.minTrophies)}`))));
+    const how = has ? 'You won. Jimmy joined your team as a Commander.'
+      : ok ? 'Tap FIGHT and win the boss battle. Win it and Jimmy joins as a Commander.'
+        : `Reach ${fmt(b.minTrophies)} trophies, then tap FIGHT and win the boss battle.`;
     return h('div', { class: 'qb-note qb-case qb-in', 'data-paper': 'file', 'data-seed': '9', 'data-pin': 'c-jimmy', 'aria-label': 'Jimmy rematch' },
-      pinEl('blue', 'top'), has ? stampEl('claimed', 'qb-corner') : ok ? stampEl('new', 'qb-corner') : null, head, body,
+      pinEl('blue', 'top'), has ? stampEl('claimed', 'qb-corner') : ok ? stampEl('new', 'qb-corner') : null, head, body, howEl(how),
       h('div', { class: 'qb-foot' }, has ? null : rewardsRow({ commander: 'jimmy' }), act));
   }
 
@@ -848,6 +859,7 @@ export function openQuestBoard(hm, opts = {}) {
     if (!hm || hm.exited) return;
     if (where === 'battle') setTimeout(() => { if (!hm.exited && hm.tab === 'battle') hm.battle?.(); }, 260);
     else if (where === 'cards' || where === 'lab') hm.setTab?.(where);
+    else if (where.startsWith('boss:')) setTimeout(() => { if (!hm.exited) hm.openBoss?.(where.slice(5)); }, 260);
     else if (where === 'vials') {
       const slot = hm.slotsEl?.querySelector('.hm-slot.ready, .hm-slot.locked:not(.empty)') ?? hm.slotsEl;
       if (slot) { const off = pointAt(slot, 'Tap!'); setTimeout(off, 2600); }

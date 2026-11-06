@@ -97,8 +97,9 @@ export function fmtTime(sec) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m`;
-  if (m > 0) return `${m}m ${s.toString().padStart(2, '0')}s`;
+  // one style everywhere: "2h 5m", "2h", "15m 30s", "15m", "45s" (no "15m 0s" / "1h 00m")
+  if (h > 0) return m ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return s ? `${m}m ${s}s` : `${m}m`;
   return `${s}s`;
 }
 

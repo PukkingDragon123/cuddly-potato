@@ -36,7 +36,8 @@ export function cardEl(id, opts = {}) {
   if (!locked) el.appendChild(h('i', { class: 'sheen' }));
   if (!locked && opts.size !== 'mini') el.appendChild(h('img', { class: 'rgem', src: iconURL('rarity_' + rarity), alt: '', draggable: 'false' }));
   if (opts.cost !== false) {
-    el.appendChild(h('div', { class: 'cost' }, h('span', {}, String(def.elixir ?? '?'))));
+    const cost = String(def.elixir ?? '?');
+    el.appendChild(h('div', { class: cost.length > 2 ? 'cost d3' : 'cost' }, h('span', {}, cost)));
   }
   if (def.special && opts.size !== 'mini') {
     const kw = def.keywords?.[0] ?? 'SPECIAL';

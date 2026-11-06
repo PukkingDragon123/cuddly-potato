@@ -70,7 +70,7 @@ body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; fon
 .vo-cut-series { font-family: var(--font-d); font-size: calc(var(--u) * 4); color: #dfe8ff; text-shadow: var(--outline-thin); white-space: nowrap; }
 .vo-cut-cost { position: relative; display: flex; align-items: center; justify-content: center; width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
 .vo-cut-cost-ic { position: absolute; inset: 0; width: 100%; height: 100%; }
-.vo-cut-cost b { position: relative; font-family: var(--font-d); font-size: calc(var(--u) * 5.2); color: #fff; text-shadow: var(--outline); }
+.vo-cut-cost b { position: relative; font-family: var(--font-d); font-size: calc(var(--u) * 4.5); color: #fff; text-shadow: var(--outline); }
 
 .vo-cut-stats {
   display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 1.4) calc(var(--u) * 2.4); width: 100%; position: relative; isolation: isolate;

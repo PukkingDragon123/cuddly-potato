@@ -755,7 +755,8 @@ export function mount(el, ctx) {
     inner.appendChild(h('div', { class: 'bk-sec' }, head('BEAST COINS'), h('div', { class: 'bk-grid3' }, ...off.deals.map((d, i, all) => coinTile(d, i, all)))));
     // where Beast Bucks come from, as icons: Trophy Road, Lab Levels, Food Pass, bosses, island secrets
     inner.appendChild(h('div', { class: 'bk-note-foot', role: 'img', 'aria-label': 'Beast Bucks come from the Trophy Road, Lab Levels, the Food Pass, bosses and island secrets' },
-      icon('bucks', 's'), h('b', { class: 't-d' }, '='), ...['road', 'lab', 'calorie', 'boss', 'pin'].map((n) => icon(n, 's'))));
+      h('div', { class: 'bk-nf-k t-d' }, icon('bucks', 's'), 'FREE BUCKS FROM'),
+      h('div', { class: 'bk-nf-l' }, ...[['road', 'ROAD'], ['lab', 'LAB LEVELS'], ['calorie', 'FOOD PASS'], ['boss', 'BOSSES'], ['pin', 'SECRETS']].map(([n, l]) => h('span', { class: 'bk-nf-i' }, icon(n, 's'), h('small', { class: 't-d' }, l))))));
     return inner;
   }
 

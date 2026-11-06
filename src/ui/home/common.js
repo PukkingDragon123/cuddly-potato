@@ -92,7 +92,7 @@ export function secsToMidnight() {
   return (new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now) / 1000;
 }
 /** "12d 4h" for long timers, fmtTime below a day. */
-export const fmtLong = (sec) => (sec >= 86400 ? `${Math.floor(sec / 86400)}d ${Math.floor((sec % 86400) / 3600)}h` : fmtTime(sec));
+export const fmtLong = (sec) => (sec >= 86400 ? `${Math.floor(sec / 86400)}d${Math.floor((sec % 86400) / 3600) ? ` ${Math.floor((sec % 86400) / 3600)}h` : ''}` : fmtTime(sec));
 /** A self-updating countdown (any element with .js-cd and data-end ms epoch is refreshed by tickTimers). long: show days. */
 export function countdown(endMs, cls = '', long = false) {
   const f = long ? fmtLong : fmtTime;

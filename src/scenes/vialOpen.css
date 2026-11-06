@@ -103,7 +103,8 @@ body.landscape .vo-reveal, body.landscape .vo-cur { animation-name: voPanelInL; 
 @keyframes voCardIn { 0% { transform: rotateY(90deg) scale(0.6); } 60% { transform: rotateY(-12deg) scale(1.06); } 100% { transform: none; } }
 .vo-card-wrap .gcard { width: calc(var(--u) * 29); cursor: default; }
 .vo-card-wrap .gcard .lvl { font-size: calc(var(--u) * 3.6); }
-.vo-card-wrap .gcard .cost { width: calc(var(--u) * 8.6); height: calc(var(--u) * 8.6); font-size: calc(var(--u) * 5.6); }
+.vo-card-wrap .gcard .cost { width: calc(var(--u) * 8.6); height: calc(var(--u) * 8.6); font-size: calc(var(--u) * 4.7); }
+.vo-card-wrap .gcard .cost.d3 { font-size: calc(var(--u) * 3.6); }
 .vo-reveal.r-legendary .vo-card-wrap, .vo-reveal.r-mythic .vo-card-wrap, .vo-reveal.r-epic .vo-card-wrap { filter: drop-shadow(0 0 calc(var(--u) * 3) var(--rc)); }
 .vo-new {
   position: absolute; z-index: 5; right: calc(var(--u) * -3); top: calc(var(--u) * -3); padding: 0.05em 0.35em 0.12em;
@@ -296,3 +297,5 @@ body.landscape .vo-shake { left: auto; right: calc(var(--safe-r) + var(--u) * 3)
 .banner-big.vo-upbanner { top: 30%; }
 body.landscape .banner-big.vo-upbanner { left: 50%; top: 30%; }
 .vo-title.vo-titlebump.vo-out { animation: voTitleOut 0.3s ease-in forwards; }
+/* round 9 polish: the big prompt never touches the screen edges on narrow phones ("SHAKE YOUR PHONE!" is 17 chars) */
+body.portrait .vo-prompt { font-size: min(calc(var(--u) * 9.5), 4.9vw); }

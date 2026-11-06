@@ -91,8 +91,10 @@ export class BattleAI {
       }
     }
     // start a push when energy is high (or don't leak at max)
+    // (the tank is ~1.2x smaller than on the old 12-30 scale, so patience is measured against
+    // the old size: the rival saves the same POWER before a push as it always did)
     const cap = sim.maxPower(si);
-    if (s.energy >= cap * this.patience || s.energy >= cap - 0.4 * PU) {
+    if (s.energy >= Math.min(cap * this.patience * 1.2, cap - 0.4 * PU)) {
       const troops = affordable.filter((h) => !h.spell);
       if (!troops.length) return;
       const tank = troops.filter((h) => h.def.role === 'tank' || h.def.role === 'siege').sort((a, b) => tankiness(b.def) - tankiness(a.def))[0];

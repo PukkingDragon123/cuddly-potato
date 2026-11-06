@@ -32,13 +32,20 @@ import { MOD_CATS, MOD_CAT, MOD_MAX, modulesIn, moduleText, unlockText } from '.
 import { rankMedal, setRankMedal, rankLabel } from '../rankMedal.js';
 import { lazyImg, objThumb, labSkinImg } from '../thumbs.js';
 import {
-  screenShell, segTabs, subHead, chip, cmdImg, cmdSkinOwned, cmdSkinsFor, unlockHint, deny, notify, refreshCtx, fmt, fmtN, labBadge, countdown,
+  screenShell, segTabs, chip, cmdImg, cmdSkinOwned, cmdSkinsFor, unlockHint, deny, notify, refreshCtx, fmt, fmtN, labBadge, countdown,
 } from './common.js';
 import { openBoss } from './boss.js';
+import { dress, hazardURL, treeFrameCanvas } from './labArt.js';
 import './lab.css';
 
 const rich = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*(.+?)\*/g, '<b>$1</b>');
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
+/** Painted-art hooks (labArt.js dress()): data-lxp = painter kind, data-lxo = its options. */
+const lxp = (kind, o = '') => ({ 'data-lxp': kind, 'data-lxo': o || null });
+/** Label-maker tape label (embossed white type on coloured tape). */
+const dymo = (text, color = '', cls = '') => h('span', { class: `lx-dymo t-d ${cls}`, ...lxp('dymo', color ? `c=${color}` : '') }, h('span', { class: 'lx-dymo-t' }, text));
+/** Section divider: a tape label, then hazard paint to the right edge (+ optional right-hand info). */
+const divider = (text, right = null, color = '') => h('div', { class: 'lx-div' }, dymo(text, color), h('i', { class: 'lx-div-hz' }), right ? h('span', { class: 'lx-div-r' }, right) : null);
 const fmtLeft = (sec) => {
   sec = Math.max(0, Math.ceil(sec));
   if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
@@ -53,6 +60,8 @@ function showcaseTier() {
   if (skin && skin !== 'default') return 5;
   return RANK_TIER[Math.min(RANK_TIER.length, labXpInfo().level) - 1] ?? 1;
 }
+/** Velvet colour of each skin's display case. */
+const SKIN_COL = { default: '#7ae8ff', martLab: '#ff5a8a', chocoLab: '#c07a44', goldVault: '#ffd23f', mansion: '#9a6aff' };
 const skinStyle = (id) => (id && id !== 'default' ? id : 'default');
 
 /** How a locked Commander is unlocked: { text, action:{label, fn} } */
@@ -98,9 +107,12 @@ export function mount(el, ctx, opts = {}) {
   if (opts.sub && ['lab', 'modules', 'skins', 'commander'].includes(opts.sub)) seg = opts.sub;
   if (!segOpen(seg)) seg = 'lab';
   el.classList.add('lx-tab');
-  const shell = screenShell(el, { cls: 'lx', render, tick, dispose: cleanup });
+  const shell = screenShell(el, { cls: 'lx', render, tick, dispose: cleanup, after: () => redress() });
   const root = shell.root, scroll = shell.scroll;
   scroll.classList.add('lx-panel');
+  root.style.setProperty('--lx-hz', `url(${hazardURL()})`);
+  const wallEl = h('div', { class: 'lx-wall', ...lxp('wall') });
+  root.insertBefore(wallEl, scroll);
 
   // ------------------------------------------------------------------ stage window + HUD
 
@@ -108,7 +120,7 @@ export function mount(el, ctx, opts = {}) {
   const lvT = h('b', { class: 't-d outline lx-lv' });
   const rankT = h('span', { class: 'lx-rank' });
   const xpBar = bar(0, 'blue', '', { cls: 'lx-xp' });
-  const hud = h('button', { class: 'lx-hud', type: 'button', 'aria-label': 'Lab Level' }, medal, h('span', { class: 'lx-hud-t' }, h('span', { class: 'lx-hud-row' }, lvT, rankT), xpBar));
+  const hud = h('button', { class: 'lx-hud', type: 'button', 'aria-label': 'Lab Level', ...lxp('hud') }, medal, h('span', { class: 'lx-hud-t' }, h('span', { class: 'lx-hud-row' }, lvT, rankT), xpBar));
   hud.addEventListener('click', () => { audio.play('tap'); setSeg('lab', () => scroll.querySelector('.lx-lvsec')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); });
   const rsCount = h('div', { class: 'badge' });
   const rsTime = h('span', { class: 'lx-rs-time t-d outline' });
@@ -119,7 +131,8 @@ export function mount(el, ctx, opts = {}) {
   const tag = h('div', { class: 'lx-tag t-d' }); // "PREVIEW" chip over the stage
   const doneBanner = h('div', { class: 'lx-done' });
   const stageEl = h('div', { class: 'lx-stage' }, bubbleEl, tag);
-  const segBar = h('div', { class: 'lx-segbar' });
+  const segHost = h('div', { class: 'lx-seghost' });
+  const segBar = h('div', { class: 'lx-segbar', ...lxp('bench') }, segHost);
   root.insertBefore(h('div', { class: 'lx-curtain' }, h('div', { class: 'lx-curtain-t t-d' }, 'POWERING UP THE YARD')), scroll);
   root.insertBefore(stageEl, scroll);
   root.insertBefore(segBar, scroll);
@@ -153,7 +166,14 @@ export function mount(el, ctx, opts = {}) {
       { id: 'commander', label: 'COMMANDER', icon: 'crown' },
     ].map((it) => (segOpen(it.id) ? it : { ...it, icon: 'lock', badge: 0 }));
     const bar0 = segTabs(items, seg, (id) => setSeg(id), 'lx-seg');
-    segBar.replaceChildren(bar0);
+    // the segment buttons are drawers in the workbench (painted); data-seg + .mn-seg-b stay for the guide
+    [...bar0.children].forEach((b, i) => {
+      const it = items[i];
+      b.classList.remove('sk-btn-yellow', 'sk-btn-blue');
+      b.classList.add('lx-drw');
+      Object.assign(b.dataset, { lxp: 'drawer', lxo: `on=${it.id === seg ? 1 : 0};lock=${segOpen(it.id) ? 0 : 1};s=${i}` });
+    });
+    segHost.replaceChildren(bar0);
   }
   function setSeg(id, after) {
     if (!segOpen(id)) {
@@ -269,8 +289,25 @@ export function mount(el, ctx, opts = {}) {
     yard.frame({ left: r.left, top, width: r.width, height: Math.max(80, r.bottom - top) });
     rectDirty = false;
   };
-  const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { rectDirty = true; }) : null;
+  // painted panels: (re)paint whatever has no painting at its size yet, now and once more after
+  // late layout (thumbnails, fonts); cached paintings cost a blit
+  let undress = null, dressT = 0, dressRaf = 0;
+  function redress() {
+    if (disposed) return;
+    cancelAnimationFrame(dressRaf);
+    undress?.();
+    undress = dress(root);
+    clearTimeout(dressT);
+    dressT = setTimeout(() => { if (!disposed) { undress?.(); undress = dress(root); } }, 650);
+    if (scroll.firstElementChild && ro) { ro.disconnect(); ro.observe(stageEl); ro.observe(root); ro.observe(scroll.firstElementChild); }
+  }
+  const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+    rectDirty = true;
+    cancelAnimationFrame(dressRaf);
+    dressRaf = requestAnimationFrame(() => { if (!disposed) { undress?.(); undress = dress(root); paintTreeFrame(); } });
+  }) : null;
   ro?.observe(stageEl);
+  ro?.observe(root);
   const onResize = () => { rectDirty = true; };
   window.addEventListener('resize', onResize);
   const offFrame = engine.onFrame(() => {
@@ -347,14 +384,35 @@ export function mount(el, ctx, opts = {}) {
     const close = button(null, () => closeTree(), 'red sm lb2-tree-x', { icon: 'x', sound: 'tap' });
     close.setAttribute('aria-label', 'Close');
     const total = Object.keys(NODES).length;
-    const countChip = chip('', 'lb2-tree-count');
-    const upd = () => { countChip.textContent = `${researchStatus().done.length} / ${total} researched`; };
-    upd();
-    const head = h('div', { class: 'lb2-tree-head' }, h('span', { class: 't-d outline lb2-tree-title' }, 'RESEARCH'), countChip, h('span', { class: 'spacer' }), close);
+    const countChip = dymo('', '', 'lb2-tree-count');
+    const upd = () => {
+      countChip.firstChild.textContent = `${researchStatus().done.length} / ${total} RESEARCHED`;
+      requestAnimationFrame(() => { dress(countChip); sheet._frame(); });
+    };
+    countChip.firstChild.textContent = `${researchStatus().done.length} / ${total} RESEARCHED`;
+    const head = h('div', { class: 'lb2-tree-head' }, h('div', { class: 'lb2-tree-tt' }, h('span', { class: 't-d outline lb2-tree-title' }, 'RESEARCH'), countChip), h('span', { class: 'spacer' }), close);
     const body = h('div', { class: 'lb2-tree-body' });
-    const sheet = (treeSheet = h('div', { class: 'lb2-tree' }, h('div', { class: 'lb2-tree-crt' }, head, body), h('i', { class: 'lb2-tree-scan' })));
+    const art = h('canvas', { class: 'lb2-tree-art', 'aria-hidden': 'true' });
+    const crt = h('div', { class: 'lb2-tree-crt lxp-on' }, art, head, body);
+    const sheet = (treeSheet = h('div', { class: 'lb2-tree' }, crt, h('i', { class: 'lb2-tree-scan' })));
+    sheet._frame = () => {
+      // the steel screen frame: header plate with a pipe + gauges in the free span between the count and the close button
+      const w = crt.offsetWidth, hh = crt.offsetHeight;
+      if (w < 40 || hh < 40) return;
+      const hb = head.offsetTop + head.offsetHeight;
+      const tt = head.firstChild;
+      const x0 = tt.offsetLeft + tt.offsetWidth + 16, x1 = close.offsetLeft - 16;
+      const key = `${w}x${hh}|${hb}|${x0}|${x1}`;
+      if (art._k === key) return;
+      art._k = key;
+      const src = treeFrameCanvas(w, hh, hb, [x0, x1]);
+      art.width = src.width; art.height = src.height;
+      art.getContext('2d').drawImage(src, 0, 0);
+      art.style.width = w + 'px'; art.style.height = hh + 'px';
+    };
     sheet._upd = upd;
     root.appendChild(sheet);
+    sheet._frame();
     clipFromButton(sheet);
     requestAnimationFrame(() => requestAnimationFrame(async () => {
       if (disposed || treeSheet !== sheet) return;
@@ -397,6 +455,7 @@ export function mount(el, ctx, opts = {}) {
       if (pendingParty && !disposed) { const [id, lv] = pendingParty; pendingParty = null; setTimeout(() => celebrate(id, lv), 300); }
     }, 420);
   }
+  function paintTreeFrame() { treeSheet?._frame?.(); }
   const celebrated = new Set();
   let pendingParty = null, doneT = 0;
   const offRes = onResearch((ev) => {
@@ -459,7 +518,9 @@ export function mount(el, ctx, opts = {}) {
     const name = tierNow === 5 && skinId !== 'default' ? LAB_SKINS[skinId]?.name ?? T.name : T.name;
     const tiers = h('div', { class: 'lx-tiers' });
     BASE_UPGRADES.forEach((u, i) => {
-      const b = h('button', { class: `lx-tierb ${u.tier === tierNow ? 'on' : ''}`, type: 'button' }, h('b', { class: 't-d' }, String(u.tier)), h('span', {}, u.name));
+      const on = u.tier === tierNow;
+      const b = h('button', { class: `lx-tierb ${on ? 'on' : ''}`, type: 'button', 'aria-label': `Tier ${u.tier}: ${u.name}`, ...lxp('tier', `t=${u.tier};on=${on ? 1 : 0}`) },
+        h('b', { class: 't-d' }, String(u.tier)), h('span', {}, u.name));
       b.addEventListener('click', () => {
         audio.play('tap');
         preview = u.tier === showcaseTier() ? null : { kind: 'tier', tier: u.tier };
@@ -473,11 +534,11 @@ export function mount(el, ctx, opts = {}) {
     });
     const slots = h('div', { class: 'lx-slots' });
     const eq = labMods().equipped;
-    for (const c of MOD_CATS) {
+    MOD_CATS.forEach((c, si) => {
       const id = eq[c.id];
       const mi = id ? moduleInfo(id) : null;
       const open = segOpen('modules');
-      const t = h('button', { class: `lx-slot ${mi ? '' : 'empty'}`, type: 'button', style: { '--cc': c.color } },
+      const t = h('button', { class: `lx-slot ${mi ? '' : 'empty'}`, type: 'button', style: { '--cc': c.color }, ...lxp('socket', `c=${c.color};lit=${mi ? 1 : 0};s=${si}`) },
         h('span', { class: 'lx-slot-k t-d' }, c.short),
         mi ? modImg(id, mi.level) : h('div', { class: 'lx-slot-plus' }, icon(open ? 'plus' : 'lock')),
         h('span', { class: 'lx-slot-n' }, mi ? mi.m.name : 'Empty'),
@@ -485,15 +546,15 @@ export function mount(el, ctx, opts = {}) {
         mi && canUpgrade(id) ? h('i', { class: 'lx-upar' }, icon('up', 's')) : null);
       t.addEventListener('click', () => { audio.play('tap'); modCat = c.id; setSeg('modules'); });
       slots.appendChild(t);
-    }
-    return h('div', { class: 'panel sk-panel lx-base' },
+    });
+    return h('div', { class: 'lx-base', ...lxp('plate', 'hz;sn;s=1') },
       h('div', { class: 'lx-base-top' },
-        h('div', { class: 'lx-base-t' }, h('span', { class: 'lx-k t-d' }, 'YOUR BASE'), h('b', { class: 't-d outline lx-base-n' }, name)),
+        h('div', { class: 'lx-base-t' }, dymo('YOUR BASE'), h('b', { class: 't-d outline lx-base-n' }, name)),
         h('div', { class: 'lx-stats' },
           chip([icon('hp', 's'), fmtN(Math.round(TOWERS.lab.hp * pw * T.hp))]),
           chip([icon('sword', 's'), fmtN(Math.round(TOWERS.lab.dmg * pw * T.dmg))]))),
       tiers,
-      subHead('LAB MODULES'),
+      divider('LAB MODULES'),
       slots);
   }
 
@@ -505,7 +566,7 @@ export function mount(el, ctx, opts = {}) {
     const openBtn = button('RESEARCH TREE', () => openTree(), a ? 'blue lx-open-tree' : 'green shine lx-open-tree', { icon: locked ? 'lock' : 'flask' });
     if (fresh) openBtn.appendChild(h('div', { class: 'badge' }, String(fresh)));
     if (!a) {
-      return h('div', { class: 'lx-rcard idle' },
+      return h('div', { class: 'lx-rcard idle', ...lxp('blueprint', 's=2;r=1') },
         h('div', { class: 'lx-rc-top' },
           h('div', { class: 'lx-rc-ic' }, icon('flask')),
           h('div', { class: 'lx-rc-t' },
@@ -522,7 +583,7 @@ export function mount(el, ctx, opts = {}) {
     const price = researchSpeedUpPrice();
     const speed = button('SPEED UP', (e) => doSpeedUp(e.currentTarget), 'yellow lx-speed', { icon: 'speed', price: { cur: 'bucks', amount: price } });
     if (state.p.bucks < price) speed.classList.add('poor');
-    return h('div', { class: 'lx-rcard', style: { '--bc': B.color } },
+    return h('div', { class: 'lx-rcard', style: { '--bc': B.color }, ...lxp('blueprint', 's=2;r=1') },
       h('div', { class: 'lx-rc-top' },
         h('div', { class: 'lx-rc-ic' }, icon('flask')),
         h('div', { class: 'lx-rc-t' },
@@ -553,7 +614,7 @@ export function mount(el, ctx, opts = {}) {
     for (let lv = 2; lv <= LAB_MAX_LEVEL; lv++) {
       const r = LAB_LEVEL_REWARDS(lv);
       const got = L >= lv;
-      road.appendChild(h('div', { class: `mn-labn ${got ? 'got' : ''} ${lv === L + 1 ? 'next' : ''}` },
+      road.appendChild(h('div', { class: `mn-labn ${got ? 'got' : ''} ${lv === L + 1 ? 'next' : ''}`, ...lxp('tag', `got=${got ? 1 : 0};nx=${lv === L + 1 ? 1 : 0};s=${lv}`) },
         labBadge(lv, 'sm'),
         h('div', { class: 'mn-labn-r' }, h('span', {}, icon('coin', 's'), fmtN(r.coins)), h('span', {}, icon('bucks', 's'), String(r.bucks))),
         h('div', { class: 'mn-labn-xp' }, got ? icon('check', 's') : `${fmtN(LAB_XP[lv - 1])} XP`)));
@@ -566,14 +627,14 @@ export function mount(el, ctx, opts = {}) {
       // icons + numbers: what a level gives, where XP comes from
       h('div', {}, icon('up', 's'), h('span', { html: rich('*+7%* HP + damage per level') })),
       h('div', {}, icon('cards', 's'), h('span', { html: rich('XP: card upgrades, wins *+6*') })));
-    return h('div', { class: 'panel sk-panel lx-lvpanel' }, stats, subHead('LEVEL REWARDS'), road, how);
+    return h('div', { class: 'lx-lvpanel lx-paper', ...lxp('clip', 's=3;r=1') }, stats, divider('LEVEL REWARDS', null, 'blue'), road, how);
   }
 
   function labSeg() {
     return h('div', { class: 'lx-col' },
       baseCard(),
       researchCard(),
-      h('div', { class: 'lx-lvsec' }, h('div', { class: 'lx-lvhead' }, h('span', { class: 'lx-k t-d' }, 'LAB LEVEL'), labBadge(labXpInfo().level, 'sm'), rankLabel(labXpInfo().level)), labLevelPanel()),
+      h('div', { class: 'lx-lvsec' }, h('div', { class: 'lx-lvhead' }, dymo('LAB LEVEL', 'red'), labBadge(labXpInfo().level, 'sm'), rankLabel(labXpInfo().level)), labLevelPanel()),
       h('div', { class: 'lx-short' }, button('UPGRADE CARDS', () => ctx.openTab?.('cards'), 'blue', { icon: 'cards' })));
   }
 
@@ -582,10 +643,10 @@ export function mount(el, ctx, opts = {}) {
   function modulesSeg() {
     const L = labMods();
     const cats = h('div', { class: 'lx-cats' });
-    for (const c of MOD_CATS) {
+    MOD_CATS.forEach((c, ci) => {
       const eqId = L.equipped[c.id];
       const fresh = modulesIn(c.id).some((m) => moduleInfo(m.id).isNew);
-      const b = h('button', { class: `lx-cat ${c.id === modCat ? 'on' : ''}`, type: 'button', style: { '--cc': c.color } },
+      const b = h('button', { class: `lx-cat ${c.id === modCat ? 'on' : ''}`, type: 'button', style: { '--cc': c.color }, ...lxp('drawer', `on=${c.id === modCat ? 1 : 0};c=${c.color};s=${ci + 4}`) },
         icon(c.icon, 'lx-cat-ic'),
         h('span', { class: 'lx-cat-n t-d' }, c.short),
         h('span', { class: 'lx-cat-e' }, eqId ? moduleInfo(eqId).m.name : 'Empty'),
@@ -602,14 +663,16 @@ export function mount(el, ctx, opts = {}) {
         refreshCtx(ctx);
       });
       cats.appendChild(b);
-    }
+    });
     const C = MOD_CAT[modCat];
     const list = h('div', { class: 'lx-mods' });
-    for (const m of modulesIn(modCat)) list.appendChild(modCard(m.id));
-    return h('div', { class: 'lx-col' }, cats, h('div', { class: 'lx-cathint', style: { '--cc': C.color } }, icon(C.icon, 's'), h('b', { class: 't-d' }, C.name), h('span', {}, C.hint)), list);
+    modulesIn(modCat).forEach((m, k) => list.appendChild(modCard(m.id, k)));
+    return h('div', { class: 'lx-col' }, h('div', { class: 'lx-cats-tray' }, cats),
+      h('div', { class: 'lx-cathint lx-sticky', style: { '--cc': C.color }, ...lxp('note', `c=yellow;s=${MOD_CATS.findIndex((x) => x.id === modCat) + 2}`) },
+        icon(C.icon, 's'), h('span', {}, h('b', { class: 't-d' }, C.name), ' ', C.hint)), list);
   }
 
-  function modCard(id) {
+  function modCard(id, k = 0) {
     const i = moduleInfo(id);
     const m = i.m;
     const C = MOD_CAT[m.cat];
@@ -638,8 +701,9 @@ export function mount(el, ctx, opts = {}) {
       act = h('div', { class: 'lx-acts' }, ...btns);
     }
     const previewing = preview?.kind === 'module' && preview.id === id;
-    const card = h('div', { class: `lx-mod ${i.unlocked ? '' : 'locked'} ${i.equipped ? 'eq' : ''} ${previewing ? 'pv' : ''}`, style: { '--cc': C.color }, 'data-id': id },
-      h('div', { class: 'lx-mod-art' }, modImg(id, lvShown), i.isNew ? h('span', { class: 'lx-new t-d' }, 'NEW') : null),
+    const card = h('div', { class: `lx-mod ${i.unlocked ? '' : 'locked'} ${i.equipped ? 'eq' : ''} ${previewing ? 'pv' : ''}`, style: { '--cc': C.color }, 'data-id': id,
+      ...lxp('plate', `a=${C.color};s=${k + 11}${i.unlocked ? '' : ';t=gun'}${i.equipped ? `;g=${C.color}` : ''}`) },
+      h('div', { class: 'lx-mod-art', ...lxp('case', `c=${C.color};lock=${i.unlocked ? 0 : 1};sel=${i.equipped ? 1 : 0};s=${k}`) }, modImg(id, lvShown), i.isNew ? h('span', { class: 'lx-new t-d' }, 'NEW') : null),
       h('div', { class: 'lx-mod-t' },
         h('div', { class: 'lx-mod-head' }, h('b', { class: 't-d outline lx-mod-n' }, m.name), i.owned ? h('span', { class: 'lx-mod-lv t-d' }, `LV ${i.level}`) : null),
         pips, fx, nextFx,
@@ -714,13 +778,13 @@ export function mount(el, ctx, opts = {}) {
   function skinsSeg() {
     const p = state.p;
     const grid = h('div', { class: 'lx-skins' });
-    for (const [id, l] of Object.entries(LAB_SKINS)) {
+    Object.entries(LAB_SKINS).forEach(([id, l], k) => {
       const have = p.cosmetics.labSkins.includes(id);
       const sel = (p.cosmetics.labSkin ?? 'default') === id;
       const pv = preview?.kind === 'skin' && preview.id === id;
-      const t = h('div', { class: `lx-skin ${sel ? 'sel' : ''} ${have ? '' : 'lock'} ${pv ? 'pv' : ''}` },
-        h('div', { class: 'lx-skin-art' }, labSkinImg(id, 160, 'smooth lx-skin-3d'), have ? null : icon('lock', 'lx-skin-lock')),
-        h('b', { class: 'lx-skin-n t-d outline' }, l.name),
+      const t = h('div', { class: `lx-skin ${sel ? 'sel' : ''} ${have ? '' : 'lock'} ${pv ? 'pv' : ''}`, ...lxp('plate', `s=${k + 30};t=gun${sel ? ';g=#ffd23f' : ''}`) },
+        h('div', { class: 'lx-skin-art', ...lxp('case', `c=${SKIN_COL[id] ?? '#7ae8ff'};lock=${have ? 0 : 1};sel=${sel ? 1 : 0};s=${k + 3}`) }, labSkinImg(id, 160, 'smooth lx-skin-3d'), have ? null : icon('lock', 'lx-skin-lock')),
+        dymo(l.name, sel ? 'blue' : '', 'lx-skin-n'),
         h('span', { class: 'lx-skin-s' }, have ? (sel ? 'Equipped' : l.desc) : unlockHint('labSkin', id)),
         sel ? h('div', { class: 'lx-skin-tick' }, icon('check', 's')) : null);
       t.addEventListener('click', () => {
@@ -745,9 +809,9 @@ export function mount(el, ctx, opts = {}) {
         setTimeout(() => { if (!disposed) speak(pick(LINES.skin)); }, 1300);
       });
       grid.appendChild(t);
-    }
+    });
     return h('div', { class: 'lx-col' },
-      h('div', { class: 'lx-note big' }, icon('paint', 's'), h('span', {}, 'Your skin covers the Beast Lab (base tier 5) in every battle.')),
+      h('div', { class: 'lx-note big lx-sticky', ...lxp('note', 'c=blue;s=4') }, icon('paint', 's'), h('span', {}, 'Your skin covers the Beast Lab (base tier 5) in every battle.')),
       grid);
   }
 
@@ -767,7 +831,7 @@ export function mount(el, ctx, opts = {}) {
     let action;
     if (!cs) {
       const u = unlockInfo(def, ctx);
-      action = h('div', { class: 'lx-cmd-lock' }, icon('lock'), h('span', { html: rich(u.text) }), u.action ? button(u.action.label, u.action.fn, 'blue sm', { icon: u.action.icon }) : null);
+      action = h('div', { class: 'lx-cmd-lock' }, icon('lock', 's'), h('span', { html: rich(u.text) }), u.action ? button(u.action.label, u.action.fn, 'blue sm', { icon: u.action.icon }) : null);
     } else if (equipped) action = h('div', { class: 'lx-eq t-d outline' }, icon('check', 's'), 'YOUR COMMANDER');
     else {
       action = button('EQUIP', () => {
@@ -781,7 +845,7 @@ export function mount(el, ctx, opts = {}) {
         notify(ctx, `*${def.name}* is your Commander now.`, { icon: 'crown' });
       }, 'green shine', { icon: 'crown' });
     }
-    return h('div', { class: `panel sk-panel lx-cmd ${cs ? '' : 'is-locked'}` },
+    return h('div', { class: `lx-cmd lx-paper ${cs ? '' : 'is-locked'}`, ...lxp('clip', 's=5;p=lined') },
       h('div', { class: 'lx-cmd-top' },
         h('b', { class: 'lx-cmd-name t-d outline' }, def.name),
         cs ? h('div', { class: 'lx-cmd-lv t-d outline' }, h('small', {}, 'LV'), h('span', {}, String(lvl))) : null),
@@ -798,7 +862,7 @@ export function mount(el, ctx, opts = {}) {
     for (const [id, c] of Object.entries(COMMANDERS)) {
       const cs = own[id];
       const t = h('div', { class: `mn-rost ${cs ? '' : 'lock'} ${vid === id ? 'view' : ''} ${eq === id ? 'eq' : ''}` },
-        h('div', { class: 'mn-rost-art' }, cmdImg(id, cs?.skin ?? null, { size: 128 })),
+        h('div', { class: 'mn-rost-art', ...lxp('case', `c=${cs ? '#9a6aff' : '#3a4060'};lock=${cs ? 0 : 1};sel=${vid === id ? 1 : 0};s=${id.length}`) }, cmdImg(id, cs?.skin ?? null, { size: 128 })),
         h('div', { class: 'mn-rost-n t-d outline' }, c.name),
         cs ? h('div', { class: 'mn-rost-lv t-d' }, 'LV ' + cs.level) : h('div', { class: 'mn-rost-lk' }, icon('lock', 's')),
         eq === id ? h('div', { class: 'mn-rost-eq' }, icon('crown', 's')) : null);
@@ -814,7 +878,7 @@ export function mount(el, ctx, opts = {}) {
       });
       grid.appendChild(t);
     }
-    return h('div', { class: 'mn-box' }, subHead('COMMANDERS', h('span', { class: 't-xs c-muted' }, `${Object.keys(own).length}/${Object.keys(COMMANDERS).length} recruited`)), grid);
+    return h('div', { class: 'mn-box', ...lxp('plate', 's=21') }, divider('COMMANDERS', `${Object.keys(own).length}/${Object.keys(COMMANDERS).length} recruited`), grid);
   }
   function outfits() {
     const { id, cs } = cmdView();
@@ -827,7 +891,7 @@ export function mount(el, ctx, opts = {}) {
       const pv = preview?.kind === 'outfit' && preview.skin === sk;
       const name = sk ? CMD_SKINS[sk].name : 'Classic';
       const t = h('div', { class: `mn-pk ${sel ? 'sel' : ''} ${have ? '' : 'lock'} ${pv ? 'pv' : ''}` },
-        h('div', { class: 'mn-pk-art' }, cmdImg(id, sk, { size: 128 }), have ? null : icon('lock', 'mn-pk-lock')),
+        h('div', { class: 'mn-pk-art', ...lxp('case', `c=${sk ? '#ff8ac0' : '#7ae8ff'};lock=${have ? 0 : 1};sel=${sel ? 1 : 0};s=${opts2.indexOf(sk) + 9}`) }, cmdImg(id, sk, { size: 128 }), have ? null : icon('lock', 'mn-pk-lock')),
         h('div', { class: 'mn-pk-n' }, name),
         h('div', { class: 'mn-pk-s' }, have ? (sel ? 'Wearing' : 'Owned') : unlockHint('cmdSkin', sk)),
         sel ? h('div', { class: 'mn-pk-tick' }, icon('check', 's')) : null);
@@ -856,7 +920,7 @@ export function mount(el, ctx, opts = {}) {
       });
       row.appendChild(t);
     }
-    return h('div', { class: 'mn-box' }, subHead('OUTFITS', h('span', { class: 't-xs c-muted' }, 'Worn in battle')), row);
+    return h('div', { class: 'mn-box', ...lxp('plate', 's=22') }, divider('OUTFITS', 'Worn in battle'), row);
   }
   function abilities() {
     const { def, cs } = cmdView();
@@ -876,7 +940,7 @@ export function mount(el, ctx, opts = {}) {
           h('div', { class: 'row gap-s wrap' }, h('b', { class: 't-d outline mn-abil-n' }, sk.name), open ? chip([icon('clock', 's'), sk.cd + 's']) : chip(`Unlocks at LV ${sk.level}`, 'lockchip')),
           h('span', { class: 'mn-abil-d' }, sk.desc))));
     }
-    return h('div', { class: 'mn-box' }, subHead('ABILITIES'), ...rows);
+    return h('div', { class: 'mn-box', ...lxp('plate', 's=23') }, divider('ABILITIES', null, 'red'), ...rows);
   }
   function levelRoad() {
     const { cs } = cmdView();
@@ -888,7 +952,7 @@ export function mount(el, ctx, opts = {}) {
       const got = cs.level >= L;
       const perk = /perk/i.test(r.text);
       const ic = r.skill !== undefined ? 'magic' : r.banner ? 'flag' : r.skin ? 'paint' : r.bucks && (perk || !r.coins) ? 'bucks' : r.coins ? 'coin' : 'star';
-      row.appendChild(h('div', { class: `mn-lvn ${got ? 'got' : ''} ${cs.level + 1 === L ? 'next' : ''}` },
+      row.appendChild(h('div', { class: `mn-lvn ${got ? 'got' : ''} ${cs.level + 1 === L ? 'next' : ''}`, ...lxp('tag', `got=${got ? 1 : 0};nx=${cs.level + 1 === L ? 1 : 0};s=${L + 20}`) },
         h('div', { class: 'mn-lvn-l t-d outline' }, 'LV ' + L),
         h('div', { class: 'mn-lvn-ic' }, icon(ic), got ? h('div', { class: 'mn-lvn-ck' }, icon('check', 's')) : null),
         h('div', { class: 'mn-lvn-t' }, rewardText(r))));
@@ -897,7 +961,7 @@ export function mount(el, ctx, opts = {}) {
       const nx = row.querySelector('.next');
       if (nx) row.scrollLeft = nx.offsetLeft - row.clientWidth / 2 + nx.offsetWidth / 2;
     }, 0);
-    return h('div', { class: 'mn-box' }, subHead('COMMANDER LEVELS', h('span', { class: 't-xs c-muted' }, 'Earn XP in every battle')), row);
+    return h('div', { class: 'mn-box', ...lxp('plate', 's=24') }, divider('COMMANDER LEVELS', 'XP from every battle'), row);
   }
   function commanderSeg() {
     return h('div', { class: 'lx-col' }, cmdCard(), roster(), outfits(), abilities(), levelRoad());
@@ -937,6 +1001,9 @@ export function mount(el, ctx, opts = {}) {
     window.removeEventListener('resize', onResize);
     clearTimeout(talkOff);
     clearTimeout(doneT);
+    clearTimeout(dressT);
+    cancelAnimationFrame(dressRaf);
+    undress?.();
     try { tree?.dispose(); } catch (e) { /* already gone */ }
     if (yard) {
       yard.cmd?.talk(false);

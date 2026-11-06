@@ -185,3 +185,6 @@ body.landscape .ld-tips { width: min(100%, calc(var(--u) * 150)); height: calc(v
   .cn-logo.reveal *, .tt-start, .ld-bg::before, .ld-bub, .ld-col { animation: none !important; }
   .cn-logo.reveal * { opacity: 1; }
 }
+/* round 9 polish: the portrait title logo keeps a margin from the screen edges on narrow phones */
+body:not(.landscape) .tt-wrap .cn-logo .l2 { font-size: min(calc(var(--u) * 19), 10.6vw); }
+body:not(.landscape) .tt-wrap .cn-logo .l1 { font-size: min(calc(var(--u) * 13), 8vw); }

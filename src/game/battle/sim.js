@@ -308,7 +308,7 @@ export class BattleSim {
       // research COUPON CLIPPER: a troop deploy may refund PU (10) POWER
       if (!card.spell && s.rs.refund && this.rand() < s.rs.refund) {
         s.energy = Math.min(this.maxPower(si), s.energy + PU);
-        this.emit('refund', { side: si });
+        this.emit('refund', { side: si, amount: PU });
       }
     }
     if (card.spell) s.spellPlays++;

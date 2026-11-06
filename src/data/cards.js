@@ -11,7 +11,7 @@ export const ALL_CARDS = Object.values(CARDS);
 
 export const cardDef = (id) => CARDS[id] ?? SWARMS[id] ?? SPELLS[id] ?? null;
 export const isSpell = (id) => !!SPELLS[id];
-export const cardElixir = (id) => cardDef(id)?.elixir ?? 3;
+export const cardElixir = (id) => cardDef(id)?.elixir ?? 30;
 export const rarityOf = (id) => RARITIES[cardDef(id)?.rarity ?? 'common'];
 export const isSpecial = (id) => !!SPELLS[id]?.special;
 // Clash Royale deck: 8 cards cycling through a hand of 4 (+ the NEXT card)
