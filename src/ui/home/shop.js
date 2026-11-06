@@ -659,7 +659,7 @@ export function mount(el, ctx) {
   /** Bought / claimed: equip it and play it once, right here, as the celebration. */
   async function entGot(e, got) {
     equipEntrance(e.id);
-    const extra = (got ?? []).filter((g) => g.type !== 'entrance');
+    const extra = (got ?? []).filter((g) => g.kind !== 'entrance'); // e.g. coins for one you already had
     if (extra.length) await showRewards(extra, { title: 'REWARDS!' });
     if (disposed) return;
     if (!pv?.on) await wait(450); // let Lonan's parcel pop first

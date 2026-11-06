@@ -487,7 +487,7 @@ export function pictureSpec(avatarId, who = null) {
   return { key: a.id, plate: a.plate, chibi: { def } };
 }
 
-const _hb = new THREE.Box3(), _hs = new THREE.Vector3();
+const _hb = new THREE.Box3(), _hs = new THREE.Vector3(), _wb = new THREE.Box3(), _ws = new THREE.Vector3();
 /** 3/4 head-and-shoulders render of a chibi, `px` square: the shared thumbnail canvas (copy it out at once). */
 function chibiShot(o, px) {
   const c = new Chibi(o.def, { fidget: false });
@@ -498,18 +498,26 @@ function chibiShot(o, px) {
   c.snap();
   c.face.redraw();
   c.root.updateMatrixWorld(true);
-  // frame on the bare head (hats and helmets may poke out of the top, like a real headshot)
-  _hb.setFromObject(c.headMesh ?? c.head).getSize(_hs);
-  const hh = _hs.y;
-  return engine.drawThumb(c.root, { size: px, yaw: -0.42, pitch: 0.1, focusObj: c.headMesh ?? c.head, focusDy: -hh * 0.16, fit: hh * 1.24 });
+  // frame on the head: the bare head plus shoulders, grown upward (part way) for a tall hat so a chef
+  // hat or top hat reads; a posed picture (thumbs up, crossed arms) pulls back to show the pose
+  const hm = c.headMesh ?? c.head;
+  _hb.setFromObject(hm);
+  const hh = _hb.max.y - _hb.min.y, top = _hb.max.y;
+  _wb.setFromObject(c.head);
+  const hat = Math.min(Math.max(0, _wb.max.y - top), hh * 0.5) * 0.8;
+  const V = hh * 1.5 * (o.pose ? 1.22 : 1) + hat;
+  const dy = -hh * (o.pose ? 0.3 : 0.2) + hat / 2;
+  return engine.drawThumb(c.root, { size: px, yaw: -0.42, pitch: 0.1, focusObj: hm, focusDy: dy, fit: V / 1.2 });
 }
 /**
  * Troop portrait framing. Default: aim a little under the model's head part and fit the head plus
  * some body; a model without a head part is framed whole. Per-troop tweaks (TROOP_CAM): yaw (turn),
  * fit (x the framed height), dy / dx (shift the aim, x the framed height), whole (frame it all).
  */
-const TROOP_CAM = {};
-const _wb = new THREE.Box3(), _ws = new THREE.Vector3();
+const TROOP_CAM = {
+  toiletRollRipper: { fit: 1.14 }, atomicToilet: { fit: 1.06 }, chocoChomper: { fit: 1.1, dy: 0.04 }, donutDasher: { fit: 1.14, dy: 0.02 },
+  frostHybrid: { dy: 0.04 }, ufoGrabber: { fit: 0.86, dy: 0.04 }, shockSign: { fit: 0.9, dy: 0.02 }, templeGolem: { dy: 0.03 }, magmaTitan: { dy: 0.04 },
+};
 function troopShot(id, px) {
   const rig = createSwarm(id, {});
   rig.setState('idle');
@@ -524,11 +532,11 @@ function troopShot(id, px) {
   let V, focus, dy;
   if (head) {
     _hb.setFromObject(head).getSize(_hs);
-    V = Math.min(H * 1.08, Math.max(_hs.y * 1.32, _hs.x * 1.2, H * 0.62));
+    V = Math.min(H * 1.12, Math.max(_hs.y * 1.45, _hs.x * 1.25, H * 0.66));
     focus = head;
-    dy = -_hs.y * 0.1;
+    dy = V * 0.03;
   } else {
-    V = Math.max(H, _ws.x * 0.85) * 1.02;
+    V = Math.max(H, _ws.x * 0.85) * 1.06;
     focus = rig.root;
     dy = 0;
   }
