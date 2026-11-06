@@ -552,7 +552,7 @@ export function openQuestBoard(hm, opts = {}) {
     return h('div', { class: 'qb-note qb-hero qb-end qb-in', 'data-paper': 'letter', 'data-pin': 'hero' },
       pinEl('blue', 'top'),
       h('div', { class: 'qb-hero-top' },
-        h('div', { class: 'qb-taped' }, poster('jimmy', 'You finished the whole story. I am writing chapter four right now. On a napkin. It is going great.', 'big', bubHost), tapeEl('', 'pt')),
+        h('div', { class: 'qb-taped' }, poster('jimmy', 'Chapter four is on a napkin. Hang tight.', 'big', bubHost), tapeEl('', 'pt')),
         h('div', { class: 'qb-hero-art' }, artEl('end', 'big'))),
       stampEl('claimed', 'qb-corner'),
       h('b', { class: 'qb-title' }, 'Story Complete'),
@@ -566,7 +566,7 @@ export function openQuestBoard(hm, opts = {}) {
     const day = P().challenges.day;
     const headCard = h('div', { class: 'qb-note qb-dhead qb-in', 'data-paper': 'receipt', 'data-pin': 'dhead' },
       tapeEl('', 'tc'),
-      poster('juan', 'Daily specials, fresh every morning. Finish them for Calories. Calories fill the Food Pass. The Food Pass fills your pockets.', 'big', bubHost),
+      poster('juan', 'Fresh specials every morning. Eat up.', 'big', bubHost),
       h('div', { class: 'qb-dhead-t' },
         h('b', { class: 'qb-title' }, 'Daily Specials'),
         h('span', { class: 'qb-timer', title: 'New list in' }, icon('clock'), countdown(midnightMs()))));

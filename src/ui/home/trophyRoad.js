@@ -92,7 +92,7 @@ export function openTrophyRoad(ctx) {
       setTimeout(() => render(true), 900);
       return;
     }
-    showRewards(got, { title: `${fmtN(m.t)} TROPHIES!`, note: got.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null }).then(() => render(true));
+    showRewards(got, { title: `${fmtN(m.t)} TROPHIES!` }).then(() => render(true));
   }
 
   function claimCtl(m) {
@@ -466,7 +466,7 @@ export function mountIslandRoad(road, ctx) {
     clear(forkEl);
     const picked = forkChoice(F.id);
     const title = ss === 'pick' ? 'PICK A TRAIL' : ss === 'ahead' ? 'FORK IN THE ROAD' : ss === 'open' ? 'BOTH TRAILS OPEN' : `${TRAILS[picked].name} PICKED`;
-    const note = ss === 'pick' || ss === 'picked' ? `The other trail opens at ${F.next.name}.` : null;
+    const note = null; // less text: the barricade on the other trail shows it is closed
     const opt = (sd) => {
       const tr = TRAILS[sd];
       const items = F[sd].items;
@@ -550,7 +550,7 @@ export function mountIslandRoad(road, ctx) {
     const big = isBigReward(got[0]) || M.gate;
     setTimeout(() => {
       anchor.remove();
-      showRewards(got, { title: `${fmtN(M.t)} TROPHIES!`, note: got.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null, color: big ? 'gold' : undefined })
+      showRewards(got, { title: `${fmtN(M.t)} TROPHIES!`, color: big ? 'gold' : undefined })
         .then(() => { setPills(); done(); });
     }, 900);
   }
@@ -601,7 +601,7 @@ export function mountIslandRoad(road, ctx) {
     async lootSummary(list) {
       if (!list.length) return;
       await new Promise((r) => setTimeout(r, 450));
-      await showRewards(list, { title: 'TREASURE!', color: 'gold', note: list.some((g) => g.kind === 'vial') ? 'Vials go to your vial slots on Beast Island.' : null });
+      await showRewards(list, { title: 'TREASURE!', color: 'gold' });
       bagCount = 0;
       bag.classList.remove('on');
       setPills();
