@@ -34,8 +34,8 @@ import { showResult } from '../game/battle/result.js';
 import { playEndCine } from '../game/battle/endCine.js';
 import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
-import { SPELLS } from '../data/spells.js';
 import { ARENAS, arenaById, BOSSES, ghostOpponent, currentArena } from '../data/arenas.js';
+import { roadBossBattle } from '../data/roadBosses.js';
 import { STARTER_CARDS } from '../data/cards.js';
 import { researchForTrophies } from '../data/research.js';
 import { modulesForTrophies } from '../data/labModules.js';
@@ -46,6 +46,7 @@ import { HostSync, RemoteSim } from '../game/battle/netsync.js';
 import { lobby } from '../net/lobby.js';
 import { commanderCfg, playerSide, deckEntry } from '../game/battle/loadout.js';
 import { ghostLook, AVATARS } from '../data/profileItems.js';
+import { prewarmLooks } from '../ui/avatar.js';
 import { prewarmBattle } from '../game/battle/prewarm.js';
 import { battleLocks, applyBattleLocks, battleAllowed, battleLessons } from '../ui/guide.js';
 
@@ -91,16 +92,18 @@ export class BattleScene {
       };
       aiOpts = { difficulty: 0.05, maxLab: 0, noSpells: true, sigDelay: 9999 };
     } else if (mode === 'boss') {
-      const b = BOSSES[params.bossId];
+      // an arena boss challenge, or a Trophy Road boss (data/roadBosses.js: tuned to your deck right now)
+      const b = BOSSES[params.bossId] ?? roadBossBattle(params.bossId, p);
+      const eLab = b.labLevel ?? b.level + 1;
       arenaId = b.arena;
       enemy = {
         name: b.name, deck: b.deck.map((id) => deckEntry(id, b.level)), commander: b.commander ? commanderCfg(b.commander, Math.min(10, b.level)) : null,
-        research: researchForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString(b.id ?? b.name))), labStyle: b.lab ?? 'rival', labLevel: b.level + 1, hpMult: 1.2, clan: 'BOSS CHALLENGE',
-        modules: modulesForTrophies(b.minTrophies ?? 0, b.level + 1, mulberry32(hashString((b.id ?? b.name) + ':mods'))),
+        research: researchForTrophies(b.minTrophies ?? 0, eLab, mulberry32(hashString(b.id ?? b.name))), labStyle: b.lab ?? 'rival', labLevel: eLab, hpMult: b.hpMult ?? 1.2, clan: b.road ? 'ROAD BOSS' : 'BOSS CHALLENGE',
+        modules: modulesForTrophies(b.minTrophies ?? 0, eLab, mulberry32(hashString((b.id ?? b.name) + ':mods'))),
         avatar: AVATARS['troop_' + b.boss] ? 'troop_' + b.boss : 'lab_skull', frame: 'boss',
       };
       if (b.boss) boss = { id: b.id, unit: b.boss, model: b.bossModel, scale: b.bossScale, hp: b.bossHp, dmg: b.bossDmg, level: b.level };
-      aiOpts = { difficulty: Math.min(0.9, 0.5 + b.level * 0.05) };
+      aiOpts = { difficulty: b.difficulty ?? Math.min(0.9, 0.5 + b.level * 0.05) };
     } else if (mode === 'friend' || mode === 'online') {
       const ar = arenaById(params.arena) ?? ARENAS[0];
       arenaId = ar.id;
@@ -140,6 +143,7 @@ export class BattleScene {
     this.params = params;
     this.mode = params.mode ?? (state.p.tutorial === 'done' ? 'ranked' : 'tutorial');
     const cfg = (this.cfg = this.buildConfig(params));
+    prewarmLooks(cfg.sides); // both players' pictures + frames are drawn before the VS intro shows them
     const mode = this.mode;
     // simulation (+ AI or network)
     this.netMode = mode === 'friend' || mode === 'online';
@@ -425,7 +429,7 @@ export class BattleScene {
     if (!ok) { audio.play('deny'); return false; }
     this.hud.cardUsed(slot, c, x);
     audio.play('pop', { pitch: 1.1 });
-    if (c.spell && !c.special) bigBanner((SPELLS[c.unit]?.name ?? c.unit).toUpperCase() + '!', '', { dur: 0.7, color: '#c99aff' });
+    // spells speak through their own effect on the field (no name banner every cast)
     if (this.sel === slot) this.select(-1);
     this.plc.ghost(null);
     this.view.setAim(null);
@@ -921,12 +925,9 @@ export class BattleScene {
       await (this.view.fallDone ?? wait(1.0));
     }
     else {
-      const why = {
-        tiebreak: ['TIEBREAKER!', 'The most damaged base loses'],
-        surrender: ['SURRENDER', win ? 'Your rival gave up!' : 'You gave up...'],
-        forfeit: ['FORFEIT', 'Your rival left the battle'],
-      }[this.endReason] ?? (sim.draw ? ["TIME'S UP!", 'Too close to call!'] : ["TIME'S UP!", 'The healthier base wins!']);
-      bigBanner(why[0], why[1], { dur: 1.6, color: '#ffd84a' });
+      // one big word; the base HP bar and the cinematic that follows say the rest
+      const why = { tiebreak: 'TIEBREAKER!', surrender: 'SURRENDER', forfeit: 'FORFEIT' }[this.endReason] ?? "TIME'S UP!";
+      bigBanner(why, '', { dur: 1.6, color: '#ffd84a' });
       audio.play('bell');
       await wait(1.6);
     }

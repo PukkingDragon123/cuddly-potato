@@ -12,6 +12,7 @@ import { attachModules } from '../../models/props/labModules.js';
 import { loadoutList } from '../../data/labModules.js';
 import { floatText } from '../../ui/ui.js';
 import { hpx } from './hitPix.js';
+import { pixCall } from './troopFx.js';
 import { voxelBeam, voxelPuddle, groundImpact } from './voxfx.js';
 
 /**
@@ -176,7 +177,7 @@ export class ModFx {
         if (u) {
           const p = new THREE.Vector3(u.x, 0.4, u.z ?? 0);
           fx.rise(p, { count: 16, colors: [0x7cff3a, 0xd4ff9a], radius: 0.6 });
-          floatText(p.clone().setY(1.6), 'CLONE!', 'heal', { life: 1, rise: 34 });
+          pixCall(p.clone().setY(1.6), 'plus', 'c-green', 1);
         }
         audio.play('spawn', { pitch: 1.3, vol: 0.6 });
         break;
@@ -191,7 +192,7 @@ export class ModFx {
         hpx.boom(p.clone().setX(x + (me ? -1.2 : 1.2)).setY(1.4), { scale: 1.6, color: 0x7cff3a });
         groundImpact(p.clone().setY(0), { radius: ev.r ?? 4.6, color: 0x9dff3a });
         for (let i = 0; i < 40; i++) particles.spawn('glow', { x: x + rand(-2, 2), y: rand(0.2, 2), z: rand(-1, 1.2), vy: rand(1, 4), vx: rand(-2, 2), size: 0.1, life: rand(0.5, 1), grav: -3, color: pick([0x9dff3a, 0xd4ff9a, 0xffffff]) });
-        floatText(p.clone().setY(3.2), 'MELTDOWN!', 'big', { life: 1.6, rise: 40 });
+        pixCall(p.clone().setY(3.2), 'alert', 'c-gold', 1.6);
         audio.play('explode', { pitch: 0.7 });
         audio.play('alarm', { vol: 0.5 });
         engine.shake(0.6);

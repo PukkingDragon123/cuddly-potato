@@ -170,12 +170,12 @@ function settle(stage, i) {
 }
 
 // ---------------------------------------------------------------------------
-// Overlay: letterbox, entrance name, skip hint, flash, title card, speech bubble
+// Overlay: letterbox, pixel skip icon, flash, title card, speech bubble (no captions)
 
 export function makeWrap(parent) {
   const el = h('div', { class: 'ent' },
-    h('div', { class: 'ent-bar t' }, h('i', { class: 'ent-trim' }), h('div', { class: 'ent-kick' }, icon('play', 'ent-kick-ic'), h('span', {}))),
-    h('div', { class: 'ent-bar b' }, h('i', { class: 'ent-trim' }), h('div', { class: 'ent-skip' }, 'TAP TO SKIP', h('i', { class: 'ent-chev' }))),
+    h('div', { class: 'ent-bar t' }, h('i', { class: 'ent-trim' })),
+    h('div', { class: 'ent-bar b' }, h('i', { class: 'ent-trim' }), h('div', { class: 'ent-skip', role: 'img', 'aria-label': 'Tap to skip' }, h('i', { class: 'px-skip' }))),
     h('div', { class: 'ent-flash' }));
   parent.appendChild(el);
   requestAnimationFrame(() => el.classList.add('in'));
@@ -194,7 +194,6 @@ function titleCard(info, side, e) {
   const tag = side ? (info.clan || 'RIVAL') : 'YOU';
   const sub = [];
   if (info.trophies !== undefined && info.trophies !== null) sub.push(h('span', { class: 'ent-card-tr' }, icon('trophy', 'ent-card-ic'), h('b', {}, Number(info.trophies).toLocaleString('en-US'))));
-  sub.push(h('span', { class: 'ent-card-en' }, e.name.toUpperCase()));
   return h('div', { class: `ent-card s${side}`, style: { '--tc': TEAM[side], '--ec': e.color, '--nk': String(Math.min(1, 10 / Math.max(10, name.length))) } },
     h('i', { class: 'ent-card-bn', style: { background: b.css } }),
     h('i', { class: 'ent-card-shade' }),
@@ -269,10 +268,7 @@ export function playEntrance(stage, side, id, o = {}) {
     void flashEl.offsetWidth;
     flashEl.classList.add('go');
   };
-  const kick = wrap.querySelector('.ent-kick span');
-  if (kick) kick.textContent = e.name.toUpperCase();
   wrap.classList.toggle('s1', side === 1);
-  wrap.classList.add('kick');
   const card = titleCard(info, side, e);
   card.classList.add(portrait() ? 'port' : 'land');
   wrap.appendChild(card);
@@ -561,7 +557,6 @@ export function playEntrance(stage, side, id, o = {}) {
     }
     setTimeout(() => { card.remove(); sayEl.remove(); }, 450);
     if (ownWrap) wrapOut(wrap);
-    else if (!o.last) wrap.classList.remove('kick');
     // let the last sprites finish, then free them
     let tt = 0;
     const tick = (dt) => { tt += dt; P.update(Math.max(dt, 1 / 60), cam); if (tt > 1) { P.dispose(); return true; } return false; };

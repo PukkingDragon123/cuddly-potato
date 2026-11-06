@@ -7,6 +7,7 @@ import { rankMedal } from '../rankMedal.js';
 import { audio } from '../../core/audio.js';
 import { state, cardLevel, currentDeck } from '../../game/state.js';
 import { BOSSES, arenaById } from '../../data/arenas.js';
+import { roadBoss, roadBossBattle } from '../../data/roadBosses.js';
 import { COMMANDERS } from '../../data/commanders.js';
 import { rewardTile, rewardLabel, swarmImg, charFullImg, chip, subHead, fmtN, refreshCtx } from './common.js';
 
@@ -24,11 +25,15 @@ function bundleList(b) {
 }
 
 export function openBoss(bossId, ctx) {
-  const b = BOSSES[bossId];
+  // an arena boss challenge, or a Trophy Road boss (data/roadBosses.js, tuned to your deck)
+  const road = roadBoss(bossId);
+  const b = road ? roadBossBattle(bossId, state.p) : BOSSES[bossId];
   if (!b) return null;
   const p = state.p;
   const ar = arenaById(b.arena);
-  const wins = p.bosses[bossId] ?? 0;
+  const wins = (road ? p.roadBoss?.won?.[bossId] : p.bosses[bossId]) ?? 0;
+  const bank = road ? p.roadBoss?.bank ?? 0 : 0;
+  const eLab = b.labLevel ?? b.level + 1;
   const locked = p.bestTrophies < b.minTrophies;
   const deck = currentDeck();
   const avgLv = deck.length ? deck.reduce((a, id) => a + cardLevel(id), 0) / deck.length : 1;
@@ -45,7 +50,7 @@ export function openBoss(bossId, ctx) {
     h('div', { class: 'mn-boss-stats' },
       h('div', { class: 'mn-st' }, icon('star', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Recommended Level'), h('b', { class: `mn-st-v t-d outline ${ready ? '' : 'warn'}` }, `LV ${b.level}`))),
       b.bossHp ? h('div', { class: 'mn-st' }, icon('hp', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Boss Hitpoints'), h('b', { class: 'mn-st-v t-d outline' }, fmtN(b.bossHp)))) : null,
-      h('div', { class: 'mn-st' }, rankMedal(b.level + 1, { cls: 'mn-st-rank', shine: false }), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Enemy Lab Level'), h('b', { class: 'mn-st-v t-d outline' }, String(b.level + 1)))),
+      h('div', { class: 'mn-st' }, rankMedal(eLab, { cls: 'mn-st-rank', shine: false }), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Enemy Lab Level'), h('b', { class: 'mn-st-v t-d outline' }, String(eLab)))),
       h('div', { class: 'mn-st' }, icon('cards', 'mn-st-ic'), h('div', { class: 'mn-st-txt' }, h('span', { class: 'mn-st-l' }, 'Your Deck (avg.)'), h('b', { class: `mn-st-v t-d outline ${ready ? 'ok' : 'warn'}` }, `LV ${avgLv.toFixed(1)}`)))));
   const deckRow = h('div', { class: 'mn-boss-deck' }, ...b.deck.map((id) => cardEl(id, { size: 'mini', level: b.level, locked: false, owned: { level: b.level }, artSize: 128 })));
   const first = bundleList(b.reward);
@@ -54,8 +59,12 @@ export function openBoss(bossId, ctx) {
   const body = h('div', { class: 'mn-boss' },
     h('div', { class: 'mn-boss-top' }, art, info),
     subHead('BOSS DECK', h('span', { class: 't-xs c-muted' }, `All cards level ${b.level}`)), deckRow,
-    subHead(wins ? 'FIRST CLEAR REWARDS (CLAIMED)' : 'FIRST CLEAR REWARDS', h('span', { class: 't-xs c-muted' }, `Repeat wins: ${fmtN(Math.round((b.reward.coins ?? 300) * 0.25))} coins`)), rew);
-  const fight = locked
+    subHead(wins ? 'FIRST CLEAR REWARDS (CLAIMED)' : 'FIRST CLEAR REWARDS', road
+      ? (bank ? h('span', { class: 't-d outline mn-boss-bank' }, icon('trophy', 's'), `+${fmtN(bank)}`) : null)
+      : h('span', { class: 't-xs c-muted' }, `Repeat wins: ${fmtN(Math.round((b.reward.coins ?? 300) * 0.25))} coins`)), rew);
+  const fight = road && wins
+    ? h('div', { class: 'mn-boss-locked' }, icon('check'), h('b', {}, 'BEATEN'))
+    : locked
     ? h('div', { class: 'mn-boss-locked' }, icon('lock'), h('span', {}, h('b', {}, `Reach ${fmtN(b.minTrophies)} trophies`), ' to challenge this boss.'))
     : button(wins ? 'REMATCH' : 'FIGHT!', () => {
       audio.play('roar');

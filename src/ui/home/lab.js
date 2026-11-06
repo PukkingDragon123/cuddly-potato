@@ -492,9 +492,8 @@ export function mount(el, ctx, opts = {}) {
         h('div', { class: 'lx-stats' },
           chip([icon('hp', 's'), fmtN(Math.round(TOWERS.lab.hp * pw * T.hp))]),
           chip([icon('sword', 's'), fmtN(Math.round(TOWERS.lab.dmg * pw * T.dmg))]))),
-      h('div', { class: 'lx-note' }, 'Battles start at tier 1. Upgrade with POWER mid-battle to grow it.'),
       tiers,
-      subHead('LAB MODULES', h('span', { class: 't-xs c-muted' }, 'Bolted onto your base in battle')),
+      subHead('LAB MODULES'),
       slots);
   }
 
@@ -564,9 +563,9 @@ export function mount(el, ctx, opts = {}) {
       if (nx) road.scrollLeft = nx.offsetLeft - road.clientWidth / 2 + nx.offsetWidth / 2;
     }, 0);
     const how = h('div', { class: 'lx-how' },
-      h('div', {}, icon('up', 's'), h('span', { html: rich('Each Lab Level: *+7%* base HP, zapper and module damage') })),
-      h('div', {}, icon('gear', 's'), h('span', { html: rich('Higher Lab Levels unlock *module levels* and new research') })),
-      h('div', {}, icon('cards', 's'), h('span', { html: rich('Upgrade cards for big Lab XP, win battles for *+6*') })));
+      // icons + numbers: what a level gives, where XP comes from
+      h('div', {}, icon('up', 's'), h('span', { html: rich('*+7%* HP + damage per level') })),
+      h('div', {}, icon('cards', 's'), h('span', { html: rich('XP: card upgrades, wins *+6*') })));
     return h('div', { class: 'panel sk-panel lx-lvpanel' }, stats, subHead('LEVEL REWARDS'), road, how);
   }
 

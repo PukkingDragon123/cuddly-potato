@@ -154,8 +154,6 @@ export function openProfile(ctx) {
     const s = sel ?? { kind: tab, id: equipped(tab) };
     const have = owns(s.kind, s.id);
     const on = equipped(s.kind) === s.id;
-    const def = defsOf(s.kind)[s.id];
-    const desc = s.kind === 'banner' ? (BANNERS[s.id]?.animated ? 'Animated banner. It moves. Rivals notice.' : 'Your card background.') : s.kind === 'title' ? 'Shows under your name.' : def?.desc ?? '';
     const right = [];
     if (on) right.push(h('span', { class: 'pf-state on t-d' }, icon('check', 's'), 'EQUIPPED'));
     else if (have) right.push(button('EQUIP', () => wear(s.kind, s.id), 'green sm', { icon: 'check' }));
@@ -167,7 +165,8 @@ export function openProfile(ctx) {
     el.append(
       h('div', { class: 'pf-info-txt' },
         h('b', { class: 't-d outline pf-info-n' }, nameOf(s.kind, s.id) || '-'),
-        have ? h('span', { class: 'pf-info-s' }, desc) : h('span', { class: 'pf-info-s c-gold', html: rich(inShopToday(s.kind, s.id) ? "*In Lonan's shop today.* Go before he moves it." : `*How to get:* ${howTo(s.kind, s.id)}`) })),
+        // owned: just the name; locked: where it comes from (no flavor lines)
+        have ? null : h('span', { class: 'pf-info-s c-gold', html: rich(inShopToday(s.kind, s.id) ? "*In Lonan's shop today*" : howTo(s.kind, s.id)) })),
       h('div', { class: 'pf-info-r' }, ...right));
     return el;
   }
@@ -220,7 +219,7 @@ export function openProfile(ctx) {
       kind === 'title' ? null : h('div', { class: 'pf-tile-n' }, small && masteryCard(kind, id) ? cardDef(masteryCard(kind, id))?.name ?? '' : nameOf(kind, id)),
       small && !have
         ? h('div', { class: `pf-tile-s ml-${(kind === 'banner' ? 4 : defsOf(kind)[id]?.get?.level ?? 1)}` }, MASTERY_NAMES[(kind === 'banner' ? 4 : defsOf(kind)[id]?.get?.level ?? 1) - 1])
-        : h('div', { class: 'pf-tile-s' }, on ? h('span', { class: 'c-green' }, 'Equipped') : have ? 'Owned' : shortHow(kind, id)),
+        : have ? null : h('div', { class: 'pf-tile-s' }, shortHow(kind, id)), // owned: no label (the tick marks the equipped one)
       on ? h('div', { class: 'pf-tile-tick' }, icon('check', 's')) : null);
     t.addEventListener('click', (e) => { e.stopPropagation(); pick(kind, id, t); });
     return t;
@@ -239,7 +238,7 @@ export function openProfile(ctx) {
     const mLocked = ids.filter((id) => !owns(kind, id) && isM(id)).sort((a, b) => mOrder(a) - mOrder(b));
     const grid = (list, small) => h('div', { class: `pf-grid k-${kind} ${small ? 'sm' : ''}` }, ...list.map((id) => tile(kind, id, small)));
     gridHost.append(subHead(`YOURS  ${yours.length}`), grid(yours));
-    if (locked.length) gridHost.append(subHead('TO UNLOCK', h('span', { class: 't-xs c-muted' }, 'Tap one to try it on')), grid(locked));
+    if (locked.length) gridHost.append(subHead('TO UNLOCK'), grid(locked));
     if (mLocked.length) gridHost.append(subHead('TROOP MASTERY', h('span', { class: 't-xs c-muted' }, 'Play a troop to earn its set')), grid(mLocked, true));
   }
 
@@ -340,7 +339,7 @@ export function openProfile(ctx) {
     card = playerCard();
     skinsEl = labSkins();
     body.append(...[card, nameRow(),
-      subHead('CUSTOMIZE', h('span', { class: 't-xs c-muted' }, 'Rivals see this before every battle')), customize(),
+      subHead('CUSTOMIZE'), customize(),
       subHead('CAREER'), stats(),
       featureUnlocked('labSkins') ? subHead('LAB SKIN', h('span', { class: 't-xs c-muted' }, 'Your Lab in battle')) : null,
       featureUnlocked('labSkins') ? skinsEl : null].filter(Boolean));

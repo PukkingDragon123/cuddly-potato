@@ -28,7 +28,7 @@ import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMa
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
 import { attachBaseModules, ModFx } from './modFx.js';
-import { troopFx, swallowFx, thrashFx } from './troopFx.js';
+import { troopFx, swallowFx, thrashFx, pixCall } from './troopFx.js';
 import { makeArenaBattle } from '../../models/arenas/index.js';
 import { battleCamera, coverFit } from '../../models/arenas/kit.js';
 import { h, $world, floatText, speech, iconURL } from '../../ui/ui.js';
@@ -601,8 +601,7 @@ class UnitActor {
     const k = { fire: 'k-fire', burn: 'k-fire', zap: 'k-zap', laser: 'k-zap', nuke: 'k-goo', sludge: 'k-goo', acid: 'k-goo', money: 'k-cash' }[this.dmgKind] ?? '';
     floatText(at, crit ? `${n}!` : String(n), `hitn t-${tier} ${k} s${this.u.side}`, { life: crit ? 1 : tier === 'm' ? 0.6 : 0.8, rise: crit ? 46 : 32, spreadX: 22 });
     if (crit && !(this.view.critTagT > this.view.t - 0.7)) {
-      this.view.critTagT = this.view.t;
-      floatText(at.clone().setY(at.y + 0.42), 'CRIT', 'hitn t-tag', { life: 0.85, rise: 50, spreadX: 6 });
+      this.view.critTagT = this.view.t; // the crit number's own starburst flags it (no CRIT word)
     }
   }
   /** Special-card side buffs on this troop: SURGE embers, FRENZY speed sparks, HASTE wind streaks. */
@@ -1605,7 +1604,7 @@ export class BattleView {
           const p = a.rig.root.position;
           const at = new THREE.Vector3(p.x + (ev.unit.side === 0 ? 0.3 : -0.3), p.y + a.rig.height * 0.6, p.z + 0.3);
           fx.sparkle(at, { count: 4, colors: [0xffffff, 0x8fd8ff], speed: 3, life: 0.25 });
-          if (!(a.lastPing > this.t - 0.5)) { a.lastPing = this.t; floatText(at, 'ARMOR', 'armor', { life: 0.6, rise: 28 }); }
+          if (!(a.lastPing > this.t - 0.5)) { a.lastPing = this.t; pixCall(at, 'shield', 'c-steel', 0.6); }
           audio.play('latch', { pitch: 1.8, vol: 0.45, gap: 0.08 });
           break;
         }
@@ -1626,7 +1625,7 @@ export class BattleView {
         fx.rise(new THREE.Vector3(p.x, 0.1, p.z), { count: 22, colors: [0x7cff3a, 0xd4ff9a, 0xffffff], radius: 0.7 });
         groundHit(new THREE.Vector3(p.x, 0, p.z), { radius: 1.6, color: 0x7cff3a, colors: [0x7cff3a, 0xd4ff9a] });
         if (a) { a.rig.boing?.(0.7); a.rig.flash?.(0.12); }
-        floatText(new THREE.Vector3(p.x, p.y + H * 1.5 + 0.4, p.z), 'GIANT!', 'heal', { life: 1.1, rise: 40 });
+        pixCall(new THREE.Vector3(p.x, p.y + H * 1.5 + 0.4, p.z), 'up', 'c-green', 1.1);
         audio.play('slosh', { pitch: 0.8, gap: 0.1 });
         audio.play('magic', { pitch: 0.6, vol: 0.6, gap: 0.1 });
         audio.play('boing', { pitch: 0.55, gap: 0.1 });
@@ -1646,7 +1645,7 @@ export class BattleView {
         if (!a) break;
         a.dropShield(true);
         const p = a.rig.root.position;
-        floatText(new THREE.Vector3(p.x, p.y + a.rig.height + 0.5, p.z), 'ARMOR BROKEN', 'tower', { life: 0.9, rise: 36 });
+        pixCall(new THREE.Vector3(p.x, p.y + a.rig.height + 0.5, p.z), 'shield', 'c-red', 0.9);
         audio.play('shatter', { pitch: 1.2, vol: 0.6, gap: 0.05 });
         break;
       }
@@ -1761,12 +1760,11 @@ export class BattleView {
         const p = new THREE.Vector3().setFromMatrixPosition(lab.core.matrixWorld);
         fx.sparkle(p, { count: 26, colors: [TEAM_COLORS[ev.side], 0xffffff, 0xffd23f], speed: 4, radius: 1.6 });
         groundHit(new THREE.Vector3(lab.root.position.x, 0.05, 0), { radius: 3.2, color: TEAM_COLORS[ev.side] });
-        floatText(p.clone().setY(lab.height + 1.2), ev.side === 0 ? 'LAB ONLINE!' : 'RIVAL LAB ONLINE!', 'big', { life: 1.5, rise: 30 });
         audio.play('alarm', { vol: 0.6 });
         audio.play('upgrade', { pitch: 0.8 });
         lab.root.scale.set(1.08, 0.92, 1.08);
         tween(lab.root.scale, { x: 1, y: 1, z: 1 }, 0.5, { ease: 'outElastic' });
-        this.react(ev.side, 'sitWorried', 'shock', 'shout', 1.1, ev.side === 0 ? 'Lab defenses ON!' : pick(['Wake up, Lab!', 'Defenses up!']));
+        this.react(ev.side, 'sitWorried', 'shock', 'shout', 1.1); // the pose + the alarm say it
         break;
       }
       case 'towerDown':
@@ -1807,11 +1805,11 @@ export class BattleView {
         const x = lab.root.position.x;
         fx.rise(new THREE.Vector3(x, 0.2, 0.3), { count: 24, colors: [0x29b6f6, 0x9ff2ff, 0xffd84a], radius: 1.8 });
         this.swapBase(ev.side, ev.tier ?? ev.level);
-        const name = BASE_UPGRADES[(ev.tier ?? ev.level) - 1]?.name ?? 'BASE UP';
-        floatText(new THREE.Vector3(x, Math.min(5.4, (lab.plateY ?? lab.height ?? 3) + 0.9), 0), `${name.toUpperCase()}!`, 'big', { life: 1.8, rise: 40 });
+        // the new building says it; your own upgrade also gets the one-word banner (hud.js)
+        pixCall(new THREE.Vector3(x, Math.min(5.4, (lab.plateY ?? lab.height ?? 3) + 0.9), 0), 'up', 'c-gold', 1.6);
         if (ev.side === 0) {
           audio.play('upgrade');
-          this.react(0, 'sitCheer', 'star', 'grin', 1.2, pick(['Upgrade!', 'Way better!', 'Now THAT is a base!']));
+          this.react(0, 'sitCheer', 'star', 'grin', 1.2);
         }
         break;
       }
@@ -1847,7 +1845,7 @@ export class BattleView {
         audio.play('heal');
         break;
       case 'refund':
-        if (ev.side === 0) floatText(new THREE.Vector3(this.sim.sides[0].labX, 2.4, 0), '+1 REFUND', 'energy', { life: 1.1 });
+        if (ev.side === 0) floatText(new THREE.Vector3(this.sim.sides[0].labX, 2.4, 0), '+1', 'energy', { life: 1.1 });
         break;
       case 'energyGain':
         if (ev.side === 0) audio.play('chaching');
@@ -2011,7 +2009,7 @@ export class BattleView {
     if (ev.amount >= 1) floatText(p, String(ev.amount), ev.amount > 150 ? 'crit' : 'tower', { life: 0.9 });
     audio.play('crunch', { pitch: 0.7 + Math.random() * 0.3, gap: 0.08 });
     if (ev.amount > 120) engine.shake(0.22);
-    if (Math.random() < 0.12) this.reactRich(ev.side, pick(['panic', 'nervous', 'angry', 'shock']), 0.9, ev.side === 1 ? pick(['Hey!', 'My Lab!', 'Not the Lab!', 'OUCH!']) : null);
+    if (Math.random() < 0.12) this.reactRich(ev.side, pick(['panic', 'nervous', 'angry', 'shock']), 0.9);
   }
 
 
@@ -2238,7 +2236,7 @@ export class BattleView {
     switch (ev.id) {
       case 'foodThrow': {
         audio.play('whoosh');
-        this.react(side, 'sitCheer', 'happy', 'grin', 1, side === 0 ? null : 'Eat up!');
+        this.react(side, 'sitCheer', 'happy', 'grin', 1);
         const from = this.labTop(side);
         const foods = ['burger', 'pizza', 'donut', 'fries', 'chocoBar', 'apple', 'cake'];
         for (let i = 0; i < 7; i++) {

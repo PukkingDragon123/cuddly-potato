@@ -17,3 +17,8 @@
 .hm-mega .sp .pi { width: 1.2em; height: 1.2em; flex: none; }
 .hm-mega .ds { font-size: 0.78em; }
 .hm-mega .sp .pi, .hm-mega .lk .pi { filter: none; } .hm-mega.locked .sp .pi { filter: grayscale(1) brightness(0.75); }
+/* less text (round 8): a locked MEGA shows [road][trophy] + the trophy count; the intro is one icon line */
+.hm-mega .ds { display: flex; align-items: center; justify-content: center; gap: 0.2em; min-height: 0; font-family: var(--font-d); font-size: 0.9em; color: var(--gold); }
+.hm-mega .ds .pi { width: 1.3em; height: 1.3em; }
+.hm-megas-intro { display: flex; align-items: center; justify-content: center; gap: 0.2em; }
+.hm-megas-intro .pi { width: 1.4em; height: 1.4em; }

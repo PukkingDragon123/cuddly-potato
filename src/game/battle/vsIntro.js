@@ -148,13 +148,13 @@ export async function vsIntro(parent, cfg, opts = {}) {
   }
   const vs = h('div', { class: 'vsx-vs' }, h('span', { class: 'v' }, 'V'), h('span', { class: 's' }, 'S'));
   const infos = [info(sides[0], 0), info(sides[1], 1)];
-  const arenaEl = arena ? h('div', { class: 'vsx-arena' }, h('small', {}, opts.boss ? 'BOSS BATTLE' : 'ARENA'), h('span', {}, arena.name)) : null;
+  const arenaEl = arena ? h('div', { class: 'vsx-arena' }, opts.boss ? icon('boss', 'vsx-arena-ic') : null, h('span', {}, arena.name)) : null;
   const root = h('div', { class: `vsx ${portrait ? 'portrait' : 'landscape'}` },
     h('i', { class: 'vsx-bg' }),
     panels[1], panels[0], stageHost, svg,
     h('i', { class: 'vsx-seam' }),
     infos[1], infos[0], vs,
-    h('i', { class: 'vsx-bar t' }, arenaEl), h('i', { class: 'vsx-bar b' }, h('span', { class: 'vsx-skip' }, 'TAP TO SKIP')),
+    h('i', { class: 'vsx-bar t' }, arenaEl), h('i', { class: 'vsx-bar b' }, h('span', { class: 'vsx-skip', role: 'img', 'aria-label': 'Tap to skip' }, h('i', { class: 'px-skip' }))),
     h('i', { class: 'vsx-flash' }));
   // seam geometry for the CSS (clip-paths, the glowing seam line, the VS position)
   const [[ax, ay], [bx, by]] = L.seam;

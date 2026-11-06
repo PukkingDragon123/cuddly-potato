@@ -151,6 +151,16 @@ export class HomeScene {
     // the unlock cinematic flies over a bare island; the lobby springs in when it ends
     if (this.pending) this.root.style.visibility = 'hidden';
     this.root.classList.remove('hm-pre');
+    // back from a battle: your Commander walks up the Trophy Road first (scenes/homeRoad.js), then the lobby
+    const walk = this.road?.afterBattle?.({ ...this.params, fromTrophies: shown.trophies });
+    if (walk) {
+      walk.then(() => {
+        if (this.exited || !this.root) return;
+        if (this.pending) setTimeout(() => this.unlockCinematic(this.pending), 250);
+        else { this.intro(); this.afterEnter(); }
+      });
+      return;
+    }
     if (this.pending) setTimeout(() => this.unlockCinematic(this.pending), 450);
     else {
       this.intro();
@@ -400,7 +410,7 @@ export class HomeScene {
     this.zProg = bar(0, 'gold', '', { cls: 'hm-zprog' });
     this.zBox = h('div', { class: 'hm-zbox', 'data-sfx': 'tap', onclick: () => this.openRoad() }, this.zArena, this.zRibbon, h('div', { class: 'hm-ztrow' }, this.zTro, this.zProg));
     const zone = h('div', { class: 'hm-zone' }, this.prevBtn, this.zBox, this.nextBtn);
-    this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sub: 'Win trophies & vials', sound: 'go' });
+    this.battleBtn = button('BATTLE', () => this.battle(), 'yellow xl shine hm-battle', { icon: 'swords', sound: 'go' });
     this.bossBtn = button('BOSS', () => this.openBoss(bossOfArena(ARENAS[this.zoneIdx].id)?.id), 'purple lg hm-side-play', { icon: 'skull' });
     this.practiceBtn = button('TRAIN', () => game.go('battle', { mode: 'practice' }), 'gray lg hm-side-play', { icon: 'sword' });
     // the wrapper breathes + lifts on hover; the button itself keeps the generic press / release
@@ -567,13 +577,14 @@ export class HomeScene {
         s.el.style.setProperty('--si', i);
         if (mode === 'ready') s.el.appendChild(h('i', { class: 'hm-slot-rays' }));
         if (e) s.el.appendChild(vialImg(e.type));
+        else s.el.appendChild(icon('vial', 'ghost hm-slot-ghost')); // an empty slot: a vial silhouette, no caption
         if (mode === 'unlocking') s.el.appendChild(s.pb = h('div', { class: 'hm-slot-prog' }, h('i')));
         s.st = h('div', { class: 'st' });
         s.sn = h('div', { class: 'sn' });
         s.el.append(s.st, s.sn);
       }
-      if (mode === 'empty') { s.st.textContent = 'Vial slot'; s.sn.textContent = 'Win battles!'; }
-      else if (mode === 'ready') { s.st.textContent = 'OPEN'; s.sn.textContent = VIALS[e.type].name; }
+      if (mode === 'empty') { s.st.textContent = ''; s.sn.textContent = ''; }
+      else if (mode === 'ready') { s.st.textContent = 'OPEN'; s.sn.textContent = ''; }
       else if (mode === 'unlocking') {
         const total = Math.max(1, VIALS[e.type].time);
         const fr = Math.max(0, Math.min(1, 1 - left / total));
@@ -582,8 +593,9 @@ export class HomeScene {
         s.sn.innerHTML = '';
         s.sn.appendChild(h('span', { class: 'skip' }, icon('bucks'), String(skipPrice(left))));
       } else {
+        // waiting behind another unlock: just its time; idle: UNLOCK + its time
         s.st.textContent = unlocking ? fmtTime(VIALS[e.type].time) : 'UNLOCK';
-        s.sn.textContent = unlocking ? VIALS[e.type].name : fmtTime(VIALS[e.type].time);
+        s.sn.textContent = unlocking ? '' : fmtTime(VIALS[e.type].time);
       }
     });
   }
@@ -742,6 +754,11 @@ export class HomeScene {
   }
   /** MEGA ultimates: the giant MEGA-TECH Mutator figures you unleash in battle. */
   openMegas() {
+    // 'Trophy Road: 1,400 trophies' -> [road][trophy] 1,400
+    const megaUnlockBits = (u = '') => {
+      const n = /(\d[\d,]*)\s*trophies/i.exec(u)?.[1];
+      return n ? [icon('road', 's'), icon('trophy', 's'), ' ', n] : [u];
+    };
     const p = state.p;
     const grid = h('div', { class: 'hm-megas' }, MEGA_IDS.map((id) => {
       const M = MEGAS[id];
@@ -751,14 +768,16 @@ export class HomeScene {
         h('img', { src: swarmThumb(id, own?.variant ?? 'base', null, 160) }),
         h('div', { class: 'nm t-d outline' }, M.name, own?.variant === 'gold' ? h('span', { class: 'c-gold' }, ' GOLD') : null),
         h('div', { class: 'sp' }, icon('lightning', 's'), h('span', {}, M.special.name)),
-        h('div', { class: 'ds' }, own ? M.desc : `Unlocks on the ${M.unlock}.`),
+        // locked: where it comes from as an icon + number (no description sentences)
+        own ? null : h('div', { class: 'ds' }, ...megaUnlockBits(M.unlock)),
         own ? (eq ? h('div', { class: 'eqt t-d' }, 'EQUIPPED') : button('EQUIP', () => { equipMega(id); m.close(); this.refresh(); toast(`*${M.name}* is your MEGA now!`, { icon: 'mega' }); }, 'green sm')) : h('div', { class: 'lk' }, icon('lock')));
       return el;
     }));
     const m = modal({
       title: 'MEGA ULTIMATES', color: 'pink', size: 'wide',
       body: h('div', { class: 'col' },
-        h('div', { class: 'c-muted center-t t-sm hm-megas-intro' }, 'Charge your MEGA by fighting (damage + knockouts). Once your base is a ', h('b', { class: 'c-gold' }, 'Trailer Lab'), ' or better, tap it once per battle: it smashes out of its containment cup and stomps down the lane.'),
+        // one short line: what it needs (a Trailer Lab base), as an icon + the tier name
+        h('div', { class: 'c-muted center-t t-sm hm-megas-intro' }, icon('lab', 's'), ' ', h('b', { class: 'c-gold' }, 'Trailer Lab'), ' +'),
         grid),
     });
   }

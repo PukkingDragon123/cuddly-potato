@@ -87,8 +87,9 @@ export function playMegaCutscene(view, ev) {
   // overlay: letterbox + title
   const top = h('div', { class: 'mc-bar top' }), bot = h('div', { class: 'mc-bar bot' });
   const flash = h('div', { class: 'mc-flash' });
-  const warn = h('div', { class: 'mc-warn' }, icon('alert', 's'), ' MEGA CONTAINMENT BREACH ', icon('alert', 's'));
-  const title = h('div', { class: 'mc-title' }, h('small', {}, side === 0 ? 'MEGA ULTIMATE' : 'RIVAL MEGA!'), h('span', {}, (def?.name ?? 'MEGA').toUpperCase()), h('em', {}, def?.special?.name ?? ''));
+  // the hazard strip blinks pixel alarm icons (no caption); the figure's name is the one big word
+  const warn = h('div', { class: 'mc-warn' }, ...Array.from({ length: 5 }, () => icon('alert', 's')));
+  const title = h('div', { class: 'mc-title' }, h('span', {}, (def?.name ?? 'MEGA').toUpperCase()));
   const wrap = h('div', { class: `mc-wrap s${side}`, style: { '--mc': def?.color ?? '#ff2e88', '--mb': def?.bolt ?? '#ff2e88' } }, top, bot, warn, flash, title);
   $overlay().appendChild(wrap);
   requestAnimationFrame(() => wrap.classList.add('in'));

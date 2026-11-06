@@ -28,7 +28,7 @@ export function cardEl(id, opts = {}) {
   const shiny = variant !== 'base' && VARIANTS[variant];
   const el = h('div', {
     class: `gcard ${rarity} ${isSpell(id) ? 'spell' : ''} ${def.special ? 'special' : ''} ${locked ? 'locked' : ''} ${shiny ? 'foil v-' + variant : ''} ${opts.size ?? ''} ${opts.cls ?? ''}`,
-    style: { '--rc': `var(--r-${rarity})`, '--sc': def.color ?? '#3ff2e0', '--nl': Math.max(6, (def.name ?? '').length), '--sd': `${-(hashDelay(id))}s` },
+    style: { '--rc': `var(--r-${rarity})`, '--sc': def.color ?? '#3ff2e0', '--nl': Math.max(6, (def.name ?? '').length), '--nw': Math.max(5, ...(def.name ?? '').split(/\s+/).map((w) => w.length)), '--sd': `${-(hashDelay(id))}s` },
     'data-card': id,
   });
   el.appendChild(h('div', { class: 'art' }, h('i', { class: 'stage' }), cardArtImg(id, variant, skin, artSize, '', { priority: opts.priority }), shiny ? h('i', { class: 'foil-fx' }) : null));
@@ -49,7 +49,7 @@ export function cardEl(id, opts = {}) {
   if (!opts.noLevel) {
     const lvl = opts.level ?? own?.level;
     if (locked) foot.appendChild(h('div', { class: 'lvl' }, icon('lock', 's')));
-    else if (lvl) foot.appendChild(h('div', { class: `lvl ${lvl >= 10 ? 'max' : ''}` }, lvl >= 10 ? 'MAX' : `Level ${lvl}`));
+    else if (lvl) foot.appendChild(h('div', { class: `lvl ${lvl >= 10 ? 'max' : ''}` }, lvl >= 10 ? 'MAX' : `LV ${lvl}`));
   }
   if (foot.firstChild) el.appendChild(foot);
   if (opts.progress && own) {

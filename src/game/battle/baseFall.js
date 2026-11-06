@@ -6,7 +6,7 @@
 //                         close-up camera tracks the shot into the base. A hit that turns out not
 //                         to be lethal eases back to normal speed.
 //   labCollapse(view, s)  on 'towerDown' (view.labDestroyed):
-//       0.00 s  IMPACT: freeze-frame on the hit with a slow push-in, a flash, the FINAL BLOW tag
+//       0.00 s  IMPACT: freeze-frame on the hit with a slow push-in, a flash (no captions: it reads on its own)
 //       0.55 s  the base cracks: glowing voxel seams spread from the hit, the alarm wails, the
 //               Commander on the roof panics; time is back to normal
 //       1.45 s  BOOM: the base blows apart into big voxel chunks (its own geometry cut up),
@@ -25,9 +25,7 @@ import { particles } from '../../core/particles.js';
 import { audio } from '../../core/audio.js';
 import { Mats } from '../../core/voxel.js';
 import { voiceOf } from '../../data/characters.js';
-import { cardDef } from '../../data/cards.js';
-import { SWARMS } from '../../data/swarms.js';
-import { $overlay, h } from '../../ui/ui.js';
+import { $overlay } from '../../ui/ui.js';
 import { hpx } from './hitPix.js';
 import { pixSystem } from './pixfx.js';
 import { battleStage, makeWrap } from './entranceCine.js';
@@ -305,11 +303,10 @@ function startEnd(view, side, hit = null) {
   // a running MEGA / ULTIMATE cutscene hands over
   if (view.cine && !view.cine.done && !view.cine.endgame) { try { view.cine.finish?.(); } catch (e) { /* gone */ } }
 
-  // overlay: letterbox, top-bar tag, skip hint, flash (shared look with the entrances)
+  // overlay: letterbox, skip icon, flash (shared look with the entrances); no captions or stamps
   const wrap = makeWrap($overlay());
   wrap.classList.add('ecw');
   view.endWrap = wrap;
-  const kick = wrap.querySelector('.ent-kick span');
   const flashEl = wrap.querySelector('.ent-flash');
   const flash = (col = '#ffffff', a = 0.85) => {
     flashEl.style.setProperty('--fc', col);
@@ -317,10 +314,6 @@ function startEnd(view, side, hit = null) {
     flashEl.classList.remove('go');
     void flashEl.offsetWidth;
     flashEl.classList.add('go');
-  };
-  const tag = (txt, name = '') => {
-    if (kick) kick.replaceChildren(txt, ...(name ? [' ', h('b', {}, name)] : []));
-    wrap.classList.toggle('kick', !!txt);
   };
   let skipAt = 0;
   wrap.addEventListener('pointerdown', (ev) => {
@@ -344,7 +337,6 @@ function startEnd(view, side, hit = null) {
 
   // ---- who threw it
   const unit = hit?.unit ?? lastAttacker(sim, side, B);
-  const unitName = unit ? (cardDef(unit.card)?.name ?? SWARMS[unit.type]?.name ?? '') : '';
   const impactP = V(B.front, Math.min(Hb * 0.48, 1.45), 0.35);
   const trackP = () => {
     const pr = hit?.proj ? view.projs.get(hit.proj.id) : null;
@@ -484,7 +476,6 @@ function startEnd(view, side, hit = null) {
     engine.timeScale = 0;
     E.freeze = true;
     flash('#ffffff', 0.9);
-    tag('FINAL BLOW', unitName.toUpperCase());
     hpx.emit('solid', 'pow', { x: impactP.x + out * 0.15, y: impactP.y + 0.1, z: impactP.z + 0.5, life: 0.6, scale: 1.25, color: 0xffb02e, flip: out > 0, fadeOut: 0.85, frame: 1 });
     hpx.sparks(impactP, { count: 16, speed: 7, scale: 1.2, up: 2 });
     audio.play('hitHeavy', { pitch: 0.55, vol: 1 });
@@ -501,7 +492,6 @@ function startEnd(view, side, hit = null) {
     E.freeze = false;
     particles.layers.cube.clear(); // the hit's falling bits would clutter the cut
     if (ch) ch.speed = 1;
-    tag(side === 0 ? 'YOUR BASE IS GOING DOWN' : 'BASE CRITICAL');
     audio.play('alarm', { vol: 0.55, pitch: 0.9 });
     audio.play('crunch', { pitch: 0.45, vol: 0.9 });
     rumble(1.0);
@@ -510,12 +500,7 @@ function startEnd(view, side, hit = null) {
   const toBoom = () => {
     E.phase = 'boom';
     flash('#fff6d8', 0.95);
-    tag('');
     wrap.classList.add('ecw-boom');
-    const stamp = h('div', { class: `ecw-stamp ${side === 0 ? 'loss' : 'win'}` }, h('span', {}, side === 0 ? 'BASE LOST' : 'BASE DESTROYED'));
-    wrap.appendChild(stamp);
-    setTimeout(() => stamp.classList.add('out'), 1500);
-    setTimeout(() => stamp.remove(), 1900);
     engine.timeScale = 1;
     engine.shake(0.95);
     audio.play('explode', { pitch: 0.55, vol: 1 });
@@ -822,7 +807,6 @@ function startEnd(view, side, hit = null) {
     engine.timeScale = 1;
     if (ch) ch.speed = 1;
     if (ch && launch.on && !launch.done) land();
-    tag('');
     resolveDone();
   };
 
@@ -844,7 +828,6 @@ function startEnd(view, side, hit = null) {
   } else {
     audio.play('slowmo', { vol: 0.9 });
     audio.play('heartbeat', { vol: 0.6 });
-    tag('FINAL BLOW', unitName.toUpperCase());
     captureFrame(view);
   }
   E.toImpact = toImpact;

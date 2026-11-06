@@ -9,7 +9,7 @@ import { fx } from '../../core/particles.js';
 import { audio } from '../../core/audio.js';
 import { h, icon } from '../../ui/ui.js';
 import { groundHit } from './voxfx.js';
-import { BASE_UPGRADES, MEGA } from '../../data/labs.js';
+import { MEGA } from '../../data/labs.js';
 
 const CUBE = new THREE.BoxGeometry(1, 1, 1);
 const BOLT_CUBES = 30;
@@ -109,7 +109,7 @@ export class ChargeAura {
     this.el.classList.toggle('ready', ready);
     this.el.classList.toggle('locked', state === 'locked');
     this.fill.style.width = Math.min(100, this.k * 100).toFixed(1) + '%';
-    this.txt.textContent = ready ? 'TAP!' : state === 'locked' && this.k >= 1 ? BASE_UPGRADES[MEGA.minTier - 1].name.toUpperCase() : `${pct}%`;
+    this.txt.textContent = ready ? 'TAP!' : state === 'locked' && this.k >= 1 ? `T${MEGA.minTier}` : `${pct}%`; // a full charge waiting on base tier n
     const s = this.view.engineToScreen(_b.set(p.x, p.y + 1.75 * sc + 0.25, p.z));
     if (!s.visible) this.el.style.display = 'none';
     else {

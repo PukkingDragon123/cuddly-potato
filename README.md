@@ -144,3 +144,11 @@ there is no matchmaking server.
   `?dev=ui` UI kit bench, `?dev=screens&screen=cards` menu screens, `?dev=vial&type=megaLab` vial opening.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the code layout.
+
+## Credits
+
+- Fonts: **Swarm Pixel** (titles, buttons, numbers) and **Swarm Pixel Text** (body copy) are modified versions of the
+  Latin sets of [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font) /
+  [Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font) by TakWolf (the 10 px set pixel-bolded, the 12 px set as is),
+  under the SIL Open Font License 1.1: see `src/assets/fonts/OFL.txt`.
+- Sound effects and music: CC0, see `src/assets/sfx/CREDITS.md`.

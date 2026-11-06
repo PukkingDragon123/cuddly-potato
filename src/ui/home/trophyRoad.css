@@ -146,3 +146,61 @@
 }
 .trd-need-s { font-size: 0.72em; color: var(--muted); text-align: center; line-height: 1.15; }
 .trd-need-w { width: calc(var(--u) * 26); }
+
+/* round 8: the treasure road. While your Commander walks: the card steps aside, a skip button + the loot bag */
+.trd-skip { position: absolute; right: calc(var(--safe-r) + var(--u) * 2.4); bottom: calc(var(--safe-b) + var(--u) * 3); width: calc(var(--u) * 9.5); opacity: 0; pointer-events: none !important; transition: opacity 0.2s; }
+.trd.walking .trd-skip { opacity: 1; pointer-events: auto !important; }
+.trd.walking .trd-card, .trd.walking .trd-sub { opacity: 0; pointer-events: none !important; transform: translateY(calc(var(--u) * 4)); }
+.trd-card, .trd-sub { transition: opacity 0.22s, transform 0.22s; }
+.trd.walking .trd-sub { transform: none; }
+.trd-bag {
+  position: absolute; right: calc(var(--safe-r) + var(--u) * 2); top: calc(var(--safe-t) + var(--u) * 13.5); display: flex; align-items: center; gap: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 1.6) calc(var(--u) * 0.6) calc(var(--u) * 0.8); pointer-events: none !important;
+  background: linear-gradient(#5a3418, #3a200c); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 rgba(255, 216, 74, 0.45);
+  opacity: 0; transform: scale(0.6); transition: opacity 0.2s, transform 0.25s cubic-bezier(.2, 1.6, .4, 1);
+}
+.trd-bag.on { opacity: 1; transform: none; }
+.trd-bag-ic { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); }
+.trd-bag-n { font-size: 1.15em; color: var(--gold); text-shadow: var(--outline-thin); min-width: 1ch; }
+.trd-bag.trd-bag-pop { animation: trdBagPop 0.3s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes trdBagPop { 0% { scale: 1.25 0.85; } 100% { scale: 1; } }
+.trd-bagfly { position: absolute; left: 0; top: 0; z-index: 61; pointer-events: none; transform: translate(-50%, -50%); opacity: 0; }
+.trd-bagfly .mn-rw { --rw: calc(var(--u) * 13); }
+.trd-poof { position: absolute; z-index: 60; pointer-events: none; translate: -50% -50%; image-rendering: pixelated; }
+
+/* the ready chip: a gift with the count (a skull when a boss waits) */
+.trd-ready { min-width: calc(var(--u) * 13); }
+.trd-ready.boss { filter: hue-rotate(250deg) saturate(1.4); }
+.trd-chap-n { font-size: 0.98em; }
+
+/* card details: icon chips instead of a kind line */
+.trd-kind .pi { width: 1.6em; height: 1.6em; }
+.trd-claim.busy { filter: saturate(0.5) brightness(0.85); pointer-events: none; }
+.trd-need-t .pi { width: 1.1em; height: 1.1em; }
+
+/* a road boss on the card */
+.trd-boss-art {
+  position: relative; width: calc(var(--u) * 16); height: calc(var(--u) * 16); display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 70%, #6a1424, #1a0612 72%); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 0 0 calc(var(--px) * 1.3) #ff4a4a;
+}
+.trd-boss-img { width: 112%; height: 112%; object-fit: contain; margin-top: 8%; }
+.trd-boss-sk { position: absolute; left: calc(var(--px) * 1.5); top: calc(var(--px) * 1.5); width: calc(var(--u) * 5); height: calc(var(--u) * 5); display: grid; place-items: center; background: #1a0612; box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink); }
+.trd-boss-sk .pi { width: 80%; height: 80%; }
+.trd-card.boss.fight { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 74, 74, 0.6)); }
+.trd-card.boss.ahead .trd-boss-art { filter: saturate(0.5) brightness(0.75); }
+.trd-card.boss.open .trd-boss-art { filter: grayscale(1) brightness(0.6); }
+.trd-fight { position: relative; min-width: calc(var(--u) * 22); }
+.trd-bank {
+  position: absolute; right: calc(var(--u) * -1.4); top: calc(var(--u) * -3.4); display: flex; align-items: center; gap: 0.15em; padding: 0.05em 0.4em 0.1em;
+  font-size: 0.72em; font-style: normal; color: var(--gold); background: linear-gradient(#2a1a5e, #140c38); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink); white-space: nowrap;
+}
+.trd-bank .pi { width: 1.1em; height: 1.1em; }
+.mn-boss-bank { display: inline-flex; align-items: center; gap: 0.2em; color: var(--gold); }
+.mn-boss-bank .pi { width: 1.2em; height: 1.2em; }
+@media (max-height: 520px) and (orientation: landscape) {
+  .trd-bag { top: auto; bottom: calc(var(--safe-b) + var(--u) * 2); right: calc(var(--safe-r) + var(--u) * 14); }
+  .trd-boss-art { width: calc(var(--u) * 13); height: calc(var(--u) * 13); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trd-bag.trd-bag-pop { animation: none; }
+}

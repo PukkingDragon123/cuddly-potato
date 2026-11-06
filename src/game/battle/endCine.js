@@ -96,7 +96,6 @@ function run(view, o, resolve) {
   if (!view || view.disposed) { resolve(); return; }
   const result = o.result ?? 'win';
   const win = result === 'win', loss = result === 'loss';
-  const names = o.names ?? ['You', 'Rival'];
   const short = o.cause !== 'base';
   const cam = view.camera;
   const scene = view.scene;
@@ -112,8 +111,6 @@ function run(view, o, resolve) {
   // ---- overlay (the explosion's letterbox carries on, else a fresh one)
   const wrap = view.endWrap?.isConnected ? view.endWrap : makeWrap($overlay());
   wrap.classList.add('ecw');
-  wrap.classList.remove('kick');
-  wrap.querySelectorAll('.ecw-stamp').forEach((e) => e.remove()); // a skipped explosion's stamp
   view.endWrap = wrap;
   const flashEl = wrap.querySelector('.ent-flash');
   const flash = (col = '#ffffff', a = 0.7) => {
@@ -124,12 +121,9 @@ function run(view, o, resolve) {
     void flashEl.offsetWidth;
     flashEl.classList.add('go');
   };
-  const tag = (txt) => { const k = wrap.querySelector('.ent-kick span'); if (k) k.textContent = txt; wrap.classList.toggle('kick', !!txt); };
   const titleTxt = win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW';
-  const subTxt = win ? (o.cause === 'base' ? `${names[0]} wins` : `${names[0]} wins on base HP`) : loss ? `${names[1]} wins` : 'Nobody blinked';
   const title = h('div', { class: `ecv ${result}` },
-    h('div', { class: 'ecv-title' }, [...titleTxt].map((c, i) => h('span', { style: { '--i': i } }, c))),
-    h('div', { class: `ecv-sub ${win ? 'sk-ribbon-pink' : loss ? 'sk-ribbon-blue' : 'sk-ribbon-purple'}` }, subTxt.toUpperCase()));
+    h('div', { class: 'ecv-title' }, [...titleTxt].map((c, i) => h('span', { style: { '--i': i } }, c))));
   const gloom = loss ? h('i', { class: 'ecv-gloom' }) : null;
   const sayEl = h('div', { class: 'ecv-say' }, h('span', {}), h('i', { class: 'ecv-say-tail' }));
   if (gloom) wrap.appendChild(gloom);
@@ -341,7 +335,6 @@ function run(view, o, resolve) {
     rivCh.mood('excited', 9);
     const s0 = rivShot(0);
     rivCh.root.rotation.set(0, Math.atan2(s0.pos.x - p.x, s0.pos.z - p.z) * 0.85, 0);
-    tag(`${names[1].toUpperCase()} WINS`);
     sunAt(view, p.x);
     audio.play('laugh', { vol: 0.6 });
   } else enterHero();
@@ -357,7 +350,7 @@ function run(view, o, resolve) {
     if (phase === 'riv') {
       const s = rivShot(clamp01(t / RIV));
       cam.position.copy(s.pos); cam.lookAt(s.look);
-      if (t >= RIV) { tag(''); enterHero(); }
+      if (t >= RIV) enterHero();
       return;
     }
     const th = t - RIV;

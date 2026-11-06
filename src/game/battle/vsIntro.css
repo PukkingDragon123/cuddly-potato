@@ -131,11 +131,12 @@
 .vsx.out .vsx-bar.t { animation: cBarT 0.3s ease-in reverse both; }
 .vsx.out .vsx-bar.b { animation: cBarB 0.3s ease-in reverse both; }
 .vsx-arena { display: flex; align-items: baseline; gap: 0.5em; font-family: var(--font-d); color: #fff; letter-spacing: 0.08em; white-space: nowrap; opacity: 0; }
-.vsx-arena small { font-size: clamp(12px, 0.8em, 16px); color: #ffd84a; letter-spacing: 0.2em; }
+.vsx-arena { align-items: center; }
+.vsx-arena .vsx-arena-ic { width: 1.4em; height: 1.4em; }
 .vsx-arena span { font-size: clamp(17px, 1.25em, 26px); text-shadow: 0 0 calc(var(--px) * 4) rgba(143, 216, 255, 0.6); }
 .vsx.slam .vsx-arena { animation: vsxArena 0.5s steps(6) 0.3s both; }
 @keyframes vsxArena { 0% { opacity: 0; letter-spacing: 0.6em; } 100% { opacity: 1; } }
-.vsx-skip { margin-right: calc(var(--safe-r) + var(--u) * 3); font-family: var(--font-d); font-size: clamp(12px, 0.8em, 15px); letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.55); animation: nextBob 1.2s steps(2) infinite; }
+.vsx-skip { display: flex; margin-right: calc(var(--safe-r) + var(--u) * 3); color: rgba(255, 255, 255, 0.55); animation: nextBob 1.2s steps(2) infinite; }
 
 .vsx-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 4; }
 .vsx.slam .vsx-flash { animation: vsxFlash 0.32s ease-out both; }

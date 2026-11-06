@@ -8,7 +8,7 @@
 //   A  HERO      hard cut to the Commander standing on the roof; the camera
 //                pushes in on their face as they say their battle cry (voiced
 //                word by word, mouth moving); energy gathers in 2D pixel sprites;
-//                only the ability's name, small, sits in the letterbox
+//                no captions (the letterbox only carries a pixel skip icon)
 //   B  WIND-UP   over-the-shoulder across the frozen battlefield; the ability
 //                is unleashed (thrown vat / briefcase, rocket launch, whistle)
 //   C  FOLLOW    the camera tracks the ability as it crosses the field
@@ -74,13 +74,12 @@ export function playSigCutscene(view, ev) {
   const fit = (w, hh) => Math.max(hh / (2 * TAN), w / (2 * TAN * cam.aspect));
 
   // ------------------------------------------------------------ overlay
-  // no banners or captions: the Commander says it. Just the ability's name, small, in the letterbox.
+  // no banners or captions: the Commander and the ability say it. A pixel skip icon in the letterbox.
   const wrap = h('div', { class: `sc-wrap s${side}${rival ? ' rival' : ''}${portrait ? ' port' : ''}`, style: { '--sc': col } },
     h('div', { class: 'sc-tint' }),
     h('div', { class: 'sc-bar top' }, h('i', { class: 'sc-trim' })),
     h('div', { class: 'sc-bar bot' }, h('i', { class: 'sc-trim' })),
-    h('div', { class: 'sc-title' }, h('i', { class: 'sc-pip' }), h('span', {}, sg.name.toUpperCase())),
-    h('div', { class: 'sc-skip' }, 'TAP TO SKIP', h('span', { class: 'sc-chev r' })),
+    h('div', { class: 'sc-skip', role: 'img', 'aria-label': 'Tap to skip' }, h('i', { class: 'px-skip' })),
     h('div', { class: 'sc-flash' }));
   $overlay().appendChild(wrap);
   requestAnimationFrame(() => wrap.classList.add('in'));

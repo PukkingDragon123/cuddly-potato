@@ -14,8 +14,18 @@
   object-fit: cover; image-rendering: auto; pointer-events: none; background: #141a4a;
   clip-path: polygon(7.8% 0, 92.2% 0, 100% 7.8%, 100% 92.2%, 92.2% 100%, 7.8% 100%, 0 92.2%, 0 7.8%);
 }
-.pav > .pav-pic:not(.loaded) { background: linear-gradient(#2a3a8a, #141a4a); }
+.pav > .pav-pic:not(.loaded) { background: linear-gradient(#2a3a8a, #141a4a); animation: pavWait 0.9s steps(2) infinite; }
+/* a picture still rendering blinks its plate gently (reads as loading, not as an empty frame) */
+@keyframes pavWait { 50% { filter: brightness(1.45); } }
+/* until the frame is painted the whole avatar stays hidden (avatar.js adds .pav-on), so a bare picture
+   never shows and the frame never pops on around it */
+.pav:not(.pav-on) > .pav-pic, .pav:not(.pav-on) > .pav-frm { visibility: hidden; }
+/* ...and (outside the lazy grids) until the picture is drawn, so a moment like the VS intro never shows
+   an empty frame: the whole avatar appears at once */
+.pav:not(.pav-lazy):not(.pav-pic-ok) > :is(.pav-pic, .pav-frm, .pav-strip), .pav:not(.pav-on)::after, .pav:not(.pav-lazy):not(.pav-pic-ok)::after { visibility: hidden; }
 .pav > .pav-frm, .pav > .pav-strip {
+  /* the frame image's canvas reaches 26% past the box (transparent padding); the painted ornaments
+     (crests, horns, gems) stay within ~16%, so a placement needs that much room around the box */
   position: absolute; left: -26.19%; top: -26.19%; width: 152.381%; height: 152.381%; pointer-events: none;
 }
 .pav > .pav-frm { image-rendering: auto; }
@@ -50,6 +60,7 @@
 @media (prefers-reduced-motion: reduce) {
   .pav > .pav-strip > .pav-stripimg { animation: none; }
   .pav.pav-a-shine::after { animation: none; opacity: 0; }
+  .pav > .pav-pic:not(.loaded) { animation: none; }
 }
 /* title line (under a name) */
 .pav-title { display: block; font-size: 0.78em; line-height: 1.1; color: #ffe27a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--outline-thin); }
@@ -68,19 +79,17 @@
   filter: drop-shadow(calc(var(--px) * 1.5) 0 0 rgba(0, 0, 0, 0.35)) drop-shadow(0 0 0 var(--ink));
 }
 .mn-ra .mn-banner.mini > .mn-ban-troop { right: -4%; bottom: -10%; height: 130%; }
-/* battle HUD name plates (tug-of-war bar ends): picture first, then the rank medal */
-.bhud .tw-nm:has(> .tw-av) { padding-top: calc(var(--u) * 0.9); }
-.tw-nm .pav.tw-av { --av: 1.55em; margin: -0.26em 0.12em -0.26em 0; top: 0.06em; }
+/* battle HUD name plates (tug-of-war bar ends): picture, then the rank medal BESIDE it (never on the
+   picture). The row is padded so the frame ornaments (crests, gems: up to ~16% of the box past the ring)
+   clear the screen top and the bar + base-tier chip below; nothing overlaps the picture window. */
+.bhud .tw-nm:has(> .tw-av) { padding-top: 0.3em; padding-bottom: 0.32em; }
+.tw-nm .pav.tw-av { --av: 1.55em; margin: 0 0.16em 0 0; top: 0; }
 .tw-nm.s0 .pav.tw-av { margin-left: calc(var(--u) * 3.6); }
-.tw-nm.s1 .pav.tw-av { margin-right: calc(var(--u) * 3.6); margin-left: 0.12em; }
-/* the rank medal tucks onto the picture's lower corner (saves room for the name) */
-.tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.25em; z-index: 2; top: 0.42em; }
-.tw-nm.s0 .pav.tw-av + .rmedal.tw-rank { margin-left: -0.82em; margin-right: 0.04em; }
-.tw-nm.s1 .pav.tw-av + .rmedal.tw-rank { margin-right: -0.82em; margin-left: 0.04em; }
-body.landscape .tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.2em; top: 0.42em; margin-block: -0.2em; }
-/* landscape: the bar hugs the screen top, so the picture stays inside the name row (crest included) */
-body.landscape .bhud .tw-nm:has(> .tw-av) { padding-top: calc(var(--u) * 2.4); }
-body.landscape .tw-nm .pav.tw-av { --av: 1.5em; margin-block: -0.12em; top: 0.12em; }
+.tw-nm.s1 .pav.tw-av { margin-right: calc(var(--u) * 3.6); margin-left: 0.16em; }
+.tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.3em; z-index: 2; top: 0; margin: 0 0.04em; }
+body.landscape .bhud .tw-nm:has(> .tw-av) { padding-top: 0.28em; padding-bottom: 0.3em; }
+body.landscape .tw-nm .pav.tw-av { --av: 1.5em; margin-block: 0; top: 0; }
+body.landscape .tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.25em; top: 0; margin-block: 0; }
 /* VS intro: picture beside the name block (right-aligned blocks put it on the right) */
 .vsx-who { display: flex; align-items: center; gap: calc(var(--u) * 1.4); }
 .vsx-whot { display: flex; flex-direction: column; gap: calc(var(--u) * 0.6); align-items: flex-start; min-width: 0; }
@@ -89,12 +98,14 @@ body.landscape .tw-nm .pav.tw-av { --av: 1.5em; margin-block: -0.12em; top: 0.12
 .vsx-who .pav.vsx-av { --av: calc(var(--u) * 15); }
 .vsx.landscape .vsx-who .pav.vsx-av { --av: calc(var(--u) * 13); }
 .vsx-ttl { font-family: var(--font-d); font-size: clamp(12px, 0.95em, 18px); line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; }
-/* Beast News result: picture by each name in BASE HP LEFT */
-.cn-base .pav.cn-av { --av: clamp(28px, 2em, 40px); margin: 0 0.1em 0 0; }
-.cn-base .pav.cn-av + .rmedal.cn-rank { --rm: clamp(20px, 1.35em, 28px); z-index: 2; margin: 0.9em 0.05em -0.3em -0.95em; }
+/* Beast News result: picture by each name in BASE HP LEFT, the rank medal beside it (not on the picture) */
+.cn-base .pav.cn-av { margin: calc(var(--av) * 0.12); }
+.cn-base .pav.cn-av + .rmedal.cn-rank { z-index: 2; margin: 0; }
 .cn-ups .cn-up-ms { color: #ffd84a; }
 /* home top bar: picture, then the rank medal, then name + XP */
-.hm-prof .pav.hm-av { --av: calc(var(--u) * 10.5); margin: calc(var(--u) * 1.5) calc(var(--u) * -0.2) calc(var(--u) * -0.7) calc(var(--u) * 0.6); }
+.hm-prof .pav.hm-av { --av: calc(var(--u) * 10.5); margin: calc(var(--u) * 1.5) calc(var(--u) * -0.2) calc(var(--u) * -0.7) calc(var(--u) * 1.2); }
+/* profile card: room for the frame ornaments inside the banner (it clips its art) */
+.pf-card-row > .pf-card-av { padding-left: calc(var(--u) * 3.4); padding-bottom: calc(var(--u) * 3.4); }
 /* SHOP (Lonan's bunker): PROFILE GEAR shelf (src/ui/home/profileShop.js) */
 .bk-gears { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 1.4); }
 body.landscape .bk-gears { grid-template-columns: repeat(4, minmax(0, 1fr)); }

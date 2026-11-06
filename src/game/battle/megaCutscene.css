@@ -24,6 +24,8 @@
   transition: opacity 0.2s, transform 0.2s;
 }
 .mc-warn.on { opacity: 1; transform: none; animation: mc-blink 0.5s steps(2) infinite; }
+.mc-warn { display: flex; justify-content: center; gap: calc(var(--u, 5px) * 5); }
+.mc-warn .pi { width: 1.4em; height: 1.4em; }
 @keyframes mc-blink { 50% { filter: brightness(1.6) saturate(1.4); } }
 
 .mc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; }

@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
-import { floatText } from '../../ui/ui.js';
+import { floatText, icon } from '../../ui/ui.js';
 import { hpx } from './hitPix.js';
 import { pix } from './pixfx.js';
 import { voxelBeam, groundHit, groundImpact } from './voxfx.js';
@@ -28,15 +28,25 @@ function midOf(a) {
   const p = a.rig.root.position;
   return V(p.x, p.y + Math.max(0.5, a.rig.height) * 0.55, p.z);
 }
-/** A floating label, de-duplicated: the same word never stacks on itself within 0.7 s. */
+// Trait callouts are pixel ICONS on a small coloured plate, never words: the move itself (rig
+// animation + pixel FX) tells the story, the icon just flags it.
+const CALL_ICON = {
+  'ROAR!': 'megaphone', 'STOP!': 'alert', 'WRAPPED!': 'shield', 'CHARGE!': 'speed', 'POUNCE!': 'tooth',
+  'DEATH ROLL!': 'skull', 'AMBUSH!': 'eye', 'ROOTED': 'lock', 'BOO!': 'skull', 'ABDUCTED!': 'up', 'YANK!': 'arrowL',
+  'MAX HEAT': 'fire', 'CHOMP!': 'tooth', 'FRENZY!': 'swords', 'ABSORBED!': 'sludge', 'ERUPTION!': 'bomb',
+};
+/** A pixel icon on a mood-coloured plate, floating up from a world position (exported for view.js / modFx.js). */
+export function pixCall(pos, ic, tone = 'c-red', life = 0.85) {
+  floatText(pos, icon(ic), `hitn t-call t-ic ${tone}`, { life, rise: 30, spreadX: 4 });
+}
+/** A floating callout, de-duplicated: the same one never stacks on itself within 0.7 s. */
 function label(view, pos, text, cls, life) {
   const now = view.t ?? 0;
   const seen = (view.troopLabels ??= {});
   if (seen[text] > now - 0.7) return;
   seen[text] = now;
-  // one compact pixel tag style for every trait callout (plate colour by mood), matching the damage numbers
   const tone = { crit: 'c-red', big: 'c-gold', heal: 'c-green', armor: 'c-steel' }[cls] ?? 'c-red';
-  floatText(pos, text, `hitn t-call ${tone}`, { life, rise: 30, spreadX: 4 });
+  pixCall(pos, CALL_ICON[text] ?? 'alert', tone, life);
 }
 /** One short callout above a troop (rate limited per troop too, so labels never pile up). */
 function callout(view, a, text, cls = 'crit', life = 0.85) {

@@ -101,7 +101,7 @@ body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; fon
   background: linear-gradient(color-mix(in srgb, var(--rc) 40%, #fff 60%) 0 30%, var(--rc) 30%); box-shadow: 0 0 calc(var(--px) * 3) var(--rc);
 }
 .vo-cut-desc {
-  max-width: 100%; font-size: calc(var(--u) * 3.4); color: #dfe8ff; text-shadow: var(--outline-thin); text-align: center; font-style: italic; line-height: 1.25;
+  max-width: 100%; font-size: calc(var(--u) * 3.4); color: #dfe8ff; text-shadow: var(--outline-thin); text-align: center; line-height: 1.25;
   opacity: 0; transition: opacity 0.4s;
 }
 body.landscape .vo-cut-desc { text-align: left; }

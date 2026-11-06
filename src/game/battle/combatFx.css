@@ -38,3 +38,6 @@
 .ftext.hitn.t-call.c-gold { background: #f0a81a; --pl: #7a4a0a; }
 .ftext.hitn.t-call.c-green { background: #2fae4a; --pl: #0f4a1f; }
 .ftext.hitn.t-call.c-steel { background: #5a78a8; --pl: #1f2a4a; }
+/* icon callouts: the plate hugs a pixel icon (no words) */
+.ftext.hitn.t-call.t-ic { padding: calc(var(--px) * 1); line-height: 0; }
+.ftext.hitn.t-call.t-ic .pi { display: block; width: calc(var(--u) * 4.2); height: calc(var(--u) * 4.2); filter: drop-shadow(0 calc(var(--px) * 0.67) 0 var(--pl)); }

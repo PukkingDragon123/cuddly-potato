@@ -64,7 +64,7 @@ export function mount(el, ctx) {
       button('INFO', () => { closePop(); openCardInfo(id, ctx); }, 'blue sm', { icon: 'info' }),
     ];
     if (where === 'coll') btns.push(button('USE', () => { closePop(); startSwap(id); }, 'green sm', { icon: 'swords' }));
-    if (canUp) btns.push(button('UPGRADE', () => { closePop(); openCardInfo(id, ctx, { autoUpgrade: true }); }, 'yellow sm', { sub: `${fmtN(up.coins)} coins` }));
+    if (canUp) btns.push(button('UPGRADE', () => { closePop(); openCardInfo(id, ctx, { autoUpgrade: true }); }, 'yellow sm', { sub: h('span', { class: 'row', style: { gap: '0.2em', alignItems: 'center' } }, icon('coin', 's'), fmtN(up.coins)) }));
     const p = h('div', { class: 'mn-cpop' }, h('div', { class: 'mn-cpop-arrow' }), ...btns);
     p.cardId = id;
     p.where = where;

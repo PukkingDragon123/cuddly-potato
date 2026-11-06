@@ -11,7 +11,6 @@ import { avatarEl } from '../avatar.js';
 import { rewardArt, showRewards } from './common.js';
 
 const KIND = { avatar: 'PICTURE', frame: 'FRAME', title: 'TITLE' };
-const SUB = { avatar: 'Profile picture', frame: 'Profile frame', title: 'Shows under your name' };
 
 /** The PROFILE GEAR section (null until the Profile is unlocked). */
 export function profileGearSection({ head, buy, priceButton, rerender }) {
@@ -28,13 +27,11 @@ export function profileGearSection({ head, buy, priceButton, rerender }) {
       h('div', { class: 'bk-kind t-d' }, KIND[o.kind]),
       h('div', { class: 'bk-feat-art bk-gear-art' }, art),
       h('div', { class: 'bk-plate-n t-d' }, it.name),
-      h('div', { class: 'bk-plate-s' }, o.kind === 'title' ? SUB.title : it.desc ?? SUB[o.kind]),
       on ? h('div', { class: 'bk-owned t-d' }, icon('check', 's'), 'WEARING')
         : own ? button('WEAR', () => { equipLook(o.kind, o.id); audio.play('magic'); sparkle(el, { count: 14 }); rerender(); }, 'yellow sm', { sound: 'tap' })
           : priceButton(o.cur, o.price, false, () => buy({
             key: `gear:${o.kind}:${o.id}`, cur: o.cur, price: o.price, tile: el, kind: 'look',
             title: 'PROFILE GEAR', art: rewardArt({ type: o.kind, id: o.id }), text: `Get <b>${it.name}</b>?`,
-            sub: h('div', { class: 'center-t t-sm c-muted' }, SUB[o.kind]),
             async onPaid() {
               const got = grantReward({ type: o.kind, id: o.id });
               await showRewards(got, { title: 'NEW LOOK!', note: 'Wear it from your Profile, or tap WEAR here.' });
@@ -43,6 +40,6 @@ export function profileGearSection({ head, buy, priceButton, rerender }) {
     return el;
   };
   return h('div', { class: 'bk-sec', 'data-guide': 'profile-gear' },
-    head('PROFILE GEAR', 'Mugshots and frames. Previous owners unknown.'),
+    head('PROFILE GEAR'),
     h('div', { class: 'bk-gears' }, ...profileShopOffers().map(tile)));
 }

@@ -52,7 +52,7 @@ src/
       voxfx.js         voxel effect meshes (laser beam, goo puddle, shield dome) + ring-free impacts
                        (groundHit / groundImpact: flash, sparks, debris, dust; battles never use fx.shockwave)
       liveChibi.js     a live 3D Commander rendered into a HUD button canvas (ULT) via the thumb renderer
-      sigCutscene.js   Commander ULTIMATE cutscene: freezes the world, hero shot + name card, follows the ability, payoff
+      sigCutscene.js   Commander ULTIMATE cutscene: freezes the world, hero shot (no captions), follows the ability, payoff
       sigFx.js         ULTIMATE payoffs + lingering effects (mutants, buyout swaps, meteor crater, amber time-stop)
       entranceCine.js  battle ENTRANCES after the VS intro: the rival's short walk-in, then yours (multi-shot camera,
                        signature poses, voiced line, title card with rank medal + banner, hop onto the base); tap to
@@ -66,7 +66,7 @@ src/
                        with a 3D next-tier model, POWER wallet, hand + NEXT card with card-use animations,
                        live 3D Commander ULT + MEGA buttons with cut-ins, Beast-emblem emotes the Commander acts out
                        with a wind-up bar, squash / overshoot press tweens on every button); lineup.css
-      baseFall.js      FINAL BLOW + base explosion: slow-mo pre-roll when the next hit is lethal (low camera tracks
+      baseFall.js      final blow + base explosion (no captions or stamps): slow-mo pre-roll when the next hit is lethal (low camera tracks
                        the shot), impact freeze, glowing voxel crack seams, the base cut into big voxel chunks
                        (pooled, capped), pixel fire / smoke / dust wave, the Commander launched off the roof;
                        snapshots for the news replay (view.replay); tap to skip
@@ -123,6 +123,8 @@ src/
                        it), unlock reveals (spotlight, padlock snaps, silhouette floods back to colour, voiced line),
                        guided first-session steps (pointing hand, skippable), the main quest tracker note (opens the
                        QUEST BOARD), battle locks + lessons
+    fonts.css          the two pixel faces (src/assets/fonts, OFL): Swarm Display = pixel-bold Ark Pixel 10 px,
+                       Swarm Body = Ark Pixel 12 px (its bold = Swarm Display); cinematics skip with a pixel >>| icon (.px-skip)
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), panel(), ribbon(), pill(), bar(), modal(), toast(),
                        say() dialogue, speech(), floatText(), pointAt(), sparkle(), rollNumber()
     skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*, glass tanks, plates, pods, ensureSkin tints),
@@ -137,10 +139,13 @@ src/
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss); profile.js = player card + CUSTOMIZE tabs,
                        masteryUI.js = Troop Mastery panel / collection crest / claim, profileShop.js = PROFILE GEAR shelf
-    home/questBoard.js QUEST BOARD: cork board of pinned notes, tabs MAIN STORY (chapters, current + next quest, done
-                       pile, TOP SECRET folder) / DAILY (season challenges) / CHARACTERS (crew quest chains + Jimmy's
-                       rematch); poster photo = voiced line, tally / hatched progress, stamps, claim slam + reward
-                       fly-in; questBoardArt.js paints the cork, frame, paper, tape, pins, stains, doodles, red string
+    home/questBoard.js QUEST BOARD: cork board of pinned notes, tabs STORY (chapter clipboard, current + next quest, done
+                       pile, TOP SECRET folder) / DAILY (season challenges) / CREW (crew quest chains + Jimmy's
+                       rematch); pictures over text: each quest has an illustration, objective = icon + tally/count,
+                       rewards = icons + amounts; polaroid tap = voiced line in a speech bubble; stamps, claim slam +
+                       reward fly-in; questBoardArt.js paints everything procedurally at 1 CSS px per texel, sized to
+                       the layout and cached (lab wall + lamp + shelf, walnut frame + tray, cork, lamp light, each
+                       note's paper, quest illustrations, pins, tape, stains, doodles, red string)
     home/lab.js        LAB tab: your base in a 3D lab yard (labYard.js + labYardProps.js, engine.setBackdrop) with your
                        modules and Commander; segments LAB / MODULES / SKINS / COMMANDER; module data src/data/labModules.js
                        (4 slots x 4 modules, 5 levels, unlocks, AI loadouts), profile ops src/game/labGear.js,

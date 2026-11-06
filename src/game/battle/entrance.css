@@ -1,5 +1,5 @@
-/* Battle ENTRANCE overlay (entranceCine.js): letterbox with a stepped pixel trim, the
-   entrance's name in the top bar, a skip hint, a flash, the title card (rank medal, name,
+/* Battle ENTRANCE overlay (entranceCine.js): letterbox with a stepped pixel trim,
+   a pixel skip icon, a flash, the title card (rank medal, name,
    trophies on the player's banner) and a pixel speech bubble for the voiced line.
    Text is never rotated or skewed. */
 .ent {
@@ -26,19 +26,10 @@
 .ent-bar.t .ent-trim { bottom: calc(var(--pxl) * -3); transform: scaleY(-1); }
 .ent-bar.b .ent-trim { top: calc(var(--pxl) * -3); }
 
-/* the entrance's name, small, in the top bar */
-.ent-kick {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px;
-  font-family: var(--font-d); font-size: clamp(14px, min(3.6vw, 4.8vh), 22px); letter-spacing: 0.16em; line-height: 1; color: #fff;
-  opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap;
-}
-.ent-kick-ic { width: 1em; height: 1em; image-rendering: pixelated; }
-.ent.kick .ent-kick { opacity: 0.95; }
-
-/* skip hint + a stepped pixel chevron */
+/* skip hint: a pixel >>| icon (ui.css .px-skip), no caption */
 .ent-skip {
-  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 16px); top: 50%; translate: 0 -50%; display: flex; align-items: center; gap: 7px;
-  font-family: var(--font-d); font-size: clamp(12px, 2.8vw, 16px); letter-spacing: 0.14em; color: #c8d0ff; opacity: 0; transition: opacity 0.3s 0.5s; pointer-events: none;
+  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 16px); top: 50%; translate: 0 -50%; display: flex; align-items: center;
+  color: #c8d0ff; opacity: 0; transition: opacity 0.3s 0.5s; pointer-events: none;
 }
 .ent.in .ent-skip { opacity: 0.85; }
 .ent.out .ent-skip, .ent.idle .ent-skip { opacity: 0; transition-delay: 0s; }
@@ -88,7 +79,6 @@
 .ent-card-tr { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 5px; background: rgba(5, 3, 20, 0.7); box-shadow: 0 0 0 2px #05030c; }
 .ent-card-tr b { color: #ffd84a; font-weight: 400; }
 .ent-card-ic { width: 1.15em; height: 1.15em; image-rendering: pixelated; }
-.ent-card-en { color: color-mix(in srgb, var(--ec, #c8d0ff) 70%, #fff); text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
 .ent-card-in .ent-card-tag { box-shadow: none; }
 
 /* ---- the voiced line: a pixel speech bubble over the Commander's head */

@@ -35,26 +35,11 @@
 .sc-wrap.out .sc-bar.top { transform: translateY(-101%); }
 .sc-wrap.out .sc-bar.bot { transform: translateY(101%); }
 
-/* ---- the ability's name: one small, clean line in the letterbox (no banners, no captions) */
-.sc-title {
-  position: absolute; left: 0; right: 0; bottom: calc(11% + 14px); display: flex; justify-content: center; align-items: center; gap: 10px;
-  pointer-events: none; font-family: var(--font-d); font-size: clamp(13px, min(3.4vw, 4.6vh), 20px); letter-spacing: 0.18em; line-height: 1; color: #fff;
-  text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; opacity: 0; transform: translateY(6px);
-  transition: opacity 0.3s, transform 0.3s;
-}
-.sc-wrap.s1 .sc-title { bottom: auto; top: calc(11% + 14px); }
-.sc-title .sc-pip { flex: none; width: calc(var(--pxl) * 3); height: calc(var(--pxl) * 3); background: var(--sc); box-shadow: 0 0 0 var(--pxl) #05030c; }
-.sc-wrap.slam .sc-title { opacity: 0.95; transform: none; }
-.sc-wrap.cardout .sc-title { opacity: 0; transition-duration: 0.25s; }
-/* pixel chevron (stepped clip-path, not a shape) for the skip hint */
-.sc-chev { flex: none; width: 18px; height: 26px; background: var(--sc);
-  clip-path: polygon(0 0, 33% 0, 33% 12%, 50% 12%, 50% 25%, 67% 25%, 67% 38%, 84% 38%, 84% 62%, 67% 62%, 67% 75%, 50% 75%, 50% 88%, 33% 88%, 33% 100%, 0 100%, 0 88%, 17% 88%, 17% 75%, 33% 75%, 33% 62%, 50% 62%, 50% 38%, 33% 38%, 33% 25%, 17% 25%, 17% 12%, 0 12%); }
-
+/* skip hint: a pixel >>| icon (ui.css .px-skip), no caption */
 .sc-skip {
-  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 3.2%); display: flex; align-items: center; gap: 6px;
-  font-family: var(--font-d); font-size: clamp(11px, 2.6vw, 15px); letter-spacing: 0.14em; color: #c8d0ff; opacity: 0; transition: opacity 0.3s 0.4s; pointer-events: none;
+  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 3.2%); display: flex; align-items: center;
+  color: #c8d0ff; opacity: 0; transition: opacity 0.3s 0.4s; pointer-events: none;
 }
-.sc-skip .sc-chev { width: 9px; height: 13px; filter: none; background: #c8d0ff; }
 .sc-wrap.in .sc-skip { opacity: 0.85; }
 .sc-wrap.land .sc-skip, .sc-wrap.out .sc-skip { opacity: 0; transition-delay: 0s; }
 
@@ -79,6 +64,9 @@
 }
 .bh-ult .u-tip b { font-weight: normal; color: var(--uc); font-size: 1.15em; letter-spacing: 0.08em; }
 .bh-ult .u-tip span { white-space: nowrap; }
+.bh-ult .u-tip .u-tip-ic { display: flex; align-items: center; gap: 0.25em; }
+.bh-ult .u-tip .u-tip-ic .pi { width: 1.5em; height: 1.5em; }
+.bh-ult .u-tip .u-tip-ic i { font-style: normal; color: var(--uc); }
 /* pixel pointer under the callout (stepped, no triangle shape) */
 .bh-ult .u-tip::after {
   content: ''; position: absolute; top: 100%; right: calc(var(--px) * 4); width: calc(var(--px) * 6); height: calc(var(--px) * 3);

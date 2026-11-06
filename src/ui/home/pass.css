@@ -325,3 +325,5 @@ body.portrait .pz-card { bottom: calc(var(--pz-foot, calc(var(--u) * 12)) + var(
 .pz-card-art > .mn-rw { position: relative; z-index: 1; }
 .pz-card-col.ready { box-shadow: 0 0 0 var(--px) #9dff7a, 0 0 0 calc(var(--px) * 2) var(--ink), inset 0 0 calc(var(--px) * 6) rgba(122, 255, 74, 0.35); }
 .pz-card-col.prem.ready { box-shadow: 0 0 0 var(--px) #ffe680, 0 0 0 calc(var(--px) * 2) var(--ink), inset 0 0 calc(var(--px) * 6) rgba(255, 210, 63, 0.4); }
+/* pixel type (round 8): the season title fits beside the PREMIUM button */
+.pz-title { font-size: 1.5em; }

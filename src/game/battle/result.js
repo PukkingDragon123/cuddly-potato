@@ -26,7 +26,6 @@ import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
 import { voiceOf } from '../../data/characters.js';
 import { VIALS } from '../../data/vials.js';
-import { BASE_UPGRADES } from '../../data/labs.js';
 import { cardDef } from '../../data/cards.js';
 import { cardArtImg } from '../../ui/thumbs.js';
 import { rankMedal, setRankMedal } from '../../ui/rankMedal.js';
@@ -218,7 +217,7 @@ export async function showResult(parent, opts) {
   const mvp = sum?.mvp;
   const mvpDef = mvp ? cardDef(mvp.id) : null;
   const lines = noraLines({ result, names, smashed, fell, mvpName: mvpDef?.name, tr: r?.trophies ?? 0, mode: opts.mode });
-  const news = buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smashed, fell, mvp, mvpDef });
+  const news = buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, mvp, mvpDef });
   root.appendChild(news.el);
   setTimeout(() => sting.remove(), 700 * slowK());
   studio?.shot('wide');
@@ -352,16 +351,17 @@ export async function showResult(parent, opts) {
 // ---------------------------------------------------------------------------
 // BEAST NEWS layout + segment steps
 
-function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smashed, fell, mvp, mvpDef }) {
+function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, mvp, mvpDef }) {
   const win = result === 'win', loss = result === 'loss';
   const me = names[0] ?? 'You', riv = names[1] ?? 'Rival';
   const st = sum?.sides?.[0]?.stats ?? {};
   const time = sum?.time ?? 0;
+  // the headline is the only sentence on the board: who did what (the time and stats are tiles below)
   const headlineText = win
-    ? (smashed ? `*${me}* SMASHES *${riv}*'s base${time >= 5 ? ` in ${fmtTime(time)}` : ''}!` : `*${me}* OUTLASTS *${riv}* on base HP!`)
+    ? (smashed ? `*${me}* SMASHES *${riv}*!` : `*${me}* OUTLASTS *${riv}*!`)
     : loss
-      ? (fell ? `*${riv}* FLATTENS *${me}*'s base! Rematch?` : `*${riv}* edges out *${me}* at the buzzer!`)
-      : `STALEMATE! *${me}* and *${riv}* can't be split!`;
+      ? (fell ? `*${riv}* FLATTENS *${me}*!` : `*${riv}* EDGES *${me}*!`)
+      : 'STALEMATE!';
 
   // ---- top bar: logo bug + LIVE / REPLAY
   const live = h('div', { class: 'cn-live sk-plate-dark' }, recDot(), h('span', { class: 'l' }, 'LIVE'), h('span', { class: 'rp' }, 'REPLAY'));
@@ -393,7 +393,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   const headline = h('div', { class: 'cn-hl' });
   const lower = h('div', { class: 'cn-lower' },
     h('div', { class: 'cn-tag sk-chip-red' }, 'BREAKING'),
-    h('div', { class: 'cn-hlw' }, headline, h('div', { class: 'cn-by' }, h('b', {}, 'NORA NEWSLY'), h('span', {}, arenaName.toUpperCase()))));
+    h('div', { class: 'cn-hlw' }, headline));
 
   // ---- replay box (picture in picture)
   const frames = (replay?.frames ?? []).filter((f) => f?.width);
@@ -404,8 +404,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   pg.imageSmoothingEnabled = false;
   const pipEl = h('div', { class: 'cn-pip' },
     pipCv, h('i', { class: 'cn-pip-scan' }),
-    h('div', { class: 'cn-pip-tag sk-chip-red' }, recDot(), frames.length > 2 ? 'REPLAY' : 'FINAL SHOT'),
-    frames.length > 2 ? h('div', { class: 'cn-pip-slow' }, 'SLOW MO') : null);
+    h('div', { class: 'cn-pip-tag sk-chip-red' }, recDot(), 'REPLAY'));
   let fi = -1, ft = 0, playing = false;
   // the whole clip plays in about two seconds, however many snapshots there are
   const FRAME_MS = Math.max(110, Math.min(170, 2100 / Math.max(1, frames.length)));
@@ -472,7 +471,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
     const av = sideCfgs?.[i] ? sideAvatarEl(sideCfgs[i], { cls: 'cn-av', anim: false }) : null;
     const el = h('div', { class: `cn-base s${i}` },
       h('div', { class: 'who' }, av, medal),
-      h('div', { class: 'nm' }, h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')),
+      h('div', { class: 'nm' }, h('span', {}, i ? riv : me)),
       h('b', { class: 'bar sk-well' }, h('i', { class: 'fw' }, fill), pct));
     return { el, fill, pct, b, medal };
   };
@@ -498,8 +497,8 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
           else {
             t.fill.style.width = (to * 100).toFixed(1) + '%';
             t.pct.textContent = Math.round(to * 100) + '%';
-            if (!t.b.alive) { t.el.appendChild(h('div', { class: 'cn-stamp sk-chip-red' }, 'DESTROYED')); audio.play('stamp'); bump(t.el, 'cn-hit'); }
-            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp good sk-chip-green' }, 'FLAWLESS')); audio.play('stamp', { pitch: 1.2 }); }
+            if (!t.b.alive) { t.el.appendChild(h('div', { class: 'cn-stamp ic sk-chip-red', role: 'img', 'aria-label': 'Destroyed' }, icon('skull'))); audio.play('stamp'); bump(t.el, 'cn-hit'); }
+            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp ic good sk-chip-green', role: 'img', 'aria-label': 'Flawless' }, icon('star'))); audio.play('stamp', { pitch: 1.2 }); }
             res();
           }
         };
@@ -526,7 +525,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   const numSteps = [async () => { numsEl.classList.add('in'); show(numsEl); }];
   tiles.forEach((tl, k) => {
     const v = h('b', { class: 'v' }, tl.fmt ? tl.fmt(0) : '0');
-    const el = h('div', { class: 'cn-tile sk-panel-dark' }, v, h('small', {}, icon(tl.ic), h('span', {}, tl.label)));
+    const el = h('div', { class: 'cn-tile sk-panel-dark', title: tl.label }, icon(tl.ic, 'cn-tile-ic'), v);
     grid.appendChild(el);
     numSteps.push(async (c) => {
       el.classList.add('in');
@@ -545,7 +544,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
       h('div', { class: 'cn-mvp-info' },
         h('div', { class: 'cn-mvp-tag sk-chip-gold' }, icon('star'), 'MVP'),
         h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
-        mvp.dmg ? h('span', { class: 'd' }, dmgV, ' DMG') : mvp.count ? h('small', {}, `deployed x${mvp.count}`) : null));
+        mvp.dmg ? h('span', { class: 'd' }, icon('bolt'), dmgV) : mvp.count ? h('span', { class: 'd' }, icon('swords'), `x${mvp.count}`) : null));
     rowC.appendChild(el);
     numSteps.push(async (c) => {
       el.classList.add('in');
@@ -561,10 +560,12 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   // 5. PAYOUT: trophies, then the rewards drop in one by one with weight
   const payEl = h('div', { class: 'cn-card cn-pay' });
   const paySteps = [async () => { payEl.classList.add('in'); }];
-  const tr = r?.trophies ?? 0;
+  // trophies held back by a Trophy Road boss (data/roadBosses.js) still count here, marked with a padlock
+  const banked = Math.max(0, r?.banked ?? 0);
+  const tr = (r?.trophies ?? 0) + banked;
   if (r && (tr || opts.mode === 'ranked' || opts.mode === 'online')) {
     const tv = h('b', { class: 'v' }, '0');
-    const el = h('div', { class: `cn-trophy sk-panel-gold ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), h('div', { class: 'tx' }, tv, h('small', {}, 'TROPHIES')));
+    const el = h('div', { class: `cn-trophy sk-panel-gold ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), h('div', { class: 'tx' }, tv), banked ? icon('lock', 'cn-tro-bank') : null);
     rowC.appendChild(el);
     paySteps.push(async (c) => {
       el.classList.add('in');
@@ -580,10 +581,11 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
     const items = [];
     const add = (ic, value, label, o = {}) => {
       const v = h('b', {}, '0');
-      const el = h('div', { class: `cn-chip sk-pod${o.neg ? '-dim neg' : ''} k-${ic}` }, o.img ?? animIcon(ic), h('div', {}, v, h('small', {}, label)));
+      const el = h('div', { class: `cn-chip sk-pod${o.neg ? '-dim neg' : ''} k-${ic}`, title: o.title ?? '' }, o.img ?? animIcon(ic), h('div', {}, v, label ? h('small', {}, label) : null));
       items.push({ el, v, value, text: o.text });
     };
-    if (r.coins) add('coin', r.coins, 'Coins');
+    // icon + number; only the two XP kinds keep a word (the icon says whose XP)
+    if (r.coins) add('coin', r.coins, null, { title: 'Coins' });
     if (r.vial) {
       const vd = VIALS[r.vial];
       let img = null;
@@ -595,11 +597,11 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
           try { const src = m.vialThumb(r.vial, 96); if (src && img.isConnected) { img.src = src; img.classList.add('vial3d'); } } catch (e) { /* keep the icon */ }
         }).catch(() => {});
       }
-      add('vial', 0, vd?.name ?? 'Vial', { img, text: 'NEW!' });
-    } else if (r.slotsFull && result === 'win') add('vial', 0, 'Slots full', { text: 'FULL', neg: true });
-    if (r.calories) add('calorie', r.calories, 'Calories');
-    if (r.cmdXp) add('star', r.cmdXp, 'Cmdr XP');
-    if (r.labXp) add('lab', r.labXp, 'Lab XP');
+      add('vial', 0, null, { img, text: 'NEW!', title: vd?.name ?? 'Vial' });
+    } else if (r.slotsFull && result === 'win') add('vial', 0, null, { text: 'FULL', neg: true, title: 'Vial slots full' });
+    if (r.calories) add('calorie', r.calories, null, { title: 'Calories' });
+    if (r.cmdXp) add('star', r.cmdXp, 'XP', { title: 'Commander XP' });
+    if (r.labXp) add('lab', r.labXp, 'XP', { title: 'Lab XP' });
     if (items.length) {
       const chips = h('div', { class: 'cn-chips' }, items.map((it) => it.el));
       payEl.appendChild(chips);
@@ -618,15 +620,16 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
         }
       });
     }
-    const ups = (r.levelUps ?? []).map((lu) => h('span', {}, icon('up'), `Commander level ${lu.level ?? lu}!`));
+    // level ups: icon + level, no sentences
+    const ups = (r.levelUps ?? []).map((lu) => h('span', {}, icon('up'), `CMDR LV ${lu.level ?? lu}`));
     // Lab Level up: the rank medal pops from the old level to the new one (and so does the one by your name)
     const labTo = r.labUps?.length ? r.labUps[r.labUps.length - 1].level ?? r.labUps[r.labUps.length - 1] : null;
     const labMedal = labTo ? rankMedal(Math.max(1, labTo - r.labUps.length), { cls: 'cn-up-rank' }) : null;
-    if (labTo) ups.push(h('span', { class: 'cn-up-lab' }, labMedal, `Lab Level ${labTo}!`));
+    if (labTo) ups.push(h('span', { class: 'cn-up-lab' }, labMedal, `LAB LV ${labTo}`));
     // TROOP MASTERY: levels that just became claimable (claim them from the card's info)
     const ms = (r.mastery ?? []).filter((x) => cardDef(x.id));
-    for (const x of ms.slice(0, 2)) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `${cardDef(x.id).name}: ${MASTERY_NAMES[x.level - 1]} mastery ready!`));
-    if (ms.length > 2) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `+${ms.length - 2} more mastery rewards in CARDS`));
+    for (const x of ms.slice(0, 2)) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `${cardDef(x.id).name} ${MASTERY_NAMES[x.level - 1].toUpperCase()}`));
+    if (ms.length > 2) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `+${ms.length - 2}`));
     if (ups.length) {
       const el = h('div', { class: 'cn-ups' }, ups);
       payEl.appendChild(el);
@@ -649,21 +652,13 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   }
   board.appendChild(footSlot);
 
-  // ---- ticker
-  const spells = st.spells ?? 0;
+  // ---- ticker: the headline, the score and a few gags (the board already shows the stats)
   const bits = [
     headlineText.replace(/\*/g, ''),
-    mvpDef ? `MVP: ${mvpDef.name}${mvp.dmg ? ` dealt ${fmtN(mvp.dmg)} damage` : ''}` : null,
-    `${fmtN(st.deployed ?? 0)} ${(st.deployed ?? 0) === 1 ? 'troop' : 'troops'} deployed`,
-    `${fmtN(st.kills ?? 0)} ${(st.kills ?? 0) === 1 ? 'Swarm' : 'Swarms'} defeated`,
-    spells ? `${fmtN(spells)} ${spells === 1 ? 'spell' : 'spells'} cast` : null,
     r?.trophies ? `TROPHIES ${tr > 0 ? '+' : ''}${tr}` : null,
     'Local toilet clogs, refuses to comment',
-    'Feastables stock up 300%',
     'Beast Tiger "totally fine", says Jimmy',
     'Weather: 100% chance of confetti',
-    'Scientists confirm chocolate is a food group',
-    `Live from ${arenaName}`,
   ].filter(Boolean);
   const tickTxt = bits.map((b) => h('span', {}, h('i', {}), b.toUpperCase()));
   const ticker = h('div', { class: 'cn-ticker' }, h('b', { class: 'cn-ticker-tag' }, 'BEAST NEWS'), h('div', { class: 'cn-ticker-run' }, h('div', { class: 'cn-ticker-in' }, tickTxt, tickTxt.map((e) => e.cloneNode(true)))));
@@ -674,7 +669,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
     h('div', { class: 'cn-right' }, board, bumperEl),
     ticker,
     pipEl, say,
-    h('div', { class: 'cn-hint' }, 'TAP TO SKIP'));
+    h('div', { class: 'cn-hint', role: 'img', 'aria-label': 'Tap to skip' }, h('i', { class: 'px-skip' })));
   return { el, board, studio, headline, headlineText, lower, segments, footSlot, live, pip, say, sayTxt, placeSay, bumper: bumperFx };
 }
 

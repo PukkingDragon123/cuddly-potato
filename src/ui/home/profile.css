@@ -94,3 +94,6 @@ body.landscape .pf-card { min-height: calc(var(--u) * 22); }
 body.landscape .pf-card-av .pav.pf-av { --av: calc(var(--u) * 17); }
 body.landscape .pf-grid { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 17), 1fr)); }
 body.landscape .pf-grid.sm:not(.k-banner) { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 15), 1fr)); }
+/* pixel type (round 8): the bold pixel face runs wider, so the card name sizes down and the title may wrap */
+.pf-name { font-size: 1.6em; }
+.pf-title { font-size: 0.95em; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.1; }

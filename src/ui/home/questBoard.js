@@ -1,31 +1,36 @@
-// QUEST BOARD: every quest in the game pinned to one cork board in the lab.
+// QUEST BOARD: every quest in the game pinned to one cork board on the lab wall.
 //
-//   MAIN STORY  the main quest line (game/progression.js MAIN_QUESTS): chapter card, the current
-//               quest as a big pinned note, the next one, a TOP SECRET folder for the rest and the
-//               finished ones as a pile you can flip through
-//   DAILY       the daily challenges (Juan's Food Season calories, data/season.js)
-//   CHARACTERS  the crew's quest chains (data/arenas.js QUEST_CHAINS) + Jimmy's rematch
+//   STORY  the main quest line (game/progression.js MAIN_QUESTS): the chapter on a clipboard, the
+//          current quest as a big folded letter, the next one on a torn notebook page, a TOP SECRET
+//          folder for the rest and the finished ones as a kraft pile you can flip through
+//   DAILY  the daily challenges (Juan's Food Season calories, data/season.js) on sticky notes
+//   CREW   the crew's quest chains (data/arenas.js QUEST_CHAINS) + Jimmy's rematch, as case files
 //
-// Each note shows who posted it (chibi photo: tap it and they say their line through the
-// dialogue system), the objective, hand-drawn progress (tally marks or a hatched bar), the rewards
-// and a status stamp (NEW / IN PROGRESS / DONE / CLAIMED). Claiming slams a CLAIMED stamp on the
-// note, flies the rewards into the counters on the frame and throws confetti.
+// Pictures carry the meaning, not sentences: every note has an illustration of its objective
+// (questBoardArt.js questArt), the objective as an icon + count with hand-drawn progress, rewards as
+// icons + amounts, a short title, and a polaroid of whoever posted it. Tap the polaroid (or a daily
+// note's picture) and they say their line in a speech bubble, in their own voice. Stamps (NEW /
+// CLAIMED) mark what changed; claiming slams a CLAIMED stamp, flies the rewards into the counters
+// and throws confetti.
 //
-// The board is a full-screen layer in #overlay (under dialogue, modals and toasts). While it is
-// fully up the island stops drawing (engine.cover). All art: ui/home/questBoardArt.js.
+// The scene (lab wall, lamp, shelf, walnut frame, cork, lamp light, every note's paper) is painted
+// procedurally at 1 CSS px per texel by questBoardArt.js, sized to the measured layout and cached.
+// The board is a full-screen layer in #overlay (under dialogue, modals and toasts); while it is fully
+// up the island stops drawing (engine.cover).
 import './questBoard.css';
-import { h, icon, animIcon, button, say, closeDialogue, toast, sparkle, flyIcons, confetti, rollNumber, floatDelta, bump, rich, $overlay, pointAt } from '../ui.js';
+import { h, icon, animIcon, button, closeDialogue, toast, sparkle, flyIcons, confetti, rollNumber, floatDelta, bump, $overlay, pointAt } from '../ui.js';
+import { popWords } from '../dialogue.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
+import { voiceOf } from '../../data/characters.js';
 import { state, refreshDaily, challengeList, claimChallenge, questState, acceptQuest, completeQuest, passTier } from '../../game/state.js';
-import { QUEST_CHAINS, QUEST_NPC_ZONE, QUESTS, BOSSES, arenaById } from '../../data/arenas.js';
-import { VIALS } from '../../data/vials.js';
+import { QUEST_CHAINS, QUEST_NPC_ZONE, QUESTS, BOSSES } from '../../data/arenas.js';
 import {
-  MAIN_QUESTS, MAIN_CHAPTERS, chapterOf, mainQuest, claimMainQuest, featureRevealed, lockInfo,
+  MAIN_QUESTS, MAIN_CHAPTERS, chapterOf, mainQuest, claimMainQuest, featureRevealed, lockInfo, FEATURES,
 } from '../../game/progression.js';
-import { charImg, rewardArt, rewardDef, rewardLabel, countdown, tickTimers, midnightMs, showRewards, refreshCtx } from './common.js';
+import { charImg, rewardArt, rewardDef, countdown, tickTimers, midnightMs, showRewards, refreshCtx } from './common.js';
 import { openBoss } from './boss.js';
-import { ensureBoardArt, tallyURL, drawString } from './questBoardArt.js';
+import { ensureBoardArt, tallyURL, drawString, questArt, paperCanvas, cloneCanvas, paintScene, paintFrame, paintLight, PAPER_M, QUEST_OBJ } from './questBoardArt.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
 const P = () => state.p;
@@ -41,10 +46,12 @@ const CREW = {
   lonan: { name: 'Lonan', char: 'shadyNolan', color: '#d8a548', pin: 'red' },
 };
 const crew = (id) => CREW[id] ?? CREW.jimmy;
-/** Dialogue speaker (dialogue.js picks the 3D model from `char`). */
-const voiceOf = (id) => ({ name: crew(id).name, char: crew(id).char, color: crew(id).color });
 
-// Juan posts the daily list; what he says about each one
+// Juan posts the daily list: a short title for each special, and what he says about it
+const DAILY_TITLE = {
+  winBattles: 'Win Battles', deployFood: 'Snack Squad', useFoodThrow: 'Food Throw', martBattles: 'Beast Mart', openVials: 'Open Vials',
+  unleashMega: 'MEGA Time', useSignature: 'ULTIMATES', deployTroops: 'Troop Drop', smashCarts: 'Cart Smash', bases: 'Base Breaker', baseUp: 'Build It Up',
+};
 const DAILY_LINES = {
   winBattles: 'Three wins today. I am keeping score on a napkin, so no pressure.',
   deployFood: 'Deploy Snack Squad troops. Deploy them. Do not eat them. Nolan.',
@@ -58,10 +65,6 @@ const DAILY_LINES = {
   bases: 'Destroy three rival bases. Leave a nice note.',
   baseUp: 'Upgrade your base six times. Build it so tall it gets its own weather.',
 };
-const DAILY_ICON = {
-  wins: 'swords', deployFood: 'burger', castfoodThrow: 'burger', martBattles: 'cart', vialsOpened: 'vial', signatures: 'star',
-  deployed: 'swarm', cartsSmashed: 'cart', basesDestroyed: 'lab', baseUpgrades: 'up', megasUsed: 'mega',
-};
 const DAILY_PAPER = ['yellow', 'pink', 'blue', 'green'];
 // the crew's chains: what they say about each quest
 const CHAIN_LINES = {
@@ -74,10 +77,6 @@ const CHAIN_LINES = {
   juan2: 'Smash five shopping carts. The manager said yes. Mostly.',
   juan3: 'Cart Kong runs this store. Beat him and checkout is on me.',
   jimmyRematch: 'You beat my crew. Now beat me. Loser buys the whole lab pizza.',
-};
-const CHAIN_INTRO = {
-  nolan: 'Help Nolan out and he joins your Lab as a Commander.',
-  juan: 'Juan runs Beast Mart. He has errands. Weird ones.',
 };
 
 // ---------------------------------------------------------------------------- counts (tabs, tracker)
@@ -99,32 +98,40 @@ export function boardCounts() {
 
 const pinEl = (c = 'red', cls = '') => h('i', { class: `qb-pin p-${c} ${cls}`, 'aria-hidden': 'true' });
 const tapeEl = (k = '', cls = '') => h('i', { class: `qb-tape ${k} ${cls}`, 'aria-hidden': 'true' });
-const STAMP = { new: 'NEW', prog: 'IN PROGRESS', done: 'DONE', claimed: 'CLAIMED', secret: 'TOP SECRET', locked: 'LOCKED' };
+const STAMP = { new: 'NEW', done: 'DONE', claimed: 'CLAIMED', secret: 'TOP SECRET', next: 'NEXT' };
 const stampEl = (kind, cls = '') => h('div', { class: `qb-stamp s-${kind} ${cls}` }, h('span', {}, STAMP[kind]));
+/** A quest illustration. */
+const artEl = (key, cls = '') => h('img', { class: `qb-art ${cls}`, src: questArt(key), alt: '', draggable: 'false' });
 
-let talking = false;
-async function talk(who, line, el) {
-  if (talking || !line) return;
-  talking = true;
-  audio.play('tap');
-  el?.classList.add('talking');
-  try { await say(voiceOf(who), line, { place: 'bottom' }); } catch (e) { /* closed */ }
-  el?.classList.remove('talking');
-  talking = false;
+/** The objective as a picture: icon (+ badge) or a mini illustration. */
+function objIcon(key) {
+  const o = QUEST_OBJ[key] ?? { ic: 'quest' };
+  if (o.art) return h('span', { class: 'qb-oi' }, artEl(o.art, 'oi-art'));
+  return h('span', { class: 'qb-oi' }, icon(o.ic), o.b ? h('i', { class: 'qb-oi-b' }, icon(o.b)) : null);
 }
 
-/** Polaroid of whoever posted the note. Tap = their line. */
-function poster(who, line, cls = '') {
-  const c = crew(who);
-  const b = h('button', { class: `qb-poster ${cls}`, type: 'button', 'aria-label': `${c.name} says` },
-    h('span', { class: 'qb-photo', style: { '--pc': c.color } }, charImg(c.char, { size: 128, eyes: 'happy', mouth: 'grin' })),
-    h('span', { class: 'qb-poster-n' }, c.name.toUpperCase()),
-    h('i', { class: 'qb-voice' }, icon('sound')));
-  b.addEventListener('click', (e) => { e.stopPropagation(); talk(who, line, b); });
-  return b;
+/** Hand-drawn progress: tally marks up to 12, a hatched pen bar for bigger numbers, then the count. */
+function progressEl(prog, need, done) {
+  const lbl = h('b', { class: 'qb-cnt' }, need >= 100 ? `${fmt(prog)}/${fmt(need)}` : `${prog}/${need}`);
+  if (need <= 12) {
+    const tw = need <= 1 ? 28 : Math.ceil(need / 5) * 30 + 4;
+    return h('div', { class: `qb-prog tally ${done ? 'full' : ''}` }, h('img', { class: 'qb-tally', src: tallyURL(prog, need), alt: '', style: { width: tw + 'px' } }), lbl);
+  }
+  return h('div', { class: `qb-prog bar ${done ? 'full' : ''}` }, h('div', { class: 'qb-bar' }, h('i', { style: { width: Math.max(3, Math.min(100, (prog / need) * 100)) + '%' } })), lbl);
+}
+/** Objective row: picture + progress. */
+const objRow = (key, prog, need, done) => h('div', { class: `qb-obj ${done ? 'full' : ''}` }, objIcon(key), progressEl(prog, need, done));
+
+/** A locked objective: padlock + what opens it, in two words (the GO button tells the full story). */
+function lockRow(feature) {
+  const L = lockInfo(feature);
+  const f = FEATURES[feature]?.alias ? FEATURES[FEATURES[feature].alias] : FEATURES[feature];
+  const txt = L.left !== undefined && !f?.trophies ? `${L.left} ${L.left === 1 ? 'WIN' : 'WINS'}` : f?.trophies ? `${f.trophies}` : 'SOON';
+  return h('div', { class: 'qb-obj lock' }, h('span', { class: 'qb-oi' }, icon(f?.icon ?? 'lock'), h('i', { class: 'qb-oi-b' }, icon('lock'))),
+    h('span', { class: 'qb-lockt' }, f?.trophies ? icon('trophy') : null, txt));
 }
 
-/** Reward chips: currency as icon + amount, everything else as its art + name. */
+/** Reward chips: icons + amounts (the gift ribbon says "you get"). */
 function rewardList(b) {
   const out = [];
   if (!b) return out;
@@ -139,31 +146,86 @@ function rewardList(b) {
 }
 const CUR_ICON = { coins: 'coin', bucks: 'bucks', calories: 'calorie' };
 function rewardChip(r) {
-  if (CUR_ICON[r.type]) {
-    return h('span', { class: `qb-rw cur k-${r.type}`, 'data-rw': r.type }, animIcon(CUR_ICON[r.type]), h('b', {}, fmt(r.amount)));
-  }
+  if (CUR_ICON[r.type]) return h('span', { class: `qb-rw cur k-${r.type}`, 'data-rw': r.type }, animIcon(CUR_ICON[r.type]), h('b', {}, fmt(r.amount)));
   let art;
   try { art = rewardArt(rewardDef(r)); } catch (e) { art = icon('gift'); }
-  const name = r.type === 'vial' ? (VIALS[r.id]?.name ?? 'Vial') : rewardLabel(r);
-  return h('span', { class: `qb-rw art k-${r.type}`, 'data-rw': r.type }, h('span', { class: 'qb-rw-art' }, art), h('b', {}, name));
+  return h('span', { class: `qb-rw art k-${r.type}`, 'data-rw': r.type }, h('span', { class: 'qb-rw-art' }, art), r.copies > 1 ? h('b', {}, 'x' + r.copies) : null);
 }
-function rewardsRow(b, label = 'REWARD') {
-  return h('div', { class: 'qb-rws' }, h('span', { class: 'qb-rws-k' }, label), h('div', { class: 'qb-rws-l' }, rewardList(b).map(rewardChip)));
-}
-
-/** Hand-drawn progress: tally marks up to 12, a hatched pen bar for bigger numbers. */
-function progressEl(prog, need, done) {
-  const lbl = h('span', { class: 'qb-cnt-t' }, need >= 100 ? `${fmt(prog)} / ${fmt(need)}` : `${prog} / ${need}`);
-  if (need <= 12) {
-    return h('div', { class: `qb-prog tally ${done ? 'full' : ''}` }, h('img', { class: 'qb-tally', src: tallyURL(prog, need), alt: '', style: { '--tw': need <= 1 ? 14 : Math.ceil(need / 5) * 15 + 2 } }), lbl);
-  }
-  return h('div', { class: `qb-prog bar ${done ? 'full' : ''}` }, h('div', { class: 'qb-bar' }, h('i', { style: { width: Math.max(3, Math.min(100, (prog / need) * 100)) + '%' } })), lbl);
-}
+const rewardsRow = (b) => h('div', { class: 'qb-rws' }, h('i', { class: 'qb-rws-k', 'aria-hidden': 'true' }, icon('gift')), h('div', { class: 'qb-rws-l' }, rewardList(b).map(rewardChip)));
 
 /** A locked button, blacked out like the home buttons: silhouette + padlock; tap = what opens it. */
 function lockedBtn(label, text, cls = '') {
   const b = button(label, () => { audio.play('deny'); b.classList.remove('pg-shake'); void b.offsetWidth; b.classList.add('pg-shake'); toast(text, { icon: 'lock' }); }, `gray sm qb-act pg-lock ${cls}`, { sound: 'tap' });
   b.appendChild(h('i', { class: 'pg-pad', 'aria-hidden': 'true' }, icon('lock')));
+  return b;
+}
+
+// ---------------------------------------------------------------------------- speech bubble
+
+let bub = null;
+function hush() {
+  if (!bub) return;
+  const b = bub;
+  bub = null;
+  clearTimeout(b.t);
+  b.words?.finish();
+  b.anchor?.classList.remove('talking');
+  b.el.classList.add('out');
+  setTimeout(() => b.el.remove(), 180);
+}
+/**
+ * `who` says `line` in a speech bubble pointing at `anchor` (their polaroid), word by word in their
+ * own voice. Tap anywhere (or wait) to close it.
+ */
+function speak(who, line, anchor, host) {
+  if (!line) return;
+  const same = bub && bub.anchor === anchor;
+  hush();
+  if (same) return;
+  audio.play('tap');
+  const c = crew(who);
+  const txt = h('div', { class: 'qb-bub-t' });
+  const el = h('div', { class: 'qb-bub', role: 'status' }, h('b', { class: 'qb-bub-n', style: { '--pc': c.color } }, c.name), txt, h('i', { class: 'qb-bub-tail' }));
+  host.appendChild(el);
+  el.addEventListener('click', (e) => { e.stopPropagation(); hush(); });
+  const a = anchor.getBoundingClientRect(), H = host.getBoundingClientRect();
+  const bw = Math.min(300, H.width - 24);
+  el.style.width = bw + 'px';
+  // the words go in now (invisible until they pop), so the bubble already has its final size
+  const v = voiceOf(c.char);
+  const words = popWords(txt, line, {
+    cps: 34,
+    onWord: (wd) => {
+      const len = wd.text.replace(/[^A-Za-z0-9]/g, '').length;
+      if (len) audio.voice(v, { text: wd.text, span: Math.max(0.09, (len + 1) / 34 * 1.1), emph: wd.emph, ask: /\?/.test(wd.text) });
+    },
+  });
+  // over the polaroid when there's room (else under it), kept on screen
+  let x = a.left + a.width * 0.5 - H.left - 34;
+  x = Math.max(12, Math.min(H.width - bw - 12, x));
+  el.style.left = x + 'px';
+  const bh = el.offsetHeight, up = a.top - H.top, down = H.bottom - a.bottom;
+  const above = up >= bh + 26 || up > down;
+  el.classList.add(above ? 'up' : 'down');
+  el.style.top = (above ? Math.max(8, up - 14 - bh) : Math.min(H.height - bh - 8, a.bottom - H.top + 14)) + 'px';
+  el.style.setProperty('--tx', Math.max(14, Math.min(bw - 30, a.left + a.width * 0.5 - H.left - x - 8)) + 'px');
+  anchor.classList.add('talking');
+  const me = { el, anchor, words, t: 0 };
+  bub = me;
+  words.promise.then(() => {
+    anchor.classList.remove('talking');
+    if (bub === me) me.t = setTimeout(() => { if (bub === me) hush(); }, 1800 + line.length * 28);
+  });
+}
+
+/** Polaroid of whoever posted the note. Tap = their line, in a speech bubble. */
+function poster(who, line, cls, host) {
+  const c = crew(who);
+  const b = h('button', { class: `qb-poster ${cls}`, type: 'button', 'aria-label': `${c.name} says` },
+    h('span', { class: 'qb-photo', style: { '--pc': c.color } }, charImg(c.char, { size: 128, eyes: 'happy', mouth: 'grin' })),
+    h('span', { class: 'qb-poster-n' }, c.name.toUpperCase()),
+    h('i', { class: 'qb-talk', 'aria-hidden': 'true' }));
+  b.addEventListener('click', (e) => { e.stopPropagation(); speak(who, line, b, host()); });
   return b;
 }
 
@@ -190,11 +252,12 @@ export function openQuestBoard(hm, opts = {}) {
   // forget yesterday's daily notes
   for (const k of Object.keys(seen)) if (k.startsWith('d:') && !k.startsWith(`d:${P().challenges?.day}:`)) delete seen[k];
 
-  // ------------------------------------------------------------ frame, header, counters, tabs
+  // ------------------------------------------------------------ scene, header, counters, tabs, frame
   const cnt = {};
+  // (the vial counter keeps a still icon: its bubbling strip is costly to build on first use)
   const counter = (k, ic, val, tip) => {
     const v = h('b', {}, val);
-    const el = h('div', { class: `qb-c k-${k}`, title: tip }, animIcon(ic), v);
+    const el = h('div', { class: `qb-c k-${k}`, title: tip }, k === 'vial' ? icon(ic) : animIcon(ic), v);
     cnt[k] = { el, v, val: null };
     return el;
   };
@@ -207,7 +270,7 @@ export function openQuestBoard(hm, opts = {}) {
   cnt.coins.val = P().coins; cnt.bucks.val = P().bucks;
   if (cnt.calories) cnt.calories.val = P().calories;
   const closeBtn = button('', () => close(), 'red icon-only qb-x', { icon: 'x', sound: 'tap' });
-  const sign = h('div', { class: 'qb-sign' }, h('b', {}, 'QUEST BOARD'));
+  const sign = h('div', { class: 'qb-sign' }, icon('quest'), h('b', {}, 'QUESTS'));
   const tabsEl = h('div', { class: 'qb-tabs' });
   const head = h('div', { class: 'qb-head' }, sign, tabsEl, wallet, closeBtn);
   const page = h('div', { class: 'qb-page' });
@@ -216,58 +279,122 @@ export function openQuestBoard(hm, opts = {}) {
   const deco = h('div', { class: 'qb-deco', 'aria-hidden': 'true' });
   const sheet = h('div', { class: 'qb-sheet' }, deco, page, strings, knots);
   const cork = h('div', { class: 'qb-cork scroll-y' }, sheet);
-  const frame = h('div', { class: 'qb-frame' }, cork);
-  const root = h('div', { class: 'qb', role: 'dialog', 'aria-label': 'Quest board' }, h('div', { class: 'qb-wall' }), head, frame);
+  const frameArt = h('canvas', { class: 'qb-frame-art', 'aria-hidden': 'true' });
+  const lightEl = h('canvas', { class: 'qb-light', 'aria-hidden': 'true' });
+  const frame = h('div', { class: 'qb-frame' }, frameArt, cork, lightEl);
+  const sceneEl = h('canvas', { class: 'qb-scene', 'aria-hidden': 'true' });
+  const root = h('div', { class: 'qb', role: 'dialog', 'aria-label': 'Quest board' }, sceneEl, head, frame);
   $overlay().appendChild(root);
+  const bubHost = () => root;
   audio.play('whoosh', { pitch: 0.9 });
   setTimeout(() => { if (!closed) audio.play('thud'); }, 260);
   const coverT = setTimeout(() => { if (!closed) engine.cover('questBoard', true); }, 520);
   const timer = setInterval(() => { if (root.isConnected) tickTimers(root); }, 1000);
-  const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('#overlay .cdlg, #overlay .modal-back')) close(); };
+  const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('#overlay .cdlg, #overlay .modal-back')) { if (bub) hush(); else close(); } };
   window.addEventListener('keydown', onKey);
-  const onResize = () => requestAnimationFrame(() => layoutStrings());
+  let resizeT = 0;
+  const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (!closed) { paintScenery(); render(false); } }, 160); };
   window.addEventListener('resize', onResize);
+  // any tap on the board closes an open speech bubble
+  root.addEventListener('pointerdown', (e) => { if (bub && !e.target.closest('.qb-poster, .qb-art-btn, .qb-bub')) hush(); }, true);
+  cork.addEventListener('scroll', () => { if (bub) hush(); }, { passive: true });
 
+  /**
+   * Paint the wall, the frame and the lamp light for the current layout (cached per size). Each
+   * piece is its own task, so a first (uncached) paint never holds up more than one frame.
+   */
+  let sceneryJob = 0;
+  function paintScenery() {
+    if (closed) return;
+    const job = ++sceneryJob;
+    const R = root.getBoundingClientRect();
+    const W = Math.round(R.width), H = Math.round(R.height);
+    if (W < 10 || H < 10) return;
+    const rel = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left - R.left), y: Math.round(r.top - R.top), w: Math.round(r.width), h: Math.round(r.height) }; };
+    const fr = rel(frame), cr = rel(cork), signR = rel(sign);
+    const heads = [sign, closeBtn, wallet, ...tabsEl.children].map(rel);
+    const cs = getComputedStyle(frame);
+    const t = Math.round(parseFloat(cs.borderTopWidth)) || 22, b = Math.round(parseFloat(cs.borderBottomWidth)) || t;
+    const M = 16;
+    const put = (cv, src) => { cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0); };
+    let lampX = null;
+    const steps = [
+      () => { const sc = paintScene(W, H, { head: heads, frame: fr, sign: signR }); lampX = sc.lampX; put(sceneEl, sc.canvas); },
+      () => {
+        const fa = paintFrame(fr.w, fr.h, { t, b, M, ledge: b > t + 6 });
+        put(frameArt, fa);
+        frameArt.style.width = fa.width + 'px'; frameArt.style.height = fa.height + 'px';
+        frameArt.style.left = (-t - M) + 'px'; frameArt.style.top = (-t - M) + 'px';
+        root.classList.add('painted');
+      },
+      () => put(lightEl, paintLight(cr.w, cr.h, lampX === null ? null : lampX - cr.x)),
+    ];
+    const next = () => {
+      if (closed || job !== sceneryJob || !steps.length) return;
+      steps.shift()();
+      if (steps.length) setTimeout(next, 0);
+    };
+    next();
+  }
+
+  /** Tabs are built once (their icons load async); later renders only move the "on" tab and the badges. */
+  const tabEls = {};
   function renderTabs() {
     const c = boardCounts();
     const T = [
-      { id: 'main', label: 'MAIN STORY', icon: 'quest', n: c.main },
+      { id: 'main', label: 'STORY', icon: 'quest', n: c.main },
       { id: 'daily', label: 'DAILY', icon: 'calorie', n: c.daily, lock: 'pass' },
-      { id: 'chars', label: 'CHARACTERS', icon: 'friends', n: c.chars, lock: 'pass' },
+      { id: 'chars', label: 'CREW', icon: 'friends', n: c.chars, lock: 'pass' },
     ];
-    tabsEl.replaceChildren(...T.map((t) => {
-      const locked = t.lock && !featureRevealed(t.lock);
-      const b = h('button', { class: `qb-tab ${t.id === tab ? 'on' : ''} ${locked ? 'pg-lock' : ''}`, type: 'button', 'data-qbtab': t.id },
-        icon(t.icon), h('span', {}, t.label),
-        !locked && t.n ? h('i', { class: 'qb-tab-n' }, String(t.n)) : null,
-        locked ? h('i', { class: 'pg-pad', 'aria-hidden': 'true' }, icon('lock')) : null);
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (locked) {
-          audio.play('deny');
-          b.classList.remove('pg-shake'); void b.offsetWidth; b.classList.add('pg-shake');
-          const left = lockInfo(t.lock).left ?? 1;
-          toast(`Win ${left} more ${left === 1 ? 'battle' : 'battles'} to open *${t.label === 'DAILY' ? 'DAILY' : 'CHARACTER'}* quests.`, { icon: 'lock' });
-          return;
-        }
-        if (t.id === tab || busy) return;
-        audio.play('tap');
-        audio.play('tear', { pitch: 1.3, vol: 0.4 });
-        tab = t.id;
-        pileOpen = false;
-        render(true);
-      });
-      return b;
-    }));
+    if (!tabsEl.childElementCount) {
+      tabsEl.replaceChildren(...T.map((t) => {
+        const locked = t.lock && !featureRevealed(t.lock);
+        const b = h('button', { class: `qb-tab ${locked ? 'pg-lock' : ''}`, type: 'button', 'data-qbtab': t.id },
+          icon(t.icon), h('span', {}, t.label),
+          locked ? h('i', { class: 'pg-pad', 'aria-hidden': 'true' }, icon('lock')) : null);
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (locked) {
+            audio.play('deny');
+            b.classList.remove('pg-shake'); void b.offsetWidth; b.classList.add('pg-shake');
+            const left = lockInfo(t.lock).left ?? 1;
+            toast(`Win ${left} more ${left === 1 ? 'battle' : 'battles'} to open *${t.label}* quests.`, { icon: 'lock' });
+            return;
+          }
+          if (t.id === tab || busy) return;
+          audio.play('tap');
+          audio.play('tear', { pitch: 1.3, vol: 0.4 });
+          hush();
+          tab = t.id;
+          pileOpen = false;
+          render(true);
+        });
+        tabEls[t.id] = { b, locked, badge: null };
+        return b;
+      }));
+    }
+    for (const t of T) {
+      const e = tabEls[t.id];
+      e.b.classList.toggle('on', t.id === tab);
+      const n = e.locked ? 0 : t.n;
+      if (n && !e.badge) e.b.appendChild((e.badge = h('i', { class: 'qb-tab-n' })));
+      if (e.badge) {
+        if (n) e.badge.textContent = String(n);
+        else { e.badge.remove(); e.badge = null; }
+      }
+    }
   }
 
   // ------------------------------------------------------------ pages
+  let paintJob = 0, stringJob = 0;
   function render(anim = false) {
+    hush();
     renderTabs();
     const kids = tab === 'daily' ? dailyPage() : tab === 'chars' ? charsPage() : mainPage();
     page.className = `qb-page pg-${tab}`;
     page.replaceChildren(...kids);
     decorate();
+    paintPapers();
     sheet.classList.remove('qb-strung');
     if (anim) cork.scrollTop = 0;
     // notes pin in, staggered
@@ -276,30 +403,61 @@ export function openQuestBoard(hm, opts = {}) {
         n.style.animationDelay = (0.05 + i * 0.07).toFixed(2) + 's';
         n.classList.add('qb-drop');
       });
-      setTimeout(() => page.querySelectorAll('.qb-drop').forEach((n) => n.classList.remove('qb-drop')), 1200);
+      setTimeout(() => page.querySelectorAll('.qb-drop').forEach((n) => { if (!n.getAnimations || !n.getAnimations().some((a) => a.playState === 'running')) n.classList.remove('qb-drop'); }), 1200);
     }
     tickTimers(root);
-    // red string goes up once the notes have landed
-    setTimeout(() => { layoutStrings(); sheet.classList.add('qb-strung'); }, anim && !reduced() ? 1150 : 40);
+    // the red string goes up once the notes have landed (their drop animations have finished)
+    const job = ++stringJob;
+    const settle = () => { if (!closed && job === stringJob) { layoutStrings(); sheet.classList.add('qb-strung'); } };
+    const drops = anim && !reduced() && page.getAnimations ? page.getAnimations({ subtree: true }).filter((a) => a.animationName === 'qbDrop') : [];
+    if (drops.length) Promise.all(drops.map((a) => a.finished.catch(() => {}))).then(() => setTimeout(settle, 60));
+    else setTimeout(settle, 40);
+  }
+
+  /**
+   * Give every note its painted paper (exact size, cached). The first ones paint right away, the
+   * rest a frame at a time, so opening the board never stalls; until then a flat paper colour shows.
+   */
+  function paintPapers() {
+    const job = ++paintJob;
+    const notes = [...page.querySelectorAll('[data-paper]')];
+    const sizes = notes.map((n) => [n.offsetWidth, n.offsetHeight]);
+    let i = 0;
+    const step = () => {
+      if (job !== paintJob || closed) return;
+      const t0 = performance.now();
+      while (i < notes.length && (performance.now() - t0 < 14 || i === 0)) {
+        const n = notes[i], [w, hh] = sizes[i];
+        i++;
+        if (!n.isConnected || w < 8 || hh < 8) continue;
+        n.querySelector(':scope > .qb-paper')?.remove();
+        const c = cloneCanvas(paperCanvas(n.dataset.paper, w, hh, +(n.dataset.seed ?? 1)), 'qb-paper');
+        c.style.left = c.style.top = -PAPER_M + 'px';
+        c.style.width = c.width + 'px'; c.style.height = c.height + 'px';
+        n.prepend(c);
+        n.classList.add('papered');
+      }
+      if (i < notes.length) requestAnimationFrame(step);
+    };
+    step();
   }
 
   /** Coffee rings + doodle scraps behind the notes (they differ per page). */
   function decorate() {
     const land = document.body.classList.contains('landscape');
-    // portrait notes fill the width: stains go where the cork shows (the margins and the foot)
     const D = (land ? {
-      main: [['coffee', 74, 2], ['doodle-panther', 3, 54], ['coffee', 8, 82]],
-      daily: [['coffee', 60, 62], ['doodle-flask', 76, 4], ['doodle-money', 6, 70]],
-      chars: [['coffee', 70, 30], ['doodle-toilet', 80, 72], ['coffee', 2, 90]],
+      main: [['coffee', 76, 64], ['doodle-panther', 2, 70], ['coffee', 40, 86]],
+      daily: [['coffee', 60, 62], ['doodle-flask', 82, 2], ['doodle-money', 4, 72]],
+      chars: [['coffee', 70, 30], ['doodle-toilet', 86, 70], ['coffee', 2, 88]],
     } : {
-      main: [['coffee', 70, 1], ['doodle-panther', 3, 54], ['coffee', 56, 93]],
-      daily: [['coffee', 64, 21], ['doodle-flask', 76, 4], ['doodle-money', 2, 76], ['coffee', 40, 95]],
-      chars: [['coffee', 66, 30], ['doodle-toilet', 74, 95], ['coffee', 2, 62]],
+      main: [['coffee', 64, 0], ['doodle-panther', 2, 55], ['coffee', 56, 93]],
+      daily: [['coffee', 62, 20], ['doodle-money', 2, 74], ['coffee', 40, 95]],
+      chars: [['coffee', 66, 30], ['doodle-toilet', 72, 95], ['coffee', 2, 62]],
     })[tab] ?? [];
     deco.replaceChildren(...D.map(([k, x, y]) => h('i', { class: `qb-dc ${k}`, style: { left: x + '%', top: y + '%' } })));
   }
 
-  // MAIN STORY ---------------------------------------------------------------
+  // STORY ---------------------------------------------------------------------
   function mainPage() {
     const st = mainQuest();
     const idx = !st ? 0 : st.finished ? MAIN_QUESTS.length : st.step;
@@ -318,76 +476,60 @@ export function openQuestBoard(hm, opts = {}) {
     return out;
   }
 
+  /** The chapter on a clipboard: number, title, one hand-drawn box per quest (ticked when done). */
   function chapterCard(ch, idx) {
     const inCh = MAIN_QUESTS.slice(ch.from, ch.to);
     const doneN = Math.max(0, Math.min(inCh.length, idx - ch.from));
-    return h('div', { class: 'qb-note qb-chap paper-white qb-in', 'data-pin': 'chap' },
-      tapeEl('l', 'tl'), tapeEl('r', 'tr'),
-      h('div', { class: 'qb-chap-l' },
-        h('span', { class: 'qb-k' }, `CHAPTER ${ch.n} OF ${MAIN_CHAPTERS.length}`),
+    return h('div', { class: 'qb-note qb-chap qb-in', 'data-paper': 'clip', 'data-pin': 'chap', 'aria-label': `Chapter ${ch.n} of ${MAIN_CHAPTERS.length}: ${ch.title}` },
+      h('div', { class: 'qb-chap-in' },
+        h('span', { class: 'qb-chap-no' }, h('small', {}, 'CH'), String(ch.n)),
         h('b', { class: 'qb-chap-t' }, ch.title),
-        h('span', { class: 'qb-scrib' }, ch.sub)),
-      h('div', { class: 'qb-chap-r' },
-        h('div', { class: 'qb-chap-pins' }, inCh.map((q, i) => h('i', { class: `qb-cp ${i < doneN ? 'on' : i === doneN ? 'cur' : ''}` }))),
-        h('b', { class: 'qb-chap-n' }, `${doneN}/${inCh.length}`)));
+        h('div', { class: 'qb-chap-boxes' }, inCh.map((q, i) => h('span', { class: `qb-box ${i < doneN ? 'on' : i === doneN ? 'cur' : ''}`, title: q.title },
+          h('img', { src: tallyURL(i < doneN ? 1 : 0, 1), alt: '' }))))));
   }
 
   function heroNote(st) {
     const q = st.quest;
     const isNew = !seen[q.id] && !st.done;
     seen[q.id] = 1;
-    const kind = st.done ? 'done' : isNew ? 'new' : 'prog';
     const locked = st.locked;
     let act;
-    if (st.done) act = button('CLAIM', () => claimMain(note), 'green lg qb-act qb-claim pulse', { icon: 'gift', sound: 'tap' });
+    if (st.done) act = button('CLAIM', () => claimMain(note), 'green qb-act qb-claim pulse', { icon: 'gift', sound: 'tap' });
     else if (locked) act = lockedBtn('GO', lockInfo(locked).text);
     else if (q.go) act = button('GO', () => go(q.go), 'blue qb-act qb-go', { icon: 'arrowR', sound: 'tap' });
-    const note = h('div', { class: `qb-note qb-hero paper-cream qb-in ${st.done ? 'ready' : ''}`, 'data-pin': 'hero' },
+    const note = h('div', { class: `qb-note qb-hero qb-in ${st.done ? 'ready' : ''}`, 'data-paper': 'letter', 'data-seed': String(q.index + 3), 'data-pin': 'hero', 'aria-label': `${q.title}: ${q.goal}` },
       pinEl(crew(q.by).pin, 'top'),
       h('div', { class: 'qb-hero-top' },
-        poster(q.by, q.line, 'big'),
-        h('div', { class: 'qb-hero-meta' },
-          h('div', { class: 'qb-kline' }, h('span', { class: 'qb-k' }, `QUEST ${st.step + 1} OF ${st.steps}`), stampEl(kind, 'inl')),
-          h('b', { class: 'qb-title' }, q.title),
-          h('span', { class: 'qb-by' }, `Posted by ${crew(q.by).name}`))),
-      h('div', { class: 'qb-goal' }, icon('quest'), h('span', {}, q.goal ?? q.text)),
-      h('p', { class: 'qb-scrib' }, q.text),
-      locked
-        ? h('div', { class: 'qb-prog lockline' }, icon('lock'), h('span', { html: rich(lockInfo(locked).text) }))
-        : progressEl(st.prog, st.need, st.done),
+        h('div', { class: 'qb-taped' }, poster(q.by, q.line, 'big', bubHost), tapeEl('', 'pt')),
+        h('div', { class: 'qb-hero-art' }, artEl(q.id, 'big'))),
+      isNew ? stampEl('new', 'qb-corner') : null,
+      h('b', { class: 'qb-title' }, q.title),
+      locked ? lockRow(locked) : objRow(q.id, st.prog, st.need, st.done),
       h('div', { class: 'qb-foot' }, rewardsRow(q.reward), act));
     return note;
   }
 
   function nextNote(q) {
-    return h('div', { class: 'qb-note qb-next paper-dim qb-in', 'data-pin': 'next' },
+    return h('div', { class: 'qb-note qb-next qb-in', 'data-paper': 'notebook', 'data-seed': '5', 'data-pin': 'next', 'aria-label': `Next: ${q.title}` },
       pinEl(crew(q.by).pin, 'top'),
-      h('span', { class: 'qb-k' }, 'UP NEXT'),
-      h('div', { class: 'qb-next-row' },
-        poster(q.by, q.line, 'sm'),
-        h('div', { class: 'qb-next-t' }, h('b', { class: 'qb-title sm' }, q.title), h('span', { class: 'qb-goal sm' }, q.goal))),
-      rewardsRow(q.reward));
+      h('div', { class: 'qb-next-row' }, artEl(q.id, 'md'), h('b', { class: 'qb-title sm' }, q.title)),
+      h('div', { class: 'qb-foot' }, rewardsRow(q.reward), stampEl('next', 'sm qb-inl')));
   }
 
   function folderNote(more) {
-    return h('div', { class: 'qb-note qb-folder paper-manila qb-in', 'data-pin': 'folder' },
+    return h('div', { class: 'qb-note qb-folder qb-in', 'data-paper': 'manila', 'data-pin': 'folder', 'aria-label': `${more} more quests` },
       pinEl('red', 'top'),
       stampEl('secret', 'qb-folder-stamp'),
-      h('b', { class: 'qb-folder-n' }, String(more)),
-      h('span', { class: 'qb-folder-t' }, more === 1 ? 'more quest' : 'more quests'),
-      h('span', { class: 'qb-scrib sm' }, 'Jimmy says no peeking.'));
+      h('div', { class: 'qb-folder-n' }, icon('quest'), h('b', {}, '+' + more)));
   }
 
   function pileNote(idx) {
-    const last = MAIN_QUESTS[idx - 1];
-    const b = h('button', { class: `qb-note qb-pile paper-kraft qb-in ${pileOpen ? 'open' : ''}`, type: 'button', 'data-pin': 'pile' },
+    const b = h('button', { class: `qb-note qb-pile qb-in ${pileOpen ? 'open' : ''}`, type: 'button', 'data-paper': 'kraft', 'data-pin': 'pile', 'aria-label': `${idx} quests done` },
       h('i', { class: 'qb-pile-b b1' }), h('i', { class: 'qb-pile-b b2' }),
       pinEl('yellow', 'top'),
-      h('span', { class: 'qb-k' }, 'DONE PILE'),
-      h('b', { class: 'qb-pile-n' }, String(idx)),
-      h('span', { class: 'qb-pile-last' }, last.title),
       stampEl('claimed', 'qb-pile-stamp'),
-      h('span', { class: 'qb-pile-hint' }, pileOpen ? 'Tap to close' : 'Tap to flip through'));
+      h('div', { class: 'qb-pile-n' }, icon('check'), h('b', {}, String(idx))),
+      h('i', { class: 'qb-pile-eye', 'aria-hidden': 'true' }, icon(pileOpen ? 'x' : 'eye')));
     b.addEventListener('click', (e) => {
       e.stopPropagation();
       audio.play('tear', { pitch: 1.4, vol: 0.5 });
@@ -400,23 +542,21 @@ export function openQuestBoard(hm, opts = {}) {
 
   function doneList(idx) {
     return h('div', { class: 'qb-donelist' },
-      MAIN_QUESTS.slice(0, idx).reverse().map((q) => h('div', { class: 'qb-note qb-mini paper-kraft qb-in' },
+      MAIN_QUESTS.slice(0, idx).reverse().map((q) => h('div', { class: 'qb-note qb-mini qb-in', 'data-paper': 'kraft', 'data-seed': String(q.index + 11) },
         pinEl(crew(q.by).pin, 'top'),
-        poster(q.by, q.line, 'xs'),
-        h('div', { class: 'qb-mini-t' }, h('span', { class: 'qb-k' }, `QUEST ${q.index + 1}`), h('b', {}, q.title), h('span', { class: 'qb-goal sm' }, q.goal)),
-        stampEl('claimed', 'sm'))));
+        h('div', { class: 'qb-mini-top' }, artEl(q.id, 'xs'), stampEl('claimed', 'sm qb-inl')),
+        h('b', { class: 'qb-mini-t' }, q.title))));
   }
 
   function endNote() {
-    return h('div', { class: 'qb-note qb-hero qb-end paper-cream qb-in', 'data-pin': 'hero' },
+    return h('div', { class: 'qb-note qb-hero qb-end qb-in', 'data-paper': 'letter', 'data-pin': 'hero' },
       pinEl('blue', 'top'),
       h('div', { class: 'qb-hero-top' },
-        poster('jimmy', 'You finished the whole story. I am writing chapter four right now. On a napkin. It is going great.', 'big'),
-        h('div', { class: 'qb-hero-meta' },
-          h('div', { class: 'qb-kline' }, h('span', { class: 'qb-k' }, `ALL ${MAIN_QUESTS.length} QUESTS DONE`), stampEl('claimed', 'inl')),
-          h('b', { class: 'qb-title' }, 'Story Complete'),
-          h('span', { class: 'qb-by' }, 'Posted by Jimmy'))),
-      h('p', { class: 'qb-scrib' }, 'Chapter 4 is being written on a napkin. Daily and character quests keep coming.'));
+        h('div', { class: 'qb-taped' }, poster('jimmy', 'You finished the whole story. I am writing chapter four right now. On a napkin. It is going great.', 'big', bubHost), tapeEl('', 'pt')),
+        h('div', { class: 'qb-hero-art' }, artEl('end', 'big'))),
+      stampEl('claimed', 'qb-corner'),
+      h('b', { class: 'qb-title' }, 'Story Complete'),
+      h('div', { class: 'qb-obj full' }, h('span', { class: 'qb-oi' }, icon('quest')), h('b', { class: 'qb-cnt' }, `${MAIN_QUESTS.length}/${MAIN_QUESTS.length}`)));
   }
 
   // DAILY ---------------------------------------------------------------------
@@ -424,42 +564,44 @@ export function openQuestBoard(hm, opts = {}) {
     refreshDaily();
     const list = challengeList();
     const day = P().challenges.day;
-    const headCard = h('div', { class: 'qb-note qb-dhead paper-white qb-in', 'data-pin': 'dhead' },
-      tapeEl('l', 'tl'), tapeEl('r', 'tr'),
-      poster('juan', 'Daily specials, fresh every morning. Finish them for Calories. Calories fill the Food Pass. The Food Pass fills your pockets.', 'big'),
+    const headCard = h('div', { class: 'qb-note qb-dhead qb-in', 'data-paper': 'receipt', 'data-pin': 'dhead' },
+      tapeEl('', 'tc'),
+      poster('juan', 'Daily specials, fresh every morning. Finish them for Calories. Calories fill the Food Pass. The Food Pass fills your pockets.', 'big', bubHost),
       h('div', { class: 'qb-dhead-t' },
-        h('span', { class: 'qb-k' }, 'POSTED BY JUAN'),
         h('b', { class: 'qb-title' }, 'Daily Specials'),
-        h('span', { class: 'qb-scrib' }, 'Calories fill the Food Pass.'),
-        h('span', { class: 'qb-timer' }, icon('clock'), 'New list in ', countdown(midnightMs()))));
+        h('span', { class: 'qb-timer', title: 'New list in' }, icon('clock'), countdown(midnightMs()))));
     const notes = list.map((c, i) => {
       const key = `d:${day}:${c.id}`;
       const isNew = !seen[key] && !c.done && !c.claimed;
       seen[key] = 1;
-      const kind = c.claimed ? 'claimed' : c.done ? 'done' : isNew ? 'new' : c.prog > 0 ? 'prog' : 'new';
+      const kind = c.claimed ? 'claimed' : c.done ? null : isNew ? 'new' : null;
       const act = c.claimed ? null : c.done ? button('CLAIM', () => claimDaily(c, note), 'green qb-act qb-claim pulse', { icon: 'gift', sound: 'tap' }) : null;
-      const note = h('div', { class: `qb-note qb-daily paper-${DAILY_PAPER[i % DAILY_PAPER.length]} qb-in ${c.claimed ? 'claimed' : c.done ? 'ready' : ''}`, 'data-pin': 'd' + i },
+      const pic = h('button', { class: 'qb-art-btn', type: 'button', 'aria-label': 'Juan says' }, artEl(c.stat ?? 'wins', 'md'), h('i', { class: 'qb-talk', 'aria-hidden': 'true' }));
+      pic.addEventListener('click', (e) => { e.stopPropagation(); speak('juan', DAILY_LINES[c.id] ?? 'Finish it before midnight. I believe in you. Mostly.', pic, root); });
+      const note = h('div', { class: `qb-note qb-daily qb-in ${c.claimed ? 'claimed' : c.done ? 'ready' : ''}`, 'data-paper': DAILY_PAPER[i % DAILY_PAPER.length], 'data-seed': String(i + 2), 'data-pin': 'd' + i, 'aria-label': c.text },
         pinEl(['red', 'blue', 'green'][i % 3], 'top'),
-        stampEl(kind, 'qb-d-stamp'),
-        h('button', { class: 'qb-d-ic', type: 'button', 'aria-label': 'Juan says', onclick: (e) => { e.stopPropagation(); talk('juan', DAILY_LINES[c.id] ?? 'Finish it before midnight. I believe in you. Mostly.', e.currentTarget); } }, icon(DAILY_ICON[c.stat] ?? 'star')),
-        h('b', { class: 'qb-goal big' }, c.text),
-        progressEl(c.prog, c.n, c.done),
-        h('div', { class: 'qb-foot' }, rewardsRow({ calories: c.cal }), act));
+        h('div', { class: 'qb-daily-top' }, pic,
+          h('div', { class: 'qb-daily-t' }, h('b', { class: 'qb-title sm' }, DAILY_TITLE[c.id] ?? c.text), objRow(c.stat, c.prog, c.n, c.done))),
+        // the stamp sits where the CLAIM button would be
+        h('div', { class: 'qb-foot' }, rewardsRow({ calories: c.cal }), act ?? (kind ? stampEl(kind, 'qb-inl') : null)));
       return note;
     });
     const out = [headCard, h('div', { class: 'qb-dgrid' }, notes)];
-    if (!list.length) out.push(h('div', { class: 'qb-note paper-white qb-in qb-empty' }, h('b', {}, 'No specials today. Juan ate the list.')));
+    if (!list.length) out.push(h('div', { class: 'qb-note qb-in qb-empty', 'data-paper': 'index' }, h('b', {}, 'No specials today. Juan ate the list.')));
     return out;
   }
 
-  // CHARACTERS ----------------------------------------------------------------
+  // CREW ----------------------------------------------------------------------
   function charsPage() {
     const cards = Object.keys(QUEST_CHAINS).map(chainCard);
     cards.push(rematchCard());
     return [h('div', { class: 'qb-cgrid' }, cards)];
   }
-  function chainSteps(n, step, finished) {
-    return h('div', { class: 'qb-steps' }, Array.from({ length: n }, (_, k) => h('i', { class: finished || k < step ? 'on' : k === step ? 'cur' : '' })));
+  /** The chain as boxes, ending in the prize (a crown + the commander's photo when there is one). */
+  function chainSteps(n, step, finished, prizeChar) {
+    return h('div', { class: 'qb-steps' },
+      Array.from({ length: n }, (_, k) => h('i', { class: finished || k < step ? 'on' : k === step ? 'cur' : '' })),
+      prizeChar ? h('span', { class: 'qb-prize' }, h('i', { class: 'qb-prize-c' }, icon('crown')), h('span', { class: 'qb-prize-f' }, charImg(prizeChar, { size: 96, eyes: 'happy', mouth: 'grin' }))) : null);
   }
   function chainCard(npc) {
     const st = questState(npc);
@@ -467,36 +609,32 @@ export function openQuestBoard(hm, opts = {}) {
     const lastQ = QUESTS[chain[chain.length - 1]];
     const finalCmd = lastQ?.reward?.commander;
     const c = crew(npc);
-    const head = h('div', { class: 'qb-case-head' },
-      poster(npc, st && !st.finished ? CHAIN_LINES[st.quest.id] : `Thanks for the help. ${c.name} owes you one. Maybe two.`, 'big'),
-      h('div', { class: 'qb-case-meta' },
-        h('div', { class: 'qb-kline' }, h('b', { class: 'qb-case-n' }, c.name.toUpperCase()), h('i', { class: 'qb-case-st' })),
-        h('span', { class: 'qb-scrib sm' }, CHAIN_INTRO[npc] ?? ''),
-        chainSteps(chain.length, st?.finished ? chain.length : st?.step ?? 0, !!st?.finished),
-        finalCmd ? h('span', { class: 'qb-case-prize' }, icon('crown'), `Finish all ${chain.length}: ${c.name} joins as a Commander`) : null));
-    let body, kind = 'prog', act = null;
+    let body, kind = null, act = null;
     if (!st || st.finished) {
       kind = 'claimed';
-      body = h('div', { class: 'qb-case-body' }, h('b', { class: 'qb-title sm' }, 'All done'), h('span', { class: 'qb-goal sm' }, `Every one of ${c.name}'s quests is finished.`));
+      body = h('div', { class: 'qb-case-body' }, artEl('end', 'md'), h('div', { class: 'qb-case-q' }, h('b', { class: 'qb-title sm' }, 'All done'),
+        h('div', { class: 'qb-obj full' }, h('span', { class: 'qb-oi' }, icon('check')), h('b', { class: 'qb-cnt' }, `${chain.length}/${chain.length}`))));
     } else {
       const q = st.quest;
-      kind = !st.accepted ? 'new' : st.done ? 'done' : 'prog';
+      kind = !st.accepted ? 'new' : null;
       if (!st.accepted) act = button('ACCEPT', () => { acceptQuest(npc); audio.play('magic'); audio.play('stamp', { vol: 0.5 }); refreshCtx(ctx); render(false); }, 'blue qb-act', { icon: 'quest', sound: 'tap' });
       else if (st.done) act = button('CLAIM', () => claimChain(npc, card), 'green qb-act qb-claim pulse', { icon: 'gift', sound: 'tap' });
       else if (q.boss) act = button('FIGHT', () => { close(); openBoss(q.boss, ctx); }, 'red qb-act', { icon: 'boss', sound: 'tap' });
       else if (q.secret) act = button('SEARCH', () => { close(); ctx.focusArena?.(QUEST_NPC_ZONE[npc]); }, 'teal qb-act', { icon: 'eye', sound: 'tap' });
-      const zone = arenaById(QUEST_NPC_ZONE[npc]);
       body = h('div', { class: 'qb-case-body' },
-        h('span', { class: 'qb-k' }, `QUEST ${st.step + 1} OF ${st.steps}`),
-        h('b', { class: 'qb-title sm' }, q.title),
-        h('span', { class: 'qb-goal sm', html: rich(st.text) }),
-        st.accepted && q.stat ? progressEl(st.prog, st.need, st.done) : null,
-        q.secret && st.accepted && !st.done && zone ? h('span', { class: 'qb-scrib sm' }, `Hidden somewhere in the ${zone.name} zone.`) : null,
-        h('div', { class: 'qb-foot' }, rewardsRow(q.reward), act));
+        artEl(q.id, 'md'),
+        h('div', { class: 'qb-case-q' },
+          h('b', { class: 'qb-title sm' }, q.title),
+          st.accepted || q.boss || q.secret ? objRow(q.id, st.prog, st.need, st.done) : h('div', { class: 'qb-obj' }, objIcon(q.id), h('b', { class: 'qb-cnt' }, 'x' + (q.n ?? 1)))));
+      body = [body, h('div', { class: 'qb-foot' }, rewardsRow(q.reward), act)];
     }
-    head.querySelector('.qb-case-st').replaceWith(stampEl(kind, 'inl'));
-    const card = h('div', { class: `qb-note qb-case paper-white qb-in ${kind === 'done' ? 'ready' : ''}`, 'data-pin': 'c-' + npc },
-      pinEl(c.pin, 'top'), head, body);
+    const head = h('div', { class: 'qb-case-head' },
+      h('div', { class: 'qb-clipped' }, poster(npc, st && !st.finished ? CHAIN_LINES[st.quest.id] : `Thanks for the help. ${c.name} owes you one. Maybe two.`, 'big', bubHost), h('i', { class: 'qb-clip', 'aria-hidden': 'true' })),
+      h('div', { class: 'qb-case-meta' },
+        h('b', { class: 'qb-case-n' }, c.name.toUpperCase()),
+        chainSteps(chain.length, st?.finished ? chain.length : st?.step ?? 0, !!st?.finished, finalCmd ? CREW[finalCmd]?.char ?? finalCmd : null)));
+    const card = h('div', { class: `qb-note qb-case qb-in ${st && !st.finished && st.done ? 'ready' : ''}`, 'data-paper': 'file', 'data-seed': String(npc.length), 'data-pin': 'c-' + npc, 'aria-label': `${c.name}'s quests` },
+      pinEl(c.pin, 'top'), kind ? stampEl(kind, 'qb-corner') : null, head, body);
     return card;
   }
   function rematchCard() {
@@ -504,25 +642,27 @@ export function openQuestBoard(hm, opts = {}) {
     const b = BOSSES.jimmyRematch;
     const ok = P().bestTrophies >= b.minTrophies;
     const head = h('div', { class: 'qb-case-head' },
-      poster('jimmy', has ? 'Fine. You won. I am on your team now. I still want that pizza.' : CHAIN_LINES.jimmyRematch, 'big'),
+      h('div', { class: 'qb-clipped' }, poster('jimmy', has ? 'Fine. You won. I am on your team now. I still want that pizza.' : CHAIN_LINES.jimmyRematch, 'big', bubHost), h('i', { class: 'qb-clip', 'aria-hidden': 'true' })),
       h('div', { class: 'qb-case-meta' },
-        h('div', { class: 'qb-kline' }, h('b', { class: 'qb-case-n' }, 'JIMMY'), stampEl(has ? 'claimed' : ok ? 'new' : 'locked', 'inl')),
-        h('span', { class: 'qb-scrib sm' }, 'The boss of the lab wants a rematch.'),
-        h('span', { class: 'qb-case-prize' }, icon('crown'), 'Win: Jimmy joins as a Commander')));
+        h('b', { class: 'qb-case-n' }, 'JIMMY'),
+        chainSteps(1, has ? 1 : 0, has, 'jimmy')));
     let act = null;
     if (!has) act = ok ? button('FIGHT', () => { close(); openBoss('jimmyRematch', ctx); }, 'red qb-act', { icon: 'boss', sound: 'tap' })
       : lockedBtn('FIGHT', `Reach *${b.minTrophies} trophies* to challenge Jimmy.`);
     const body = h('div', { class: 'qb-case-body' },
-      h('b', { class: 'qb-title sm' }, 'The Rematch'),
-      h('span', { class: 'qb-goal sm' }, has ? 'You beat Jimmy. He joined your Lab.' : b.desc),
+      artEl('jimmyRematch', 'md'),
+      h('div', { class: 'qb-case-q' },
+        h('b', { class: 'qb-title sm' }, 'The Rematch'),
+        has ? h('div', { class: 'qb-obj full' }, h('span', { class: 'qb-oi' }, icon('check')), h('b', { class: 'qb-cnt' }, '1/1'))
+          : h('div', { class: `qb-obj ${ok ? 'full' : ''}` }, h('span', { class: 'qb-oi' }, icon('trophy')), h('b', { class: 'qb-cnt' }, `${fmt(Math.min(P().bestTrophies, b.minTrophies))}/${fmt(b.minTrophies)}`))));
+    return h('div', { class: 'qb-note qb-case qb-in', 'data-paper': 'file', 'data-seed': '9', 'data-pin': 'c-jimmy', 'aria-label': 'Jimmy rematch' },
+      pinEl('blue', 'top'), has ? stampEl('claimed', 'qb-corner') : ok ? stampEl('new', 'qb-corner') : null, head, body,
       h('div', { class: 'qb-foot' }, has ? null : rewardsRow({ commander: 'jimmy' }), act));
-    return h('div', { class: 'qb-note qb-case paper-white qb-in', 'data-pin': 'c-jimmy' },
-      pinEl('blue', 'top'), head, body);
   }
 
   // ------------------------------------------------------------ red string between pins
-  // Each link ties the two nearest corners of two notes (pins in the paper's margin, so the string
-  // never runs over writing) with a sagging pixel string.
+  // Each link ties the two nearest corners of two notes (in the paper's margin, so the string never
+  // runs over writing) with a sagging yarn; curled / dog-eared corners are skipped.
   const LINKS = {
     main: [['chap', 'hero'], ['hero', 'next'], ['next', 'pile'], ['next', 'folder']],
     daily: [['dhead', 'd0'], ['d0', 'd1'], ['d1', 'd2']],
@@ -531,18 +671,17 @@ export function openQuestBoard(hm, opts = {}) {
   function layoutStrings() {
     if (closed) return;
     const S = sheet.getBoundingClientRect();
-    const cs = getComputedStyle(document.documentElement);
-    const px = parseFloat(cs.getPropertyValue('--px')) || 2;
-    const inset = px * 6 * 0.6;
+    const inset = 9;
     const box = (id) => {
       const el = page.querySelector(`[data-pin="${id}"]`);
       if (!el) return null;
       const r = el.getBoundingClientRect();
       if (r.width < 4) return null;
       const L = r.left - S.left, T = r.top - S.top, R = r.right - S.left, B = r.bottom - S.top;
-      const c = [{ x: L + inset, y: T + inset }, { x: R - inset, y: T + inset }, { x: L + inset, y: B - inset }];
-      // a dog-eared note has no bottom-right corner to pin
-      if (!el.classList.contains('paper-cream')) c.push({ x: R - inset, y: B - inset });
+      // bottom corners cost a little extra: ties go to the top corners, away from the buttons
+      const c = [{ x: L + inset, y: T + inset, k: 0 }, { x: R - inset, y: T + inset, k: 0 }, { x: L + inset, y: B - inset, k: 24 }];
+      const k = el.dataset.paper;
+      if (k !== 'letter' && !['yellow', 'pink', 'blue', 'green'].includes(k)) c.push({ x: R - inset, y: B - inset, k: 24 });
       return c;
     };
     const segs = [], pts = [];
@@ -550,11 +689,11 @@ export function openQuestBoard(hm, opts = {}) {
       const A = box(a), B = box(b);
       if (!A || !B) continue;
       let best = null, bd = Infinity;
-      for (const p of A) for (const q of B) { const d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd) { bd = d; best = [p, q]; } }
+      for (const p of A) for (const q of B) { const d = Math.hypot(p.x - q.x, p.y - q.y) + p.k + q.k; if (d < bd) { bd = d; best = [p, q]; } }
       segs.push(best);
       for (const p of best) if (!pts.some((o) => Math.abs(o.x - p.x) < 2 && Math.abs(o.y - p.y) < 2)) pts.push(p);
     }
-    drawString(strings, sheet.scrollWidth, sheet.scrollHeight, px, segs);
+    drawString(strings, sheet.scrollWidth, sheet.scrollHeight, 1, segs);
     knots.replaceChildren(...pts.map((p) => h('i', { class: 'qb-knot', style: { left: p.x + 'px', top: p.y + 'px' } })));
   }
 
@@ -624,6 +763,7 @@ export function openQuestBoard(hm, opts = {}) {
     if (!got) return;
     busy = true;
     try {
+      hush();
       note.classList.add('claiming');
       note.querySelector('.qb-claim')?.remove();
       await slam(note);
@@ -647,7 +787,7 @@ export function openQuestBoard(hm, opts = {}) {
       const hero = page.querySelector('.qb-hero');
       if (hero && !reduced()) {
         hero.classList.add('qb-drop', 'qb-big');
-        setTimeout(() => hero.classList.remove('qb-drop', 'qb-big'), 900);
+        setTimeout(() => { hero.classList.remove('qb-drop', 'qb-big'); layoutStrings(); }, 900);
         setTimeout(() => audio.play('cork'), 300);
       }
       onChange();
@@ -660,6 +800,7 @@ export function openQuestBoard(hm, opts = {}) {
     if (!cal) return;
     busy = true;
     try {
+      hush();
       note.classList.add('claiming');
       note.querySelector('.qb-claim')?.remove();
       await slam(note);
@@ -681,6 +822,7 @@ export function openQuestBoard(hm, opts = {}) {
     if (!got.length) return;
     busy = true;
     try {
+      hush();
       card.classList.add('claiming');
       card.querySelector('.qb-claim')?.remove();
       await slam(card);
@@ -717,7 +859,9 @@ export function openQuestBoard(hm, opts = {}) {
     if (closed) return;
     closed = true;
     open = null;
+    hush();
     clearTimeout(coverT);
+    clearTimeout(resizeT);
     clearInterval(timer);
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('resize', onResize);
@@ -729,7 +873,10 @@ export function openQuestBoard(hm, opts = {}) {
     onChange();
   }
 
+  renderTabs();
   render(true);
+  // the wall / frame / light paint once the first frame is out, while the board is still fading in
+  requestAnimationFrame(() => setTimeout(paintScenery, 0));
   state.save();
   open = { close, root, get tab() { return tab; } };
   return open;

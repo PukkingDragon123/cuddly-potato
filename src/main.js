@@ -20,7 +20,7 @@ async function boot() {
   setBoot(0.6);
   try {
     await Promise.race([
-      Promise.all([document.fonts.load('800 16px "Swarm Display"'), document.fonts.load('16px "Swarm Body"')]),
+      Promise.all([document.fonts.load('16px "Swarm Display"'), document.fonts.load('16px "Swarm Body"'), document.fonts.load('800 16px "Swarm Body"')]),
       new Promise((r) => setTimeout(r, 1500)),
     ]);
   } catch (e) { /* fonts optional */ }

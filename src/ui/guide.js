@@ -19,13 +19,13 @@ import { h, icon, animIcon, button, say, pointAt, toast, burst, sparkle, confett
 import { audio } from '../core/audio.js';
 import { charPortrait } from './thumbs.js';
 import { frameSkin } from './skin.js';
-import { ensureBoardArt, tallyURL } from './home/questBoardArt.js';
+import { ensureBoardArt, tallyURL, questArt, paperCanvas, cloneCanvas, PAPER_M } from './home/questBoardArt.js';
 import { state, upgradeInfo, currentDeck, passClaimable, trophyRoadClaimable, refreshDaily, challengeList, questState } from '../game/state.js';
 import { QUEST_CHAINS } from '../data/arenas.js';
 import { STARTER_CARDS } from '../data/cards.js';
 import {
   FEATURES, featureUnlocked, featureRevealed, pendingReveals, markRevealed, lockInfo, guideDone, setGuideDone, releaseDeckHold,
-  lessonDone, setLessonDone, mainQuest, chapterOf,
+  lessonDone, setLessonDone, mainQuest,
 } from '../game/progression.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -595,7 +595,10 @@ export function openQuestBoardFromHome(opts) { if (home) openBoard(home, opts); 
 
 function mountTracker(hm) {
   trackerKey = '';
-  try { ensureBoardArt(); } catch (e) { /* plain paper fallback in CSS */ }
+  // the board's sprites (pins, the "!" sticker...) paint when the lobby is idle; the note shows plain
+  // paper until then
+  const art = () => { try { ensureBoardArt(); } catch (e) { /* plain paper fallback in CSS */ } };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(art, { timeout: 1500 }); else setTimeout(art, 300);
   trackerEl = h('button', { class: 'gd-qt', type: 'button', 'aria-label': 'Open the quest board' });
   trackerEl.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -605,15 +608,54 @@ function mountTracker(hm) {
   });
   hm.root.appendChild(trackerEl);
   cleanup.push(() => boardMod?.closeQuestBoard());
+  // the paper is painted to size: repaint it when the note changes size (rotation, new text)
+  if (typeof ResizeObserver !== 'undefined') {
+    const el = trackerEl;
+    let raf = 0;
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => schedulePaper(el)); });
+    ro.observe(el);
+    cleanup.push(() => { ro.disconnect(); cancelAnimationFrame(raf); });
+  }
   updateTracker();
 }
 
 const REWARD_ICON = { coins: 'coin', bucks: 'bucks', calories: 'calorie', vial: 'vial', card: 'cards', commander: 'crown' };
+/** The reward as icon + amount. */
 function rewardPeek(r) {
   const k = ['coins', 'bucks', 'calories', 'vial', 'card', 'commander'].find((x) => r?.[x]);
   if (!k) return null;
-  const amt = k === 'coins' || k === 'bucks' || k === 'calories' ? r[k].toLocaleString('en-US') : k === 'card' ? 'x' + (r.copies ?? 1) : '1';
+  const amt = k === 'coins' || k === 'bucks' || k === 'calories' ? r[k].toLocaleString('en-US') : k === 'card' ? 'x' + (r.copies ?? 1) : 'x1';
   return h('span', { class: 'gd-qt-rw' }, animIcon(REWARD_ICON[k]), h('b', {}, amt));
+}
+const claimChip = (n = 1) => h('span', { class: 'gd-qt-claim' }, icon('gift'), n > 1 ? `CLAIM x${n}` : 'CLAIM');
+
+/** The tracker's paper: painted at its exact size (questBoardArt.js), repainted when it changes size. */
+function paintTrackerPaper(el) {
+  if (!el?.isConnected) return;
+  const w = el.offsetWidth, hh = el.offsetHeight;
+  if (w < 20 || hh < 20) return;
+  const old = el.querySelector(':scope > .gd-qt-paper');
+  if (old && old.dataset.size === `${w}x${hh}`) return;
+  const c = cloneCanvas(paperCanvas('letter', w, hh, 7), 'gd-qt-paper');
+  c.dataset.size = `${w}x${hh}`;
+  c.style.left = c.style.top = -PAPER_M + 'px';
+  c.style.width = c.width + 'px'; c.style.height = c.height + 'px';
+  if (old) old.replaceWith(c); else el.prepend(c);
+  el.classList.add('papered');
+}
+
+/** Repaint the paper now when it only changed size; the very first paint waits for an idle moment. */
+let paperIdle = 0;
+function schedulePaper(el) {
+  if (el.classList.contains('papered')) { paintTrackerPaper(el); return; }
+  if (paperIdle) return;
+  const go = () => {
+    paperIdle = 0;
+    paintTrackerPaper(el);
+    // the lobby was rebuilt meanwhile: paper the new note
+    if (trackerEl && trackerEl !== el && !trackerEl.classList.contains('papered')) schedulePaper(trackerEl);
+  };
+  paperIdle = typeof requestIdleCallback === 'function' ? requestIdleCallback(go, { timeout: 1200 }) : setTimeout(go, 200);
 }
 
 function updateTracker() {
@@ -629,44 +671,49 @@ function updateTracker() {
   const fresh = trackerKey && trackerKey.split('|')[0] !== (q?.id ?? 'end');
   trackerKey = key;
   const bang = (st.done && !st.finished) || side > 0;
-  el.className = `gd-qt ${st.done && !st.finished ? 'ready' : ''} ${bang ? 'bang' : ''}`;
-  let face, k, title, goal, row;
+  el.className = `gd-qt ${el.classList.contains('papered') ? 'papered' : ''} ${st.done && !st.finished ? 'ready' : ''} ${bang ? 'bang' : ''}`;
+  let art, title, row;
   if (st.finished) {
-    face = speaker('jimmy').portrait;
-    k = 'QUEST BOARD';
-    title = 'Story complete';
-    goal = featureRevealed('pass') ? 'Daily specials + crew quests' : 'Jimmy is writing more';
-    row = side > 0 ? h('span', { class: 'gd-qt-claim' }, icon('gift'), side === 1 ? '1 READY TO CLAIM' : `${side} READY TO CLAIM`) : null;
+    art = 'end';
+    title = 'Story Complete';
+    row = side > 0 ? claimChip(side) : h('div', { class: 'gd-qt-row' }, h('span', { class: 'gd-qt-oi' }, icon('quest')), h('b', { class: 'gd-qt-cnt done' }, `${st.steps}/${st.steps}`));
   } else {
-    const ch = chapterOf(st.step);
-    face = speaker(q.by).portrait;
-    k = [h('span', {}, `CHAPTER ${ch.n}`), h('i', { class: 'gd-qt-sep' }), h('span', {}, `QUEST ${st.step + 1}/${st.steps}`)];
+    art = q.id;
     title = q.title;
-    goal = q.goal ?? q.text;
-    if (st.done) row = h('span', { class: 'gd-qt-claim' }, icon('gift'), 'DONE! TAP TO CLAIM');
-    else if (st.locked) row = h('span', { class: 'gd-qt-lock' }, icon('lock'), h('span', { html: rich(lockInfo(st.locked).text.replace(/\*/g, '')) }));
-    else {
+    if (st.done) row = claimChip();
+    else if (st.locked) {
+      // locked: the feature's icon under a padlock + how many wins it takes
+      const L = lockInfo(st.locked), f = FEATURES[st.locked]?.alias ? FEATURES[FEATURES[st.locked].alias] : FEATURES[st.locked];
+      row = h('div', { class: 'gd-qt-row lock' },
+        h('span', { class: 'gd-qt-oi' }, icon(f?.icon ?? 'lock'), h('i', { class: 'gd-qt-oib' }, icon('lock'))),
+        h('b', { class: 'gd-qt-cnt' }, f?.trophies ? `${f.trophies}` : `${L.left ?? 1} ${(L.left ?? 1) === 1 ? 'WIN' : 'WINS'}`));
+    } else {
       const small = st.need <= 12;
+      // (the picture on the left already shows what to do: the row is progress + reward)
       row = h('div', { class: 'gd-qt-row' },
         small
-          ? h('img', { class: 'gd-qt-tally', src: tallyURL(st.prog, st.need), alt: '', style: { '--tw': st.need <= 1 ? 14 : Math.ceil(st.need / 5) * 15 + 2 } })
+          ? h('img', { class: 'gd-qt-tally', src: tallyURL(st.prog, st.need), alt: '', style: { width: (st.need <= 1 ? 28 : Math.ceil(st.need / 5) * 30 + 4) + 'px' } })
           : h('div', { class: 'gd-qt-bar' }, h('i', { style: { width: Math.max(3, (st.prog / st.need) * 100) + '%' } })),
         h('b', { class: 'gd-qt-cnt' }, st.need >= 100 ? `${st.prog.toLocaleString('en-US')}/${st.need.toLocaleString('en-US')}` : `${st.prog}/${st.need}`),
         rewardPeek(q.reward));
     }
   }
-  el.replaceChildren(
+  const paper = el.querySelector(':scope > .gd-qt-paper');
+  el.replaceChildren(...[
+    paper,
     h('i', { class: 'gd-qt-pin', 'aria-hidden': 'true' }),
-    h('div', { class: 'gd-qt-face' }, h('img', { src: face ?? '', alt: '', draggable: 'false' })),
-    h('div', { class: 'gd-qt-txt' },
-      h('span', { class: 'gd-qt-k' }, ...[k].flat()),
-      h('b', { class: 'gd-qt-n' }, title),
-      h('span', { class: 'gd-qt-goal' }, goal),
-      row),
-    ...(bang ? [h('i', { class: 'gd-qt-bang', 'aria-hidden': 'true' }, h('b', {}, '!'))] : []));
+    h('img', { class: 'gd-qt-art', src: questArt(art), alt: '', draggable: 'false' }),
+    h('div', { class: 'gd-qt-txt' }, h('b', { class: 'gd-qt-n' }, title), row),
+    bang ? h('i', { class: 'gd-qt-bang', 'aria-hidden': 'true' }, h('b', {}, '!')) : null,
+  ].filter(Boolean));
+  el.setAttribute('aria-label', `Quest board: ${title}`);
   if (fresh) { el.classList.add('gd-qt-in'); setTimeout(() => el.classList.remove('gd-qt-in'), 700); }
-  // the guided-step chip hangs under the tracker
-  requestAnimationFrame(() => { if (el.isConnected) el.parentElement?.style.setProperty('--gd-qt-b', el.offsetTop + el.offsetHeight + 'px'); });
+  requestAnimationFrame(() => {
+    if (!el.isConnected) return;
+    schedulePaper(el);
+    // the guided-step chip hangs under the tracker
+    el.parentElement?.style.setProperty('--gd-qt-b', el.offsetTop + el.offsetHeight + 'px');
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -139,7 +139,7 @@ export function mount(el, ctx, opts = {}) {
         h('div', { class: 'pz-title t-d' }, SEASON.name),
         h('div', { class: 'pz-season-sub' },
           h('span', { class: 'pz-sn t-d' }, `SEASON ${SEASON.id}`),
-          h('span', { class: 'pz-clock' }, icon('clock', 's'), h('span', {}, 'Ends in'), countdown(seasonEndMs(), 'c-gold t-d', true)))),
+          h('span', { class: 'pz-clock' }, icon('clock', 's'), countdown(seasonEndMs(), 'c-gold t-d', true)))),
       premSlot),
     h('div', { class: 'pz-xp' },
       h('div', { class: 'pz-tierbox cur' }, h('small', { class: 't-d' }, 'TIER'), hudTier),

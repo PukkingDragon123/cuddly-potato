@@ -644,7 +644,8 @@ const needQ = (el) => {
 };
 const needPx = (el) => {
   const w = el.offsetWidth * (AV_GEOM.picSize / 100) * (window.devicePixelRatio || 1);
-  return w > 0 && w <= 72 ? PIC_PX[0] : PIC_PX[1];
+  if (!(w > 0)) return 0; // hidden (display: none): no size yet, keep the small picture
+  return w <= 72 ? PIC_PX[0] : PIC_PX[1];
 };
 // frames are painted inside a small time budget per frame; the rest waits for idle time
 let spent = 0, spentAt = 0;
@@ -688,6 +689,12 @@ function paint(el, late = false) {
   if (!url) return;
   if (st.frm.getAttribute('src') !== url) st.frm.src = url;
   el.style.setProperty('--pav-img', `url("${url}")`);
+  // the picture waits for its frame: both appear together (never a bare picture, then a frame popping on)
+  if (!el.classList.contains('pav-on')) {
+    const on = () => el.classList.add('pav-on');
+    if (st.frm.complete && st.frm.naturalWidth) on();
+    else st.frm.addEventListener('load', on, { once: true });
+  }
   // animated strip
   const n = STRIP[def.anim];
   if (n && st.anim && !reduced()) {
@@ -700,8 +707,20 @@ function paint(el, late = false) {
       st.stripBox.style.setProperty('--pav-sd', STRIP_DUR[def.anim] + 's');
       if (st.strip.getAttribute('src') !== su) st.strip.src = su;
       el.classList.add('pav-strip-on');
+      snapStrip(el);
     } else { backlog.add(el); later(); }
   }
+}
+/** The sprite strip steps by its box width: keep that a whole number of pixels (centred on the
+ * avatar), so every phase lands on the same sub-pixel offset and the animation never shimmers. */
+function snapStrip(el) {
+  const box = el._av?.stripBox;
+  if (!box) return;
+  const b = el.getBoundingClientRect().width;
+  if (!(b > 0)) return;
+  const W = Math.max(1, Math.round(b * (AV_GEOM.frameSize / 100)));
+  const o = ((b - W) / 2).toFixed(2) + 'px';
+  Object.assign(box.style, { width: W + 'px', height: W + 'px', left: o, top: o });
 }
 let ro = null;
 function watch(el) {
@@ -713,6 +732,7 @@ function watch(el) {
       if (!st || !el2.isConnected) { ro.unobserve(el2); backlog.delete(el2); continue; }
       const q = needQ(el2);
       if (q > st.q) { st.q = q; paint(el2); }
+      snapStrip(el2);
       const px = needPx(el2);
       if (px > st.px) { st.px = px; setPic(el2); }
     }
@@ -735,6 +755,13 @@ function setPic(el) {
     }
   } else el.insertBefore(img, el.firstChild);
   st.pic = img;
+  // the avatar shows once its picture is drawn too (lazy grid tiles show a blinking plate instead);
+  // a picture that takes longer than ~4 s shows its plate rather than keep the avatar hidden
+  if (!st.lazy && !el.classList.contains('pav-pic-ok')) {
+    let n = 0;
+    const ok = () => (img.classList.contains('loaded') || ++n > 40 ? (el.classList.add('pav-pic-ok'), true) : false);
+    if (!ok()) { const iv = setInterval(() => { if (ok()) clearInterval(iv); }, 100); }
+  }
 }
 
 /**
@@ -743,7 +770,7 @@ function setPic(el) {
  */
 export function avatarEl(avatarId, frameId, opts = {}) {
   const frm = h('img', { class: 'pav-frm', alt: '', draggable: 'false' });
-  const el = h('span', { class: `pav ${opts.cls ?? ''}`.trim(), role: 'img' }, frm);
+  const el = h('span', { class: `pav ${opts.lazy ? 'pav-lazy ' : ''}${opts.cls ?? ''}`.trim(), role: 'img' }, frm);
   if (opts.size) el.style.setProperty('--av', typeof opts.size === 'number' ? opts.size + 'px' : opts.size);
   el._av = { avatar: null, frame: null, q: 0, px: 0, frm, pic: null, strip: null, stripBox: null, anim: opts.anim !== false, lazy: !!opts.lazy };
   setAvatar(el, avatarId, frameId);
@@ -808,12 +835,16 @@ export function framePreviewEl(frameId, opts = {}) {
   el.classList.add('pav-empty');
   return el;
 }
-/** Warm the cache for a few looks (e.g. the VS intro's two avatars) so they appear already drawn. */
+/** Warm the cache for a few looks (the battle's two players) so the VS intro, the entrance title
+ * card and the HUD plates show them already drawn: frames at the common scales + both picture sizes. */
 export function prewarmLooks(looks = []) {
   for (const l of looks) {
     if (!l) continue;
     const f = FRAMES[l.frame] ?? FRAMES[DEFAULT_FRAME];
     for (const q of [2, 3]) if (!frameCache.has(f.id + '|' + q)) { try { frameURL(f.id, q); } catch (e) { /* drawn on demand */ } }
+    const a = AVATARS[l.avatar] ? l.avatar : DEFAULT_AVATAR;
+    // force: the job runs even though this <img> is never attached; later avatarEl()s hit the cache
+    for (const px of PIC_PX) lazyImg(picKey(a, px), () => composePicture(a, px), 'pav-img', { priority: true, force: true });
   }
 }
 /** Stable seed helper for rivals without one. */

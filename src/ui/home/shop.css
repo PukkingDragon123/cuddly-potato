@@ -340,3 +340,8 @@ body.landscape .cdlg.bk-dlg .cdlg-panel { left: calc(var(--bk-left) + (100vw - v
 .bk-ent-hint b { color: #ffd84a; }
 .bk-pass.bk-ent-tro { color: #ffd84a; }
 .bk-pass.bk-ent-lock { color: #c8d0ff; }
+/* less text: a section head can carry a count beside its plate; the free vial's timer is icon + countdown */
+.bk-head:has(> .bk-head-n) { flex-direction: row; align-items: center; gap: calc(var(--u) * 1.4); }
+.bk-head-n { font-size: 1.25em; color: var(--bk-cream, #f2e6c8); text-shadow: var(--outline-thin); white-space: nowrap; }
+.bk-wide-t { display: inline-flex; align-items: center; gap: 0.3em; }
+.bk-note-foot .pi { width: 1.6em; height: 1.6em; }

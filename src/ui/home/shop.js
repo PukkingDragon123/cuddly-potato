@@ -20,7 +20,6 @@ import {
 import { cardDef, RARITIES } from '../../data/cards.js';
 import { VIALS } from '../../data/vials.js';
 import { BANNERS, SWARM_SKINS, CMD_SKINS } from '../../data/season.js';
-import { COMMANDERS } from '../../data/commanders.js';
 import { ENTRANCES } from '../../data/entrances.js';
 import { featureUnlocked, featureHint, lockInfo } from '../../game/progression.js';
 import { CHARACTERS, voiceOf } from '../../data/characters.js';
@@ -61,13 +60,14 @@ export function cosmeticOwned(o) {
   if (o.type === 'cmdSkin') return cmdSkinOwned(CMD_SKINS[o.id]?.commander, o.id);
   return false;
 }
+// one short line per vial: card count + the guarantee (no sentences)
 const VIAL_BLURB = {
-  labPack: '18+ cards. 2 Rares guaranteed.',
-  megaLab: '42+ cards. An Ultra Rare guaranteed.',
-  hyperchrome: '12+ cards. 8x shiny odds.',
-  cashCase: '70+ cards. A Legendary guaranteed.',
-  snackPack: '15+ Snack Squad cards.',
-  testTube: '7+ cards.',
+  labPack: '18+ cards, 2 Rares',
+  megaLab: '42+ cards, 1 Ultra Rare',
+  hyperchrome: '12+ cards, 8x shiny',
+  cashCase: '70+ cards, 1 Legendary',
+  snackPack: '15+ Snack Squad',
+  testTube: '7+ cards',
 };
 const COIN_ART = { coinPile: 'coinStack', coinBag: 'coinPile', coinVault: 'coinChest' };
 // The daily hero offer: one premium vial in the vault (rotates every day).
@@ -491,8 +491,7 @@ export function mount(el, ctx) {
       h('div', { class: 'bk-wide-art' }, h('div', { class: 'px-rays bk-wide-rays' }), rewardArt(r)),
       h('div', { class: 'bk-wide-txt' },
         h('span', { class: 'bk-wide-k t-d' }, 'DAILY GIFT'),
-        h('b', { class: 'bk-wide-n' }, rewardLabel(r)),
-        h('span', { class: 'bk-wide-s' }, 'On the house. Once a day.')),
+        h('b', { class: 'bk-wide-n' }, rewardLabel(r))),
       done ? null : button('FREE', () => {
         if (state.p.shop.freeClaimed || shopBought('free')) return;
         state.p.shop.freeClaimed = true;
@@ -519,8 +518,8 @@ export function mount(el, ctx) {
       h('div', { class: 'bk-wide-art' }, h('div', { class: 'px-rays bk-wide-rays' }), vialArt('free')),
       h('div', { class: 'bk-wide-txt' },
         h('span', { class: 'bk-wide-k t-d c-green' }, 'FREE VIAL'),
-        h('b', { class: 'bk-wide-n' }, fs.ready ? (fs.count > 1 ? `${fs.count} waiting` : 'Ready to open') : 'Refilling'),
-        fs.ready ? h('span', { class: 'bk-wide-s' }, 'A new one every 4 hours.') : h('span', { class: 'bk-wide-s' }, 'Next one in ', countdown(Date.now() + fs.nextIn * 1000, 'c-gold'))),
+        // ready: how many wait (x2..); refilling: a clock + the countdown, no sentences
+        fs.ready ? (fs.count > 1 ? h('b', { class: 'bk-wide-n' }, `x${fs.count}`) : null) : h('b', { class: 'bk-wide-n bk-wide-t' }, icon('clock', 's'), countdown(Date.now() + fs.nextIn * 1000, 'c-gold'))),
       fs.ready ? button('OPEN', () => ctx.openFree?.(), 'green bk-buy pulse', { icon: 'vial' }) : h('div', { class: 'bk-soon t-d' }, icon('clock', 's'), 'SOON'));
     return tile;
   }
@@ -567,10 +566,8 @@ export function mount(el, ctx) {
       h('div', { class: 'bk-vault-glow' }),
       h('div', { class: 'bk-vault-art' }, h('div', { class: 'px-rays bk-vault-rays' }), vialArt(id, 'bk-vault-vial', { size: 320 })),
       h('div', { class: 'bk-vault-txt' },
-        h('span', { class: 'bk-vault-k t-d' }, icon('lock', 's'), 'FROM THE VAULT'),
         h('b', { class: 'bk-vault-n t-d' }, v.name.toUpperCase()),
         h('span', { class: 'bk-vault-tag t-d' }, HERO_TAG[id] ?? 'TODAY ONLY'),
-        h('span', { class: 'bk-vault-s' }, VIAL_BLURB[id] ?? v.desc ?? ''),
         h('div', { class: 'bk-vault-chips' },
           h('span', { class: 'bk-chip' }, icon('cards', 's'), `x${v.cards}`),
           h('span', { class: 'bk-chip' }, icon('coin', 's'), `${fmtN(v.coins[0])}+`),
@@ -579,13 +576,13 @@ export function mount(el, ctx) {
           sold ? null : (() => {
             const b = button('BUY', () => buy({
               key, cur: 'bucks', price: o.price, tile, kind: 'vial',
-              title: v.name.toUpperCase(), art: vialArt(id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens right away. No timer.'), yesCls: 'yellow',
+              title: v.name.toUpperCase(), art: vialArt(id, 'mn-confirm-vial'), text: v.desc, yesCls: 'yellow',
               async onPaid() { ctx.openVial?.({ type: id, source: 'shop' }); },
             }), 'yellow lg shine bk-buy', { price: { cur: 'bucks', amount: o.price }, sound: 'tap' });
             if (have('bucks') < o.price) b.classList.add('poor');
             return b;
           })(),
-          h('span', { class: 'bk-chip bk-chip-t' }, icon('clock', 's'), 'Ends in ', countdown(midnightMs(), 'c-gold')))),
+          h('span', { class: 'bk-chip bk-chip-t' }, icon('clock', 's'), countdown(midnightMs(), 'c-gold')))),
       sold ? stampEl('SOLD OUT') : null);
     tile.heroId = id;
     soldTap(tile);
@@ -595,30 +592,26 @@ export function mount(el, ctx) {
   function featuredTile(o) {
     const owned = cosmeticOwned(o);
     const key = 'feat:' + o.type + ':' + o.id;
-    let art, name, sub;
+    let art, name;
     if (o.type === 'skin') {
       const sk = SWARM_SKINS[o.id];
       art = swarmImg(sk.swarm, 'base', o.id, 160);
       name = sk.name;
-      sub = `Swarm skin for ${cardDef(sk.swarm)?.name ?? sk.swarm}`;
     } else if (o.type === 'cmdSkin') {
       const sk = CMD_SKINS[o.id];
       art = cmdFullImg(sk.commander, o.id, { w: 160, h: 200, priority: false });
       name = sk.name;
-      sub = `Outfit for ${COMMANDERS[sk.commander]?.name ?? 'Commanders'}`;
     } else {
       art = bannerEl(o.id, 'bk-feat-ban', h('span', { class: 't-d outline' }, BANNERS[o.id].name));
       name = BANNERS[o.id].name;
-      sub = BANNERS[o.id].animated ? 'Animated profile banner' : 'Profile banner';
     }
     const tile = h('div', { class: `bk-plate bk-feat k-${o.type} ${owned ? 'sold owned' : ''}` },
       h('div', { class: 'bk-kind t-d' }, o.type === 'skin' ? 'SKIN' : o.type === 'cmdSkin' ? 'OUTFIT' : 'BANNER'),
       h('div', { class: 'bk-feat-art' }, art),
       h('div', { class: 'bk-plate-n t-d' }, name),
-      h('div', { class: 'bk-plate-s' }, sub),
       owned ? h('div', { class: 'bk-owned t-d' }, icon('check', 's'), 'OWNED') : priceButton('bucks', o.price, false, () => buy({
         key, cur: 'bucks', price: o.price, tile, kind: 'look',
-        title: 'FEATURED', art: rewardArt({ type: o.type, id: o.id }), text: `Get <b>${name}</b>?`, sub: h('div', { class: 'center-t t-sm c-muted' }, sub),
+        title: 'FEATURED', art: rewardArt({ type: o.type, id: o.id }), text: `Get <b>${name}</b>?`,
         async onPaid() {
           const got = grantReward({ type: o.type, id: o.id });
           await showRewards(got, { title: 'NEW LOOK!', note: o.type === 'banner' ? 'Equip it from your Profile.' : o.type === 'skin' ? 'Equip it from the card info.' : 'Equip it in the Lab tab.' });
@@ -659,7 +652,6 @@ export function mount(el, ctx) {
       act = priceButton('bucks', e.price, false, () => buy({
         key, cur: 'bucks', price: e.price, tile, kind: 'entrance',
         title: 'ENTRANCE', art: entranceArt(e.id, 'mn-ent-confirm'), text: `Get the <b>${e.name}</b> entrance?`,
-        sub: h('div', { class: 'center-t t-sm c-muted' }, 'Plays when you walk into a battle.'),
         async onPaid() {
           const got = grantReward({ type: 'entrance', id: e.id });
           equipEntrance(e.id);
@@ -671,7 +663,6 @@ export function mount(el, ctx) {
       equipped && open ? ribbon('EQUIPPED', 'teal') : e.pass && !owned ? ribbon('FOOD PASS', 'pink') : e.trophies && !owned ? ribbon(claim ? 'CLAIM IT' : 'TROPHY REWARD', 'gold') : null,
       h('div', { class: 'bk-ent-art' }, entranceArt(e.id)),
       h('div', { class: 'bk-plate-n t-d' }, e.name),
-      h('div', { class: 'bk-plate-s' }, e.desc),
       h('div', { class: 'bk-ent-btns' },
         button('', () => previewEntrance(e.id), 'blue sm bk-ent-pv', { icon: 'play', sound: 'tap' }),
         act));
@@ -691,7 +682,7 @@ export function mount(el, ctx) {
       h('div', { class: 'bk-plate-s' }, VIAL_BLURB[o.id] ?? v.desc),
       sold ? stampEl('SOLD OUT') : priceButton('bucks', o.price, false, () => buy({
         key, cur: 'bucks', price: o.price, tile, kind: 'vial',
-        title: v.name.toUpperCase(), art: vialArt(o.id, 'mn-confirm-vial'), text: v.desc, sub: h('div', { class: 'center-t t-sm c-gold' }, 'Opens right away. No timer.'),
+        title: v.name.toUpperCase(), art: vialArt(o.id, 'mn-confirm-vial'), text: v.desc,
         async onPaid() { ctx.openVial?.({ type: o.id, source: 'shop' }); },
       })));
     soldTap(tile);
@@ -711,7 +702,6 @@ export function mount(el, ctx) {
       !sold && bonus >= 5 ? h('div', { class: 'bk-bonus t-d' }, `+${bonus}%`) : null,
       h('div', { class: 'bk-coin-art' }, h('div', { class: 'px-rays bk-coin-rays' }), animIcon(ic, 'bk-coin-ic')),
       h('div', { class: 'bk-coin-amt t-d' }, fmtN(o.coins)),
-      h('div', { class: 'bk-plate-s' }, o.label),
       sold ? stampEl('SOLD OUT') : priceButton('bucks', o.price, false, () => buy({
         key, cur: 'bucks', price: o.price, tile, kind: 'coins', title: o.label.toUpperCase(), art: icon(ic, 'mn-confirm-ic'), text: `Get <b>${fmtN(o.coins)} Beast Coins</b>?`,
         async onPaid() {
@@ -741,29 +731,31 @@ export function mount(el, ctx) {
     const left = off.cards.filter((o) => !shopBought('card:' + o.id)).length;
     // the counter: daily gift, free vial, today's card crates
     inner.appendChild(h('div', { class: 'bk-sec bk-counter' },
-      head('DAILY DEALS', left ? `${left} of ${off.cards.length} left. Fell off a truck.` : 'Sold out. Restock at midnight.'),
+      head('DAILY DEALS', null, h('span', { class: 'bk-head-n t-d' }, left ? `${left}/${off.cards.length}` : 'SOLD OUT')),
       h('div', { class: 'bk-wides' }, giftTile(off), freeVialTile()),
       h('div', { class: 'bk-crates' }, ...off.cards.map(cardTile))));
     // the vault: the featured vial
     const hero = heroTile(off);
-    if (hero) inner.appendChild(h('div', { class: 'bk-sec' }, head('THE VAULT', 'One a day. Opens on the spot.'), hero));
+    if (hero) inner.appendChild(h('div', { class: 'bk-sec' }, head('THE VAULT'), hero));
     // featured looks
     const feat = featuredOffers();
-    if (feat.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('FEATURED LOOKS', 'New every day.'), h('div', { class: 'bk-grid3' }, ...feat.map(featuredTile))));
+    if (feat.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('FEATURED LOOKS'), h('div', { class: 'bk-grid3' }, ...feat.map(featuredTile))));
     // profile gear: pictures, frames, titles (src/ui/home/profileShop.js)
     const gear = profileGearSection({ head, buy, priceButton, rerender: () => shell.render() });
     if (gear) inner.appendChild(gear);
     // battle entrances (live preview, Beast Bucks / trophy claims / Food Pass)
     const entHint = featureHint('entrances');
-    inner.appendChild(h('div', { class: 'bk-sec', 'data-guide': 'entrances' }, head('ENTRANCES', 'How you walk into every battle. Tap play to watch.'),
+    inner.appendChild(h('div', { class: 'bk-sec', 'data-guide': 'entrances' }, head('ENTRANCES'),
       entHint ? h('div', { class: 'bk-ent-hint' }, icon('lock', 's'), h('span', { html: rich(entHint) })) : null,
       h('div', { class: 'bk-ents' }, ...Object.values(ENTRANCES).sort((x, y) => entOrder(x) - entOrder(y)).map(entranceTile))));
     // vials
     const restVials = off.vials.filter((v) => v.id !== hero?.heroId);
-    if (restVials.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('VIALS', 'No timers. Shake right away.'), h('div', { class: 'bk-grid3' }, ...restVials.map(vialTile))));
+    if (restVials.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('VIALS'), h('div', { class: 'bk-grid3' }, ...restVials.map(vialTile))));
     // coins
-    inner.appendChild(h('div', { class: 'bk-sec' }, head('BEAST COINS', 'Counted twice. Probably.'), h('div', { class: 'bk-grid3' }, ...off.deals.map((d, i, all) => coinTile(d, i, all)))));
-    inner.appendChild(h('div', { class: 'bk-note-foot' }, icon('bucks', 's'), h('span', {}, 'Beast Bucks come from the Trophy Road, Lab Levels, the Food Pass, bosses and secrets on Beast Island.')));
+    inner.appendChild(h('div', { class: 'bk-sec' }, head('BEAST COINS'), h('div', { class: 'bk-grid3' }, ...off.deals.map((d, i, all) => coinTile(d, i, all)))));
+    // where Beast Bucks come from, as icons: Trophy Road, Lab Levels, Food Pass, bosses, island secrets
+    inner.appendChild(h('div', { class: 'bk-note-foot', role: 'img', 'aria-label': 'Beast Bucks come from the Trophy Road, Lab Levels, the Food Pass, bosses and island secrets' },
+      icon('bucks', 's'), h('b', { class: 't-d' }, '='), ...['road', 'lab', 'calorie', 'boss', 'pin'].map((n) => icon(n, 's'))));
     return inner;
   }
 

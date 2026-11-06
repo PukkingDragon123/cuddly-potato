@@ -15,6 +15,7 @@ import {
   ARENAS, arenaById, currentArena, cardPool, trophyFloor, TROPHY_ROAD, QUESTS, QUEST_CHAINS, SECRETS, BOSSES,
 } from '../data/arenas.js';
 import { labLevelFor, LAB_XP, LAB_MAX_LEVEL, LAB_LEVEL_REWARDS } from '../data/labs.js';
+import { roadBoss, roadCap, BANK_MAX } from '../data/roadBosses.js';
 import { MEGAS } from '../data/megas.js';
 import { NODES, nodeCost, nodeTime, researchSkipPrice, reqMet } from '../data/research.js';
 import { mulberry32, hashString, todayKey, randInt } from '../core/util.js';
@@ -54,6 +55,8 @@ function defaultProfile() {
     trophyRoad: {},
     arenaSeen: 0,
     bosses: {},
+    // Trophy Road bosses (data/roadBosses.js): wins, losses, defeat cinematics played, banked trophies
+    roadBoss: { won: {}, lost: {}, seen: {}, bank: 0 },
     secrets: {},
     cosmetics: {
       banners: ['default'], banner: 'default', labSkins: ['default'], labSkin: 'default', swarmSkins: {}, cmdSkins: {}, entrances: [DEFAULT_ENTRANCE], entrance: DEFAULT_ENTRANCE,
@@ -266,9 +269,19 @@ export function addTrophies(n) {
   const floor = trophyFloor(p.bestTrophies);
   let t = p.trophies + n;
   if (n < 0) t = Math.max(t, Math.min(p.trophies, floor));
+  // a Trophy Road boss blocks the way: trophies past its checkpoint wait in the bank until it falls
+  let banked = 0;
+  const cap = roadCap(p);
+  if (n > 0 && t > cap) {
+    const rb = p.roadBoss ?? (p.roadBoss = { won: {}, lost: {}, seen: {}, bank: 0 });
+    banked = Math.min(t - Math.max(cap, p.trophies), Math.max(0, BANK_MAX - (rb.bank ?? 0)));
+    rb.bank = (rb.bank ?? 0) + banked;
+    t = Math.max(p.trophies, cap);
+  }
   p.trophies = Math.max(0, t);
   p.bestTrophies = Math.max(p.bestTrophies, p.trophies);
   state.emit('trophies');
+  return banked;
 }
 export function stat(key, inc = 1) {
   const s = P().stats;
@@ -1064,6 +1077,19 @@ export function findSecret(id) {
 }
 export function bossDefeated(id) {
   const p = P();
+  // a Trophy Road boss: the path opens and the banked trophies pay out
+  const road = roadBoss(id);
+  if (road) {
+    const R = p.roadBoss ?? (p.roadBoss = { won: {}, lost: {}, seen: {}, bank: 0 });
+    const first = !R.won[id];
+    R.won[id] = (R.won[id] ?? 0) + 1;
+    const rewards = first ? grantBundle(road.reward) : [];
+    const bank = R.bank ?? 0;
+    R.bank = 0;
+    if (bank > 0) addTrophies(bank);
+    state.emit('boss');
+    return { first, rewards, road: true, bank };
+  }
   const first = !p.bosses[id];
   p.bosses[id] = (p.bosses[id] ?? 0) + 1;
   const b = BOSSES[id];
@@ -1163,11 +1189,16 @@ export function battleRewards({ result, crowns = 0, enemyCrowns = 0, margin = 0,
     res.calories = 35;
     res.cmdXp = 25;
   }
+  const before = p.trophies;
   if (mode === 'boss' && win && bossId) res.bossResult = bossDefeated(bossId);
+  // a lost Trophy Road boss fight makes the next try a little easier (data/roadBosses.js)
+  if (mode === 'boss' && !win && bossId && roadBoss(bossId)) {
+    const R = p.roadBoss ?? (p.roadBoss = { won: {}, lost: {}, seen: {}, bank: 0 });
+    R.lost[bossId] = (R.lost[bossId] ?? 0) + 1;
+  }
   if (mode !== 'ranked') res.trophies = 0;
   p.coins += res.coins;
-  const before = p.trophies;
-  if (res.trophies) addTrophies(res.trophies);
+  res.banked = res.trophies ? addTrophies(res.trophies) || 0 : 0;
   res.trophies = p.trophies - before;
   res.passTiers = addCalories(res.calories);
   res.levelUps = addCmdXp(p.commanders.equipped, res.cmdXp);

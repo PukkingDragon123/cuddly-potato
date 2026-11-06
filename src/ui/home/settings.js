@@ -58,18 +58,18 @@ export function openSettings(ctx) {
       row('sound', 'Sound Effects', slider(s.sfx, (v) => { s.sfx = v; audio.setVolumes(s.sfx, s.music); }, () => { state.emit('settings'); audio.play('coin'); })),
       row('music', 'Music', slider(s.music, (v) => { s.music = v; audio.setVolumes(s.sfx, s.music); }, () => state.emit('settings'))),
       subHead('GRAPHICS'),
-      row('star', 'Quality', seg([['low', 'LOW'], ['medium', 'MED'], ['high', 'HIGH']], s.graphics ?? engine.quality, (q) => { s.graphics = q; apply(); state.emit('settings'); }), 'Lower it if battles lag'),
-      row('paint', 'Pixel Mode', toggle(s.pixel === 'retro' || s.pixel === 'chunky', (on) => { s.pixel = on ? 'retro' : 'off'; apply(); state.emit('settings'); }), 'Chunky retro rendering'),
+      row('star', 'Quality', seg([['low', 'LOW'], ['medium', 'MED'], ['high', 'HIGH']], s.graphics ?? engine.quality, (q) => { s.graphics = q; apply(); state.emit('settings'); })),
+      row('paint', 'Pixel Mode', toggle(s.pixel === 'retro' || s.pixel === 'chunky', (on) => { s.pixel = on ? 'retro' : 'off'; apply(); state.emit('settings'); })),
       row('bomb', 'Screen Shake', toggle(s.shake !== false, (on) => { s.shake = on; engine.shakeEnabled = on; state.emit('settings'); if (on) engine.shake?.(0.5); })),
       row('arrowR', 'Fullscreen', toggle(!!document.fullscreenElement, () => { fullscreenToggle(); setTimeout(render, 400); })),
       subHead('CREDITS'),
       h('div', { class: 'mn-credits' },
         h('b', { class: 't-d outline mn-credits-t' }, 'MRBEAST ', h('span', { class: 'c-pink' }, 'SWARMERS')),
         h('span', { class: 't-sm' }, 'A voxel + pixel-art fan game. Every model, sound and tune is generated in code.'),
-        h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Jersey 25 + Handjet'),
+        h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Ark Pixel by TakWolf (OFL)'),
         h('span', { class: 'mn-disclaimer' }, icon('alert', 's'), DISCLAIMER)),
       subHead('SAVE DATA'),
-      row('skull', 'Reset all progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' }), 'There is no undo'),
+      row('skull', 'Reset progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' })),
     );
   }
 

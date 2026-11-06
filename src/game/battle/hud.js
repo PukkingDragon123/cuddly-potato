@@ -213,8 +213,7 @@ export class BattleHUD {
         // profile picture + frame (src/ui/avatar.js), then the rank medal
         sideAvatarEl(c, { cls: 'tw-av', anim: false }),
         c.labLevel ? rankMedal(c.labLevel, { cls: 'tw-rank', shine: false }) : null,
-        h('b', {}, c.name ?? (i ? 'Rival' : 'You')),
-        c.trophies !== undefined ? h('i', { class: 'tr' }, icon('trophy'), String(c.trophies)) : null);
+        h('b', {}, c.name ?? (i ? 'Rival' : 'You'))); // trophies live on the VS intro, not on the battle HUD
       const pc = h('b', { class: 'pc' }, '100');
       const tier = h('i', { class: 'tn' }, '1');
       const cap = h('div', { class: `tw-cap s${i}` }, icon('lab'), tier, pc);
@@ -292,7 +291,8 @@ export class BattleHUD {
       this.megaU = u;
       this.megaEl = u.el;
       this.megaEl.style.setProperty('--mc', def?.color ?? '#ff2e88');
-      this.megaLock = h('div', { class: 'lockt' }, icon('lock'), h('span', {}, BASE_UPGRADES[MEGA.minTier - 1].name));
+      // the base tier it needs as base icon + T<n> (same tag as the HP bar caps); a tap names it
+      this.megaLock = h('div', { class: 'lockt' }, icon('lock'), h('span', {}, icon('lab'), `T${MEGA.minTier}`));
       this.megaEl.appendChild(this.megaLock);
       this.megaEl.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
@@ -803,22 +803,22 @@ export class BattleHUD {
         const sp = SPELLS[ev.id];
         if (!sp) break;
         if (ev.side === 0) {
-          bigBanner(sp.name.toUpperCase() + '!', ev.info ?? '', { dur: 0.9, color: sp.color ?? '#3ff2e0' });
+          bigBanner(sp.name.toUpperCase() + '!', '', { dur: 0.9, color: sp.color ?? '#3ff2e0' });
           sparkle(this.lineup, { count: 16, colors: [sp.color ?? '#3ff2e0', '#ffffff', '#ffd84a'] });
           audio.play('cardPick', { pitch: 1.4 });
-        } else this.rivalPlay(sp, ev.info);
+        } else this.rivalPlay(sp);
         break;
       }
       case 'energyGain':
         if (ev.side === 0) { bump(this.energyRow, 'gain'); sparkle(this.pwrNow, { count: 10, colors: ['#ffe14a', '#ffffff'], spread: 40 }); }
         break;
       case 'doubleEnergy':
-        bigBanner('2X POWER!', 'Last minute: spend it fast!', { dur: 1.6, color: '#ffd84a' });
+        bigBanner('2X POWER!', '', { dur: 1.6, color: '#ffd84a' });
         audio.play('bell');
         audio.play('vHurry', { delay: 0.35 });
         break;
       case 'overtime':
-        bigBanner('OVERTIME!', 'Hit their base to win!', { dur: 1.8, color: '#ffb84a' });
+        bigBanner('OVERTIME!', '', { dur: 1.8, color: '#ffb84a' });
         audio.play('alarm');
         audio.play('vSuddenDeath', { delay: 0.45 });
         break;
@@ -866,7 +866,7 @@ export class BattleHUD {
     // spin the model of the tier we just built, then swap to the next one
     this.fastSpin = 0.9;
     setTimeout(() => this.updateBaseModel(), 900);
-    bigBanner(ev.name.toUpperCase() + '!', `Base tier ${ev.tier}: more POWER, max ${this.sim.maxPower(0)}, more HP`, { dur: 1.3, color: '#c08aff' });
+    bigBanner(ev.name.toUpperCase() + '!', '', { dur: 1.3, color: '#c08aff' });
     bump(this.energyRow, 'gain');
   }
 
@@ -891,9 +891,10 @@ export class BattleHUD {
   }
 
   /** A little card toast at the top when the rival plays a SPECIAL. */
-  rivalPlay(sp, info) {
+  rivalPlay(sp) {
+    // the rival's card pops on their side: art + name, no caption
     const el = h('div', { class: 'bh-rivalcard', style: { '--sc': sp.color ?? '#ff5a9a' } }, cardArtImg(sp.id, 'base', null, 96, ''),
-      h('div', { class: 'tx' }, h('small', {}, 'RIVAL PLAYED'), h('b', {}, sp.name), info ? h('span', {}, info) : null));
+      h('div', { class: 'tx' }, h('b', {}, sp.name)));
     this.root.appendChild(el);
     setTimeout(() => el.remove(), 2200);
   }
@@ -1170,10 +1171,10 @@ export class BattleHUD {
     this.ultTip?.remove();
     clearTimeout(this.ultTipT);
     const pct = Math.floor(Math.min(1, this.sim.sides[0].sig) * 100);
+    // icons, not a sentence: POWER you make + hits on your base fill it
     this.ultTip = h('div', { class: 'u-tip' },
-      h('b', {}, short ? `ULT ${pct}%` : 'ULTIMATE'),
-      h('span', {}, 'Charges from the POWER you make'),
-      h('span', {}, 'and damage to your base'));
+      h('b', {}, `ULT ${pct}%`),
+      h('span', { class: 'u-tip-ic' }, icon('powerBolt'), h('i', {}, '+'), icon('lab')));
     this.sig.appendChild(this.ultTip);
     const el = this.ultTip;
     this.ultTipT = setTimeout(() => { el.classList.add('bye'); setTimeout(() => el.remove(), 300); }, short ? 2200 : 6500);
@@ -1182,8 +1183,7 @@ export class BattleHUD {
   showUltReady() {
     this.ultTip?.remove();
     clearTimeout(this.ultTipT);
-    const name = this.sim.sides[0].cmd?.signature?.name ?? 'ULTIMATE';
-    this.ultTip = h('div', { class: 'u-tip ready' }, h('b', {}, 'READY'), h('span', {}, name.toUpperCase()));
+    this.ultTip = h('div', { class: 'u-tip ready' }, h('b', {}, 'READY!'));
     this.sig.appendChild(this.ultTip);
     burst(this.sig, { color: this.sigCol, count: 26, scale: 1.6, ring: false });
     const el = this.ultTip;

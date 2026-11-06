@@ -903,14 +903,14 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
   /* scoped tightly so screen-level `.x .nm` rules (arena titles, VS bands...) never hit card names */
   animation: none; max-width: none; overflow: visible; text-overflow: clip;
   margin: 0 -3% calc(var(--pxs) * 0.5); padding: 0.14em 0.25em 0.1em; text-align: center;
-  font-family: var(--font-d); font-size: clamp(9.5cqw, calc(245cqw / var(--nl, 10)), 16.5cqw); line-height: 0.92; letter-spacing: 0.01em; color: #fff; text-shadow: var(--outline-thin);
+  font-family: var(--font-d); font-size: clamp(8.5cqw, min(calc(280cqw / var(--nl, 10)), calc(168cqw / var(--nw, 8))), 16.5cqw); line-height: 0.92; letter-spacing: 0; color: #fff; text-shadow: var(--outline-thin);
   white-space: normal; text-wrap: balance; overflow-wrap: anywhere;
   background:
     linear-gradient(90deg, transparent, color-mix(in srgb, var(--rc) 85%, #fff) 22% 78%, transparent) top / 100% max(1px, calc(var(--pxs) * 0.5)) no-repeat,
     linear-gradient(90deg, transparent, rgba(8, 6, 28, 0.78) 16% 84%, transparent);
 }
 .gcard.locked > .foot > .nm { color: #a9b6e6; }
-.gcard.big > .foot > .nm { font-size: clamp(8cqw, calc(170cqw / var(--nl, 10)), 11cqw); }
+.gcard.big > .foot > .nm { font-size: clamp(7cqw, min(calc(140cqw / var(--nl, 10)), calc(150cqw / var(--nw, 8))), 11cqw); }
 /* idle shine: a soft diagonal sweep every few seconds, offset per card */
 .gcard > .sheen { position: absolute; inset: calc(var(--pxs) * 2.5); z-index: 2; overflow: hidden; pointer-events: none; opacity: 0.55; }
 .gcard.rare > .sheen { opacity: 0.7; }
@@ -1027,3 +1027,18 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
   background: linear-gradient(#b6ff8a 0 3px, #7dff4a 3px 55%, #3fd23f 55% 85%, #1d8a3a 85%);
 }
 #boot .boot-tip { font-size: 17px; color: #e8eeff; text-shadow: -1px -1px 0 #120c24, 1px -1px 0 #120c24, -1px 1px 0 #120c24, 1px 1px 0 #120c24; }
+
+/* ---------------------------------------------------------------- pixel type (round 8)
+   Emphasis in body copy is the real pixel bold (fonts.css maps Swarm Body 750+ to it);
+   labels styled 400-700 stay on the crisp text face. */
+b, strong { font-weight: 800; }
+/* <i> / <em> are layout and decoration hooks here, never italics: a synthetic oblique would skew the
+   pixel letters (text is never slanted in this game) */
+i, em { font-style: normal; }
+/* skip control for cinematics: a pixel ">>|" (fast-forward to the end), no caption.
+   11 x 7 art pixels at --px, so every pixel lands on whole screen pixels. */
+.px-skip {
+  display: inline-block; flex: none; vertical-align: middle; width: calc(var(--px) * 11); height: calc(var(--px) * 7); background: currentColor;
+  --skip-m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 7' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h1v1h-1v1h-1v1h-1v1h-1zM4 0h1v1h1v1h1v1h1v1h-1v1h-1v1h-1v1h-1zM9 0h2v7h-2z'/%3E%3C/svg%3E");
+  -webkit-mask: var(--skip-m) 0 0 / 100% 100% no-repeat; mask: var(--skip-m) 0 0 / 100% 100% no-repeat;
+}

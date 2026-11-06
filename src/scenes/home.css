@@ -381,3 +381,6 @@ body.landscape .hm-battle { min-width: calc(var(--u) * 38); font-size: 2em; }
 .hm-slot .sn { font-size: 0.74em; }
 .hm-slot.empty .st { font-size: 0.74em; }
 .hm-slot .skip { font-size: 0.8em; }
+/* less text: an empty vial slot is a vial silhouette; empty captions take no room */
+.hm-slot .hm-slot-ghost { width: calc(var(--u) * 9); height: calc(var(--u) * 9); margin: auto; opacity: 0.45; }
+.hm-slot .st:empty, .hm-slot .sn:empty { display: none; }

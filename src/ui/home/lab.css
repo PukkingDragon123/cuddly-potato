@@ -307,3 +307,6 @@ body.landscape .lx-sheet { padding-left: calc(var(--u) * 2.2); }
 @media (prefers-reduced-motion: reduce) {
   .lx-rc-dot, .lx-rcard:not(.idle) .lx-rc-ic, .lx-upar, .lx-new, .lx-curtain-t { animation: none; }
 }
+/* pixel type (round 8): four segment labels fit one row with the wider pixel face */
+.lx-seg .mn-seg-b { font-size: 0.7em; padding: 0 0.15em; }
+.lx-seg .mn-seg-b .pi { width: 1.15em; height: 1.15em; }
