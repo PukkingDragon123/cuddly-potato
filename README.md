@@ -46,8 +46,13 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
   unlock on timers in 4 slots, plus a free vial every 4 hours. Opening one is hands-on: pour the water in (drag the jug
   or tilt your phone), then **shake your phone** (or swipe the vial back and forth): every strong shake has a chance to
   **upgrade** the vial a rarity tier (more cards, better guarantees). A card you find for the first time gets a cinematic
-  **NEW CARD cutscene** with your equipped **entrance animation** (Superhero Landing, Lab Explosion, Red Carpet, Rocket
-  Drop, Glitch Teleport: bought in the shop or earned on the Food Pass).
+  **NEW CARD cutscene** whose reveal gets bigger with the card's rarity.
+- **Battle entrances**: after the VS slam both Commanders walk onto the battlefield in their equipped entrance (the
+  rival's is short, yours is the full movie): wide shot, tracking shot, a close-up hero pose, a voiced line and a title
+  card with your name, rank medal and banner, then they hop onto their base. 14 of them (Classic Strut, Cardboard Box
+  Sneak, Superhero Landing, Skateboard Kickflip, Lab Explosion, Glitch Teleport, Rocket Drop, Red Carpet, Burst Through
+  the Wall, Helicopter Rope Drop, Jetpack, Limo Arrival, Money Rain, Hype Parade): Beast Bucks in the shop, the Food
+  Pass or trophy milestones; the shop plays a live preview. Unlocks after 7 wins; tap to skip.
 
 **Battles**
 - Each side has one **base** with your Commander sitting on the roof. Smash the rival's base to win (no crowns,
@@ -91,6 +96,13 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - 60+ Swarms across the Beast Originals, Home Horrors, Techno Terrors, Atomic, Lab Hybrids, Snack Squad, Mega-Tech,
   Fire & Ice, Battle Fusion, Wildlands, Spooky and Cosmic series, plus spells. Rarities: Common, Rare, Ultra Rare, Legendary, Limited. Shiny **Silver, Gold and Chrome**
   variants, skins and the Feastables Panther **Mega Form**.
+- **Profile customization** (after 5 wins): a player card with your **picture** (Commander faces, NPCs, pixel-art Beast
+  Lab icons, troop portraits) in a pixel-art **frame** (rank frames, shop frames, animated legendary frames, one per
+  troop), a **banner** and a **title**. Tap anything locked to try it on. It shows in the top bar, the VS intro, the
+  battle name plates and Beast News; rivals dress for their trophies. Lonan sells 4 pieces a day in the shop.
+- **Troop Mastery** (after 6 wins): every troop has 5 levels (Bronze to Master) earned by playing it (deploys, wins
+  with it in your deck, knockouts, damage). Rewards: coins, its picture, its frame, its banner and a "Panther Master"
+  style title. Claim them on the card's info; a crest on the card shows its level.
 - Lab Level (king level) from Lab XP, Commander levels, the 50-tier Food Season pass, daily challenges, Trophy Road rewards
   and a daily shop. Beast Bucks are earned in game only (no real-money purchases).
 - The **SHOP** is a secret bunker (a live voxel diorama: blast door, vault, CRTs, a corkboard with red string, crates of

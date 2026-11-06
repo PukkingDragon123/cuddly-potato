@@ -195,7 +195,11 @@ export function helicopter() {
     cyl(g, 'y', 0, 0, 16, 18, 1.4, 1.4, 0x2a2e3a);
     rbox(g, -6, 14, -3, -2, 16, 3, 1, 0x5a6272);
     g.set(12, 6, 0, 0xffffff, true).set(12, 6, 1, 0xfff2a0, true);
-    text(g, 'BEAST', -2, 8, 8, '+z', 0xffffff, { center: true });
+    // side windows + a racing stripe (both sides)
+    for (const sz of [-1, 1]) {
+      for (let x = -10; x <= -7; x++) for (let y = 10; y <= 12; y++) if (g.has(x, y, sz * 6) || g.has(x, y, sz * 7)) g.set(x, y, g.has(x, y, sz * 7) ? sz * 7 : sz * 6, x === -10 || y === 12 ? 0x1477c9 : 0x8fd8ff);
+      for (let x = -11; x <= 9; x++) for (const zz of [sz * 6, sz * 7]) if (g.has(x, 7, zz)) g.set(x, 7, zz, 0xffd23f);
+    }
     return g;
   }, { scale: S, pivot: [0, 0, 0] });
   const rotor = bake('ent:heliRotor', () => {

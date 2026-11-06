@@ -631,8 +631,8 @@ async function composePicture(id, px) {
 }
 const picKey = (id, px) => `pav|${id}|${px}`;
 /** <img> of a picture at a size bucket (lazy: rendered on the thumb queue, cached). */
-function picImg(id, px, cls = '') {
-  return lazyImg(picKey(id, px), () => composePicture(id, px), 'pav-img ' + cls, { priority: true });
+function picImg(id, px, cls = '', lazy = false) {
+  return lazyImg(picKey(id, px), () => composePicture(id, px), 'pav-img ' + cls, lazy ? { visible: true } : { priority: true });
 }
 
 // --------------------------------------------------------------------------- the element
@@ -680,11 +680,12 @@ function paint(el, late = false) {
   if (!url) {
     if (late || spent < BUDGET) { const t = performance.now(); url = frameURL(def.id, st.q); spent += performance.now() - t; }
     else {
+      // over this frame's budget: show a smaller cached version if there is one, paint the rest in idle time
       for (let q = MAXQ; q >= 1 && !url; q--) url = frameCache.get(def.id + '|' + q);
-      if (!url) { const t = performance.now(); url = frameURL(def.id, 1); spent += performance.now() - t; }
       backlog.add(el); later();
     }
   }
+  if (!url) return;
   if (st.frm.getAttribute('src') !== url) st.frm.src = url;
   el.style.setProperty('--pav-img', `url("${url}")`);
   // animated strip
@@ -708,7 +709,8 @@ function watch(el) {
   ro ??= new ResizeObserver((entries) => {
     for (const e of entries) {
       const el2 = e.target, st = el2._av;
-      if (!st) continue;
+      // removed from the page (it reports a 0 x 0 box): stop watching it so it can be collected
+      if (!st || !el2.isConnected) { ro.unobserve(el2); backlog.delete(el2); continue; }
       const q = needQ(el2);
       if (q > st.q) { st.q = q; paint(el2); }
       const px = needPx(el2);
@@ -720,7 +722,7 @@ function watch(el) {
 function setPic(el) {
   const st = el._av;
   const px = st.px || PIC_PX[0];
-  const img = picImg(st.avatar, px);
+  const img = picImg(st.avatar, px, '', st.lazy);
   img.classList.add('pav-pic');
   // keep the old picture until the new one has loaded (no blank flash on a size upgrade)
   const old = st.pic;
@@ -737,13 +739,13 @@ function setPic(el) {
 
 /**
  * Avatar element: picture + frame. Size it with --av (CSS) or opts.size (px or any CSS length).
- * opts: { cls, anim (default true: animated frames move), size }
+ * opts: { cls, anim (default true: animated frames move), size, lazy (render the picture once scrolled near the view) }
  */
 export function avatarEl(avatarId, frameId, opts = {}) {
   const frm = h('img', { class: 'pav-frm', alt: '', draggable: 'false' });
   const el = h('span', { class: `pav ${opts.cls ?? ''}`.trim(), role: 'img' }, frm);
   if (opts.size) el.style.setProperty('--av', typeof opts.size === 'number' ? opts.size + 'px' : opts.size);
-  el._av = { avatar: null, frame: null, q: 0, px: 0, frm, pic: null, strip: null, stripBox: null, anim: opts.anim !== false };
+  el._av = { avatar: null, frame: null, q: 0, px: 0, frm, pic: null, strip: null, stripBox: null, anim: opts.anim !== false, lazy: !!opts.lazy };
   setAvatar(el, avatarId, frameId);
   watch(el);
   return el;

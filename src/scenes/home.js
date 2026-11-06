@@ -22,6 +22,8 @@ import { rankMedal, setRankMedal } from '../ui/rankMedal.js';
 import { myAvatarEl } from '../ui/avatar.js';
 import * as M from './homeMotion.js';
 import { setupIslandRoad } from './homeRoad.js';
+import { setupIslandFun } from './islandFun.js';
+import { setupExplore } from './homeExplore.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { Chibi } from '../core/chibi.js';
 import { CHARACTERS } from '../data/characters.js';
@@ -122,6 +124,8 @@ export class HomeScene {
     this.placeZone(this.zoneIdx, true);
 
     this.buildUI();
+    // drag / pinch to look around the island (scenes/homeExplore.js)
+    try { this.explore = setupExplore(this); } catch (e) { console.warn('island explore unavailable', e); }
     if (params.tab) this.setTab(params.tab, true); // e.g. back from a shop entrance preview
     this.offState = state.on(() => this.refresh());
     // research finishing while you're on another tab: a toast (the Lab tab celebrates it itself)
@@ -192,6 +196,8 @@ export class HomeScene {
     this.populate();
     // the trophy road's chests, gates + your YOU marker live on the island too
     try { this.road = setupIslandRoad(this); } catch (e) { console.warn('island trophy road unavailable', e); }
+    // bee hives, coconut palms, the pier, the treasure X... (scenes/islandFun.js)
+    try { this.fun = setupIslandFun(this); } catch (e) { console.warn('island fun unavailable', e); }
     // merge the island's still props into a few draws per zone; anything that later moves is
     // handed back to normal rendering automatically (core/staticBatch.js)
     try { this.batch = batchStatic(I.root, { probe: (dt, t) => I.update(dt, t) }); } catch (e) { console.warn('static batching skipped', e); }
@@ -214,6 +220,7 @@ export class HomeScene {
   placeZone(k, snap = false, dur = 1.6) {
     const c = this.zoneCam(k);
     this.zoneIdx = k;
+    this.explore?.placed();
     if (snap) {
       this.cam.pos.copy(c.pos);
       this.cam.look.copy(c.look);
@@ -886,7 +893,8 @@ export class HomeScene {
       if (!p || p.id !== e.pointerId) return;
       this.ptr = null;
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) { this.browse(dx < 0 ? 1 : -1); return; }
+      // a drag pans the island (homeExplore.js); the arena arrows browse arenas
+      if (this.explore?.dragged()) return;
       if (Math.hypot(dx, dy) < 12) this.tapWorld(e.clientX, e.clientY);
     };
     c.addEventListener('pointerdown', this.onDown);
@@ -944,7 +952,8 @@ export class HomeScene {
     }
     // cinematic idle drift: a slow orbit sway, a gentle dolly "breath" and a drifting look target;
     // it eases in after each camera flight so zone framing stays exact when you arrive
-    this.idleK = this.fly || this.road?.active ? 0 : Math.min(1, (this.idleK ?? 0) + dt * 0.35);
+    this.explore?.update(dt);
+    this.idleK = this.fly || this.road?.active || this.explore?.moved ? 0 : Math.min(1, (this.idleK ?? 0) + dt * 0.35);
     const ik = this.idleK * this.idleK * (3 - 2 * this.idleK), t = this.t;
     const off = _camOff.copy(this.cam.pos).sub(this.cam.look);
     off.applyAxisAngle(_yAxis, (Math.sin(t * 0.11) * 0.05 + Math.sin(t * 0.23 + 1.3) * 0.015) * ik + Math.sin(t * 0.13) * 0.02);
@@ -957,6 +966,7 @@ export class HomeScene {
     cam.lookAt(_camLook);
     for (const a of this.actors) a.update?.(dt);
     this.road?.update(dt);
+    this.fun?.update(dt);
     // world tags
     const v = _tagV;
     const shownTags = [];
@@ -993,6 +1003,8 @@ export class HomeScene {
     G.leaveHome(this);
     try { this.currentTab?.dispose?.(); } catch (e) { /* ignore */ }
     this.road?.dispose();
+    this.fun?.dispose();
+    this.explore?.dispose();
     if (this.tutPtr) this.tutPtr();
     clearTimeout(this.showT);
     clearTimeout(this.coverT);

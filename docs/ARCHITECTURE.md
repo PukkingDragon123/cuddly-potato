@@ -24,9 +24,12 @@ src/
     tween.js, util.js  animation helpers, rng, colour + math helpers
   data/                pure data: swarms, spells, cards (unified catalogue), commanders, vials, arenas (+ trophy
                        road, bosses, quests, secrets, ghost opponents), labs (base, POWER, BASE_UPGRADES tiers,
-                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season, entrances (NEW CARD cutscene cosmetics),
+                       MEGA tuning), megas (MEGA-TECH Mutator ultimates), season, entrances (battle ENTRANCES: 14 walk-ins, prices / sources, ghost picks),
                        research (the Lab's research tree: 9 branches / 51 nodes, coin + time costs, rank gates,
-                       researchMods() -> the battle sim's side.rs, researchForTrophies() for AI rivals)
+                       researchMods() -> the battle sim's side.rs, researchForTrophies() for AI rivals),
+                       profileItems (profile pictures / frames / titles / troop banners, how to get each, ownership,
+                       Lonan's daily PROFILE GEAR, ghostLook() for rivals), mastery (Troop Mastery: 5 levels per
+                       troop, tasks, rewards, recordMastery() fed by battleRewards with per-card battle counts)
   game/
     state.js           profile v2 persistence + every economy operation (cards, decks, vials, trophies, pass...)
     progression.js     progressive unlocks (featureUnlocked / onFeatureUnlock / lockInfo: tabs open after wins,
@@ -51,6 +54,10 @@ src/
       liveChibi.js     a live 3D Commander rendered into a HUD button canvas (ULT) via the thumb renderer
       sigCutscene.js   Commander ULTIMATE cutscene: freezes the world, hero shot + name card, follows the ability, payoff
       sigFx.js         ULTIMATE payoffs + lingering effects (mutants, buyout swaps, meteor crater, amber time-stop)
+      entranceCine.js  battle ENTRANCES after the VS intro: the rival's short walk-in, then yours (multi-shot camera,
+                       signature poses, voiced line, title card with rank medal + banner, hop onto the base); tap to
+                       skip; plays on any stage (the battle view, or the shop's preview: entrancePreview.js)
+      entranceSets.js  one set piece per entrance (props, pixel FX, camera shots, poses); entranceProps.js = voxel props
       placement.js     Clash Royale card placement previews: deploy-zone floor grid + hazard-tape front line,
                        red dithered out-of-bounds veil, hologram ghost of the troop formation, drop pin,
                        waiting-for-POWER marker, edge-pan arrows (placement.css); the rule is sim.deployRange
@@ -72,9 +79,13 @@ src/
                        helpers, hdpaint.js HD painted skies / far layers / clouds (never hard pixel art),
                        wildsKit.js; one module per arena, 15 arenas)
     island/            Beast Island world: terrain (chunked), water, sky, props, makeBeastIsland() - 15 zones
-                       incl. the northern region and the floating space station; trophyPath.js builds the
-                       TROPHY_ROAD into it (milestone pedestals + chests + floating reward billboards, arena
-                       gates with portcullis, the orbit road around the space elevator past the last arena)
+                       incl. the northern region and the floating space station, laid out in design units x SC
+                       (terrain.js; coves, flats, forests, meadows, the glacier falls); trophyPath.js builds the
+                       TROPHY_ROAD into it (pedestals + wood / iron / gold / legendary treasure chests with a
+                       coin spill, floating reward billboards, arena gates with a camera-facing trophy sign,
+                       the fork trails with their signs + barricades, the orbit road past the last arena);
+                       town.js = Beast Town (cottages, shops, fountain, stalls) + roadside fences / barrels /
+                       benches; fun.js = grids for the tappable things (hives, bees, palms, crabs, the X...)
     props/             base tiers Camp Lab -> Mega HQ (base.js: lab-gear brushes, dressBox), MEGA containment vessel (containment.js), legacy Lab
                        buildings (lab.js), vials (vials.js), lab interior + misc props
   scenes/
@@ -86,14 +97,19 @@ src/
                        MEGA tube -> Beast Island) and later visits
     home.js            Beast Island home lobby (top bar, vial slots, battle, nav tabs, unlock cinematic); spring
                        motion (press / release / hover, staggered entrances, tab carousel) in homeMotion.js;
+                       islandFun.js = the island's tappable fun (bee swarm, coconuts, fishing pier, treasure X,
+                       geyser, cave, lighthouse, seagull, townsfolk; daily coin treats in game/islandFun.js);
+                       homeExplore.js = drag / pinch free look over the island with a BACK button;
                        homeRoad.js = Trophy Road mode (camera flies onto the island road, drag / inertia pan,
-                       tap a chest, CLAIM pops it) + the YOU marker; its HUD is mountIslandRoad() in home/trophyRoad.js
+                       tap a chest, CLAIM pops it, pick a trail at each fork) + the YOU marker; its HUD is
+                       mountIslandRoad() in home/trophyRoad.js; fork data in data/roadForks.js, picks + bonus
+                       chests in game/roadForks.js (state.p.roadForks)
     frozenBattle.js    title / loading cinematic: a time-stopped lane fight in an arena (real arena/bases/
                        Commanders/Swarms, suspended fx snapshot, live arcs/glows/streaks), scripted camera shots
     battle.js          battle scene: modes (tutorial/ranked/practice/boss/friend), input, tutorial, finish
     vialOpen.js        vial opening: pour (drag / tilt) + shake (DeviceMotion / swipe) with shake upgrades, card reveal
     vialGestures.js    phone shake + tilt input (iOS permission) with swipe / keyboard fallbacks
-    newCardCutscene.js NEW CARD cutscene: entrance animation (data/entrances.js), bottle pop, pose, stats panel
+    newCardCutscene.js NEW CARD cutscene: reveal by rarity (data/entrances.js cardReveal), bottle pop, pose, stats panel
   ui/
     guide.js           progression UI: locked tabs / buttons, unlock reveals (spotlight + voiced line), guided
                        first-session steps (pointing hand, skippable), main quest tracker + list, battle locks + lessons
@@ -102,10 +118,15 @@ src/
     skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*, glass tanks, plates, pods, ensureSkin tints),
                        pixel textures as CSS vars, 16/24 px pixel icons
     cards.js           cardEl(): the card component (rarity frame, cost, level, copies progress)
+    avatar.js          profile avatars: avatarEl(picture, frame) everywhere a player shows up; pictures composited
+                       once per size bucket (pixel plate + 3D head / troop render or pixel-art lab icon), frames
+                       painted on the icon shader at the laid-out size; animated frames = masked shine or a
+                       stepped sprite strip (no per-frame redraws)
     thumbs.js          cached 3D thumbnails: swarmThumb, charPortrait, spell art, arenaThumb (diorama snapshots),
                        labSkinThumb, baseSpin/baseThumb (battle base tiers); lazy queue renders on-screen images first
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
-                       profile, settings, friend battle, boss)
+                       profile, settings, friend battle, boss); profile.js = player card + CUSTOMIZE tabs,
+                       masteryUI.js = Troop Mastery panel / collection crest / claim, profileShop.js = PROFILE GEAR shelf
     home/lab.js        LAB tab: your base in a 3D lab yard (labYard.js + labYardProps.js, engine.setBackdrop) with your
                        modules and Commander; segments LAB / MODULES / SKINS / COMMANDER; module data src/data/labModules.js
                        (4 slots x 4 modules, 5 levels, unlocks, AI loadouts), profile ops src/game/labGear.js,

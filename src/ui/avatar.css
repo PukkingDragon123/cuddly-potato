@@ -69,12 +69,18 @@
 }
 .mn-ra .mn-banner.mini > .mn-ban-troop { right: -4%; bottom: -10%; height: 130%; }
 /* battle HUD name plates (tug-of-war bar ends): picture first, then the rank medal */
-.tw-nm .pav.tw-av { --av: 1.7em; margin: -0.32em 0.12em -0.32em 0; top: 0.06em; }
+.bhud .tw-nm:has(> .tw-av) { padding-top: calc(var(--u) * 0.9); }
+.tw-nm .pav.tw-av { --av: 1.55em; margin: -0.26em 0.12em -0.26em 0; top: 0.06em; }
 .tw-nm.s0 .pav.tw-av { margin-left: calc(var(--u) * 3.6); }
 .tw-nm.s1 .pav.tw-av { margin-right: calc(var(--u) * 3.6); margin-left: 0.12em; }
-.tw-nm.s0 .pav.tw-av + .rmedal.tw-rank { margin-left: 0; }
-.tw-nm.s1 .pav.tw-av + .rmedal.tw-rank { margin-right: 0; }
-body.landscape .tw-nm .pav.tw-av { --av: 1.9em; margin-block: -0.4em; }
+/* the rank medal tucks onto the picture's lower corner (saves room for the name) */
+.tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.25em; z-index: 2; top: 0.42em; }
+.tw-nm.s0 .pav.tw-av + .rmedal.tw-rank { margin-left: -0.82em; margin-right: 0.04em; }
+.tw-nm.s1 .pav.tw-av + .rmedal.tw-rank { margin-right: -0.82em; margin-left: 0.04em; }
+body.landscape .tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.2em; top: 0.42em; margin-block: -0.2em; }
+/* landscape: the bar hugs the screen top, so the picture stays inside the name row (crest included) */
+body.landscape .bhud .tw-nm:has(> .tw-av) { padding-top: calc(var(--u) * 2.4); }
+body.landscape .tw-nm .pav.tw-av { --av: 1.5em; margin-block: -0.12em; top: 0.12em; }
 /* VS intro: picture beside the name block (right-aligned blocks put it on the right) */
 .vsx-who { display: flex; align-items: center; gap: calc(var(--u) * 1.4); }
 .vsx-whot { display: flex; flex-direction: column; gap: calc(var(--u) * 0.6); align-items: flex-start; min-width: 0; }
@@ -84,7 +90,21 @@ body.landscape .tw-nm .pav.tw-av { --av: 1.9em; margin-block: -0.4em; }
 .vsx.landscape .vsx-who .pav.vsx-av { --av: calc(var(--u) * 13); }
 .vsx-ttl { font-family: var(--font-d); font-size: clamp(12px, 0.95em, 18px); line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; }
 /* Beast News result: picture by each name in BASE HP LEFT */
-.cn-base .pav.cn-av { --av: clamp(26px, 1.9em, 38px); margin: 0 0.15em 0 0; }
+.cn-base .pav.cn-av { --av: clamp(28px, 2em, 40px); margin: 0 0.1em 0 0; }
+.cn-base .pav.cn-av + .rmedal.cn-rank { --rm: clamp(20px, 1.35em, 28px); z-index: 2; margin: 0.9em 0.05em -0.3em -0.95em; }
 .cn-ups .cn-up-ms { color: #ffd84a; }
 /* home top bar: picture, then the rank medal, then name + XP */
-.hm-prof .pav.hm-av { --av: calc(var(--u) * 10.5); margin: calc(var(--u) * 0.4) calc(var(--u) * -0.2) calc(var(--u) * 0.2) calc(var(--u) * 0.6); }
+.hm-prof .pav.hm-av { --av: calc(var(--u) * 10.5); margin: calc(var(--u) * 1.5) calc(var(--u) * -0.2) calc(var(--u) * -0.7) calc(var(--u) * 0.6); }
+/* SHOP (Lonan's bunker): PROFILE GEAR shelf (src/ui/home/profileShop.js) */
+.bk-gears { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 1.4); }
+body.landscape .bk-gears { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.bk-gear-art { height: calc(var(--u) * 22); }
+.bk-gear-art > .pav.bk-gear-av { --av: calc(var(--u) * 15); }
+.bk-gear-ttl > b { font-weight: normal; }
+.bk-gear-ttl-nm { font-size: 1.2em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bk-gear-ttl {
+  display: flex; flex-direction: column; align-items: center; gap: 0.2em;
+  max-width: 92%; padding: 0.45em 0.7em; text-align: center; font-size: 1.05em; line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
+  background: linear-gradient(#3a2a8a, #1c1450); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(255, 255, 255, 0.3), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.3);
+}
+.cn-base:has(> .nm > .pav.cn-av) { grid-template-columns: minmax(0, 47%) 1fr; }

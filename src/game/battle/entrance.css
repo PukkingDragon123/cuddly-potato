@@ -112,8 +112,11 @@
 }
 
 /* ---- shop preview stage (entrancePreview.js): the shop hides while the 3D plays */
-body.ent-pv-on #ui, body.ent-pv-on #world-ui, body.ent-pv-on #overlay > :not(.ent):not(.ent-pv-ui) { visibility: hidden; }
+/* opacity (not visibility) so no child can show itself again (e.g. the seller's speech bubble) */
+body.ent-pv-on #ui, body.ent-pv-on #world-ui, body.ent-pv-on #overlay > :not(.ent):not(.ent-pv-ui) { opacity: 0 !important; transition: none !important; }
 .ent-pv-ui { position: absolute; inset: 0; z-index: 59; pointer-events: none; }
+/* while the set is being built, taps go nowhere (the shop sits invisible underneath) */
+.ent-pv-ui:not(.live) { pointer-events: auto; }
 .ent-pv-btns {
   position: absolute; left: 0; right: 0; bottom: calc(10.5% + 18px); display: flex; justify-content: center; gap: 12px; pointer-events: auto;
   opacity: 0; transform: translateY(12px); transition: opacity 0.25s, transform 0.25s;

@@ -661,12 +661,18 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
       im.castShadow = true;
       im.name = 'trophyChestsReady';
       for (let i = 0; i < n; i++) im.setMatrixAt(i, ZERO);
+      im.count = 0; // only the claimable chests are drawn (compacted in relist)
       group.add(im);
-      H = hops[M.tier] = { im, n: 0 };
+      H = hops[M.tier] = { im, list: [] };
     }
-    M.slot = H.n++;
     M.hop = H;
   }
+  /** Claimable chests of one tier, packed at the front of its instanced mesh. */
+  const relist = (H) => {
+    H.list = ms.filter((q) => q.hop === H && q.state === 'glow');
+    H.list.forEach((q, i) => { q.slot = i; });
+    H.im.count = H.list.length;
+  };
 
   // ------------------------------------------------ arena gates (arches + portcullis + a camera-facing trophy sign)
   const gateObjs = {};
@@ -851,7 +857,7 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     M.chest.scale.setScalar(1);
     // a claimable chest hops in the instanced set; the still one hides meanwhile
     M.chest.visible = look !== 'glow';
-    if (look !== 'glow') { M.hop.im.setMatrixAt(M.slot, ZERO); M.hop.im.instanceMatrix.needsUpdate = true; }
+    relist(M.hop);
     place(i);
   }
   function open(i) {
@@ -864,8 +870,7 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     M.lid.rotation.x = 0;
     M.flag.visible = false;
     M.chest.visible = true;
-    M.hop.im.setMatrixAt(M.slot, ZERO);
-    M.hop.im.instanceMatrix.needsUpdate = true;
+    relist(M.hop);
     bb.tint(i, 1);
     bb.set(RAYS + i, hide, 0);
   }
@@ -877,9 +882,10 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
   let coinsLive = false;
   updaters.push((dt, t) => {
     bb.uTime.value = t % 1000;
-    for (let i = 0; i < N; i++) {
-      const M = ms[i];
-      if (M.state === 'glow') {
+    for (const tier in hops) {
+      const H = hops[tier];
+      for (let j = 0; j < H.list.length; j++) {
+        const M = H.list[j];
         // hop + squash, a beat apart from the neighbours
         const k = (t * 1.6 + M.phase) % 2;
         const hop = k < 0.5 ? Math.sin((k / 0.5) * Math.PI) : 0;
@@ -889,9 +895,13 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
         _o.rotation.set(0, FACE_Y, Math.sin(t * 9 + M.phase) * 0.04 * hop);
         _o.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
         _o.updateMatrix();
-        M.hop.im.setMatrixAt(M.slot, _o.matrix);
-        M.hop.im.instanceMatrix.needsUpdate = true;
-      } else if (M.state === 'opening') {
+        H.im.setMatrixAt(j, _o.matrix);
+      }
+      if (H.list.length) H.im.instanceMatrix.needsUpdate = true;
+    }
+    for (let i = 0; i < N; i++) {
+      const M = ms[i];
+      if (M.state === 'opening') {
         M.lidT += dt;
         // a rattle, then the lid bursts open with an overshoot and the coins spill out
         const rattle = M.lidT < 0.22 ? Math.sin(M.lidT * 70) * 0.06 * (1 - M.lidT / 0.22) : 0;
@@ -1112,4 +1122,13 @@ function paintArrow(ctx, cell) {
     if (ch === '.') return;
     px(ctx, ox + c * s, oy + r * s, s, s, ch === '#' ? '#120c24' : ch === 'o' ? '#ffe680' : '#ffc21a');
   }));
+}
+
+/** A treasure chest's body + lid geometries (shared with the road's chests) for other island props. */
+export function treasureChest(tier = 'wood') {
+  return {
+    body: P.geo(`trChest2_${tier}normb`, () => chestBodyGrid(tier, false), PV, [0, 0, 0]),
+    lid: P.geo(`trChest2_${tier}norml`, () => chestLidGrid(tier, false), PV, [0, 0, 0]),
+    lidY: CH * PV, lidZ: -CD * PV,
+  };
 }

@@ -296,8 +296,10 @@ export function addTown({ T, root, exclude, R, center, radius, zones = [] }) {
     const id = T.colAt(x, z);
     if (id < 0) continue;
     const rd = T.roadD[id];
-    if (rd < T.RW + 3.4 || rd > T.RW + 4.6) continue;
-    cand.push([x + (R() - 0.5) * 0.4, z + (R() - 0.5) * 0.4, Math.hypot(x - cx, z - cz)]);
+    // the first row faces the road; a second row stands behind it
+    const row = rd >= T.RW + 3.4 && rd <= T.RW + 4.6 ? 0 : rd >= T.RW + 9.8 && rd <= T.RW + 10.8 ? 1 : -1;
+    if (row < 0) continue;
+    cand.push([x + (R() - 0.5) * 0.4, z + (R() - 0.5) * 0.4, Math.hypot(x - cx, z - cz) + row * 100]);
   }
   cand.sort((a, b) => a[2] - b[2] + (R() - 0.5) * 6);
   const placed = [];
@@ -320,7 +322,7 @@ export function addTown({ T, root, exclude, R, center, radius, zones = [] }) {
     const fx = Math.sin(ry), fz = Math.cos(ry), sx = Math.cos(ry), sz = -Math.sin(ry);
     if (!shop) planters.push([x + fx * 1.9 + sx * 1.5, y, z + fz * 1.9 + sz * 1.5, ry, 1]);
     else { barrels.push([x + fx * 1.8 - sx * (rad + 0.2), y, z + fz * 1.8 - sz * (rad + 0.2), R() * 6, 1]); crates.push([x - fx * 0.5 + sx * (rad + 0.4), y, z - fz * 0.5 + sz * (rad + 0.4), R() * 6, 1]); }
-    if (placed.length > 26) break;
+    if (placed.length > 34) break;
   }
   const build = (name, geo, list, o = {}) => {
     if (!list.length) return;

@@ -781,14 +781,15 @@ export const SETS = {
     const heli = c.add(helicopter());
     const rp = c.add(rope());
     const door = heli.userData.door;
-    const HY = 6.3;
+    const HY = 5.0, HS = 1.6;
+    heli.scale.setScalar(HS);
     heli.rotation.y = c.dir > 0 ? 0 : PI;
     // hover so the door hangs over the mark
     const hov = c.at(0, HY, c.M.z);
     heli.updateMatrixWorld(true);
-    const off = V().copy(door).applyEuler(heli.rotation);
+    const off = V().copy(door).multiplyScalar(HS).applyEuler(heli.rotation);
     hov.sub(V(off.x, 0, off.z));
-    const start = c.at(-12, HY + 2.2, hov.z - 1.2);
+    const start = c.at(-12, HY + 2.6, hov.z - 1.2);
     const tH = 1.1, tR = 1.32, tS = 1.35, tG = 2.35;
     const anchor = V();
     return {
@@ -825,19 +826,20 @@ export const SETS = {
         heli.userData.tail.rotation.z += dt * 50;
         if (c.E('chop', 11, dt)) chop(t < 3.2 ? 0.9 : 0.4);
         // downwash: dust skating out along the ground under the hover
-        if (heli.position.y < HY + 1.2 && c.E('wash', 18, dt)) {
+        if (heli.position.y < HY + 1.2 && heli.position.y > 0 && c.E('wash', t < tG + 0.3 ? 11 : 4, dt)) {
           const a = rand(0, PI * 2);
           const p = heli.position;
-          c.P.spawn({ tex: 'entPuff', additive: false, x: p.x + Math.cos(a) * 0.4, y: 0.06, z: p.z + Math.sin(a) * 0.3, vx: Math.cos(a) * rand(2, 3.5), vz: Math.sin(a) * rand(1, 2), vy: 0.15, drag: 1.5, size: 0.26, size1: 0.08, color: [0xe8e2d4, 0xd0c8b8], glow: 1, life: 0.7 });
+          c.P.spawn({ tex: 'entPuff', additive: false, x: p.x + Math.cos(a) * 0.4, y: 0.06, z: p.z + Math.sin(a) * 0.3, vx: Math.cos(a) * rand(2, 3.5), vz: Math.sin(a) * rand(1, 2), vy: 0.15, drag: 1.5, size: 0.2, size1: 0.06, color: [0xe8e2d4, 0xd0c8b8], glow: 1, life: 0.7 });
         }
       },
       cam(t) {
-        if (t < 1.15) return { key: 'up', ...c.shot(c.at(-2.6, 4.2, c.M.z - 0.6), W(c, 10.5), 6.8, { yaw: 0.18, pitch: -0.16, minY: 0.3 }) };
+        if (t < 1.15) return { key: 'up', ...c.shot(c.at(-2.8, 3.7, c.M.z - 0.6), W(c, 11), 8, { yaw: 0.18, pitch: -0.12, minY: 0.3 }) };
         if (t < tG) {
           const p = c.ch.root.position;
-          return { key: 'slide', ...c.shot(V(p.x, p.y + c.H * 0.45, p.z), W(c, 3.4), 3.1, { yaw: 0.3, pitch: -0.06, minY: 0.25 }) };
+          const top = anchor.y + 0.6;
+          return { key: 'slide', ...c.shot(V(p.x, (p.y + top) / 2, p.z), W(c, 3.8), Math.max(3.4, top - p.y + 1.2), { yaw: 0.3, pitch: -0.06, minY: 0.25 }) };
         }
-        return { key: 'land', ...c.shot(c.at(0, 1.5, c.M.z), W(c, 4.4), 4.0, { yaw: 0.32, pitch: -0.12, minY: 0.22 }) };
+        return { key: 'land', ...c.shot(c.at(0, 1.9, c.M.z), W(c, 4.6), 4.8, { yaw: 0.32, pitch: -0.12, minY: 0.22 }) };
       },
       out(k) {
         heli.position.x += c.dir * k * 0.25;
@@ -1040,10 +1042,12 @@ export const SETS = {
       at(t) {
         const u = uF(t);
         fl.position.copy(c.at(u, 0, zc));
+        // they march ahead of the float, then file round to the back so the hero shot stays clear
+        const ka = sm(seg(t, tF - 0.7, tF + 0.35));
         drummers.forEach((d, i) => {
-          const du = u + 2.2 + i * 0.75;
-          d.root.position.copy(c.at(du, 0, zc + d.root.userData.zo));
-          d.root.rotation.y = c.yaw(t < tF ? PI / 2 : 0.4);
+          const du = lerp(u + 2.2 + i * 0.75, 0.8 + i * 0.85, ka);
+          d.root.position.copy(c.at(du, 0, lerp(zc + d.root.userData.zo, c.M.z - 1.55 - i * 0.3, ka)));
+          d.root.rotation.y = c.yaw(ka < 1 ? PI / 2 - ka * 0.6 : 0.35);
         });
         const kj = seg(t, tJ, tLnd);
         const from = c.at(u + 0.2, deck, zc);

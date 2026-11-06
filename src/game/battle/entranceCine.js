@@ -129,7 +129,15 @@ export function setupEntrances(view, cfg, mode) {
           if (view.disposed) break;
           const ctl = playEntrance(stage, i, ids[i], { short: i === 1, info: cfg.sides[i], wrap, last: i === sides[sides.length - 1], boss: mode === 'boss' });
           view.cine = ctl;
+          // safety net: if the cinematic stops getting frames (the view stopped updating it), the battle still starts
+          let lastT = -1;
+          const guard = setInterval(() => {
+            if (ctl.finished || (import.meta.env.DEV && typeof window.__entT === 'number')) return;
+            if (ctl.t === lastT) { ctl.skipped = true; ctl.finish(); }
+            lastT = ctl.t;
+          }, 4000);
           await ctl.wait;
+          clearInterval(guard);
         }
       } catch (e) {
         console.error('battle entrance failed', e);
@@ -419,6 +427,14 @@ export function playEntrance(stage, side, id, o = {}) {
 
   ctl.update = (dtReal) => {
     if (ctl.finished) return;
+    try { step(dtReal); } catch (err) {
+      // never strand the battle intro on a broken set piece
+      console.error('entrance failed', e.id, err);
+      ctl.skipped = true;
+      ctl.finish();
+    }
+  };
+  const step = (dtReal) => {
     let dt = Math.min(dtReal, 0.08);
     if (freeze > 0) { freeze -= dt; dt *= 0.06; }
     if (phase === 'arrive' && D.warp) dt *= D.warp(t);

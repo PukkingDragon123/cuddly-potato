@@ -1,0 +1,6 @@
+/* Beast Island free look: the BACK-to-your-arena side button (scenes/homeExplore.js) */
+.hm-sb-home::after { content: 'BACK'; }
+.hm-side.right .hm-sb-home { animation: hmExIn 0.32s cubic-bezier(.2, 1.6, .4, 1); }
+.hm-sb-home.hm-ex-hide { display: none; }
+@keyframes hmExIn { 0% { scale: 0.4; opacity: 0; } 100% { scale: 1; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hm-side.right .hm-sb-home { animation: none; } }

@@ -11,7 +11,7 @@ import { audio } from '../../core/audio.js';
 import { VoxGrid, Mats, makeMesh } from '../../core/voxel.js';
 import { Chibi } from '../../core/chibi.js';
 import { n3 } from '../../models/kit.js';
-import { coverFit } from '../../models/arenas/kit.js';
+import { coverFit, treeGrid } from '../../models/arenas/kit.js';
 import { h, button, $overlay } from '../../ui/ui.js';
 import { CHARACTERS } from '../../data/characters.js';
 import { entranceDef } from '../../data/entrances.js';
@@ -141,6 +141,14 @@ export async function playEntrancePreview(id, opts = {}) {
     rim.position.set(6, 5, -8);
     scene.add(rim);
     scene.add(floorMesh());
+    // a tree line behind the range for depth (one merged mesh)
+    const trees = new VoxGrid();
+    [[-14, -9, 'round'], [-9, -11, 'pine'], [-3, -10, 'round'], [3, -12, 'pine'], [8, -9.5, 'round'], [13, -11, 'pine'], [18, -10, 'round'], [-19, -12, 'pine']].forEach(([x, z, kind], i) => {
+      trees.merge(treeGrid(kind, { seed: i + 3, leaf: i % 2 ? 0x3f9a4a : 0x5fbf4a }), Math.round(x / 0.12), 0, Math.round(z / 0.12));
+    });
+    const tm = makeMesh(trees.build({ scale: 0.12, pivot: [0, 0, 0], jitter: 0.03 }), Mats.pair);
+    tm.scale.setScalar(1.6);
+    scene.add(tm);
     const style = me.labStyle ?? 'default';
     const lab = makeBase(1, { side: 0, flip: false, style });
     lab.root.position.set(-5.2, 0, 0);

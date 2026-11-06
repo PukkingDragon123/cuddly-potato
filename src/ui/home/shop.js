@@ -32,6 +32,7 @@ import {
 import { bunker, prewarmBunker } from './bunker.js';
 import { injectBunkerArt } from './shopArt.js';
 import * as T from './shopTalk.js';
+import { profileGearSection } from './profileShop.js';
 
 // Featured cosmetics rotate daily (3 a day) from this pool.
 const FEATURED_POOL = [
@@ -749,7 +750,10 @@ export function mount(el, ctx) {
     // featured looks
     const feat = featuredOffers();
     if (feat.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('FEATURED LOOKS', 'New every day.'), h('div', { class: 'bk-grid3' }, ...feat.map(featuredTile))));
-    // entrance cutscenes
+    // profile gear: pictures, frames, titles (src/ui/home/profileShop.js)
+    const gear = profileGearSection({ head, buy, priceButton, rerender: () => shell.render() });
+    if (gear) inner.appendChild(gear);
+    // battle entrances (live preview, Beast Bucks / trophy claims / Food Pass)
     const entHint = featureHint('entrances');
     inner.appendChild(h('div', { class: 'bk-sec', 'data-guide': 'entrances' }, head('ENTRANCES', 'How you walk into every battle. Tap play to watch.'),
       entHint ? h('div', { class: 'bk-ent-hint' }, icon('lock', 's'), h('span', { html: rich(entHint) })) : null,

@@ -8,7 +8,7 @@
 .pf-card { position: relative; padding: calc(var(--u) * 2) calc(var(--u) * 1.8) calc(var(--u) * 1.8); min-height: calc(var(--u) * 26); }
 .pf-card .mn-ban-c { position: static; }
 .pf-card-row { position: relative; z-index: 1; display: flex; align-items: center; gap: calc(var(--u) * 1.8); }
-.pf-card-av { flex: none; padding: calc(var(--u) * 1.6); }
+.pf-card-av { flex: none; padding: calc(var(--u) * 3.2) calc(var(--u) * 1.6) calc(var(--u) * 1.8); }
 .pf-card-av .pav.pf-av { --av: calc(var(--u) * 20); }
 .pf-card-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.7); min-width: 0; flex: 1 1 auto; }
 .pf-name { font-size: 2em; line-height: 0.95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -45,8 +45,8 @@
 .pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 16), 1fr)); gap: calc(var(--u) * 1.2); }
 .pf-grid.sm { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 16), 1fr)); }
 .pf-grid.sm.k-banner { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 38), 1fr)); }
-.pf-tile.sm .pf-tile-n { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; height: 2em; line-height: 1; overflow-wrap: anywhere; }
-.pf-tile.k-banner.sm .pf-tile-n, .pf-tile.k-title.sm .pf-tile-n { height: auto; -webkit-line-clamp: 1; }
+.pf-tile .pf-tile-n { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; height: 2em; line-height: 1; overflow-wrap: anywhere; align-content: center; }
+.pf-tile.k-banner .pf-tile-n, .pf-tile.k-title .pf-tile-n { height: auto; -webkit-line-clamp: 1; }
 .pf-tile-s.ml-1 { color: #ffb47a !important; } .pf-tile-s.ml-2 { color: #dfe8ff !important; } .pf-tile-s.ml-3 { color: #ffd84a !important; }
 .pf-tile-s.ml-4 { color: #8ff4ff !important; } .pf-tile-s.ml-5 { color: #ff8ac4 !important; }
 .pf-tile.lock.sm.k-avatar .pf-tile-art > .pav > .pav-pic { filter: brightness(0.6) saturate(0.6); }

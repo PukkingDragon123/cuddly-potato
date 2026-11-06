@@ -197,7 +197,6 @@ export function openProfile(ctx) {
       audio.play('tap');
       preview = { kind, id };
       redrawCard();
-      tile?.classList.add('pf-peek');
     }
     for (const t of gridHost.querySelectorAll('.pf-tile.cur')) t.classList.remove('cur');
     tile?.classList.add('cur');
@@ -206,8 +205,8 @@ export function openProfile(ctx) {
 
   function tileArt(kind, id) {
     const l = state.p.cosmetics;
-    if (kind === 'avatar') return avatarEl(id, l.frame, { cls: 'pf-tile-av', anim: false });
-    if (kind === 'frame') return avatarEl(l.avatar, id, { cls: 'pf-tile-av' });
+    if (kind === 'avatar') return avatarEl(id, l.frame, { cls: 'pf-tile-av', anim: false, lazy: true });
+    if (kind === 'frame') return avatarEl(l.avatar, id, { cls: 'pf-tile-av', lazy: true });
     if (kind === 'banner') return bannerEl(id, 'pf-tile-ban');
     return h('div', { class: 'pf-tile-ttl t-d' }, TITLES[id].name);
   }
@@ -340,11 +339,11 @@ export function openProfile(ctx) {
     clear(body);
     card = playerCard();
     skinsEl = labSkins();
-    body.append(card, nameRow(),
+    body.append(...[card, nameRow(),
       subHead('CUSTOMIZE', h('span', { class: 't-xs c-muted' }, 'Rivals see this before every battle')), customize(),
       subHead('CAREER'), stats(),
       featureUnlocked('labSkins') ? subHead('LAB SKIN', h('span', { class: 't-xs c-muted' }, 'Your Lab in battle')) : null,
-      featureUnlocked('labSkins') ? skinsEl : null);
+      featureUnlocked('labSkins') ? skinsEl : null].filter(Boolean));
   }
   render();
   return m;

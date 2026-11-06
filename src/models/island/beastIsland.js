@@ -40,6 +40,7 @@ import * as P from './props.js';
 import { addIslandExtras, makeCloudUniforms, patchCloudShadows } from './extras.js';
 import { addTrophyPath } from './trophyPath.js';
 import { FORKS } from '../../data/roadForks.js';
+import * as TOWN from './town.js';
 
 export const ZONE_ORDER = ['lab', 'circle', 'factory', 'mart', 'redlight', 'antarctica', 'reactor', 'pyramid', 'island', 'jungle', 'laser', 'haunted', 'reef', 'volcano', 'space'];
 
@@ -481,10 +482,18 @@ export async function makeBeastIsland(opts = {}) {
   } catch (e) {
     console.error('trophy road failed', e);
   }
-  addLandmarks({ T, root, updaters, exclude, R });
+  let town = null;
+  try {
+    town = TOWN.addTown({ T, root, exclude, R, center: [W(-18), W(64)], radius: 30, zones: ZONES });
+  } catch (e) {
+    console.error('beast town failed', e);
+  }
+  const marks = addLandmarks({ T, root, updaters, exclude, R });
   addNorthLandmarks({ T, root, updaters, exclude, R, zones });
   lap('landmarks');
   addRoadside({ T, root, bridges, exclude });
+  try { TOWN.addRoadsideProps({ T, root, exclude, R, zones: ZONES }); } catch (e) { console.error('roadside props failed', e); }
+  const fun = planFunSpots({ T, exclude, R });
   if (opts.decor !== false) addDecor({ T, root, exclude, R });
   lap('decor');
   const boats = addLife({ T, root, updaters, R });
@@ -520,6 +529,9 @@ export async function makeBeastIsland(opts = {}) {
     overview: { camPos: V(CX, 322 * SC, CZ + 258 * SC), camLook: V(CX, 4, CZ - 4) },
     heightAt: (x, z) => T.heightAt(x, z),
     terrain: T,
+    town,
+    spots: { ...(town?.spots ?? {}), pier: marks?.pier ?? null, lighthouse: marks?.lighthouse ?? null, fun },
+    zoneOf: (x, z) => { if (z > W(54)) return 'lab'; let bz = ZONES[0], bd = Infinity; for (const Z of ZONES) { const d = Math.hypot(x - Z.x, z - Z.z); if (d < bd) { bd = d; bz = Z; } } return bz.id; },
     debug: { branches: T.branches.map((B) => ({ c: B.chapter, side: B.side, D: B.D, score: +B.score.toFixed(2), n: B.pts.length })), forks: FORKS.length, fd: T.forkDebug },
     dispose() {
       root.removeFromParent();
@@ -635,17 +647,24 @@ function makeChains(from, corners) {
 // Landmarks: dock + yacht, lighthouse, panther monument, icebergs, umbrellas
 
 function addLandmarks({ T, root, updaters, exclude }) {
-  // --- dock with the yacht, south of the lab
-  const lab = ZONES[0];
-  let dz = lab.z + 6;
-  const dx = lab.x - 9;
-  while (dz < 90 && T.heightAt(dx, dz) > 0) dz += 0.5;
+  // --- the harbour pier with the yacht, on Beast Town's south beach
+  let dx = W(-8), dz = W(76);
+  for (const cx of [W(-8), W(-4), W(-12), W(0), W(-16)]) {
+    let z = W(74);
+    while (z < W(100) && T.heightAt(cx, z) > 0) z += 0.5;
+    const id = T.colAt(cx, z - 3);
+    if (z < W(100) && id >= 0 && T.roadD[id] > T.RW + 1.5) { dx = cx; dz = z; break; }
+  }
   const dockLen = 56;
   const dock = P.mesh(P.geo('dock', () => P.dockGrid(dockLen), 0.25, [0, 0, 0]), { receive: true });
   dock.position.set(dx, 0.8, dz - 2.5);
   dock.name = 'dock';
   root.add(dock);
   exclude.push([dx, dz, 4]);
+  const spots = { pier: { base: V(dx, 0.8, dz - 2.5), end: V(dx - 2.4, 0.8, dz - 2.5 + dockLen * 0.25 - 1.2), dir: V(0, 0, 1) } };
+  // cargo on the pier head
+  root.add(Object.assign(instanced(P.geo('barrel', TOWN.barrelGrid, 0.1, 'bottom'), [[dx + 2.6, 0.8, dz + 9.3, 0.3, 1], [dx + 2.0, 0.8, dz + 10.1, 1.2, 1]], { shadow: true }), { name: 'pierBarrels' }));
+  root.add(Object.assign(instanced(P.geo('crate', TOWN.crateGrid, 0.1, 'bottom'), [[dx + 2.7, 0.8, dz + 10.8, 0.1, 1], [dx + 2.7, 1.4, dz + 10.8, 0.6, 0.85]], { shadow: true }), { name: 'pierCrates' }));
   const yacht = P.mesh(P.geo('yacht', P.yachtGrid, 0.2, 'bottom'), {});
   const yx = dx + 6.2, yz = dz + 4.5;
   yacht.position.set(yx, -0.35, yz);
@@ -658,14 +677,17 @@ function addLandmarks({ T, root, updaters, exclude }) {
   });
 
   // --- lighthouse on the south-west headland
-  let lx = W(-58), lz = W(40);
-  for (let k = 0; k < 40 && T.heightAt(lx, lz) < 1; k++) { lx += 0.8; lz -= 0.5; }
+  // walk out from the west woods toward the sea, then stand on the last bit of headland
+  let lx = W(-62), lz = W(44);
+  for (let k = 0; k < 120 && T.heightAt(lx, lz) >= 1; k++) { lx -= 0.8; lz += 0.5; }
+  for (let k = 0; k < 40 && T.minHeight(lx, lz, 2.2) < 1; k++) { lx += 0.6; lz -= 0.375; }
   const lh = P.mesh(P.geo('lighthouse', P.lighthouseGrid, 0.25, [0, 0, 0]), {});
   const ly = T.maxHeight(lx, lz, 1.2);
   lh.position.set(lx, ly, lz);
   lh.name = 'lighthouse';
   root.add(lh);
   exclude.push([lx, lz, 3.5]);
+  spots.lighthouse = V(lx, ly + 46 * 0.25 - 0.9, lz);
   // --- giant panther head monument behind the summit arena, facing its camera
   // (off to the north-west of the summit so it doesn't block the view up to the Northern Wilds)
   const S8 = ZONES[SUMMIT], sd = summitDir();
@@ -701,6 +723,7 @@ function addLandmarks({ T, root, updaters, exclude }) {
     const items = um.filter((u) => u[5] === c);
     if (items.length) root.add(instanced(P.geo('umbrella' + c, () => P.umbrellaGrid(c ? 0x29b6f6 : 0xff4fa3), 0.1, 'bottom'), items, { shadow: true }));
   }
+  return spots;
 }
 
 // ---------------------------------------------------------------------------
@@ -985,6 +1008,70 @@ function addNorthLandmarks({ T, root, updaters, exclude, R }) {
       m.rotation.set(0, Math.atan2(-Math.sin(a) * 22, Math.cos(a) * 4), Math.sin(t * 1.5 + i) * 0.04, 'YXZ');
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Spots for the tappable island fun (scenes/islandFun.js builds + animates them): bee hives in the
+// meadows, coconut palms + crabs on the south beaches, the treasure X in Treasure Cove, a geyser in
+// the middle meadow, a cave in the forest hill. Reserved before the scatter so no tree grows on them.
+function planFunSpots({ T, exclude, R }) {
+  const free = (x, z, r) => !exclude.some(([ex, ez, er]) => Math.hypot(x - ex, z - ez) < er + r);
+  const okAt = (x, z, r, mats) => {
+    const id = T.colAt(x, z);
+    if (id < 0 || T.hv[id] < 1) return false;
+    if (mats && !mats.includes(T.mat[id])) return false;
+    if (T.roadD[id] < T.RW + r + 0.6 || T.riverD[id] < T.riverW[id] + r + 1) return false;
+    if (ZONES.some((Z) => Math.hypot(x - Z.x, z - Z.z) < PLINTH_R + r + 3)) return false;
+    if (LAGOONS.some((LG) => Math.hypot(x - LG.x, z - LG.z) < LG.r + r + 2)) return false;
+    if (T.maxHeight(x, z, r) - T.minHeight(x, z, r) > 0.6) return false;
+    return free(x, z, r);
+  };
+  const near = (x, z, r, maxR, mats) => {
+    for (let d = 0; d <= maxR; d += 1) for (let a = 0; a < (d ? 20 : 1); a++) {
+      const px = x + Math.cos((a / 20) * 6.283 + d) * d, pz = z + Math.sin((a / 20) * 6.283 + d) * d;
+      if (okAt(px, pz, r, mats)) return V(px, T.heightAt(px, pz), pz);
+    }
+    return null;
+  };
+  const take = (p, r) => { if (p) exclude.push([p.x, p.z, r]); return p; };
+  const out = { hives: [], palms: [], crabs: [], xmark: null, geyser: null, cave: null };
+  const GREEN = [MAT.GRASS, MAT.MEADOW, MAT.LUSH, MAT.FOREST, MAT.PASTEL, MAT.TOWN];
+  for (const [x, z] of [[-10, 57], [22, 26], [-24, -12], [46, 54]]) {
+    const p = take(near(W(x), W(z), 1.4, 16, GREEN), 2.2);
+    if (p) out.hives.push(p);
+  }
+  // beach life: palms + crabs on the sand south of the town and around the lab beach
+  const sand = [];
+  for (let i = 0; i < 2600 && sand.length < 60; i++) {
+    const x = W(-52 + R() * 70), z = W(52 + R() * 36);
+    if (T.matAt(x, z) !== MAT.SAND || !okAt(x, z, 0.9)) continue;
+    if (T.heightAt(x, z) > 2.5) continue;
+    sand.push(V(x, T.heightAt(x, z), z));
+  }
+  for (const p of sand) {
+    if (out.palms.length >= 4) break;
+    if (out.palms.some((q) => q.distanceTo(p) < 14)) continue;
+    out.palms.push(take(p, 2));
+  }
+  for (const p of sand) {
+    if (out.crabs.length >= 8) break;
+    if (out.palms.some((q) => q.distanceTo(p) < 2.5) || out.crabs.some((q) => q.distanceTo(p) < 5)) continue;
+    out.crabs.push(p);
+  }
+  // Treasure Cove: the sand nearest the cove's mouth
+  out.xmark = take(near(W(-46), W(77), 1.0, 22, [MAT.SAND]), 1.8);
+  out.geyser = take(near(W(14), W(32), 2.0, 18, GREEN), 3);
+  // the cave: on the forest hill's south face (looking at the default camera)
+  const hill = PEAKS.find((pk) => Math.abs(pk[0] - W(-22)) < 1 && Math.abs(pk[1] - W(38)) < 1);
+  if (hill) {
+    const top = T.heightAt(hill[0], hill[1]);
+    for (let d = 2; d < 22; d += 0.5) {
+      const x = hill[0] + 1, z = hill[1] + d;
+      const y = T.heightAt(x, z);
+      if (y < top - 5.5 && okAt(x, z + 1.6, 1.4)) { out.cave = { pos: V(x, T.minHeight(x, z + 0.8, 1.2), z + 0.4), ry: 0 }; take(out.cave.pos, 3); break; }
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

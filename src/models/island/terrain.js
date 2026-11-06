@@ -105,6 +105,21 @@ export function buildTerrain(spec) {
   const cliffF = new Float32Array(N);
   const lobes = spec.lobes ?? [];
   const coves = spec.coves ?? [];
+  // the coast wobble noise is low frequency: one coarse grid per seed, interpolated
+  const KG = 4, KNX = Math.ceil(NX / KG) + 2, KNZ = Math.ceil(NZ / KG) + 2;
+  const coastNoise = new Map();
+  const coastFbm = (xd, zd, seed) => {
+    let g = coastNoise.get(seed);
+    if (!g) {
+      g = new Float32Array(KNX * KNZ);
+      for (let kj = 0; kj < KNZ; kj++) for (let ki = 0; ki < KNX; ki++) g[kj * KNX + ki] = fbm(((X0 + ki * KG * CS) / SC) * 0.035, ((Z0 + kj * KG * CS) / SC) * 0.035, 2, seed);
+      coastNoise.set(seed, g);
+    }
+    const fx = (xd * SC - X0) / (KG * CS), fz = (zd * SC - Z0) / (KG * CS);
+    const i0 = Math.min(KNX - 2, Math.max(0, Math.floor(fx))), j0 = Math.min(KNZ - 2, Math.max(0, Math.floor(fz)));
+    const u = fx - i0, v = fz - j0, o = j0 * KNX + i0;
+    return (g[o] * (1 - u) + g[o + 1] * u) * (1 - v) + (g[o + KNX] * (1 - u) + g[o + KNX + 1] * u) * v;
+  };
   for (let j = 0; j < NZ; j++) {
     const z = cz(j), zd = z / SC;
     for (let i = 0; i < NX; i++) {
@@ -114,7 +129,7 @@ export function buildTerrain(spec) {
       if (em > 2.0) { L = 1 - Math.sqrt(em); cliff = 1; } // far from the original island (open sea): skip the noise
       else {
         const th = Math.atan2(zd, xd);
-        const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (fbm(xd * 0.035, zd * 0.035, 2, 3) - 0.5) * 0.22;
+        const R = 1 + 0.07 * Math.sin(3 * th + 0.7) + 0.05 * Math.sin(5 * th + 2.1) + 0.035 * Math.sin(9 * th + 0.3) + (coastFbm(xd, zd, 3) - 0.5) * 0.22;
         L = 1 - Math.sqrt(em) / R;
         // cliffy north + west coasts, beaches south + east
         const north = clamp(-zd / 50, 0, 1), west = clamp(-xd / 55, 0, 1);
@@ -125,7 +140,7 @@ export function buildTerrain(spec) {
         const e = dx * dx + dz * dz;
         if (e > 2.0 || (L > 0.35 && e > 0.25)) continue; // open sea, or deep inside another landmass
         const th = Math.atan2(dz, dx), s = B.seed ?? 0;
-        const R = 1 + 0.06 * Math.sin(3 * th + s) + 0.045 * Math.sin(5 * th + 2.1 + s) + 0.03 * Math.sin(11 * th + s * 0.7) + (fbm(xd * 0.035, zd * 0.035, 2, 3 + s) - 0.5) * 0.22;
+        const R = 1 + 0.06 * Math.sin(3 * th + s) + 0.045 * Math.sin(5 * th + 2.1 + s) + 0.03 * Math.sin(11 * th + s * 0.7) + (coastFbm(xd, zd, 3 + s) - 0.5) * 0.22;
         const Lb = 1 - Math.sqrt(e) / R;
         if (Lb > L) { L = Lb; cliff = B.cliff ? B.cliff(th, x, z) : 0.3; }
       }
@@ -149,8 +164,31 @@ export function buildTerrain(spec) {
   const lift = new Uint8Array(N);
   for (const Z of zones) forDisc(Z.x, Z.z, Z.rp + Z.rb + 15, (id) => { lift[id] = 1; });
   for (const [px, pz, , pr, po] of spec.peaks) forDisc(px, pz, pr * (po?.cone ? po.base ?? 2.8 : 3), (id) => { lift[id] = 1; });
-  // zone RBF base height + hills + peaks
+  // zone RBF base height + hills + peaks. The RBF base + the "keep zones on land" lift are smooth
+  // over tens of units: evaluated on a coarse grid (every CG columns) and interpolated.
   const sig2 = 2 * (20 * SC) ** 2;
+  const CG = 4, CNX = Math.ceil(NX / CG) + 2, CNZ = Math.ceil(NZ / CG) + 2;
+  const cBase = new Float32Array(CNX * CNZ), cNear = new Float32Array(CNX * CNZ);
+  for (let cj = 0; cj < CNZ; cj++) for (let ci = 0; ci < CNX; ci++) {
+    const x = X0 + ci * CG * CS, z = Z0 + cj * CG * CS;
+    let near = 0, ws = 0, hs = 0;
+    for (const Z of zones) {
+      const d2 = (x - Z.x) ** 2 + (z - Z.z) ** 2;
+      const R0 = Z.rp + Z.rb;
+      if (d2 < (R0 + 15) ** 2) near = Math.max(near, 1 - smooth(R0, R0 + 15, Math.sqrt(d2)));
+      const w = Math.exp(-d2 / sig2) + 1e-6;
+      ws += w;
+      hs += w * (Z.y - 0.5);
+    }
+    cBase[cj * CNX + ci] = hs / ws;
+    cNear[cj * CNX + ci] = near;
+  }
+  const coarse = (arr, x, z) => {
+    const fx = (x - X0) / (CG * CS), fz = (z - Z0) / (CG * CS);
+    const i0 = Math.min(CNX - 2, Math.max(0, Math.floor(fx))), j0 = Math.min(CNZ - 2, Math.max(0, Math.floor(fz)));
+    const u = fx - i0, v = fz - j0, o = j0 * CNX + i0;
+    return (arr[o] * (1 - u) + arr[o + 1] * u) * (1 - v) + (arr[o + CNX] * (1 - u) + arr[o + CNX + 1] * u) * v;
+  };
   for (let j = 0; j < NZ; j++) {
     const z = cz(j);
     for (let i = 0; i < NX; i++) {
@@ -158,17 +196,8 @@ export function buildTerrain(spec) {
       let L = landF[id];
       if (L < -0.07 && !lift[id]) { H[id] = L * 40; continue; } // open sea
       // keep zones on land
-      let near = 0, ws = 0, hs = 0;
-      for (const Z of zones) {
-        const d2 = (x - Z.x) ** 2 + (z - Z.z) ** 2;
-        const R0 = Z.rp + Z.rb;
-        if (d2 < (R0 + 15) ** 2) near = Math.max(near, 1 - smooth(R0, R0 + 15, Math.sqrt(d2)));
-        const w = Math.exp(-d2 / sig2) + 1e-6;
-        ws += w;
-        hs += w * (Z.y - 0.5);
-      }
-      L = Math.max(L, near * 0.12);
-      const base = hs / ws;
+      L = Math.max(L, coarse(cNear, x, z) * 0.12);
+      const base = coarse(cBase, x, z);
       const cliff = cliffF[id];
       const coastW = lerp(0.22, 0.035, cliff);
       const coast = smooth(0, coastW, L);
@@ -348,9 +377,19 @@ export function buildTerrain(spec) {
 
   tick('river');
   // ---------------------------------------------------------------- materials (per column)
+  // biome edge noise (fbm at ~12 unit wavelength) on a 2-column grid, interpolated
+  const BG = 2, BNX = Math.ceil(NX / BG) + 2, BNZ = Math.ceil(NZ / BG) + 2;
+  const bnoise = new Float32Array(BNX * BNZ);
+  for (let bj = 0; bj < BNZ; bj++) for (let bi = 0; bi < BNX; bi++) bnoise[bj * BNX + bi] = (fbm((X0 + bi * BG * CS) * 0.08, (Z0 + bj * BG * CS) * 0.08, 2, 31) - 0.5) * 0.5;
+  const bnAt = (x, z) => {
+    const fx = (x - X0) / (BG * CS), fz = (z - Z0) / (BG * CS);
+    const i0 = Math.min(BNX - 2, Math.max(0, Math.floor(fx))), j0 = Math.min(BNZ - 2, Math.max(0, Math.floor(fz)));
+    const u = fx - i0, v = fz - j0, o = j0 * BNX + i0;
+    return (bnoise[o] * (1 - u) + bnoise[o + 1] * u) * (1 - v) + (bnoise[o + BNX] * (1 - u) + bnoise[o + BNX + 1] * u) * v;
+  };
   const biomeAt = (x, z, jit = 0) => {
     let best = null, bw = 0;
-    const bn = (fbm(x * 0.08, z * 0.08, 2, 31) - 0.5) * 0.5 + jit;
+    const bn = bnAt(x, z) + jit;
     for (const B of spec.biomes) {
       const w = 1 - Math.hypot(x - B.x, z - B.z) / B.r + bn;
       if (w > bw) { bw = w; best = B; }
