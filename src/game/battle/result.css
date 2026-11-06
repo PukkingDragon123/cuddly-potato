@@ -128,7 +128,7 @@
 
 /* ---------------- the board */
 .cn-board {
-  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 1.3);
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 1.15);
   padding: calc(var(--u) * 1.6) calc(var(--u) * 1.8) calc(var(--u) * 1.4); overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain;
 }
 .landscape .cn-board { padding: calc(var(--u) * 2) calc(var(--u) * 2) calc(var(--u) * 1.2); gap: calc(var(--u) * 1.1); }
@@ -143,7 +143,9 @@
 
 /* base HP */
 .cn-bases { padding: calc(var(--u) * 1) calc(var(--u) * 1.6) calc(var(--u) * 1.2); }
-.cn-base { position: relative; display: grid; grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: calc(var(--u) * 1.2); margin-top: calc(var(--u) * 0.7); }
+.cn-bases .cn-cap { display: none; } /* the bars + DESTROYED / FLAWLESS stamps say it */
+.cn-base { position: relative; display: grid; grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: calc(var(--u) * 1.2); }
+.cn-base + .cn-base { margin-top: calc(var(--u) * 0.7); }
 .cn-base .who { display: flex; align-items: center; gap: calc(var(--u) * 0.4); }
 .cn-base .who .cn-av { --av: clamp(32px, 8.6vmin, 44px); }
 .cn-base .who .cn-rank { --rm: clamp(26px, 7vmin, 36px); }
@@ -172,17 +174,16 @@
   padding: calc(var(--u) * 0.6) calc(var(--u) * 0.9) calc(var(--u) * 0.7); opacity: 0; transform: translateY(-14px) scale(1.1);
 }
 .cn-tile.in { opacity: 1; transform: none; transition: transform 0.3s cubic-bezier(.2, 1.7, .4, 1), opacity 0.1s; }
-.cn-tile .ic { position: absolute; right: calc(var(--u) * 0.6); top: calc(var(--u) * 0.5); opacity: 0.9; }
-.cn-tile .ic .pi { width: clamp(16px, 4vmin, 22px); height: auto; }
-.cn-tile .v { font-family: var(--font-d); font-size: clamp(22px, 6.2vmin, 34px); line-height: 0.95; letter-spacing: 0.02em; text-shadow: var(--outline-thin); white-space: nowrap; }
-.cn-tile small { font-size: clamp(11px, 2.7vmin, 13px); font-weight: 800; letter-spacing: 0.04em; color: #a9b6e6; line-height: 1.1; margin-top: 0.2em; }
+.cn-tile .v { font-family: var(--font-d); font-size: clamp(22px, 6.2vmin, 32px); line-height: 0.95; letter-spacing: 0.02em; text-shadow: var(--outline-thin); white-space: nowrap; }
+.cn-tile small { display: flex; align-items: flex-start; gap: 0.3em; font-size: clamp(11px, 2.7vmin, 13px); font-weight: 800; letter-spacing: 0.04em; color: #a9b6e6; line-height: 1.1; margin-top: 0.25em; }
+.cn-tile small .pi { flex: none; width: 1.15em; height: 1.15em; }
 
 /* MVP + trophies row */
 .cn-row { display: flex; gap: calc(var(--u) * 1.2); flex: none; }
 .cn-row:empty { display: none; }
 .cn-mvp { position: relative; flex: 1.55; min-width: 0; display: flex; align-items: center; gap: calc(var(--u) * 1.3); padding: calc(var(--u) * 0.6) calc(var(--u) * 1); opacity: 0; transform: scale(0.85); color: #fff; }
 .cn-mvp.in { opacity: 1; transform: none; transition: transform 0.4s cubic-bezier(.2, 1.6, .4, 1), opacity 0.1s; }
-.cn-mvp-frame { position: relative; flex: none; width: clamp(48px, 12.5vmin, 68px); aspect-ratio: 4 / 5; }
+.cn-mvp-frame { position: relative; flex: none; width: clamp(44px, 11.5vmin, 60px); aspect-ratio: 4 / 5; }
 .cn-mvp-frame .px-rays { --rs: 220%; --ro: 0.6; }
 .cn-mvp-frame img { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .cn-mvp.in .cn-mvp-frame { animation: cnFlip 0.6s cubic-bezier(.2, 1.4, .4, 1) both; }
@@ -207,8 +208,25 @@
 /* payout chips: drop in with weight */
 .cn-pay { padding: 0; }
 .cn-chips { --gap: calc(var(--u) * 0.9); display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap); }
-.cn-chips > .cn-chip { flex: 0 1 calc((100% - var(--gap) * 2) / 3); }
-.landscape .cn-chips > .cn-chip { flex-basis: calc((100% - var(--gap) * 4) / 5); }
+.cn-chips > .cn-chip { flex: 1 1 0; max-width: 34%; flex-direction: column; justify-content: center; gap: 0.1em; padding: 0.22em 0.2em 0.28em; text-align: center; }
+.cn-chips > .cn-chip > div { align-items: center; }
+.landscape .cn-chips > .cn-chip { flex-direction: row; gap: 0.3em; padding: 0.15em 0.4em 0.15em 0.15em; text-align: left; }
+.landscape .cn-chips > .cn-chip > div { align-items: flex-start; }
+.landscape .cn-chip small { font-size: clamp(10px, 2.7vh, 12px); }
+.landscape .cn-chip .pi, .landscape .cn-chip img { width: clamp(20px, 5.6vh, 26px); height: clamp(20px, 5.6vh, 26px); }
+.landscape .cn-chip b { font-size: clamp(14px, 4.6vh, 19px); }
+.landscape .cn-mvp-info small { display: none; }
+/* landscape fits the whole report without scrolling: the captions go, the cards tighten */
+.landscape .cn-base + .cn-base { margin-top: calc(var(--u) * 0.4); }
+.landscape .cn-mvp-frame { width: clamp(30px, 8.5vh, 40px); }
+.landscape .cn-mvp-info .nm { font-size: clamp(15px, 4.8vh, 21px); }
+.landscape .cn-trophy .v { font-size: clamp(24px, 7.4vh, 36px); }
+.landscape .cn-trophy > .pi, .landscape .cn-trophy > img { width: clamp(24px, 7vh, 34px); }
+.landscape .cn-ticker { height: clamp(24px, 6.6vh, 30px); }
+/* the battle's world-anchored plates never show over the report */
+body.news-on #world-ui { visibility: hidden; }
+/* while the end cinematics play, the tutorial's pointing hand steps aside */
+body.cine-end .tut-hand, body.cine-end .tut-ring, body.cine-end .tut-tip { visibility: hidden !important; }
 .cn-chip { display: flex; align-items: center; gap: 0.3em; min-width: 0; padding: 0.15em 0.4em 0.15em 0.15em; opacity: 0; transform: translateY(-44px) scale(1.3); }
 .cn-chip > div { min-width: 0; }
 .cn-chip small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -226,6 +244,8 @@
 .cn-up-rank { --rm: 1.5em; }
 
 .cn-footslot { flex: none; display: flex; justify-content: center; }
+.cn-studio > .cn-footslot { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 1.6); pointer-events: auto; z-index: 4; }
+.landscape .cres-news.done .cn-lower { opacity: 0; transform: translateY(130%); transition: transform 0.3s cubic-bezier(.6, 0, .8, .4), opacity 0.2s 0.1s; }
 .cres-foot { display: flex; gap: calc(var(--u) * 2); justify-content: center; padding: calc(var(--u) * 0.6) 0 calc(var(--u) * 0.4); animation: cnFoot 0.4s cubic-bezier(.2, 1.4, .4, 1) both; }
 @keyframes cnFoot { from { opacity: 0; transform: translateY(30px); } }
 
@@ -261,10 +281,19 @@
 .landscape .cn-hl { min-height: 2.5em; font-size: clamp(14px, 4.2vh, 19px) !important; }
 .landscape .cn-bases { padding: calc(var(--u) * 0.9) calc(var(--u) * 1.4) calc(var(--u) * 1); }
 .landscape .cn-base { margin-top: calc(var(--u) * 0.5); }
-.landscape .cn-tile { min-height: clamp(44px, 13vh, 64px); }
+.landscape .cn-tile { min-height: clamp(40px, 11.5vh, 58px); }
 .landscape .cn-trophy { padding-top: calc(var(--u) * 0.3); padding-bottom: calc(var(--u) * 0.3); }
 .landscape .cn-tile .v { font-size: clamp(20px, 6.4vh, 30px); }
-.landscape .cn-mvp-frame { width: clamp(42px, 12vh, 60px); }
+.landscape .cn-mvp-frame { width: clamp(34px, 9.5vh, 46px); }
+.landscape .cn-board { gap: calc(var(--u) * 0.8); padding-top: calc(var(--u) * 1.4); padding-bottom: calc(var(--u) * 0.6); }
+.landscape .cn-base .who .cn-av { --av: clamp(28px, 8vh, 38px); }
+.landscape .cn-base .who .cn-rank { --rm: clamp(24px, 7vh, 32px); }
+.landscape .cn-base .nm span { font-size: clamp(14px, 4.4vh, 19px); }
+.landscape .cn-base .bar { height: clamp(18px, 5.4vh, 26px); }
+.landscape .cn-cap { margin-bottom: 0.3em; }
+.landscape .cn-mvp { padding-top: calc(var(--u) * 0.4); padding-bottom: calc(var(--u) * 0.4); }
+.landscape .cres-foot { padding: 0; }
+.landscape .cn-ups { margin-top: calc(var(--u) * 0.4); }
 .landscape .cn-trophy .v { font-size: clamp(26px, 8vh, 40px); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -275,6 +304,7 @@
    End cinematics in the arena (baseFall.js / endCine.js) on the shared .ent letterbox
    ========================================================================= */
 .ecw .ent-kick { letter-spacing: 0.14em; }
+.ecw .ent-kick b { color: #ffd84a; font-weight: 400; }
 .ecw-stamp {
   position: absolute; left: 50%; bottom: calc(var(--bar) + 6vh); translate: -50% 0; z-index: 4; pointer-events: none;
   font-family: var(--font-d); line-height: 0.9; white-space: nowrap; text-align: center;

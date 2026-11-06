@@ -318,7 +318,10 @@ function startEnd(view, side, hit = null) {
     void flashEl.offsetWidth;
     flashEl.classList.add('go');
   };
-  const tag = (txt) => { if (kick) kick.textContent = txt; wrap.classList.toggle('kick', !!txt); };
+  const tag = (txt, name = '') => {
+    if (kick) kick.replaceChildren(txt, ...(name ? [' ', h('b', {}, name)] : []));
+    wrap.classList.toggle('kick', !!txt);
+  };
   let skipAt = 0;
   wrap.addEventListener('pointerdown', (ev) => {
     ev.stopPropagation(); ev.preventDefault();
@@ -332,9 +335,12 @@ function startEnd(view, side, hit = null) {
   if (sc) {
     E.prevLock = sc.lockInput;
     sc.lockInput = 'endgame';
+    E.prevHold = sc.ai?.hold;
+    if (sc.ai) sc.ai.hold = true; // no new plays while the last one lands
     try { sc.select?.(-1); sc.cancelPending?.(); sc.hud?.dragEnd?.(); sc.hud?.setCinematic?.(true); } catch (e) { /* cosmetic */ }
   }
   stage.begin();
+  document.body.classList.add('cine-end');
 
   // ---- who threw it
   const unit = hit?.unit ?? lastAttacker(sim, side, B);
@@ -478,7 +484,7 @@ function startEnd(view, side, hit = null) {
     engine.timeScale = 0;
     E.freeze = true;
     flash('#ffffff', 0.9);
-    tag(unitName ? `FINAL BLOW  ${unitName.toUpperCase()}` : 'FINAL BLOW');
+    tag('FINAL BLOW', unitName.toUpperCase());
     hpx.emit('solid', 'pow', { x: impactP.x + out * 0.15, y: impactP.y + 0.1, z: impactP.z + 0.5, life: 0.6, scale: 1.25, color: 0xffb02e, flip: out > 0, fadeOut: 0.85, frame: 1 });
     hpx.sparks(impactP, { count: 16, speed: 7, scale: 1.2, up: 2 });
     audio.play('hitHeavy', { pitch: 0.55, vol: 1 });
@@ -494,6 +500,7 @@ function startEnd(view, side, hit = null) {
     E.phase = 'crack';
     E.freeze = false;
     particles.layers.cube.clear(); // the hit's falling bits would clutter the cut
+    if (ch) ch.speed = 1;
     tag(side === 0 ? 'YOUR BASE IS GOING DOWN' : 'BASE CRITICAL');
     audio.play('alarm', { vol: 0.55, pitch: 0.9 });
     audio.play('crunch', { pitch: 0.45, vol: 0.9 });
@@ -503,7 +510,7 @@ function startEnd(view, side, hit = null) {
   const toBoom = () => {
     E.phase = 'boom';
     flash('#fff6d8', 0.95);
-    tag(side === 0 ? 'YOUR BASE FELL' : 'BASE DESTROYED');
+    tag('');
     wrap.classList.add('ecw-boom');
     const stamp = h('div', { class: `ecw-stamp ${side === 0 ? 'loss' : 'win'}` }, h('span', {}, side === 0 ? 'BASE LOST' : 'BASE DESTROYED'));
     wrap.appendChild(stamp);
@@ -636,7 +643,7 @@ function startEnd(view, side, hit = null) {
   };
 
   // ---- slow time
-  const tsTarget = hit ? Math.max(0.12, Math.min(0.35, (hit.t || 0.2) / 1.3)) : 0.25;
+  const tsTarget = hit ? Math.max(0.1, Math.min(0.25, (hit.t || 0.2) / 1.8)) : 0.2;
   let preEase = 0;
 
   const updDebris = (gdt) => {
@@ -672,7 +679,7 @@ function startEnd(view, side, hit = null) {
   // ---- per frame: physics + timeline (keeps running after the camera is handed on)
   let emitT = 0, shotT = 0;
   const off = engine.onFrame((dtRaw) => {
-    if (view.disposed) { off(); cleanup(); return; }
+    if (view.disposed) { off(); cleanup(); document.body.classList.remove('cine-end'); return; }
     const dt = dtRaw / slowK();
     const gdt = dtRaw * engine.timeScale * (engine.hitstopT > 0 ? 0.04 : 1);
     E.P.update(gdt, cam);
@@ -780,11 +787,13 @@ function startEnd(view, side, hit = null) {
     if (view.cine === ctl) view.cine = null;
     view.endFx = null;
     stage.end();
+    document.body.classList.remove('cine-end');
     wrap.classList.remove('in');
     wrap.classList.add('out');
     setTimeout(() => wrap.remove(), 500);
     if (sc && !sc.ended) {
       sc.lockInput = E.prevLock ?? null;
+      if (sc.ai) sc.ai.hold = !!E.prevHold;
       sc.hud?.setCinematic?.(false);
     }
     off();
@@ -835,11 +844,12 @@ function startEnd(view, side, hit = null) {
   } else {
     audio.play('slowmo', { vol: 0.9 });
     audio.play('heartbeat', { vol: 0.6 });
-    tag(unitName ? `FINAL BLOW  ${unitName.toUpperCase()}` : 'FINAL BLOW');
+    tag('FINAL BLOW', unitName.toUpperCase());
     captureFrame(view);
   }
   E.toImpact = toImpact;
   E.skip = skip;
+  E.abort = abort;
   view.fallDone = E.promise;
   if (import.meta.env.DEV) window.__endFx = E;
   return E;
@@ -880,6 +890,8 @@ export async function labCollapse(view, side) {
   lab.fallen = true;
   view.autoFollow = false;
   let E = view.endFx;
+  // the slow-mo was on the other base (both were nearly down): that one stands, this one goes
+  if (E && E.side !== side && E.phase === 'pre') { E.abort(); E = null; }
   if (E && E.side === side && E.phase === 'pre') E.toImpact();
   else if (!E || E.phase === 'aborted') E = startEnd(view, side, null);
   await E.promise;

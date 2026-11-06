@@ -215,7 +215,7 @@ function clockTex() {
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
   t.colorSpace = THREE.SRGBColorSpace;
-  const g = c.getContext('2d');
+  const g = c.getContext('2d', { willReadFrequently: true });
   let last = '';
   t.redraw = (blink) => {
     const d = new Date();

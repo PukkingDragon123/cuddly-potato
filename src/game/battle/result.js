@@ -169,6 +169,7 @@ export async function showResult(parent, opts) {
 
   const root = h('div', { class: `cres r-${result} ${portrait() ? 'portrait' : 'landscape'}` });
   parent.appendChild(root);
+  document.body.classList.add('news-on');
   let alive = true;
 
   // ======================= the studio (3D, main renderer) =======================
@@ -193,6 +194,7 @@ export async function showResult(parent, opts) {
       studio.dispose();
     }
     engine.cover('news', false);
+    document.body.classList.remove('news-on');
   };
 
   // ======================= 0. static + BREAKING NEWS sting =======================
@@ -241,6 +243,8 @@ export async function showResult(parent, opts) {
   // per frame: bubble + PIP playback
   const tick = () => {
     if (!alive || !root.isConnected) return;
+    const port = portrait();
+    if (root.classList.contains('portrait') !== port) { root.classList.toggle('portrait', port); root.classList.toggle('landscape', !port); }
     news.placeSay(studio);
     news.pip.tick();
     requestAnimationFrame(tick);
@@ -336,6 +340,8 @@ export async function showResult(parent, opts) {
       end();
       resolve(b.id);
     }, `${b.color ?? 'blue'} lg`, { icon: b.icon })));
+    // landscape: the buttons take the lower third's place at the bottom of the studio (the board stays whole)
+    if (!portrait()) news.studio.appendChild(news.footSlot);
     news.footSlot.appendChild(foot);
     requestAnimationFrame(() => news.board.scrollTo?.({ top: news.board.scrollHeight, behavior: 'smooth' }));
     // the screen was torn down from outside (scene change)
@@ -401,7 +407,8 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
     h('div', { class: 'cn-pip-tag sk-chip-red' }, recDot(), frames.length > 2 ? 'REPLAY' : 'FINAL SHOT'),
     frames.length > 2 ? h('div', { class: 'cn-pip-slow' }, 'SLOW MO') : null);
   let fi = -1, ft = 0, playing = false;
-  const FRAME_MS = 145;
+  // the whole clip plays in about two seconds, however many snapshots there are
+  const FRAME_MS = Math.max(110, Math.min(170, 2100 / Math.max(1, frames.length)));
   const drawFrame = (i) => { if (frames[i]) { pg.drawImage(frames[i], 0, 0, pipCv.width, pipCv.height); fi = i; } };
   if (frames.length) drawFrame(frames.length - 1);
   const pip = {
@@ -470,7 +477,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
     return { el, fill, pct, b, medal };
   };
   const bRows = [baseRow(0), baseRow(1)];
-  const basesEl = h('div', { class: 'cn-card cn-bases sk-panel-dark' }, h('div', { class: 'cn-cap' }, icon('lab'), 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
+  const basesEl = h('div', { class: 'cn-card cn-bases sk-panel-dark' }, bRows[0].el, bRows[1].el);
   board.appendChild(basesEl);
   segments.push({
     shot: 'mid',
@@ -519,7 +526,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   const numSteps = [async () => { numsEl.classList.add('in'); show(numsEl); }];
   tiles.forEach((tl, k) => {
     const v = h('b', { class: 'v' }, tl.fmt ? tl.fmt(0) : '0');
-    const el = h('div', { class: 'cn-tile sk-panel-dark' }, h('div', { class: 'ic' }, icon(tl.ic)), v, h('small', {}, tl.label));
+    const el = h('div', { class: 'cn-tile sk-panel-dark' }, v, h('small', {}, icon(tl.ic), h('span', {}, tl.label)));
     grid.appendChild(el);
     numSteps.push(async (c) => {
       el.classList.add('in');
@@ -538,8 +545,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
       h('div', { class: 'cn-mvp-info' },
         h('div', { class: 'cn-mvp-tag sk-chip-gold' }, icon('star'), 'MVP'),
         h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
-        mvp.dmg ? h('span', { class: 'd' }, dmgV, ' DMG') : null,
-        mvp.count ? h('small', {}, `deployed x${mvp.count}`) : null));
+        mvp.dmg ? h('span', { class: 'd' }, dmgV, ' DMG') : mvp.count ? h('small', {}, `deployed x${mvp.count}`) : null));
     rowC.appendChild(el);
     numSteps.push(async (c) => {
       el.classList.add('in');
@@ -662,13 +668,14 @@ function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smas
   const tickTxt = bits.map((b) => h('span', {}, h('i', {}), b.toUpperCase()));
   const ticker = h('div', { class: 'cn-ticker' }, h('b', { class: 'cn-ticker-tag' }, 'BEAST NEWS'), h('div', { class: 'cn-ticker-run' }, h('div', { class: 'cn-ticker-in' }, tickTxt, tickTxt.map((e) => e.cloneNode(true)))));
 
+  const studio = h('div', { class: 'cn-studio' }, h('i', { class: 'cn-vig' }), bug, live, lower);
   const el = h('div', { class: 'cres-news' },
-    h('div', { class: 'cn-studio' }, h('i', { class: 'cn-vig' }), bug, live, lower),
+    studio,
     h('div', { class: 'cn-right' }, board, bumperEl),
     ticker,
     pipEl, say,
     h('div', { class: 'cn-hint' }, 'TAP TO SKIP'));
-  return { el, board, headline, headlineText, lower, segments, footSlot, live, pip, say, sayTxt, placeSay, bumper: bumperFx };
+  return { el, board, studio, headline, headlineText, lower, segments, footSlot, live, pip, say, sayTxt, placeSay, bumper: bumperFx };
 }
 
 export { button };

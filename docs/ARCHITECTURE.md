@@ -66,7 +66,15 @@ src/
                        with a 3D next-tier model, POWER wallet, hand + NEXT card with card-use animations,
                        live 3D Commander ULT + MEGA buttons with cut-ins, Beast-emblem emotes the Commander acts out
                        with a wind-up bar, squash / overshoot press tweens on every button); lineup.css
-      result.js        victory / defeat / draw screen with base HP and rewards
+      baseFall.js      FINAL BLOW + base explosion: slow-mo pre-roll when the next hit is lethal (low camera tracks
+                       the shot), impact freeze, glowing voxel crack seams, the base cut into big voxel chunks
+                       (pooled, capped), pixel fire / smoke / dust wave, the Commander launched off the roof;
+                       snapshots for the news replay (view.replay); tap to skip
+      endCine.js       VICTORY / DEFEAT / DRAW cinematic in the arena (poses, money throw, pixel fireworks +
+                       confetti, voxel rain cloud, title, voiced line in a speech bubble); tap to skip
+      result.js        BEAST NEWS report: TV static, BREAKING NEWS sting, lower third, Nora's voiced lines,
+                       replay box, base HP, numbers + MVP, payout (trophies, rewards, level ups, mastery), ticker;
+                       each segment skips with a tap. newsStudio.js = its 3D studio (engine.setBackdrop)
   net/p2p.js           WebRTC data channel with copy/paste "battle code" signalling (no server)
   models/
     kit.js             high-res toy modelling kit (blob, rbox, cyl, capsule, pixel-art stamping, joints)

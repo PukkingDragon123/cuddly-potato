@@ -104,6 +104,7 @@ function run(view, o, resolve) {
   if (!view.endStage) { stage.begin(); view.endStage = stage; }
   const port = () => cam.aspect < 1;
   const fov0 = view.camFov0 ??= cam.fov;
+  document.body.classList.add('cine-end');
   const lens = () => { const f = port() ? 42 : 30; if (Math.abs(cam.fov - f) > 0.01) { cam.fov = f; cam.updateProjectionMatrix(); } };
   const P = pixSystem(scene);
   const props = [];
@@ -112,6 +113,7 @@ function run(view, o, resolve) {
   const wrap = view.endWrap?.isConnected ? view.endWrap : makeWrap($overlay());
   wrap.classList.add('ecw');
   wrap.classList.remove('kick');
+  wrap.querySelectorAll('.ecw-stamp').forEach((e) => e.remove()); // a skipped explosion's stamp
   view.endWrap = wrap;
   const flashEl = wrap.querySelector('.ent-flash');
   const flash = (col = '#ffffff', a = 0.7) => {
@@ -180,9 +182,9 @@ function run(view, o, resolve) {
       return frame(cam, c, fH * (port() ? 0.62 : 1.25), fH, { yaw: out * lerp(-0.5, -0.12, inOut(k)), pitch: -0.1, minY: 0.3, sy: 0.62, sx: port() ? 0.36 : 0.44 });
     }
     if (loss) {
-      const fH = lerp(Hc * 3.6, Hc * 2.9, outC(k));
-      c.y = p.y + Hc * 0.95;
-      return frame(cam, c, fH * (port() ? 0.62 : 1.1), fH, { yaw: out * lerp(0.35, 0.2, k), pitch: 0.16, minY: 0.4, sy: port() ? 0.6 : 0.68, sx: port() ? 0.36 : 0.3 });
+      const fH = port() ? lerp(Hc * 3.6, Hc * 2.9, outC(k)) : lerp(Hc * 3, Hc * 2.5, outC(k));
+      c.y = p.y + Hc * (port() ? 0.95 : 0.9);
+      return frame(cam, c, fH * (port() ? 0.62 : 1.1), fH, { yaw: out * lerp(0.35, 0.2, k), pitch: 0.16, minY: 0.4, sy: port() ? 0.6 : 0.6, sx: port() ? 0.36 : 0.3 });
     }
     const fH = Hc * 2.8;
     return frame(cam, c, fH * (port() ? 0.6 : 1.2), fH, { yaw: out * 0.3, pitch: 0.02, minY: 0.3, sy: 0.6, sx: port() ? 0.36 : 0.44, zoom: lerp(1.05, 0.95, k) });
@@ -246,12 +248,12 @@ function run(view, o, resolve) {
   let cloud = null;
   const rain = (dt) => {
     if (!cloud || !heroPos) return;
-    const n = Math.floor((rain.acc = (rain.acc ?? 0) + dt * 34));
+    const n = Math.floor((rain.acc = (rain.acc ?? 0) + dt * 44));
     rain.acc -= n;
     const top = cloud.position.y - 0.08;
     for (let i = 0; i < n; i++) {
       const x = cloud.position.x + rnd(-0.55, 0.55) * cloud.scale.x * 1.2, z = cloud.position.z + rnd(-0.2, 0.2);
-      P.spawn({ tex: 'drop', additive: false, x, y: top, z, vy: -6.5, life: Math.max(0.15, (top - heroPos.y) / 6.5), size: 0.11, size1: 0.11, color: 0x9fd0ff, glow: 1.15 });
+      P.spawn({ tex: 'drop', additive: false, x, y: top, z, vy: -6.5, life: Math.max(0.15, (top - heroPos.y) / 6.5), size: 0.15, size1: 0.15, color: 0x9fd0ff, glow: 1.2 });
     }
   };
 
@@ -394,6 +396,9 @@ function run(view, o, resolve) {
 
   const ctl = { endgame: true, ownsCamera: true, done: false, update, finish: () => finish() };
   view.cine = ctl;
+  // the battle can be torn down mid-cinematic (scene change): never leave the page in cinematic mode
+  const offGuard = engine.onFrame(() => { if (view.disposed || done) { offGuard(); if (view.disposed) { document.body.classList.remove('cine-end'); title.remove(); sayEl.remove(); gloom?.remove(); P.dispose(); } } });
+
 
   let skipAt = performance.now() + 300;
   const onTap = (ev) => {
@@ -419,6 +424,7 @@ function run(view, o, resolve) {
       for (const pr of props) pr.parent?.remove(pr);
       P.dispose();
       ctl.done = true;
+      document.body.classList.remove('cine-end');
       if (view.cine === ctl) { ctl.ownsCamera = false; view.cine = null; }
       if (!view.disposed) { cam.fov = fov0; cam.updateProjectionMatrix(); }
     }, 900);
