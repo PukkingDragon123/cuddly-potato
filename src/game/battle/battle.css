@@ -520,3 +520,6 @@ body.landscape .bh-pause { top: calc(var(--safe-t) + var(--u) * 1); }
 .tw-cap { gap: 0; }
 .tw-cap .pc { font-size: calc(var(--u) * 3.1); min-width: 0; letter-spacing: 0; }
 .tw-cap > .pi { width: calc(var(--u) * 3.1); height: calc(var(--u) * 3.1); }
+/* round 9 polish: long names ("Training Bot") wrap to a second line in portrait instead of "Training ..." */
+body.portrait .tw-nm b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 0.95; overflow-wrap: anywhere; }
+body.portrait .tw-nm.s1 b { text-align: right; }

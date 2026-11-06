@@ -298,4 +298,4 @@ body.landscape .vo-shake { left: auto; right: calc(var(--safe-r) + var(--u) * 3)
 body.landscape .banner-big.vo-upbanner { left: 50%; top: 30%; }
 .vo-title.vo-titlebump.vo-out { animation: voTitleOut 0.3s ease-in forwards; }
 /* round 9 polish: the big prompt never touches the screen edges on narrow phones ("SHAKE YOUR PHONE!" is 17 chars) */
-body.portrait .vo-prompt { font-size: min(calc(var(--u) * 9.5), 4.9vw); }
+body.portrait .vo-prompt { font-size: min(calc(var(--u) * 9.5), 8.6vw); }

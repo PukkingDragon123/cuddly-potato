@@ -369,7 +369,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   // ---- top bar: logo bug + LIVE / REPLAY
   const live = h('div', { class: 'cn-live nx-c-red' }, recDot(), h('span', { class: 'l' }, 'LIVE'), h('span', { class: 'rp' }, 'REPLAY'));
   const bug = h('div', { class: 'cn-bug' },
-    h('b', { class: 'nx-s-red' }, icon('logoBolt', 'cn-bug-ic'), 'BEAST'),
+    h('b', { class: 'nx-s-red' }, 'BEAST'),
     h('span', { class: 'nx-s-white' }, 'NEWS'),
     h('i', { class: 'cn-bug-sheen' }));
 

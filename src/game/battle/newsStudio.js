@@ -2,9 +2,9 @@
 // as an engine backdrop (no extra WebGL context) while the report covers the battle.
 //   anchor Nora Newsly (3D chibi) behind a voxel news desk (LED chase strip along its front), an
 //   animated LED video wall (BEAST NEWS logo / the result, scrolling stripes, an equalizer), two
-//   voxel-framed screens (BATTLE REPORT board, a LIVE clock), a neon night-city wall, colour LED
-//   pillars, a lighting truss whose coloured lamps throw dithered pixel beams, a tiled floor.
-//   Lit bright and saturated: hemisphere + warm key, pink / cyan rims and two coloured fills.
+//   voxel-framed screens (BATTLE REPORT board, a LIVE clock), a night-city wall, red + white LED
+//   pillars, a lighting truss whose lamps throw dithered pixel beams, a tiled floor.
+//   A restrained news-channel look: navy set, Beast red + white accents, bright clean lighting.
 //   Camera: TV shots (wide / mid / close) cut per segment with a slow push; Nora sits in the
 //   studio area the report's layout leaves free (top in portrait, left in landscape).
 //
@@ -51,7 +51,7 @@ function crisp(g, w, hgt) {
 // voxel set pieces (geometry cached across reports)
 
 // truss lamps: x (voxels) and colour; each throws a pixel beam of its colour (beamTex)
-const LAMPS = [[-36, 0xff2e88], [-18, 0x2fe0ff], [0, 0xffd23f], [18, 0x8cf53a], [36, 0xa45cff]];
+const LAMPS = [[-36, 0xfff0d8], [-18, 0xfff0d8], [0, 0xfff0d8], [18, 0xfff0d8], [36, 0xfff0d8]];
 
 let G = null;
 function geos() {
@@ -61,15 +61,15 @@ function geos() {
   {
     const g = new VoxGrid();
     const W = 20;
-    const top = 0x22206a, trim = 0xf2f4ff, panel = 0x2348c8, panelHi = 0xff2e88, base = 0x0c1238, slot = 0x0a0820, gold = 0xffd23f;
+    const top = 0x121838, trim = 0xf2f4ff, panel = 0x1e2a6e, panelHi = 0xe8203a, base = 0x0c1238, slot = 0x0a0820, kick = 0xdfe6f6;
     for (let x = -W; x < W; x++) {
       const edge = Math.abs(x + 0.5) > W - 3;
       const z1 = edge ? 4 : 5;
       for (let z = -2; z <= z1 - 1; z++) g.set(x, 0, z, base);
       for (let y = 1; y <= 7; y++) {
         const seam = ((x + W) % 8) === 0;
-        // y 6: the LED chase strip sits in this slot (a scrolling texture, see ledStrip); y 1: gold kick plate
-        g.set(x, y, z1, y === 6 ? slot : y === 1 ? gold : seam ? panelHi : panel, seam && y !== 6 && y !== 1);
+        // y 6: the LED chase strip sits in this slot (a scrolling texture, see ledStrip); y 1: white kick plate
+        g.set(x, y, z1, y === 6 ? slot : y === 1 ? kick : seam ? panelHi : panel, seam && y !== 6 && y !== 1);
         g.set(x, y, z1 - 1, panel);
       }
       for (let z = -4; z <= z1 + 1; z++) g.set(x, 8, z, z >= z1 + 1 ? trim : top);
@@ -78,17 +78,17 @@ function geos() {
     g.box(-19, 9, -2, -15, 9, 0, 0x22283a);
     g.box(-18, 10, -1, -16, 10, -1, 0x22283a);
     g.box(-20, 11, -1, -14, 15, -1, 0x14182a);
-    for (let x = -19; x <= -15; x++) for (let y = 12; y <= 14; y++) g.set(x, y, 0, (x + y) % 4 === 0 ? 0xffd23f : y === 14 ? 0xff2e88 : 0x2fe0ff, true);
+    for (let x = -19; x <= -15; x++) for (let y = 12; y <= 14; y++) g.set(x, y, 0, (x + y) % 4 === 0 ? 0xffffff : y === 14 ? 0xe8203a : 0x3a7ee8, true);
     g.cylinder(13, 2, 9, 11, 1.2, 0xffffff);
     g.set(13, 11, 2, 0x5a3418);
     g.set(15, 10, 2, 0xffffff);
     g.box(6, 9, 1, 10, 9, 3, 0xf4f6ff);
     g.box(6, 10, 1, 10, 10, 2, 0xe8eef8);
-    g.set(9, 10, 3, 0xff2e88);
+    g.set(9, 10, 3, 0xe8203a);
     G.desk = g.build({ pivot: [0, 0, 0] });
   }
   // a screen bezel: chunky dark frame with bolts and a red corner tab (w x h voxels inside)
-  const bezel = (w, hgt, tab = 0xff2e88) => {
+  const bezel = (w, hgt, tab = 0xe8203a) => {
     const g = new VoxGrid();
     const dark = 0x161a34, mid = 0x262c54, bolt = 0x9aa6d8;
     for (let x = -1; x <= w; x++) for (let y = -1; y <= hgt; y++) {
@@ -100,16 +100,16 @@ function geos() {
     for (let x = 0; x < 3; x++) g.set(w - 1 - x, hgt, 1, tab, x === 0);
     return g.build({ scale: 0.1, pivot: [w / 2, hgt / 2, 0] });
   };
-  G.bezelMain = bezel(28, 16, 0xffd23f);
-  G.bezelSide = bezel(16, 10, 0x2fe0ff);
-  G.bezelPanel = bezel(20, 14, 0xff2e88);
+  G.bezelMain = bezel(28, 16, 0xe8203a);
+  G.bezelSide = bezel(16, 10, 0xe8203a);
+  G.bezelPanel = bezel(20, 14, 0xe8203a);
   // LED pillar
   {
     const g = new VoxGrid();
     for (let y = 0; y < 34; y++) {
       for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) if (Math.abs(x) === 2 || Math.abs(z) === 2) g.set(x, y, z, (y % 6 === 0) ? 0x2a3270 : 0x1a2050);
-      // LED column: pink / yellow / cyan / lime, every voxel lit (its brightness chases, see update)
-      g.set(0, y, 2, [0xff2e88, 0xffd23f, 0x2fe0ff, 0x8cf53a][y % 4], true);
+      // LED column: red / white, every voxel lit (its brightness pulses, see update)
+      g.set(0, y, 2, y % 3 === 0 ? 0xffffff : 0xe8203a, true);
       g.set(-1, y, 2, 0x10142e); g.set(1, y, 2, 0x10142e);
     }
     G.pillar = g.build({ scale: 0.1, pivot: [0, 0, 0] });
@@ -137,7 +137,7 @@ function wallTex() {
   return canvasTex(256, 112, (g, w, hgt) => {
     // night sky
     const sky = g.createLinearGradient(0, 0, 0, hgt);
-    sky.addColorStop(0, '#120a4a'); sky.addColorStop(0.45, '#3a1a8a'); sky.addColorStop(0.75, '#a0207a'); sky.addColorStop(1, '#ff4a7a');
+    sky.addColorStop(0, '#0a0e34'); sky.addColorStop(0.55, '#16206a'); sky.addColorStop(0.85, '#1e2a80'); sky.addColorStop(1, '#2a3a96');
     g.fillStyle = sky; g.fillRect(0, 0, w, hgt);
     // dithered sky bands (pixel art, no smooth gradient left)
     const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
@@ -155,27 +155,26 @@ function wallTex() {
       while (x < w) {
         const bw = 8 + ((r() * 14) | 0), bh = minH + ((r() * (maxH - minH)) | 0);
         g.fillStyle = col; g.fillRect(x, hgt - base - bh, bw, bh + base);
-        for (let wy = hgt - base - bh + 3; wy < hgt - base - 2; wy += 4) for (let wx = x + 2; wx < x + bw - 2; wx += 3) if (r() < 0.5) { const q = r(); g.fillStyle = q < 0.18 ? '#ff6ab4' : q < 0.32 ? '#4ae8ff' : win; g.fillRect(wx, wy, 1, 2); }
-        if (r() < 0.3) { g.fillStyle = r() < 0.5 ? '#ff2e88' : '#2fe0ff'; g.fillRect(x + 1, hgt - base - bh, bw - 2, 1); }
+        for (let wy = hgt - base - bh + 3; wy < hgt - base - 2; wy += 4) for (let wx = x + 2; wx < x + bw - 2; wx += 3) if (r() < 0.5) { const q = r(); g.fillStyle = q < 0.12 ? '#ff5a6a' : q < 0.3 ? '#ffffff' : win; g.fillRect(wx, wy, 1, 2); }
+        if (r() < 0.2) { g.fillStyle = '#e8203a'; g.fillRect(x + 1, hgt - base - bh, bw - 2, 1); }
         if (r() < 0.25) { g.fillStyle = '#ff3a52'; g.fillRect(x + (bw >> 1), hgt - base - bh - 3, 1, 3); }
         x += bw + 1 + ((r() * 3) | 0);
       }
     };
-    row(0, '#2a1a6a', '#8a9aff', 26, 60);
-    row(0, '#140e44', '#ffd84a', 10, 36);
+    row(0, '#1a2260', '#8a9aff', 26, 60);
+    row(0, '#0e1442', '#ffe6a8', 10, 36);
     g.fillStyle = '#05061a'; g.fillRect(0, hgt - 6, w, 6);
   });
 }
 
 function floorTex() {
   const t = canvasTex(32, 32, (g) => {
-    g.fillStyle = '#16125a'; g.fillRect(0, 0, 32, 32);
-    g.fillStyle = '#221a78'; g.fillRect(1, 1, 14, 14); g.fillRect(17, 17, 14, 14);
-    g.fillStyle = '#1a1666'; g.fillRect(17, 1, 14, 14); g.fillRect(1, 17, 14, 14);
-    g.fillStyle = '#3a2a9a'; g.fillRect(1, 1, 14, 1); g.fillRect(17, 17, 14, 1); // tile highlight rows
-    g.fillStyle = '#5a3ab8'; g.fillRect(0, 0, 32, 1); g.fillRect(0, 0, 1, 32); g.fillRect(0, 16, 32, 1); g.fillRect(16, 0, 1, 32);
-    g.fillStyle = '#ff2e88'; g.fillRect(0, 0, 2, 1); g.fillRect(16, 16, 2, 1);
-    g.fillStyle = '#2fe0ff'; g.fillRect(16, 0, 2, 1); g.fillRect(0, 16, 2, 1);
+    g.fillStyle = '#0e1440'; g.fillRect(0, 0, 32, 32);
+    g.fillStyle = '#18205a'; g.fillRect(1, 1, 14, 14); g.fillRect(17, 17, 14, 14);
+    g.fillStyle = '#131a4c'; g.fillRect(17, 1, 14, 14); g.fillRect(1, 17, 14, 14);
+    g.fillStyle = '#26307a'; g.fillRect(1, 1, 14, 1); g.fillRect(17, 17, 14, 1); // tile highlight rows
+    g.fillStyle = '#2a3480'; g.fillRect(0, 0, 32, 1); g.fillRect(0, 0, 1, 32); g.fillRect(0, 16, 32, 1); g.fillRect(16, 0, 1, 32);
+    g.fillStyle = '#e8203a'; g.fillRect(0, 0, 2, 1);
   });
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(16, 10);
@@ -185,15 +184,15 @@ function floorTex() {
 function reportTex(result, arena) {
   return canvasTex(224, 128, (g, w, hgt) => {
     const win = result === 'win', loss = result === 'loss';
-    g.fillStyle = loss ? '#1a2a9a' : win ? '#b0105a' : '#5a1aa0'; g.fillRect(0, 0, w, hgt);
+    g.fillStyle = loss ? '#14205a' : win ? '#1a2470' : '#22205e'; g.fillRect(0, 0, w, hgt);
     // stepped diagonal stripes behind the word
     for (let y = 27; y < hgt; y++) for (let x = 0; x < w; x++) if (((x + y) >> 3) % 2 === 0) { g.fillStyle = 'rgba(255,255,255,0.07)'; g.fillRect(x, y, 1, 1); }
     for (let y = 0; y < hgt; y += 2) { g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(0, y, w, 1); }
-    g.fillStyle = '#ff2e88'; g.fillRect(0, 0, w, 24);
-    g.fillStyle = '#ffd23f'; g.fillRect(0, 24, w, 3);
-    g.fillStyle = '#2fe0ff'; g.fillRect(0, hgt - 4, w, 4);
+    g.fillStyle = '#e8203a'; g.fillRect(0, 0, w, 24);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 24, w, 3);
+    g.fillStyle = '#e8203a'; g.fillRect(0, hgt - 4, w, 4);
     pixText(g, 'BATTLE REPORT', w / 2, 13, 16, '#ffffff');
-    pixText(g, win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW', w / 2, 66, 44, win ? '#ffd84a' : loss ? '#b8c8ff' : '#d8c0ff');
+    pixText(g, win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW', w / 2, 66, 44, win ? '#ffd84a' : loss ? '#b8c8ff' : '#ffffff');
     pixText(g, String(arena ?? 'Beast Island').toUpperCase(), w / 2, 104, 15, '#ffffff');
     crisp(g, w, hgt);
   });
@@ -222,28 +221,28 @@ function videoWallTex(result) {
     crisp(sg, w, hgt);
     return s;
   };
-  // logo: yellow BEAST plate + pink NEWS plate with an ink outline and a drop shadow
+  // logo: red BEAST plate + white NEWS plate with an ink outline and a drop shadow
   const logo = sprite(84, 24, (sg) => {
     sg.fillStyle = '#120c24'; sg.fillRect(0, 0, 84, 22);
-    sg.fillStyle = '#ffd23f'; sg.fillRect(1, 1, 42, 19);
-    sg.fillStyle = '#ff2e88'; sg.fillRect(43, 1, 40, 19);
-    sg.fillStyle = '#fff6c8'; sg.fillRect(1, 1, 42, 2);
-    sg.fillStyle = '#ff8ac0'; sg.fillRect(43, 1, 40, 2);
+    sg.fillStyle = '#e8203a'; sg.fillRect(1, 1, 42, 19);
+    sg.fillStyle = '#f2f5ff'; sg.fillRect(43, 1, 40, 19);
+    sg.fillStyle = '#ff6a7a'; sg.fillRect(1, 1, 42, 2);
+    sg.fillStyle = '#ffffff'; sg.fillRect(43, 1, 40, 2);
     sg.fillStyle = '#120c24'; sg.fillRect(2, 22, 82, 2);
-    pixText(sg, 'BEAST', 22, 11, 14, '#120c24');
-    pixText(sg, 'NEWS', 63, 11, 14, '#ffffff');
+    pixText(sg, 'BEAST', 22, 11, 14, '#ffffff');
+    pixText(sg, 'NEWS', 63, 11, 14, '#e8203a');
   });
   const win = result === 'win', loss = result === 'loss';
   const word = win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW';
-  const wcol = win ? '#ffd23f' : loss ? '#8ad8ff' : '#e0b8ff';
+  const wcol = win ? '#ffd23f' : loss ? '#b8c8ff' : '#ffffff';
   const big = sprite(110, 26, (sg) => {
     // outline: the word drawn 8 ways in ink, then the colour on top
     for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, 2], [-2, 2], [2, -2], [0, 3]]) pixText(sg, word, 55 + dx, 12 + dy, 20, '#120c24');
     pixText(sg, word, 55, 12, 20, wcol);
   });
   // deep stripes so Nora (in front) keeps her contrast; the bright bits are the picture and the lights
-  const STRIPE = win ? ['#2a1474', '#3a1c92'] : loss ? ['#0c2270', '#14308e'] : ['#34126e', '#46188c'];
-  const EQ = ['#8cf53a', '#8cf53a', '#ffd23f', '#ffd23f', '#ff8a1a', '#ff2e88'];
+  const STRIPE = ['#121a52', '#18226a'];
+  const EQ = ['#4a5ca8', '#4a5ca8', '#5a6cb8', '#6a7cc8', '#e8203a', '#e8203a'];
   // stepped diagonal stripes (6 px wide), painted once 12 px wider than the wall and slid along
   const stripes = document.createElement('canvas');
   stripes.width = W + 12; stripes.height = H;
@@ -257,9 +256,9 @@ function videoWallTex(result) {
     if (f === last) return;
     last = f;
     g.drawImage(stripes, -(f % 12), 0);
-    // dark band behind the middle picture, cyan rule lines
-    g.fillStyle = 'rgba(10, 6, 40, 0.72)'; g.fillRect(0, 12, W, 30);
-    g.fillStyle = '#ff2e88'; g.fillRect(0, 11, W, 1); g.fillStyle = '#2fe0ff'; g.fillRect(0, 42, W, 1);
+    // dark band behind the middle picture, red rule lines
+    g.fillStyle = 'rgba(6, 8, 30, 0.8)'; g.fillRect(0, 12, W, 30);
+    g.fillStyle = '#e8203a'; g.fillRect(0, 11, W, 1); g.fillRect(0, 42, W, 1);
     // equalizer along the bottom
     for (let i = 0; i < 20; i++) {
       const hgt = 2 + Math.round((Math.sin(time * 5.3 + i * 1.7) * 0.5 + 0.5) * (Math.sin(time * 2.1 + i * 0.6) * 0.5 + 0.5) * 9);
@@ -274,7 +273,7 @@ function videoWallTex(result) {
       for (let y = 0; y < 20; y++) g.fillRect(((W - 84) >> 1) + gx + (y >> 1), 16 + y, 3, 1);
     } else g.drawImage(big, (W - 110) >> 1, 14);
     // top: a ticking row of lights
-    for (let i = 0; i < 28; i++) { g.fillStyle = (i + f) % 4 === 0 ? '#ffd23f' : 'rgba(255,255,255,0.35)'; g.fillRect(W - 4 - i * 4, 4, 2, 2); }
+    for (let i = 0; i < 28; i++) { g.fillStyle = (i + f) % 4 === 0 ? '#e8203a' : 'rgba(255,255,255,0.3)'; g.fillRect(W - 4 - i * 4, 4, 2, 2); }
     t.needsUpdate = true;
   };
   t.redraw(0);
@@ -300,7 +299,7 @@ function beamTex() {
 /** LED chase strip: a repeating run of coloured LEDs with dark gaps (scrolled by texture offset). */
 function ledTex() {
   const t = canvasTex(16, 1, (g) => {
-    const C = ['#ff2e88', '#ffd23f', '#2fe0ff', '#8cf53a'];
+    const C = ['#e8203a', '#ffffff', '#e8203a', '#e8203a'];
     for (let x = 0; x < 16; x++) { g.fillStyle = x % 2 ? '#140c30' : C[(x >> 1) % 4]; g.fillRect(x, 0, 1, 1); }
   });
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -322,7 +321,7 @@ function clockTex() {
     if (txt === last) return;
     last = txt;
     g.fillStyle = '#05061a'; g.fillRect(0, 0, 128, 80);
-    g.fillStyle = '#ff2e88'; g.fillRect(8, 10, 38, 16);
+    g.fillStyle = '#e8203a'; g.fillRect(8, 10, 38, 16);
     pixText(g, 'LIVE', 27, 18, 13, '#ffffff');
     pixText(g, txt, 64, 50, 30, '#ffd84a');
     crisp(g, 128, 80);
@@ -341,28 +340,26 @@ function clockTex() {
 export function createNewsStudio(o = {}) {
   const g = geos();
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x120a3a);
-  scene.fog = new THREE.Fog(0x120a3a, 40, 80);
+  scene.background = new THREE.Color(0x0a0d2e);
+  scene.fog = new THREE.Fog(0x0a0d2e, 40, 80);
   const camera = new THREE.PerspectiveCamera(30, engine.aspect, 0.1, 80);
   const owned = { tex: [], mat: [], geo: [] };
   const own = (x, k = 'mat') => { owned[k].push(x); return x; };
 
-  // lights: bright cool fill, a warm key from camera left, hot pink + cyan rims, and two coloured
-  // fills from the sides of the set (pink left, cyan right) so the desk and floor pick up colour
-  scene.add(new THREE.HemisphereLight(0xdce6ff, 0x5a2a8a, 1.45));
+  // lights: bright cool fill, a warm key from camera left, red + cool rims, and one soft cool fill
+  // from the right side of the set (a single point light keeps it cheap on phones)
+  scene.add(new THREE.HemisphereLight(0xdce6ff, 0x262c5a, 1.35));
   const key = new THREE.DirectionalLight(0xfff2e4, 2.7);
   key.position.set(-3, 5, 7);
   scene.add(key);
-  const rimR = new THREE.DirectionalLight(0xff3a9a, 2.2);
+  const rimR = new THREE.DirectionalLight(0xff4a5a, 1.1);
   rimR.position.set(5, 3, -4);
-  const rimB = new THREE.DirectionalLight(0x3ad8ff, 2.2);
+  const rimB = new THREE.DirectionalLight(0x8ab4ff, 1.8);
   rimB.position.set(-5, 3, -4);
   scene.add(rimR, rimB);
-  const fillP = new THREE.PointLight(0xff2e88, 9, 9, 1.4);
-  fillP.position.set(-4.2, 2.2, 1.2);
-  const fillC = new THREE.PointLight(0x2fe0ff, 9, 9, 1.4);
+  const fillC = new THREE.PointLight(0xb8ccff, 4, 9, 1.4);
   fillC.position.set(4.4, 2.2, 1.2);
-  scene.add(fillP, fillC);
+  scene.add(fillC);
 
   // floor + back wall
   const floor = new THREE.Mesh(own(new THREE.PlaneGeometry(40, 24), 'geo'), own(new THREE.MeshLambertMaterial({ map: own(floorTex(), 'tex') })));
@@ -392,7 +389,7 @@ export function createNewsStudio(o = {}) {
   // the video wall right behind the desk: one picture across 3 x 2 framed panels
   const vw = own(videoWallTex(o.result), 'tex');
   const vwMat = own(new THREE.MeshBasicMaterial({ map: vw, toneMapped: false }));
-  vwMat.color.setScalar(0.95);
+  vwMat.color.setScalar(0.78);
   for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
     const grp = new THREE.Group();
     grp.add(makeMesh(g.bezelPanel));
@@ -422,7 +419,7 @@ export function createNewsStudio(o = {}) {
   const bGeo = own(new THREE.PlaneGeometry(1.5, 4.6), 'geo');
   bGeo.translate(0, -2.3, 0);
   const beams = LAMPS.map(([lx, col], i) => {
-    const m = own(new THREE.MeshBasicMaterial({ map: bTex, color: col, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    const m = own(new THREE.MeshBasicMaterial({ map: bTex, color: col, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     const b = new THREE.Mesh(bGeo, m);
     b.position.set(lx * 0.1, 4.2, -1.6);
     b.userData.base = -lx * 0.006;
@@ -513,7 +510,7 @@ export function createNewsStudio(o = {}) {
   return {
     scene, camera, anchor, update,
     bloom: { strength: 0.7, radius: 0.18, threshold: 1.6 },
-    grade: { sat: 0.22, contrast: 0.1, vignette: 0.18 },
+    grade: { sat: 0.12, contrast: 0.1, vignette: 0.2 },
     /** Cut to a shot ('wide' | 'mid' | 'close' | 'desk'); blend > 0 eases there instead (rate per second). */
     shot(name, blend = 0) {
       if (!SHOTS[name]) return;

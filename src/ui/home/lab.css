@@ -497,3 +497,4 @@ body.landscape .lx-segbar.lxp-on::before { display: block; }
 .lb2-tree-tt { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .lb2-tree-crt.lxp-on .lb2-tree-title { line-height: 1; }
 body.landscape .lb2-tree-tt { flex-direction: row; align-items: center; gap: 12px; }
+.lx-rcard.lxp-on .lx-rc-btns .btn { font-size: 0.88em; padding-inline: 0.5em; }

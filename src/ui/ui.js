@@ -374,6 +374,8 @@ export function floatText(pos, text, cls = 'dmg', opts = {}) {
  * Stays on screen and clear of the HUD bands: slides sideways (the tail keeps pointing at the speaker)
  * and flips below the speaker when there is no room above. */
 export function speech(target, text, dur = 2.2, opts = {}) {
+  // one bubble per speaker: a new line replaces the one still showing (no stacked, overlapping bubbles)
+  if (target) for (const o of speechBubbles) if (o.target === target && !o.out && o.t < o.dur - 0.18) o.t = o.dur - 0.18;
   const inner = h('div', { class: 'speech-b' }, h('span', { html: rich(text) }), h('i', { class: 'speech-tail' }));
   const el = h('div', { class: 'speech' }, inner);
   $world().appendChild(el);

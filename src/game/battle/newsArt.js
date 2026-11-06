@@ -4,11 +4,12 @@
 // injected as one <style> (classes + CSS variables), so the report itself only uses CSS.
 //
 //   injectNewsArt();             // idempotent
-//   class="nx-g-pink"            // dark glass panel, hot pink bevel (padding-box tinted glass)
-//   class="nx-s-yellow"          // solid bevelled plate (logo bug, category plates, tags)
-//   class="nx-c-blue"            // small solid chip (2 px bevel)
-//   var(--nx-st-pink)            // diagonal stepped stripes (8 x 8 tile), pink / dark pink
-//   var(--nx-df-pink)            // dither fade (4 x 16 tile): solid at the top, dissolving downward
+//   class="nx-g-steel"           // dark glass panel, steel bevel (padding-box tinted glass)
+//   class="nx-t-gold"            // small glass tile (reward tiles), gold bevel
+//   class="nx-s-red"             // solid bevelled plate (logo bug, category plates, tags)
+//   class="nx-c-navy"            // small solid chip (2 px bevel)
+//   var(--nx-st-red)             // diagonal stepped stripes (8 x 8 tile), red / dark red
+//   var(--nx-df-red), --nx-dg-*  // dither fade (4 x 16 tile): solid at the top, dissolving downward
 //   var(--nx-scan), var(--nx-glare), var(--nx-spot), var(--nx-sheen)
 
 /** Restrained broadcast palette: navy / steel base, Beast red + white accents, gold only for rewards.
