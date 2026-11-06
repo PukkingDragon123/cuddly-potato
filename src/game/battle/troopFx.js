@@ -7,7 +7,6 @@
 import * as THREE from 'three';
 import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
-import { floatText, icon } from '../../ui/ui.js';
 import { hpx } from './hitPix.js';
 import { pix } from './pixfx.js';
 import { voxelBeam, groundHit, groundImpact } from './voxfx.js';
@@ -36,9 +35,8 @@ const CALL_ICON = {
   'MAX HEAT': 'fire', 'CHOMP!': 'tooth', 'FRENZY!': 'swords', 'ABSORBED!': 'sludge', 'ERUPTION!': 'bomb',
 };
 /** A pixel icon on a mood-coloured plate, floating up from a world position (exported for view.js / modFx.js). */
-export function pixCall(pos, ic, tone = 'c-red', life = 0.85) {
-  floatText(pos, icon(ic), `hitn t-call t-ic ${tone}`, { life, rise: 30, spreadX: 4 });
-}
+// Switched off: no ability / status icon pop-ups over troops in a match (the animation and FX carry it).
+export function pixCall(pos, ic, tone = 'c-red', life = 0.85) {}
 /** A floating callout, de-duplicated: the same one never stacks on itself within 0.7 s. */
 function label(view, pos, text, cls, life) {
   const now = view.t ?? 0;
