@@ -12,6 +12,7 @@
 import { moduleMods } from '../../data/labModules.js';
 import { SWARMS } from '../../data/swarms.js';
 import { FIELD } from './field.js';
+import { PU } from '../../data/labs.js';
 import { untargetable, immune } from './troopTraits.js';
 
 const LAB_HALF = FIELD.LAB_HALF;
@@ -88,7 +89,7 @@ export function tick(sim, s, dt) {
     for (const a of sim.units) {
       if (!targetable(sim, a, si) || Math.abs(a.x - b.x) > R_GOO) continue;
       let c = 0;
-      for (const e of sim.units) if (targetable(sim, e, si) && Math.abs(e.x - a.x) <= 1.4) c += e.boss ? 3 : 1 + (e.cost ?? 0) / 6;
+      for (const e of sim.units) if (targetable(sim, e, si) && Math.abs(e.x - a.x) <= 1.4) c += e.boss ? 3 : 1 + (e.cost ?? 0) / (6 * PU);
       if (c > bc) { bc = c; bx = a.x; }
     }
     if (bx !== null) {
@@ -161,7 +162,7 @@ export function tick(sim, s, dt) {
     let card = null;
     for (const c of s.deck) {
       if (c.spell) continue;
-      const cost = SWARMS[c.unit]?.elixir ?? 9;
+      const cost = SWARMS[c.unit]?.elixir ?? 999;
       if (!card || cost < card.cost || (cost === card.cost && c.id < card.c.id)) card = { c, cost };
     }
     if (card) {

@@ -1781,3 +1781,6 @@ export function ensureBoardArt() {
   st.textContent = `:root{${Object.entries(v).map(([k, u]) => `${k}:url(${u})`).join(';')}}`;
   document.head.appendChild(st);
 }
+
+// shared with the Lab tab painter (src/ui/home/labArt.js)
+export { Px, cl, ramp, rampAt, hash, rng, noiseTex, nzB, nzF, nzG, dq, bay, blur, dropShadow, domeShade, mixC, scaleC, clamp01, smooth, toHex, lerp, cached, LIGHT, WOOD, BRASS, STEEL, COPPER };

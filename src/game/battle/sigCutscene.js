@@ -30,6 +30,7 @@ import { battleCamera } from '../../models/arenas/kit.js';
 import { pixSystem } from './pixfx.js';
 import { SIG_COL, sigColor } from './sigFx.js';
 import { voiceOf } from '../../data/characters.js';
+import { PU } from '../../data/labs.js';
 import './sigCutscene.css';
 
 export { SIG_COL };
@@ -450,7 +451,7 @@ const DIRECTORS = {
     let held = true, from = null, to = null, lidT = 0;
     // the troops the buyout will take (same pick as the sim)
     const sg = view.sim.sides[side].cmd.signature;
-    const value = (u) => (u.cost || 1) * 1000 + u.maxHp;
+    const value = (u) => ((u.cost || PU) / PU) * 1000 + u.maxHp;
     const targets = view.sim.enemiesOf(side).filter((u) => !u.boss && !u.mega && u.state !== 'spawn').sort((a, b) => value(b) - value(a)).slice(0, sg.buy);
     ch.play('present', { restart: true });
     ch.expr('money', 'grin', 3);

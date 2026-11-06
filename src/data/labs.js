@@ -24,21 +24,24 @@ export const TOWERS = {
   lab: { hp: 3600, dmg: 70, atk: 1.0, range: 6.4 },
 };
 
-// Electric POWER (the card currency): +1 every 2.8s; x2 in the last minute,
-// x3 in overtime. The max grows with your base tier.
-// Battle Cats-style wallet: POWER pours in fast and the tank grows with the base tier
-export const ENERGY = { max: 12, start: 6, perSec: 1 / 1.4 };
+// Electric POWER (the card currency), Battle Cats wallet scale: card prices run
+// ~15-100, the tank starts at 100 and grows to 250 as the base is upgraded.
+// ~7 POWER / s at the start (more with each base tier), x2 in the last minute, x3 in overtime.
+// PU = one "unit" of POWER (what a 1-cost card used to be): AI / sim heuristics
+// that weigh troops by price divide by it, so they read the same on any scale.
+export const PU = 10;
+export const ENERGY = { max: 100, start: 60, perSec: PU / 1.4 };
 export const POWER = ENERGY;
 
 // In-battle BASE UPGRADES: every battle starts in a tent. `cost` is the POWER
 // needed to upgrade FROM that tier to the next one.
 export const BASE_UPGRADES = [
-  { tier: 1, name: 'Camp Lab', regen: 1.0, max: 12, hp: 1.0, dmg: 0.55, range: 5.4, cost: 8 },
-  { tier: 2, name: 'Lab Shack', regen: 1.15, max: 15, hp: 1.12, dmg: 0.75, range: 5.8, cost: 11 },
-  { tier: 3, name: 'Trailer Lab', regen: 1.3, max: 18, hp: 1.26, dmg: 0.95, range: 6.1, cost: 14 },
-  { tier: 4, name: 'Field Lab', regen: 1.45, max: 22, hp: 1.42, dmg: 1.15, range: 6.4, cost: 17 },
-  { tier: 5, name: 'Beast Lab', regen: 1.6, max: 26, hp: 1.6, dmg: 1.35, range: 6.8, cost: 20 },
-  { tier: 6, name: 'Mega HQ', regen: 1.8, max: 30, hp: 1.8, dmg: 1.6, range: 7.2, cost: null },
+  { tier: 1, name: 'Camp Lab', regen: 1.0, max: 100, hp: 1.0, dmg: 0.55, range: 5.4, cost: 80 },
+  { tier: 2, name: 'Lab Shack', regen: 1.15, max: 130, hp: 1.12, dmg: 0.75, range: 5.8, cost: 110 },
+  { tier: 3, name: 'Trailer Lab', regen: 1.3, max: 160, hp: 1.26, dmg: 0.95, range: 6.1, cost: 140 },
+  { tier: 4, name: 'Field Lab', regen: 1.45, max: 190, hp: 1.42, dmg: 1.15, range: 6.4, cost: 170 },
+  { tier: 5, name: 'Beast Lab', regen: 1.6, max: 220, hp: 1.6, dmg: 1.35, range: 6.8, cost: 200 },
+  { tier: 6, name: 'Mega HQ', regen: 1.8, max: 250, hp: 1.8, dmg: 1.6, range: 7.2, cost: null },
 ];
 // legacy shape used by older callers: { regen, cost } per tier
 export const OVERCLOCK = BASE_UPGRADES;

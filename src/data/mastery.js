@@ -17,6 +17,7 @@
 // Pure data + helpers (take the profile `p`); the state wiring is in src/game/state.js.
 import { SWARMS } from './swarms.js';
 import { cardDef } from './cards.js';
+import { PU } from './labs.js';
 import { MASTERY_CARDS, MASTERY_NAMES } from './profileItems.js';
 
 export { MASTERY_CARDS, MASTERY_NAMES };
@@ -43,7 +44,7 @@ export function masteryTrack(id) {
   if (trackCache.has(id)) return trackCache.get(id);
   const d = cardDef(id), sw = SWARMS[id];
   if (!d || !sw) return null;
-  const cost = Math.max(1, d.elixir ?? 3);
+  const cost = Math.max(1, Math.round((d.elixir ?? 3 * PU) / PU)); // old 1-10 scale: keeps the task counts stable
   const dep = Math.max(5, Math.min(15, Math.round(30 / cost)));
   const role = sw.role, rar = d.rarity ?? 'common';
   const coins = COINS[rar] ?? COINS.common;

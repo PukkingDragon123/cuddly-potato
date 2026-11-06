@@ -11,6 +11,7 @@
 //   grabSlam, grabRelease. Units carry two extra states: 'crouch' (coiling) and 'grabbed' (held).
 import { statMult } from '../../data/swarms.js';
 import { FIELD } from './field.js';
+import { PU } from '../../data/labs.js';
 
 const GRAV = 32;
 const FEAR_SPEED = 0.85;
@@ -439,7 +440,7 @@ export function tickTraits(sim, u, dt) {
       for (const a of sim.units) {
         if (a.dead || a.side === u.side || a.state === 'spawn' || immune(a) || Math.abs(a.x - u.x) > st.range) continue;
         let c = 0;
-        for (const o of sim.units) if (!o.dead && o.side !== u.side && Math.abs(o.x - a.x) <= st.r) c += 1 + (o.cost || 1) / 4;
+        for (const o of sim.units) if (!o.dead && o.side !== u.side && Math.abs(o.x - a.x) <= st.r) c += 1 + (o.cost || PU) / (4 * PU);
         if (c > bc) { bc = c; bx = a.x; }
       }
       if (bx === null) {

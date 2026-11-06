@@ -4,6 +4,7 @@
 import { mulberry32, hashString } from '../core/util.js';
 import { ALL_CARDS, cardDef, DECK_SIZE } from './cards.js';
 import { researchForTrophies } from './research.js';
+import { PU } from './labs.js';
 
 export const ARENAS = [
   {
@@ -271,14 +272,14 @@ export const bossOfArena = (arenaId) => Object.values(BOSSES).find((b) => b.aren
 // NPC quest chains (NPCs stand on their Beast Island zone).
 
 export const QUESTS = {
-  nolan1: { npc: 'nolan', title: 'Nolan Needs Backup', text: 'Win {n} battles for Nolan.', stat: 'wins', n: 2, reward: { coins: 300 } },
-  nolan2: { npc: 'nolan', title: 'Lost Phone', text: "Nolan lost his phone somewhere in the Last To Leave Circle zone. Tap around to find it!", secret: 'nolanPhone', reward: { bucks: 25 } },
-  nolan3: { npc: 'nolan', title: 'Panther Party', text: 'Deploy {n} Panthers.', stat: 'deploy_panther', n: 30, reward: { coins: 500 } },
-  nolan4: { npc: 'nolan', title: 'Vial Hoarder', text: 'Open {n} vials.', stat: 'vialsOpened', n: 4, reward: { vial: 'labPack' } },
-  nolan5: { npc: 'nolan', title: 'Belly Flop Training', text: 'Defeat the King Clog boss.', boss: 'kingClog', reward: { commander: 'nolan' } },
-  juan1: { npc: 'juan', title: 'Welcome to Beast Mart', text: 'Battle {n} time in the Beast Mart arena.', stat: 'martBattles', n: 1, reward: { calories: 200 } },
-  juan2: { npc: 'juan', title: 'Cart Chaos', text: 'Smash {n} shopping carts in battles.', stat: 'cartsSmashed', n: 5, reward: { bucks: 30 } },
-  juan3: { npc: 'juan', title: 'Checkout Champion', text: 'Defeat Cart Kong.', boss: 'cartKong', reward: { vial: 'snackPack' } },
+  nolan1: { npc: 'nolan', title: 'Win 2 battles', text: "Tap BATTLE and knock down the rival's base, twice.", stat: 'wins', n: 2, reward: { coins: 300 } },
+  nolan2: { npc: 'nolan', title: "Find Nolan's phone", text: 'Go to the Last To Leave Circle on the island and tap things until you find it.', secret: 'nolanPhone', reward: { bucks: 25 } },
+  nolan3: { npc: 'nolan', title: 'Deploy Panther 30 times', text: 'Keep Panther in your deck and drop it on the field in battles.', stat: 'deploy_panther', n: 30, reward: { coins: 500 } },
+  nolan4: { npc: 'nolan', title: 'Open 4 vials', text: 'Tap a vial slot next to BATTLE, unlock it, then open it.', stat: 'vialsOpened', n: 4, reward: { vial: 'labPack' } },
+  nolan5: { npc: 'nolan', title: 'Beat King Clog', text: 'Tap FIGHT and win the King Clog boss fight. It opens at 300 trophies.', boss: 'kingClog', reward: { commander: 'nolan' } },
+  juan1: { npc: 'juan', title: 'Battle at Beast Mart', text: 'Battle once in the Beast Mart arena. It opens at 1,000 trophies.', stat: 'martBattles', n: 1, reward: { calories: 200 } },
+  juan2: { npc: 'juan', title: 'Smash 5 shopping carts', text: 'Battle at Beast Mart and knock over the carts on the field.', stat: 'cartsSmashed', n: 5, reward: { bucks: 30 } },
+  juan3: { npc: 'juan', title: 'Beat Cart Kong', text: 'Tap FIGHT and win the Cart Kong boss fight. It opens at 1,000 trophies.', boss: 'cartKong', reward: { vial: 'snackPack' } },
 };
 for (const [id, q] of Object.entries(QUESTS)) q.id = id;
 export const QUEST_CHAINS = { nolan: ['nolan1', 'nolan2', 'nolan3', 'nolan4', 'nolan5'], juan: ['juan1', 'juan2', 'juan3'] };
@@ -323,7 +324,7 @@ export function ghostOpponent(trophies, seed = Date.now(), arenaId, opts = {}) {
   // a full Clash Royale deck from Arena 2 on
   const size = trophies < 300 ? Math.max(3, Math.min(DECK_SIZE, opts.deckSize ?? rivalDeckSize(trophies))) : DECK_SIZE;
   // a sensible archetype: a cheap card, a tank, ranged support, a spell, then fill
-  want((c) => c.kind === 'troop' && c.elixir <= 2);
+  want((c) => c.kind === 'troop' && c.elixir <= 2 * PU);
   want((c) => c.kind === 'troop' && (c.role === 'tank' || c.role === 'siege'));
   want((c) => c.kind === 'troop' && c.role === 'ranged');
   if (size >= 5) want((c) => c.kind === 'spell' && c.id !== 'labShield');

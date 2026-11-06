@@ -11,7 +11,7 @@ export const COMMANDERS = {
     name: 'Lab Recruit', char: 'recruit', season: 0,
     desc: 'You! Fresh out of Beast Lab training and ready to experiment.',
     signature: {
-      id: 'mutantUprising', name: 'Mutant Uprising', cry: "Drink up, team. Doctor's orders.", charge: 72, icon: 'flask', color: '#7cff3a',
+      id: 'mutantUprising', name: 'Mutant Uprising', cry: "Drink up, team. Doctor's orders.", charge: 720, icon: 'flask', color: '#7cff3a',
       desc: "Smashes a vat of MEGA serum over your side. Every troop you have turns giant for 14s (full heal, double HP, +40% damage, +30% speed) and 3 free squads of your strongest troops burst out of your base.",
       dur: 14, hp: 1, scale: 1.5, spawn: 3,
     },
@@ -25,9 +25,9 @@ export const COMMANDERS = {
     name: 'Jimmy', char: 'jimmy', season: 0,
     desc: 'The Beast himself. Defeat him in his Mansion rematch to recruit him.',
     signature: {
-      id: 'beastBuyout', name: 'Beast Buyout', cry: "Switch sides. I'll pay double.", charge: 84, icon: 'bag', color: '#ffd84a',
-      desc: "Jimmy buys the 3 strongest enemy troops: they switch to your side, fully healed. If there aren't 3 to buy, he hires the rest from the rival's deck. Every other enemy is stunned for 3s by falling cash and takes damage, and you get +6 POWER.",
-      buy: 3, dmg: 240, stun: 3, energy: 6,
+      id: 'beastBuyout', name: 'Beast Buyout', cry: "Switch sides. I'll pay double.", charge: 840, icon: 'bag', color: '#ffd84a',
+      desc: "Jimmy buys the 3 strongest enemy troops: they switch to your side, fully healed. If there aren't 3 to buy, he hires the rest from the rival's deck. Every other enemy is stunned for 3s by falling cash and takes damage, and you get +60 POWER.",
+      buy: 3, dmg: 240, stun: 3, energy: 60,
     },
     skills: [
       { id: 'lastToLeave', level: 3, name: 'Unbreakable Circle', cd: 35, icon: 'shield', desc: 'For 4s your troops cannot drop below 1 HP.', dur: 4 },
@@ -39,7 +39,7 @@ export const COMMANDERS = {
     name: 'Nolan', char: 'nolan', season: 0,
     desc: 'Always the fall guy. Somehow that works out for you.',
     signature: {
-      id: 'orbitalFlop', name: 'Orbital Belly Flop', cry: "Hold my soda.", charge: 76, icon: 'energy', color: '#3fb8ff',
+      id: 'orbitalFlop', name: 'Orbital Belly Flop', cry: "Hold my soda.", charge: 760, icon: 'energy', color: '#3fb8ff',
       desc: "Nolan rides a soda rocket into orbit and belly flops onto the biggest enemy crowd: 1200 damage and a 2.5s stun in a wide blast (half damage to a base in range). The quake hits every other enemy for 320 with a 1.5s stun, cracks the rival base for 350 and leaves a burning crater that slows enemies 55% for 10s.",
       dmg: 1200, radius: 4.2, stun: 2.5, quake: 320, crater: 10, slow: 0.55, burn: 70, building: 0.5, quakeStun: 1.5, baseDmg: 350,
     },
@@ -53,7 +53,7 @@ export const COMMANDERS = {
     name: 'Juan', char: 'juan', season: 1,
     desc: 'FOOD SEASON Commander. Brings the whistle, the ball and the party.',
     signature: {
-      id: 'tiempoMuerto', name: 'Tiempo Muerto', cry: "Tiempo. Nobody moves.", charge: 80, icon: 'clock', color: '#ff8a2a',
+      id: 'tiempoMuerto', name: 'Tiempo Muerto', cry: "Tiempo. Nobody moves.", charge: 800, icon: 'clock', color: '#ff8a2a',
       desc: "Juan blows the final whistle and time stops for the rival for 7s. Their troops (even new ones) and base freeze in amber and their POWER stops, while yours charges twice as fast and your army moves 25% faster. When time restarts, every frozen enemy loses 40% of its max HP and the rival base loses 10%.",
       dur: 7, shatter: 0.4, baseShatter: 0.1,
     },

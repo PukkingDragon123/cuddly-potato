@@ -1,7 +1,8 @@
 // Battle simulation: pure game logic (no rendering).
 //
 // Clash Royale card cycle in a Battle Cats side-view lane:
-//   * electric POWER 0-10 (+1 / 2.8s), x2 in the last minute, x3 in overtime
+//   * electric POWER: a 100 tank (up to 250 with base upgrades) filling ~7 / s,
+//     x2 in the last minute, x3 in overtime; cards cost ~15-100
 //   * an 8-card deck cycling through a hand of 4 (+ the NEXT card): a played
 //     card goes to the back of the deck and the next one slides in
 //   * (legacy) SPECIAL card-trick support below; the current card set uses only
@@ -19,7 +20,7 @@
 import { SWARMS, swarmStats } from '../../data/swarms.js';
 import { SPELLS, spellPower } from '../../data/spells.js';
 import { COMMANDERS, cmdPower } from '../../data/commanders.js';
-import { TOWERS, ENERGY, BASE_UPGRADES, MEGA, labPower } from '../../data/labs.js';
+import { TOWERS, ENERGY, BASE_UPGRADES, MEGA, PU, labPower } from '../../data/labs.js';
 import { MEGAS } from '../../data/megas.js';
 import { researchMods, troopClass } from '../../data/research.js';
 import { mulberry32 } from '../../core/util.js';
@@ -197,9 +198,9 @@ export class BattleSim {
     const c = this.handCard(si, slot);
     if (!c) return Infinity;
     const s = this.sides[si];
-    // research PRE-MIXED: the first spell(s) of the battle cost 1 less
-    const pre = c.spell && s.rs && s.spellPlays < s.rs.preMixed ? 1 : 0;
-    return Math.max(0, ((c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3) + (s.mod[s.hand[slot]] ?? 0) - pre);
+    // research PRE-MIXED: the first spell(s) of the battle cost PU (10) less
+    const pre = c.spell && s.rs && s.spellPlays < s.rs.preMixed ? PU : 0;
+    return Math.max(0, ((c.spell ? SPELLS[c.unit] : SWARMS[c.unit])?.elixir ?? 3 * PU) + (s.mod[s.hand[slot]] ?? 0) - pre);
   }
   /** Cards don't recharge any more (they cycle); kept for old callers. */
   slotCd() {
@@ -283,7 +284,7 @@ export class BattleSim {
     let best = null, bc = 0;
     for (const a of es) {
       let c = 0;
-      for (const b of es) if (Math.abs(a.x - b.x) <= radius) c += b.boss ? 3 : 1 + b.cost / 6;
+      for (const b of es) if (Math.abs(a.x - b.x) <= radius) c += b.boss ? 3 : 1 + b.cost / (6 * PU);
       if (c > bc) { bc = c; best = a.x; }
     }
     return best === null ? null : { x: best, count: bc };
@@ -304,9 +305,9 @@ export class BattleSim {
     if (!free) {
       if (s.energy < cost) return false;
       s.energy -= cost;
-      // research COUPON CLIPPER: a troop deploy may refund 1 POWER
+      // research COUPON CLIPPER: a troop deploy may refund PU (10) POWER
       if (!card.spell && s.rs.refund && this.rand() < s.rs.refund) {
-        s.energy = Math.min(this.maxPower(si), s.energy + 1);
+        s.energy = Math.min(this.maxPower(si), s.energy + PU);
         this.emit('refund', { side: si });
       }
     }
@@ -385,9 +386,9 @@ export class BattleSim {
         break;
       }
       case 'couponBook': {
-        for (const k of s.hand) s.mod[k] -= def.discount;
+        for (const k of s.hand) s.mod[k] -= def.discount * PU;
         s.buffs.armorWin = def.armorWindow;
-        info = 'Hand -1 cost + ARMOR';
+        info = `Hand -${def.discount * PU} cost + ARMOR`;
         break;
       }
       case 'adrenaline': {
@@ -433,13 +434,13 @@ export class BattleSim {
         s.queue = s.queue.filter((k) => s.deck[k].unit !== id).concat(me);
         s.handSize = handSizeFor(s.queue.length);
         while (s.hand.length < s.handSize && s.queue.length) s.hand.push(s.queue.shift());
-        s.energy = Math.min(this.maxPower(si), s.energy + n);
+        s.energy = Math.min(this.maxPower(si), s.energy + n * PU);
         if (n) {
           const bx = s.labX + s.dir * 3.5;
           this.areaDamage(si, bx, def.radius, def.blast * n, { kind: 'acid' });
           this.emit('impact', { x: bx, radius: def.radius, kind: 'acid', side: si });
         }
-        info = `Discarded ${n}: +${n} POWER + BLAST`;
+        info = `Discarded ${n}: +${n * PU} POWER + BLAST`;
         break;
       }
       case 'doubleUp': {
@@ -451,7 +452,7 @@ export class BattleSim {
         if (s.last && s.hand.length < HAND_MAX) {
           s.deck.push({ ...s.last, temp: true, boost: (s.last.boost ?? 0) + def.boost });
           const k = s.deck.length - 1;
-          s.mod.push(-1);
+          s.mod.push(-PU);
           s.hand.push(k);
           info = 'Copied ' + ((s.last.spell ? SPELLS[s.last.unit] : SWARMS[s.last.unit])?.name ?? '');
         } else info = s.last ? 'Hand full!' : 'Nothing to copy';
@@ -463,7 +464,7 @@ export class BattleSim {
         for (let q = 0; q < s.queue.length; q++) if (!s.deck[s.queue[q]].special && (best < 0 || costOf(s.queue[q]) > costOf(s.queue[best]))) best = q;
         if (best >= 0 && s.hand.length < HAND_MAX) {
           const k = s.queue.splice(best, 1)[0];
-          s.mod[k] = -99;
+          s.mod[k] = -9999;
           s.deck[k] = { ...s.deck[k], boost: def.boost, goldenOnce: true };
           s.hand.push(k);
           info = 'Free ' + ((s.deck[k].spell ? SPELLS[s.deck[k].unit] : SWARMS[s.deck[k].unit])?.name ?? '');
@@ -914,7 +915,7 @@ export class BattleSim {
       }
       // JIMMY: the strongest enemy troops switch sides; the rest get stunned in a cash storm
       case 'beastBuyout': {
-        const value = (u) => (u.cost || 1) * 1000 + u.maxHp;
+        const value = (u) => ((u.cost || PU) / PU) * 1000 + u.maxHp;
         const pool = this.enemiesOf(si).filter((u) => !u.boss && !u.mega && u.state !== 'spawn').sort((a, b) => value(b) - value(a));
         const bought = pool.slice(0, sg.buy);
         const swaps = [];

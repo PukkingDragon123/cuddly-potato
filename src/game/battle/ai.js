@@ -5,7 +5,7 @@
 // difficulty 0..1 controls reaction speed, patience and placement accuracy.
 import { SWARMS } from '../../data/swarms.js';
 import { SPELLS } from '../../data/spells.js';
-import { BASE_UPGRADES } from '../../data/labs.js';
+import { BASE_UPGRADES, PU } from '../../data/labs.js';
 import { FIELD } from './field.js';
 
 const tankiness = (d) => d.hp * (1 + (d.traits?.armor ?? 0));
@@ -58,7 +58,8 @@ export class BattleAI {
     const allies = sim.alliesOf(si);
     // enemies close to (or past the centre towards) my buildings
     const near = enemies.filter((e) => (e.x - myFront.x) * dir < 9.5);
-    const threat = near.reduce((a, e) => a + (e.cost || 2) * (e.hp / e.maxHp) * (e.boss ? 4 : 1), 0);
+    // threat in old 1-10 card units (prices / PU), so the thresholds below read the same on any POWER scale
+    const threat = near.reduce((a, e) => a + ((e.cost || 2 * PU) / PU) * (e.hp / e.maxHp) * (e.boss ? 4 : 1), 0);
 
     if (this.tryCommander(enemies, near)) return;
     if (!this.noSpells && this.trySpell(enemies)) return;
@@ -72,13 +73,13 @@ export class BattleAI {
     }
     // upgrade the base when safe (smarter rivals invest earlier and further)
     const oc = BASE_UPGRADES[s.overclock];
-    if (oc.cost !== null && s.overclock < this.maxOverclock && sim.t < 50 + s.overclock * 30 + this.d * 40 && s.energy >= oc.cost + 1 && this.r() < 0.2 + this.d * 0.5) {
+    if (oc.cost !== null && s.overclock < this.maxOverclock && sim.t < 50 + s.overclock * 30 + this.d * 40 && s.energy >= oc.cost + PU && this.r() < 0.2 + this.d * 0.5) {
       sim.upgradeLab(si);
       return;
     }
     // support an ongoing push
     const pushing = allies.filter((u) => (u.x - s.labX) * dir > Math.abs(s.labX) - 1);
-    if (pushing.length && s.energy >= 3) {
+    if (pushing.length && s.energy >= 3 * PU) {
       const sup = affordable.filter((h) => !h.spell && h.def.role !== 'tank' && h.def.role !== 'siege');
       if (sup.length && this.r() < 0.35 + this.d * 0.5) {
         const back = Math.min(...pushing.map((u) => u.x * dir)) * dir;
@@ -91,7 +92,7 @@ export class BattleAI {
     }
     // start a push when energy is high (or don't leak at max)
     const cap = sim.maxPower(si);
-    if (s.energy >= cap * this.patience || s.energy >= cap - 0.4) {
+    if (s.energy >= cap * this.patience || s.energy >= cap - 0.4 * PU) {
       const troops = affordable.filter((h) => !h.spell);
       if (!troops.length) return;
       const tank = troops.filter((h) => h.def.role === 'tank' || h.def.role === 'siege').sort((a, b) => tankiness(b.def) - tankiness(a.def))[0];
@@ -115,7 +116,7 @@ export class BattleAI {
     const flying = lead.flying;
     const score = (h) => {
       const d = h.def;
-      let v = dps(d) / (h.cost + 1);
+      let v = dps(d) / (h.cost / PU + 1);
       const t = d.traits ?? {};
       if (swarm && splash(t)) v *= 2.2;
       // tank killers: swarms, heat-up beams, executioners, shield-breakers vs armour
@@ -153,7 +154,7 @@ export class BattleAI {
           for (const b of allies) if (Math.abs(a.x - b.x) < sp.radius && b.hp < b.maxHp * 0.7) c += b.cost;
           if (c > bc) { bc = c; best = a.x; }
         }
-        if (bc >= 5 && this.r() < 0.4 + this.d * 0.5) return sim.play(si, h.slot, best);
+        if (bc >= 5 * PU && this.r() < 0.4 + this.d * 0.5) return sim.play(si, h.slot, best);
         continue;
       }
       if (sp.id === 'labShield') {
@@ -168,15 +169,15 @@ export class BattleAI {
         for (const a of allies) {
           if (!enemies.some((e) => Math.abs(e.x - a.x) < 4)) continue;
           let c = 0;
-          for (const b of allies) if (Math.abs(a.x - b.x) < sp.radius) c += b.cost || 1;
+          for (const b of allies) if (Math.abs(a.x - b.x) < sp.radius) c += b.cost || PU;
           if (c > bc) { bc = c; best = a.x; }
         }
-        if (bc >= h.cost + 2 && this.r() < 0.35 + this.d * 0.5) return sim.play(si, h.slot, best);
+        if (bc >= h.cost + 2 * PU && this.r() < 0.35 + this.d * 0.5) return sim.play(si, h.slot, best);
         continue;
       }
       if (sp.id === 'overclockChip') {
         const near = enemies.filter((e) => Math.abs(e.x - s.lab.x) < 6).length;
-        if ((near >= 2 || s.energy < 3) && this.r() < 0.4 + this.d * 0.4) return sim.play(si, h.slot, s.lab.x);
+        if ((near >= 2 || s.energy < 3 * PU) && this.r() < 0.4 + this.d * 0.4) return sim.play(si, h.slot, s.lab.x);
         continue;
       }
       // damage spells: clusters worth at least the spell's cost, or finishing a tower
@@ -185,7 +186,7 @@ export class BattleAI {
       let bestX = null, bestV = 0;
       for (const e of enemies) {
         let v = 0;
-        for (const o of enemies) if (Math.abs(o.x - e.x) <= sp.radius * 0.85) v += o.boss ? 6 : (o.cost || 1) * (o.hp / o.maxHp);
+        for (const o of enemies) if (Math.abs(o.x - e.x) <= sp.radius * 0.85) v += o.boss ? 6 * PU : (o.cost || PU) * (o.hp / o.maxHp);
         if (v > bestV) { bestV = v; bestX = e.x; }
       }
       if (bestX !== null && bestV >= h.cost * (1.2 - this.d * 0.3) && this.r() < 0.3 + this.d * 0.6) return sim.play(si, h.slot, bestX);
@@ -203,19 +204,19 @@ export class BattleAI {
       if (!h.special || h.cost > s.energy) continue;
       const id = h.def.id;
       let use = false;
-      if (id === 'energyDrink') use = s.energy <= 3 && (threat > 0.5 || this.r() < 0.25);
-      else if (id === 'quickDraw') use = s.hand.length <= 4 && s.energy >= 5;
-      else if (id === 'couponBook') use = others.length >= 3 && s.energy >= 3;
-      else if (id === 'trashCompactor') use = !troopsOk || (others.length && others.every((o) => o.cost >= 5));
-      else if (id === 'doubleUp') use = others.some((o) => !o.spell && o.cost + h.cost + 1 <= s.energy);
-      else if (id === 'copyCat') use = !!s.last && s.energy >= 4;
+      if (id === 'energyDrink') use = s.energy <= 3 * PU && (threat > 0.5 || this.r() < 0.25);
+      else if (id === 'quickDraw') use = s.hand.length <= 4 && s.energy >= 5 * PU;
+      else if (id === 'couponBook') use = others.length >= 3 && s.energy >= 3 * PU;
+      else if (id === 'trashCompactor') use = !troopsOk || (others.length && others.every((o) => o.cost >= 5 * PU));
+      else if (id === 'doubleUp') use = others.some((o) => !o.spell && o.cost + h.cost + PU <= s.energy);
+      else if (id === 'copyCat') use = !!s.last && s.energy >= 4 * PU;
       else if (id === 'adrenaline' || id === 'ironCoat') use = sim.alliesOf(si).filter((u) => !u.dead).length >= 3 && (threat > 0.5 || this.r() < 0.4);
       else if (id === 'titanSerum') use = others.some((o) => !o.spell && o.cost + h.cost <= s.energy && o.def.role !== 'swarm');
-      else if (id === 'overclockChip') use = threat > 0.5 || s.energy < 4;
+      else if (id === 'overclockChip') use = threat > 0.5 || s.energy < 4 * PU;
       else if (id === 'timeFreeze') use = threat > 2.5 || sim.enemiesOf(si).length >= 6;
-      else if (id === 'goldenTicket') use = s.queue.some((k) => !s.deck[k].special && (SWARMS[s.deck[k].unit]?.elixir ?? 0) >= 4) && s.energy >= 3;
+      else if (id === 'goldenTicket') use = s.queue.some((k) => !s.deck[k].special && (SWARMS[s.deck[k].unit]?.elixir ?? 0) >= 4 * PU) && s.energy >= 3 * PU;
       // a card that never gets played clogs the hand: eventually cycle it anyway
-      if (!use && s.energy >= sim.maxPower(si) - 1) use = true;
+      if (!use && s.energy >= sim.maxPower(si) - PU) use = true;
       if (use && this.r() < 0.45 + this.d * 0.5) return sim.play(si, h.slot, null);
     }
     return false;
@@ -239,7 +240,7 @@ export class BattleAI {
       const pricey = enemies.reduce((a, e) => a + (e.cost ?? 0), 0);
       let worth = enemies.some((e) => e.boss) || near.length >= 2;
       if (id === 'mutantUprising') worth ||= allies0.length >= 3 || (allies0.length >= 2 && enemies.length >= 2);
-      else if (id === 'beastBuyout') worth ||= enemies.length >= 3 || pricey >= 9;
+      else if (id === 'beastBuyout') worth ||= enemies.length >= 3 || pricey >= 9 * PU;
       else if (id === 'orbitalFlop') worth ||= (sim.densestEnemyX(si, 3.4)?.count ?? 0) >= 3;
       else worth ||= enemies.length >= 3 || (allies0.length >= 3 && enemies.length >= 1);
       const losing = s.lab.hp < s.lab.maxHp * 0.5 && enemies.length >= 1;

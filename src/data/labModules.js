@@ -44,7 +44,7 @@ export const MODULES = {
   // ------------------------------------------------------------------ POWER CORE
   potatoBattery: {
     cat: 'power', name: 'Potato Battery', grade: 0, unlock: null, ai: 40,
-    fx: { startPower: [1, 2, 2, 3, 3], maxPower: [0, 0, 1, 1, 2] },
+    fx: { startPower: [10, 20, 20, 30, 30], maxPower: [0, 0, 10, 10, 20] },
     text: (v) => (v.maxPower ? `Start with +${v.startPower} POWER. Max POWER +${v.maxPower}.` : `Start with +${v.startPower} POWER.`),
     line: 'Forty potatoes, a lot of wire and one very sad lemon.',
   },
