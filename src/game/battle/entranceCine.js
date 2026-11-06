@@ -21,6 +21,7 @@ import { engine } from '../../core/engine.js';
 import { audio } from '../../core/audio.js';
 import { h, icon, $overlay } from '../../ui/ui.js';
 import { rankMedal } from '../../ui/rankMedal.js';
+import { sideAvatarEl } from '../../ui/avatar.js';
 import { voiceOf } from '../../data/characters.js';
 import { BANNERS } from '../../data/season.js';
 import { entranceDef, ghostEntrance } from '../../data/entrances.js';
@@ -199,6 +200,7 @@ function titleCard(info, side, e) {
     h('i', { class: 'ent-card-shade' }),
     h('i', { class: 'ent-card-trim' }),
     h('div', { class: 'ent-card-in' },
+      sideAvatarEl(info, { cls: 'ent-card-av' }),
       info.labLevel ? rankMedal(info.labLevel, { cls: 'ent-card-rk' }) : null,
       h('div', { class: 'ent-card-tx' },
         h('div', { class: `ent-card-tag ${side ? 'sk-chip-red' : 'sk-chip-blue'}` }, tag),
