@@ -30,7 +30,6 @@ import { Placement } from '../game/battle/placement.js';
 import { FIELD } from '../game/battle/field.js';
 import { vsIntro } from '../game/battle/vsIntro.js';
 import { setupEntrances } from '../game/battle/entranceCine.js';
-import { featureUnlocked } from '../game/progression.js';
 import { showResult, finalBlow } from '../game/battle/result.js';
 import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
@@ -197,7 +196,8 @@ export class BattleScene {
     this.bindInput();
     audio.music(mode === 'boss' ? 'boss' : 'battle');
     // battle ENTRANCES (entranceCine.js): both Commanders walk on after the VS intro (props baked now)
-    try { this.entrances = featureUnlocked('entrances') ? setupEntrances(this.view, cfg, mode) : null; } catch (e) { console.warn('entrances', e); this.entrances = null; }
+    // every battle opens with the walk-ins (before Entrances unlock you get the free Classic Strut; the unlock opens the shop's collection)
+    try { this.entrances = setupEntrances(this.view, cfg, mode); } catch (e) { console.warn('entrances', e); this.entrances = null; }
     await prewarmBattle(this); // deck models + shaders now (behind the loading screen), not on each card's first deploy
     if (this.dead) return;
     this.intro();

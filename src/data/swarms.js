@@ -123,10 +123,10 @@ export const SWARMS = {
   },
   toiletRollRipper: {
     name: 'Toilet Roll Ripper', series: 'homeHorrors', rarity: 'common', role: 'swarm', arena: 'lab',
-    elixir: 2, hp: 110, dmg: 38, atk: 0.9, range: 0.6, speed: 2.2, kb: 1, size: 0.8, count: 3,
-    traits: { wrap: { stacks: 4, stun: 1.0, cd: 2.5 } },
+    elixir: 2, hp: 100, dmg: 33, atk: 0.9, range: 0.6, speed: 2.2, kb: 1, size: 0.8, count: 3,
+    traits: { wrap: { stacks: 6, stun: 0.5, cd: 4.5 } },
     anim: { attack: 'chomp' },
-    desc: 'A 3-pack of shredders: every 4th hit on a target mummy-wraps it in paper, stunning it for 1s.',
+    desc: 'A 3-pack of shredders: every 6th hit on a target mummy-wraps it in paper for half a second.',
   },
   mutantMailbox: {
     name: 'Mutant Mailbox', series: 'homeHorrors', rarity: 'rare', role: 'ranged', arena: 'circle',
