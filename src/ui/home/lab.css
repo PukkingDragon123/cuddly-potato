@@ -355,7 +355,7 @@ body.landscape .lx-wall { left: var(--lx-split); top: var(--lx-seg); }
 .lx-sticky > .pi { flex: none; margin-top: 0.1em; }
 
 /* ---- HUD nameplate */
-.lx-hud.lxp-on { padding: 9px 20px 10px 11px; }
+.lx-hud[data-lxp] { padding: 9px 20px 10px 11px; }
 .lx-hud .lx-lv { color: #fff6c8; }
 
 /* ---- workbench + drawers (segments) */
@@ -376,7 +376,7 @@ body.landscape .lx-segbar.lxp-on::before { display: block; }
 .lx-seg .mn-seg-b.lx-drw > .badge { top: -6px; right: -4px; z-index: 5; }
 
 /* ---- LAB: base plate */
-.lx-base.lxp-on { padding: 16px 14px 14px; gap: 10px; }
+.lx-base[data-lxp] { padding: 16px 14px 14px; gap: 10px; }
 .lx-base-t { gap: 6px; }
 .lx-base > .lx-div { margin: 2px 0 0; }
 .lx-tiers { gap: 5px; }
@@ -396,7 +396,7 @@ body.landscape .lx-segbar.lxp-on::before { display: block; }
 .lx-slot[data-lxp] .lx-upar { top: 30px; left: auto; right: 6px; }
 
 /* ---- LAB: research card (blueprint sheet) */
-.lx-rcard.lxp-on { padding: 16px 16px 16px; }
+.lx-rcard[data-lxp] { padding: 16px 16px 16px; }
 .lx-rcard.lxp-on .lx-rc-ic { background: rgba(4, 16, 48, 0.55); box-shadow: 0 0 0 2px #cfe6ff; }
 .lx-rcard.lxp-on .lx-rc-d { color: #e2f0ff; }
 .lx-rcard.lxp-on .lx-rc-k { color: #fff; }
@@ -405,7 +405,7 @@ body.landscape .lx-segbar.lxp-on::before { display: block; }
 /* ---- LAB: Lab Level clipboard (graph paper) */
 .lx-lvhead { padding: 0 2px; }
 .lx-paper.lxp-on { color: var(--lx-ink); }
-.lx-lvpanel.lxp-on { padding: 26px 16px 16px 26px; gap: 10px; }
+.lx-lvpanel[data-lxp] { padding: 26px 16px 16px 26px; gap: 10px; }
 .lx-paper .mn-labstats { gap: 6px; }
 .lx-paper .mn-labst { background: rgba(255, 255, 255, 0.5); box-shadow: inset 0 0 0 2px rgba(29, 63, 154, 0.35); padding: 6px 10px; }
 .lx-paper .mn-labst .mn-st-v { color: var(--lx-ink); text-shadow: none; }
@@ -464,7 +464,7 @@ body.landscape .lx-segbar.lxp-on::before { display: block; }
 .lx-skin-tick { z-index: 6; }
 
 /* ---- COMMANDER: dossier clipboard (lined paper) */
-.lx-cmd.lxp-on { padding: 26px 16px 18px 28px; gap: 8px; }
+.lx-cmd[data-lxp] { padding: 26px 16px 18px 28px; gap: 8px; }
 .lx-paper .lx-cmd-name { color: var(--lx-ink); text-shadow: none; }
 .lx-paper .lx-cmd-desc { color: var(--lx-ink); font-weight: 700; }
 .lx-paper .lx-cmd-lock { color: var(--lx-ink); background: rgba(255, 231, 106, 0.55); box-shadow: inset 0 0 0 2px rgba(184, 154, 42, 0.6); }

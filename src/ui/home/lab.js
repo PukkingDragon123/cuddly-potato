@@ -294,7 +294,7 @@ export function mount(el, ctx, opts = {}) {
     undress = dress(root);
     clearTimeout(dressT);
     dressT = setTimeout(() => { if (!disposed) { undress?.(); undress = dress(root); } }, 650);
-    if (scroll.firstElementChild && ro) { ro.disconnect(); ro.observe(stageEl); ro.observe(root); ro.observe(scroll.firstElementChild); }
+    if (scroll.firstElementChild && ro) { ro.disconnect(); ro.observe(stageEl); ro.observe(root); ro.observe(hud); ro.observe(scroll.firstElementChild); }
   }
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
     rectDirty = true;
@@ -303,6 +303,7 @@ export function mount(el, ctx, opts = {}) {
   }) : null;
   ro?.observe(stageEl);
   ro?.observe(root);
+  ro?.observe(hud);
   const onResize = () => { rectDirty = true; };
   window.addEventListener('resize', onResize);
   const offFrame = engine.onFrame(() => {

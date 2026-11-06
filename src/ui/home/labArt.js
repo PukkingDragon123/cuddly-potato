@@ -1189,6 +1189,12 @@ export function dress(root, { budget = 12 } = {}) {
       }
       el._lxk = key;
       el.classList.add('lxp-on');
+      // painted styles can change the box (padding, borders): paint again at the new size
+      const w2 = el.offsetWidth, h2 = el.offsetHeight;
+      if ((w2 !== w || h2 !== h) && w2 >= 6 && h2 >= 6 && !el._lxRe) {
+        el._lxRe = true;
+        jobs.push({ el, w: w2, h: h2, key: `${el.dataset.lxp}|${el.dataset.lxo ?? ''}|${w2}x${h2}` });
+      } else el._lxRe = false;
     }
     if (i < jobs.length) requestAnimationFrame(step);
   };

@@ -25,7 +25,8 @@ export const TOWERS = {
 };
 
 // Electric POWER (the card currency), Battle Cats wallet scale: card prices run
-// ~15-100, the tank starts at 100 and grows to 250 as the base is upgraded.
+// 15-98 (each card priced on its own value), the tank starts at 100 and grows to 250
+// as the base is upgraded.
 // ~7 POWER / s at the start (more with each base tier), x2 in the last minute, x3 in overtime.
 // PU = one "unit" of POWER (what a 1-cost card used to be): AI / sim heuristics
 // that weigh troops by price divide by it, so they read the same on any scale.

@@ -225,6 +225,12 @@
 @keyframes cnStamp { from { opacity: 0; scale: 2.4; } }
 /* icon stamps (skull = destroyed, star = flawless): the pixel icon is the stamp */
 .cn-stamp.ic .pi { width: 1.4em; height: 1.4em; }
+/* portrait: the name sits as a tab on top of its HP bar, so long names keep the full width */
+.portrait .cn-base { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; row-gap: 0; }
+.portrait .cn-base .who { grid-row: 1 / 3; }
+.portrait .cn-base .nm { grid-column: 2; grid-row: 1; justify-self: start; max-width: 100%; margin-bottom: calc(var(--px) * -1); z-index: 1; }
+.portrait .cn-base .bar { grid-column: 2; grid-row: 2; }
+.portrait .cn-stamp { top: auto; bottom: 0; translate: 0 10%; right: 18%; }
 .cn-hit { animation: cnHit 0.3s; }
 @keyframes cnHit { 30% { translate: -4px 2px; } 60% { translate: 3px -1px; } }
 

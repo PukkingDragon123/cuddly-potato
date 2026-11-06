@@ -61,7 +61,7 @@ function geos() {
   {
     const g = new VoxGrid();
     const W = 20;
-    const top = 0x121838, trim = 0xf2f4ff, panel = 0x1e2a6e, panelHi = 0xe8203a, base = 0x0c1238, slot = 0x0a0820, kick = 0xdfe6f6;
+    const top = 0x121838, trim = 0xf2f4ff, panel = 0x1e2a6e, panelHi = 0x3a4a9a, base = 0x0c1238, slot = 0x0a0820, kick = 0xdfe6f6;
     for (let x = -W; x < W; x++) {
       const edge = Math.abs(x + 0.5) > W - 3;
       const z1 = edge ? 4 : 5;
@@ -69,7 +69,7 @@ function geos() {
       for (let y = 1; y <= 7; y++) {
         const seam = ((x + W) % 8) === 0;
         // y 6: the LED chase strip sits in this slot (a scrolling texture, see ledStrip); y 1: white kick plate
-        g.set(x, y, z1, y === 6 ? slot : y === 1 ? kick : seam ? panelHi : panel, seam && y !== 6 && y !== 1);
+        g.set(x, y, z1, y === 6 ? slot : y === 1 ? kick : seam ? panelHi : panel);
         g.set(x, y, z1 - 1, panel);
       }
       for (let z = -4; z <= z1 + 1; z++) g.set(x, 8, z, z >= z1 + 1 ? trim : top);
@@ -352,7 +352,7 @@ export function createNewsStudio(o = {}) {
   const key = new THREE.DirectionalLight(0xfff2e4, 2.7);
   key.position.set(-3, 5, 7);
   scene.add(key);
-  const rimR = new THREE.DirectionalLight(0xff4a5a, 1.1);
+  const rimR = new THREE.DirectionalLight(0xff4a5a, 0.75);
   rimR.position.set(5, 3, -4);
   const rimB = new THREE.DirectionalLight(0x8ab4ff, 1.8);
   rimB.position.set(-5, 3, -4);

@@ -2,7 +2,7 @@
 //
 // Clash Royale card cycle in a Battle Cats side-view lane:
 //   * electric POWER: a 100 tank (up to 250 with base upgrades) filling ~7 / s,
-//     x2 in the last minute, x3 in overtime; cards cost ~15-100
+//     x2 in the last minute, x3 in overtime; each card has its own price (15-98)
 //   * an 8-card deck cycling through a hand of 4 (+ the NEXT card): a played
 //     card goes to the back of the deck and the next one slides in
 //   * (legacy) SPECIAL card-trick support below; the current card set uses only
