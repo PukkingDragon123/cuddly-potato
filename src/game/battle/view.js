@@ -23,7 +23,7 @@ import { playSigCutscene } from './sigCutscene.js';
 import { sigResolveFx, sigEventFx } from './sigFx.js';
 import { pixTexture } from './pixfx.js';
 import { hpx } from './hitPix.js';
-import { labCollapse } from './baseFall.js';
+import { labCollapse, watchFinalBlow } from './baseFall.js';
 import { magicSpellFx, magicImpact, magicBuff, unitMagic, updateMagic, warpIceMat } from './spellVfx.js';
 import { ChargeAura } from './commandFx.js';
 import { voxelPuddle, voxelDome, voxelBeam, groundHit, groundImpact } from './voxfx.js';
@@ -1201,6 +1201,7 @@ export class BattleView {
       this.zoneEdge.material.opacity = 0.6 + Math.sin(this.t * 8) * 0.35;
       this.zone.material.map.offset.x = -this.t * 0.4;
     }
+    watchFinalBlow(this); // slow-mo pre-roll when the next hit will bring a base down (baseFall.js)
     if (this.cine && !this.cine.done && this.cine.ownsCamera) this.cine.update(dt);
     else {
       if (this.cine?.done) this.cine = null;

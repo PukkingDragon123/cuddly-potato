@@ -111,8 +111,10 @@ src/
     vialGestures.js    phone shake + tilt input (iOS permission) with swipe / keyboard fallbacks
     newCardCutscene.js NEW CARD cutscene: reveal by rarity (data/entrances.js cardReveal), bottle pop, pose, stats panel
   ui/
-    guide.js           progression UI: locked tabs / buttons, unlock reveals (spotlight + voiced line), guided
-                       first-session steps (pointing hand, skippable), main quest tracker + list, battle locks + lessons
+    guide.js           progression UI: locked tabs / buttons BLACKED OUT (dark silhouette + padlock, tap = what opens
+                       it), unlock reveals (spotlight, padlock snaps, silhouette floods back to colour, voiced line),
+                       guided first-session steps (pointing hand, skippable), the main quest tracker note (opens the
+                       QUEST BOARD), battle locks + lessons
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), panel(), ribbon(), pill(), bar(), modal(), toast(),
                        say() dialogue, speech(), floatText(), pointAt(), sparkle(), rollNumber()
     skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*, glass tanks, plates, pods, ensureSkin tints),
@@ -127,6 +129,10 @@ src/
     home/*.js          home tabs (shop, cards/deck, lab/commanders, pass) and modals (card info, trophy road,
                        profile, settings, friend battle, boss); profile.js = player card + CUSTOMIZE tabs,
                        masteryUI.js = Troop Mastery panel / collection crest / claim, profileShop.js = PROFILE GEAR shelf
+    home/questBoard.js QUEST BOARD: cork board of pinned notes, tabs MAIN STORY (chapters, current + next quest, done
+                       pile, TOP SECRET folder) / DAILY (season challenges) / CHARACTERS (crew quest chains + Jimmy's
+                       rematch); poster photo = voiced line, tally / hatched progress, stamps, claim slam + reward
+                       fly-in; questBoardArt.js paints the cork, frame, paper, tape, pins, stains, doodles, red string
     home/lab.js        LAB tab: your base in a 3D lab yard (labYard.js + labYardProps.js, engine.setBackdrop) with your
                        modules and Commander; segments LAB / MODULES / SKINS / COMMANDER; module data src/data/labModules.js
                        (4 slots x 4 modules, 5 levels, unlocks, AI loadouts), profile ops src/game/labGear.js,

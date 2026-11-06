@@ -30,7 +30,8 @@ import { Placement } from '../game/battle/placement.js';
 import { FIELD } from '../game/battle/field.js';
 import { vsIntro } from '../game/battle/vsIntro.js';
 import { setupEntrances } from '../game/battle/entranceCine.js';
-import { showResult, finalBlow } from '../game/battle/result.js';
+import { showResult } from '../game/battle/result.js';
+import { playEndCine } from '../game/battle/endCine.js';
 import { state, battleRewards, stat } from '../game/state.js';
 import { SWARMS } from '../data/swarms.js';
 import { SPELLS } from '../data/spells.js';
@@ -914,10 +915,10 @@ export class BattleScene {
     this.lockInput = null;
     const labFell = !sim.sides[0].lab.alive || !sim.sides[1].lab.alive;
     if (labFell) {
-      // a short clean beat (stamp + TV static over the crumble), then straight to the news
+      // the final blow + explosion cinematic plays in the arena (baseFall.js): wait for it
       this.hud.setVisible(false);
-      finalBlow($overlay(), { win: !sim.sides[1].lab.alive });
-      await wait(1.0);
+      audio.stopMusic();
+      await (this.view.fallDone ?? wait(1.0));
     }
     else {
       const why = {
@@ -933,8 +934,7 @@ export class BattleScene {
     this.hud.setVisible(false);
     audio.stopMusic();
     if (!sim.draw) this.view.celebrate(sim.winner);
-    this.cutToNews = labFell;
-    audio.jingle?.(win ? 'victory' : 'defeat');
+    this.cutToNews = true; // the VICTORY / DEFEAT moment plays in the arena (endCine.js), the result goes straight to the news
     // stats
     const st = sim.sides[0].stats;
     stat('deployed', st.deployed);
@@ -952,6 +952,9 @@ export class BattleScene {
       return { frac: Math.max(0, b.hp / b.maxHp), alive: b.alive, tier: sim.sides[i].overclock };
     });
     const names = [this.cfg.sides[0].name, this.cfg.sides[1].name];
+    // VICTORY / DEFEAT cinematic in the arena (endCine.js), then the BEAST NEWS report
+    await playEndCine(this.view, { result: this.noContest ? 'draw' : res, cause: labFell ? 'base' : (this.endReason ?? 'time'), names });
+    if (this.dead) return;
     if (this.mode === 'tutorial') return this.tutorialEnd(win, bases, names);
     if (this.mode === 'friend') return this.friendEnd(res, bases, names);
     if (this.mode === 'online') return this.onlineEnd(res, bases, names);

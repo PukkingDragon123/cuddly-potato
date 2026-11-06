@@ -5,7 +5,7 @@
 //   featureRevealed(id)   true once its unlock reveal has played (home tabs open on this)
 //   onFeatureUnlock(fn)   fn(id) when a feature is revealed
 //   lockInfo(id)          { short: '2 WINS', text: 'Win 1 more battle to unlock the Shop.' }
-//   mainQuest() / claimMainQuest()   the story quest chain on the home tracker
+//   mainQuest() / claimMainQuest()   the story quest chain (home tracker + the QUEST BOARD, ui/home/questBoard.js)
 //
 // Unlock schedule: a new player starts from absolute 0 (3 cards, BATTLE only, tiny wallet); every
 // other feature is earned. wins = battles won (any mode; Training itself opens at 4 wins).
@@ -162,21 +162,31 @@ export function setLessonDone(id) {
 const researchStarted = (p) => (p.research?.active ? 1 : 0) + Object.values(p.research?.levels ?? {}).reduce((a, b) => a + b, 0);
 const upgradedAny = (p) => Math.max(p.stats.upgrades ?? 0, Object.values(p.cards).filter((c) => c.level > 1).length);
 
+// Each quest is a note on the QUEST BOARD (ui/home/questBoard.js): `by` posted it (jimmy | nolan | juan |
+// lonan), `goal` is the objective in plain words, `text` is the poster's scribble on the note, `line` is
+// what they say when you tap their photo, `go` is where the GO button takes you.
 export const MAIN_QUESTS = [
-  { id: 'firstWin', by: 'jimmy', title: 'Five Dollar Bet', text: 'Win your first battle. Jimmy bet five bucks on you.', need: 1, val: (p) => p.stats.wins, reward: { coins: 100 } },
-  { id: 'openVial', by: 'jimmy', title: 'Pop The Cap', text: 'Open a vial. Shake first, ask questions later.', need: 1, val: (p) => p.stats.vialsOpened, reward: { bucks: 10 } },
-  { id: 'upgrade', by: 'jimmy', title: 'Leg Day', text: 'Upgrade a card in the CARDS tab.', need: 1, val: upgradedAny, reward: { coins: 150 }, feature: 'cards' },
-  { id: 'deck5', by: 'nolan', title: 'Squad Goals', text: 'Have 5 cards in your battle deck.', need: 5, val: () => currentDeck().length, reward: { vial: 'testTube' }, feature: 'cards' },
-  { id: 'baseUps', by: 'jimmy', title: 'Home Improvement', text: 'Upgrade your base 3 times in battles. A tarp is not a building.', need: 3, stat: 'baseUpgrades', since: true, reward: { coins: 200 }, feature: 'baseUp' },
-  { id: 'toilets', by: 'nolan', title: 'Plumbing Emergency', text: 'Deploy 12 Clogged Toilets. Nolan is not cleaning that.', need: 12, stat: 'deploy_cloggedToilet', since: true, reward: { calories: 150 } },
-  { id: 'streak', by: 'juan', title: 'On A Roll', text: 'Win 3 battles in a row.', need: 3, val: (p) => p.stats.bestStreak ?? 0, reward: { bucks: 20 } },
-  { id: 'research', by: 'jimmy', title: 'For Science', text: 'Start a research in the LAB tab.', need: 1, val: researchStarted, reward: { coins: 300 }, feature: 'lab' },
-  { id: 'deck8', by: 'nolan', title: 'Full House', text: 'Fill all 8 deck slots.', need: 8, val: () => currentDeck().length, reward: { vial: 'labPack' }, feature: 'cards' },
-  { id: 'ult', by: 'jimmy', title: 'Ultimate Flex', text: 'Use your Commander ULTIMATE 3 times.', need: 3, stat: 'signatures', since: true, reward: { coins: 400 }, feature: 'ult' },
-  { id: 'arena2', by: 'nolan', title: 'Leave The Lab', text: 'Reach 300 trophies to open Arena 2.', need: 300, val: (p) => p.bestTrophies, reward: { vial: 'labPack' } },
-  { id: 'kingClog', by: 'nolan', title: 'Flush The King', text: 'Beat the King Clog boss in Arena 2.', need: 1, val: (p) => (p.bosses?.kingClog ? 1 : 0), reward: { bucks: 40 } },
-  { id: 'arena3', by: 'juan', title: 'Chocolate Or Bust', text: 'Reach 600 trophies to open the Chocolate Factory.', need: 600, val: (p) => p.bestTrophies, reward: { vial: 'megaLab' } },
+  { id: 'firstWin', by: 'jimmy', title: 'Five Dollar Bet', goal: 'Win 1 battle', text: 'I bet Nolan five bucks on you.', line: 'I bet Nolan five bucks you would win. Nolan does not have five bucks. Win anyway.', need: 1, val: (p) => p.stats.wins, reward: { coins: 100 }, go: 'battle' },
+  { id: 'openVial', by: 'lonan', title: 'Pop The Cap', goal: 'Open 1 vial', text: 'Shake first. Ask questions never.', line: 'Vial. Very fresh. Fell off a truck. Shake it, pop it, and we never met.', need: 1, val: (p) => p.stats.vialsOpened, reward: { bucks: 10 }, go: 'vials', feature: 'vials' },
+  { id: 'upgrade', by: 'jimmy', title: 'Leg Day', goal: 'Upgrade any card', text: 'Copies + coins = bigger Swarm. Science.', line: 'Feed a card copies and coins and it gets bigger. That is the whole science. I checked.', need: 1, val: upgradedAny, reward: { coins: 150 }, feature: 'cards', go: 'cards' },
+  { id: 'deck5', by: 'nolan', title: 'Squad Goals', goal: 'Have 5 cards in your deck', text: 'I tried two cards once. Lost to a toilet.', line: 'Five cards minimum. I went in with two once and lost to a toilet. A toilet!', need: 5, val: () => currentDeck().length, reward: { vial: 'testTube' }, feature: 'cards', go: 'cards' },
+  { id: 'baseUps', by: 'jimmy', title: 'Home Improvement', goal: 'Upgrade your base 3 times in battles', text: 'A tarp is not a building.', line: 'Your base is a tarp. A tarp. Upgrade it before a raccoon moves in.', need: 3, stat: 'baseUpgrades', since: true, reward: { coins: 200 }, feature: 'baseUp', go: 'battle' },
+  { id: 'toilets', by: 'nolan', title: 'Plumbing Emergency', goal: 'Deploy 12 Clogged Toilets', text: 'I am NOT cleaning that.', line: 'Twelve Clogged Toilets. I will be outside. Way outside. Bring a plunger.', need: 12, stat: 'deploy_cloggedToilet', since: true, reward: { calories: 150 }, go: 'battle' },
+  { id: 'streak', by: 'juan', title: 'On A Roll', goal: 'Win 3 battles in a row', text: 'Three in a row = my victory dance.', line: 'Win three in a row and I do my victory dance. You want to see it. Trust me. Probably.', need: 3, val: (p) => p.stats.bestStreak ?? 0, reward: { bucks: 20 }, go: 'battle' },
+  { id: 'research', by: 'jimmy', title: 'For Science', goal: 'Start a research in the LAB', text: 'It cooks while you sleep.', line: 'Start a research. It keeps going while you sleep, which is more than I can say for me.', need: 1, val: researchStarted, reward: { coins: 300 }, feature: 'lab', go: 'lab' },
+  { id: 'deck8', by: 'lonan', title: 'Full House', goal: 'Fill all 8 deck slots', text: 'Empty slots make me nervous.', line: 'Eight slots, eight cards. Empty slots make me nervous. Everything makes me nervous.', need: 8, val: () => currentDeck().length, reward: { vial: 'labPack' }, feature: 'cards', go: 'cards' },
+  { id: 'ult', by: 'jimmy', title: 'Ultimate Flex', goal: 'Use your ULTIMATE 3 times', text: 'Do not save it. Battles ARE the occasion.', line: 'Your Commander has an ULTIMATE. Do not save it for later. Later is how you lose.', need: 3, stat: 'signatures', since: true, reward: { coins: 400 }, feature: 'ult', go: 'battle' },
+  { id: 'arena2', by: 'nolan', title: 'Leave The Lab', goal: 'Reach 300 trophies', text: 'Arena 2 has a giant toilet. Not joking.', line: 'At 300 trophies Arena 2 opens. There is a giant toilet there. I wish I was joking.', need: 300, val: (p) => p.bestTrophies, reward: { vial: 'labPack' }, go: 'battle' },
+  { id: 'kingClog', by: 'nolan', title: 'Flush The King', goal: 'Beat King Clog in Arena 2', text: 'He has never been plunged.', line: 'King Clog is huge, he is angry and nobody has ever plunged him. Be the first.', need: 1, val: (p) => (p.bosses?.kingClog ? 1 : 0), reward: { bucks: 40 }, go: 'battle' },
+  { id: 'arena3', by: 'juan', title: 'Chocolate Or Bust', goal: 'Reach 600 trophies', text: 'Dibs on the chocolate fountain.', line: 'Six hundred trophies and we hit the Chocolate Factory. I already called dibs on the fountain.', need: 600, val: (p) => p.bestTrophies, reward: { vial: 'megaLab' }, go: 'battle' },
 ];
+/** Story chapters on the board: quests [from, to). */
+export const MAIN_CHAPTERS = [
+  { n: 1, title: 'Day One', sub: 'Jimmy hired you. Nobody checked your references.', from: 0, to: 4 },
+  { n: 2, title: 'Lab Rat', sub: 'You live here now. The vending machine knows your name.', from: 4, to: 9 },
+  { n: 3, title: 'Field Trip', sub: 'The lab got too small. Time to go outside.', from: 9, to: 13 },
+];
+export const chapterOf = (i) => MAIN_CHAPTERS.find((c) => i >= c.from && i < c.to) ?? MAIN_CHAPTERS[MAIN_CHAPTERS.length - 1];
 MAIN_QUESTS.forEach((q, i) => (q.index = i));
 
 function mainState() {

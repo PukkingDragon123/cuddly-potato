@@ -1,31 +1,30 @@
-// Battle end cinematics.
+// BEAST NEWS: the battle report, played as a TV broadcast after the arena cinematics
+// (baseFall.js explosion, endCine.js VICTORY / DEFEAT).
 //
-// finalBlow(parent, { win }): the short base-destroyed beat (impact flash,
-//   BASE DESTROYED stamp, TV static) over the 3D crumble view.labDestroyed
-//   plays, then the broadcast cuts straight to the news.
-//
-// showResult(parent, opts): resolves with the id of the button pressed.
-//   1. VERDICT: VICTORY! / DEFEAT / DRAW slams over gold rays (or rain) while
-//      the winning Commander celebrates in live 3D (the loser sulks behind).
-//      (skipped with opts.cut: a destroyed base cuts straight to the sting)
-//   2. BREAKING NEWS sting.
-//   3. BEAST NEWS: anchor Nora Newsly (3D chibi) at the news desk presents the
-//      battle report: headline, base HP left, battle time, troops deployed,
-//      damage, Swarms defeated, spells + specials, Commander ults, the MVP
-//      card, trophies and rewards with animated counters, a scrolling ticker,
-//      then the buttons. Tap to fast-forward any phase.
+// showResult(parent, opts) resolves with the id of the button pressed.
+//   0. the feed changes channel (pixel TV static), BREAKING NEWS sting
+//   1. INTRO     the studio (newsStudio.js: Nora Newsly at her desk, video wall, drawn by the
+//                main renderer as a backdrop) cuts from wide to mid; the lower third slides in
+//                and its headline types out while Nora says her first line (voiced, speech bubble)
+//   2. REPLAY    a picture-in-picture box fills the screen and plays the snapshots taken during
+//                the final blow / explosion / victory (view.replay), then docks over Nora's shoulder
+//   3. RESULT    base HP bars drain with DESTROYED / FLAWLESS stamps (avatars, rank medals)
+//   4. NUMBERS   battle time, troops deployed, damage, KOs tick up one by one; the MVP card flips in
+//   5. PAYOUT    trophies, coins, vial, calories, XP drop in with weight; level ups, Lab Level
+//                medal, mastery lines
+//   6. SIGN OFF  the buttons
+// A tap skips the segment that is playing (the next one still plays); a scrolling ticker runs
+// along the bottom the whole time.
 //
 // opts: { result: 'win'|'loss'|'draw', bases: [{ frac, alive, tier }] x2 (mine, theirs), names: [mine, theirs],
 //         rewards (battleRewards result | null), mode, buttons: [{ id, label, color, icon }], vialThumb?,
-//         summary? (else read from the battle scene: scene.battleSummary()) }
+//         summary? (else read from the battle scene: scene.battleSummary()), replay? (else the view's) }
 import './result.css';
-import * as THREE from 'three';
-import { h, icon, animIcon, button, rollNumber, sparkle, burst, confetti, bump } from '../../ui/ui.js';
+import { h, icon, animIcon, button, rollNumber, sparkle, burst, bump } from '../../ui/ui.js';
 import { popWords } from '../../ui/dialogue.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
-import { Chibi } from '../../core/chibi.js';
-import { CHARACTERS } from '../../data/characters.js';
+import { voiceOf } from '../../data/characters.js';
 import { VIALS } from '../../data/vials.js';
 import { BASE_UPGRADES } from '../../data/labs.js';
 import { cardDef } from '../../data/cards.js';
@@ -33,13 +32,13 @@ import { cardArtImg } from '../../ui/thumbs.js';
 import { rankMedal, setRankMedal } from '../../ui/rankMedal.js';
 import { sideAvatarEl } from '../../ui/avatar.js';
 import { MASTERY_NAMES } from '../../data/mastery.js';
-import { Stage3D } from '../../ui/stage3d.js';
-import { VoxGrid, makeMesh } from '../../core/voxel.js';
+import { createNewsStudio } from './newsStudio.js';
 
-const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const fmtN = (n) => Math.round(n).toLocaleString('en-US');
 const fmtBig = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e5 ? Math.round(n / 1e3) + 'K' : fmtN(n));
 const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const pick = (a) => a[(Math.random() * a.length) | 0];
+const slowK = () => (import.meta.env.DEV && typeof window !== 'undefined' && window.__fxSlow) || 1;
 
 function sfx(fn) {
   if (!audio.ctx || audio.muted) return;
@@ -58,16 +57,13 @@ const SND = {
     a.noise({ dur: 0.5, vol: 0.06, type: 'highpass', f0: 5000, attack: 0.002, delay: 0.41 });
   }),
   swoosh: () => sfx((a) => a.noise({ dur: 0.35, vol: 0.18, type: 'bandpass', f0: 300, f1: 3400, q: 1.1, attack: 0.12 })),
-  slowmo: () => sfx((a) => {
-    a.tone({ type: 'sawtooth', f0: 220, f1: 55, dur: 1.1, vol: 0.05, lp: 900 });
-    a.noise({ dur: 1.1, vol: 0.07, type: 'lowpass', f0: 1200, f1: 200, attack: 0.05 });
-  }),
+  static: () => sfx((a) => a.noise({ dur: 0.36, vol: 0.08, type: 'highpass', f0: 2400, attack: 0.005 })),
   tickRoll: (p = 1) => audio.play('countTick', { pitch: p, gap: 0.04 }),
 };
 // recorded versions (src/core/audio.js) win; the procedural voices above are the fallback
-for (const [k, id] of Object.entries({ news: 'news', swoosh: 'whoosh', slowmo: 'slowmo' })) { const f = SND[k]; SND[k] = (...a) => (audio.ctx && !audio.muted && audio.play(id)) || f(...a); }
+for (const [k, id] of Object.entries({ news: 'news', swoosh: 'whoosh' })) { const f = SND[k]; SND[k] = (...a) => (audio.ctx && !audio.muted && audio.play(id)) || f(...a); }
 
-/** A pausable sequence clock: wait(ms) resolves early once skip() is called. */
+/** A segment clock: wait(ms) resolves early once skip() is called. */
 function clock() {
   let skipping = false;
   const pending = new Set();
@@ -76,7 +72,7 @@ function clock() {
     wait(ms) {
       if (skipping) return Promise.resolve();
       return new Promise((r) => {
-        const e = { r, id: setTimeout(() => { pending.delete(e); r(); }, ms) };
+        const e = { r, id: setTimeout(() => { pending.delete(e); r(); }, ms * slowK()) };
         pending.add(e);
       });
     },
@@ -103,128 +99,12 @@ function recDot(cls = '') {
   return h('img', { class: 'recdot ' + cls, src: _dot, alt: '', draggable: 'false' });
 }
 
-function chibiFor(cmd) {
-  if (!cmd) return null;
-  const base = CHARACTERS[cmd.char ?? cmd.id];
-  if (!base) return null;
-  try { return new Chibi({ ...base, ...(cmd.override ?? {}) }, { fidget: false }); } catch (e) { return null; }
-}
-
-
-// ---------------------------------------------------------------------------
-// BEAST NEWS desk: a voxel anchor desk (glossy top with a chrome lip, panelled
-// front with a red LED strip, a pixel-art logo screen, a monitor, a mug and a
-// stack of scripts) that the anchor stands behind.
-
-let deskGeo = null;
-function deskLogoTex() {
-  const c = document.createElement('canvas');
-  c.width = 96; c.height = 24;
-  const g = c.getContext('2d');
-  g.imageSmoothingEnabled = false;
-  g.fillStyle = '#120c24'; g.fillRect(0, 0, 96, 24);
-  g.fillStyle = '#ffffff'; g.fillRect(2, 2, 46, 20);
-  g.fillStyle = '#e0263f'; g.fillRect(48, 2, 46, 20);
-  g.fillStyle = '#ffd84a'; g.fillRect(2, 19, 92, 3);
-  g.font = 'bold 15px "Jersey 10", monospace';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#e0263f'; g.fillText('BEAST', 25, 11);
-  g.fillStyle = '#ffffff'; g.fillText('NEWS', 71, 11);
-  // crisp the anti-aliased glyph edges to hard pixels
-  const d = g.getImageData(0, 0, 96, 24);
-  for (let i = 0; i < d.data.length; i += 4) {
-    const k = i / 4, x = k % 96, y = (k / 96) | 0;
-    if (y < 2 || y > 18) continue;
-    const red = x >= 48;
-    const lum = d.data[i] + d.data[i + 1] + d.data[i + 2];
-    const on = red ? lum > 560 : d.data[i + 1] < 160;
-    const col = red ? (on ? [255, 255, 255] : [224, 38, 63]) : (on ? [224, 38, 63] : [255, 255, 255]);
-    d.data[i] = col[0]; d.data[i + 1] = col[1]; d.data[i + 2] = col[2]; d.data[i + 3] = 255;
-  }
-  g.putImageData(d, 0, 0);
-  const t = new THREE.CanvasTexture(c);
-  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-function makeNewsDesk() {
-  if (!deskGeo) {
-    const g = new VoxGrid();
-    const W = 20; // half width
-    const top = 0x1a2150, trim = 0xdfe6f6, panel = 0x24308a, panelHi = 0x3446b0, base = 0x0c1238, red = 0xff3a52;
-    for (let x = -W; x < W; x++) {
-      const edge = Math.abs(x + 0.5) > W - 3; // rounded-off wing ends step back
-      const z1 = edge ? 4 : 5;
-      // plinth + kick plate
-      for (let z = -2; z <= z1 - 1; z++) g.set(x, 0, z, base);
-      // front panel with vertical seams
-      for (let y = 1; y <= 7; y++) {
-        const seam = ((x + W) % 8) === 0;
-        g.set(x, y, z1, y === 6 ? red : seam ? panelHi : panel, y === 6);
-        g.set(x, y, z1 - 1, panel);
-      }
-      // desk top slab, chrome lip on the front edge
-      for (let z = -4; z <= z1 + 1; z++) g.set(x, 8, z, z >= z1 + 1 ? trim : top);
-      g.set(x, 9, z1 + 1, trim);
-    }
-    // a small monitor at the far end (screen glows), angled toward the anchor
-    g.box(-19, 9, -2, -15, 9, 0, 0x22283a);
-    g.box(-18, 10, -1, -16, 10, -1, 0x22283a);
-    g.box(-20, 11, -1, -14, 15, -1, 0x14182a);
-    for (let x = -19; x <= -15; x++) for (let y = 12; y <= 14; y++) g.set(x, y, 0, (x + y) % 4 === 0 ? 0xffd84a : y === 14 ? 0xe0263f : 0x2a6ae8, true);
-    // mug + scripts on the other side
-    g.cylinder(13, 2, 9, 11, 1.2, 0xffffff);
-    g.set(13, 11, 2, 0x5a3418);
-    g.set(15, 10, 2, 0xffffff);
-    g.box(6, 9, 1, 10, 9, 3, 0xf4f6ff);
-    g.box(6, 10, 1, 10, 10, 2, 0xe8eef8);
-    g.set(9, 10, 3, 0xe0263f);
-    deskGeo = g.build({ pivot: [0, 0, 0] });
-  }
-  const grp = new THREE.Group();
-  grp.add(makeMesh(deskGeo));
-  // the logo screen on the front
-  const logo = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 0.36), new THREE.MeshBasicMaterial({ map: deskLogoTex(), toneMapped: false }));
-  logo.position.set(0, 0.36, 0.565);
-  grp.add(logo);
-  return grp;
-}
-
-// ---------------------------------------------------------------------------
-// 0. Final blow: a short, clean beat over the base going down, then the
-//    broadcast cuts to the news (battle.js calls showResult({ cut: true }) at ~1 s)
-//
-//   0.00 s  impact flash, the stamp pops in (BASE DESTROYED! / YOUR BASE FELL!)
-//   0.72 s  TV static: the feed "changes channel"
-//   1.00 s  showResult's BREAKING NEWS sting takes over; this layer fades away
-
-export function finalBlow(parent, { win = true } = {}) {
-  const stat = staticCanvas();
-  const el = h('div', { class: `cfb ${win ? 'win' : 'loss'}` },
-    h('i', { class: 'cfb-vig' }),
-    h('div', { class: 'cfb-stamp' }, h('b', {}, win ? 'BASE' : 'YOUR BASE'), h('span', {}, win ? 'DESTROYED!' : 'FELL!')),
-    h('i', { class: 'cfb-flash' }),
-    stat.cv);
-  parent.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('hit'));
-  audio.play('stamp', { pitch: win ? 0.9 : 0.7 });
-  setTimeout(() => {
-    if (!el.isConnected) return;
-    el.classList.add('tv');
-    stat.run(420);
-    sfx((a) => a.noise({ dur: 0.32, vol: 0.07, type: 'highpass', f0: 2400, attack: 0.005 }));
-  }, 720);
-  setTimeout(() => el.classList.add('out'), 1150);
-  setTimeout(() => el.remove(), 1500);
-  return el;
-}
-
-/** Pixel TV static (chunky grey/white noise + a rolling dark band), redrawn every frame while it runs. */
+/** Pixel TV static (chunky grey noise + a rolling dark band), redrawn every frame while it runs. */
 function staticCanvas() {
   const W = 96, H = Math.max(40, Math.round(96 * (window.innerHeight / Math.max(1, window.innerWidth))));
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
-  cv.className = 'cfb-static';
+  cv.className = 'cn-static';
   const g = cv.getContext('2d');
   const img = g.createImageData(W, H);
   const draw = (t) => {
@@ -239,18 +119,38 @@ function staticCanvas() {
     }
     g.putImageData(img, 0, 0);
   };
+  draw(0);
   return {
     cv,
     run(ms) {
       const t0 = performance.now();
       const step = (now) => {
         if (!cv.isConnected) return;
-        const t = (now - t0) / 1000;
-        draw(t);
+        draw((now - t0) / 1000);
         if (now - t0 < ms) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Nora's lines (short, said out loud, shown in her speech bubble)
+
+function noraLines({ result, names, smashed, fell, mvpName, tr, mode }) {
+  const [me, riv] = names;
+  const win = result === 'win', loss = result === 'loss';
+  const intro = win
+    ? (smashed ? pick([`${riv} no longer has a base.`, `${riv}'s base is now gravel.`, `${me} just flattened a base.`]) : pick([`${me} wins it on base HP.`, `Close one. ${me} holds on.`]))
+    : loss
+      ? (fell ? pick([`Ouch. ${me}'s base is a crater.`, `${me}'s base did not make it.`]) : pick([`${riv} edges it on base HP.`, `So close for ${me}.`]))
+      : pick(['A draw. Both bases still standing.', 'Nobody blinked. A draw.']);
+  return {
+    intro,
+    replay: pick(['Roll the tape.', "Let's see that again. Slower.", 'Here it is again.']),
+    numbers: mvpName ? pick([`${mvpName} did the heavy lifting.`, `MVP tonight: ${mvpName}.`]) : 'The numbers are in.',
+    payout: mode === 'tutorial' ? 'Jimmy wants a rematch.' : win ? (tr > 0 ? 'And here is the prize money.' : 'Here is what that earned.') : loss ? 'Here is the damage report.' : 'Here is the payout.',
+    signoff: pick(['Back to you, Jimmy.', "I'm Nora Newsly. Good night.", 'More smashing after the break.']),
   };
 }
 
@@ -263,238 +163,297 @@ export async function showResult(parent, opts) {
   const r = opts.rewards;
   let sum = opts.summary;
   if (sum === undefined) { try { sum = engine.current?.battleSummary?.() ?? null; } catch (e) { sum = null; } }
-  const W = window.innerWidth, H = window.innerHeight;
-  const portrait = H > W;
-  const win = result === 'win', loss = result === 'loss';
-  const title = win ? 'VICTORY!' : loss ? 'DEFEAT' : 'DRAW';
+  let replay = opts.replay;
+  if (replay === undefined) { try { replay = engine.current?.view?.replay ?? null; } catch (e) { replay = null; } }
+  const portrait = () => window.innerHeight > window.innerWidth;
 
-  const root = h('div', { class: `cres r-${result} ${portrait ? 'portrait' : 'landscape'}` });
+  const root = h('div', { class: `cres r-${result} ${portrait() ? 'portrait' : 'landscape'}` });
   parent.appendChild(root);
-  const stageHost = h('div', { class: 'cres-stage' });
-  const stage = new Stage3D({ fov: 26, maxPixels: 1.3e6, rimA: win ? 0xffd84a : 0x6a8cff, rimB: win ? 0xff7ac8 : 0x8a5aff, rimI: 3 });
   let alive = true;
-  const end = () => { alive = false; stage.dispose(); };
 
-  // ======================= 1. VERDICT =======================
-  const seq = clock();
-  root.addEventListener('pointerdown', () => seq.skip());
-  const letters = [...title].map((ch, i) => h('span', { style: { '--i': i } }, ch));
-  const verdict = h('div', { class: 'cres-verdict' },
-    h('i', { class: 'cv-bg' }), h('i', { class: 'px-rays w cv-rays' }), win ? h('i', { class: 'cv-spots' }) : null, loss ? h('i', { class: 'cv-rain' }) : null,
-    stageHost,
-    h('div', { class: 'cv-head' },
-      win ? icon('crown', 'cv-crown') : loss ? icon('skull', 'cv-crown') : null,
-      h('div', { class: 'cv-title' }, letters),
-      h('div', { class: `cv-sub sk-ribbon-${win ? 'pink' : loss ? 'blue' : 'purple'}` }, win ? `${names[0]} WINS!` : loss ? `${names[1]} WINS` : 'NOBODY BLINKED')),
-    h('i', { class: 'cv-bar t' }), h('i', { class: 'cv-bar b' }, h('span', { class: 'cv-skip' }, 'TAP TO CONTINUE')),
-    h('i', { class: 'cv-flash' }));
-  // cut: a base was destroyed, so the battle cuts straight to the news (no verdict screen)
-  const cut = !!opts.cut;
-  if (!cut) root.appendChild(verdict);
-
-  // 3D: the winner celebrates centre stage, the loser sulks behind
-  const sides = sum?.sides ?? [];
-  const winSide = win ? 0 : loss ? 1 : 0;
-  const champ = cut ? null : chibiFor(sides[winSide]?.commander);
-  const other = cut ? null : chibiFor(sides[1 - winSide]?.commander);
-  const cam = stage.camera;
-  cam.position.set(0, 1.25, 10);
-  cam.lookAt(0, 1.25, 0);
-  const visH = () => 2 * cam.position.z * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-  const placeAt = (ch, sx, sy, frac, z = 0) => {
-    const p = stage.screenToWorld(sx, sy, z);
-    ch.root.position.copy(p);
-    ch.root.scale.setScalar((frac * visH() * (cam.position.z - z)) / cam.position.z / ch.height);
+  // ======================= the studio (3D, main renderer) =======================
+  const arenaName = sum?.arena?.name ?? 'Beast Island';
+  let studio = null;
+  try {
+    studio = createNewsStudio({
+      result, arena: arenaName,
+      // where Nora sits on screen (the report's layout leaves her this area)
+      layout: () => (portrait() ? { sx: 0.25, sy: 0.215, h: 0.2 } : { sx: 0.13, sy: 0.44, h: 0.44 }),
+    });
+    engine.cover('news', true);
+    engine.setBackdrop({ scene: studio.scene, camera: studio.camera, update: (dt) => studio.update(dt), bloom: studio.bloom, grade: studio.grade, owner: studio });
+    engine.precompile(studio.scene, studio.camera);
+  } catch (e) { console.error('news studio failed', e); studio = null; root.classList.add('no3d'); }
+  const anchor = studio?.anchor ?? null;
+  const end = () => {
+    if (!alive) return;
+    alive = false;
+    if (studio) {
+      if (engine.backdrop?.owner === studio) engine.setBackdrop(null);
+      studio.dispose();
+    }
+    engine.cover('news', false);
   };
-  const layoutVerdict = () => {
-    cam.updateMatrixWorld();
-    if (champ) placeAt(champ, portrait ? 0.5 : 0.62, portrait ? 0.9 : 1.0, portrait ? 0.44 : 0.5);
-    if (other) placeAt(other, portrait ? 0.2 : 0.3, portrait ? 0.83 : 0.93, portrait ? 0.24 : 0.3, -2);
-  };
-  if (champ) { stage.add(champ.root); champ.root.rotation.y = 0.12; }
-  if (other) { stage.add(other.root); other.root.rotation.y = 0.5; }
-  let camT = 0;
-  stage.onUpdate((dt) => {
-    camT += dt;
-    if (phase === 'verdict') {
-      cam.position.z = 10 - Math.min(1, camT / 3) * 0.8;
-      cam.position.x = Math.sin(camT * 0.6) * 0.15;
-      cam.lookAt(0, 1.25, 0);
-      layoutVerdict();
-    }
-    const n = Math.max(1, Math.ceil(dt * 30));
-    for (const c of [champ, other, anchor]) if (c) for (let i = 0; i < n; i++) c.update(dt / n);
-  });
-  stage.onResize = () => phase === 'verdict' && layoutVerdict();
-  let phase = cut ? 'news' : 'verdict';
-  let anchor = null;
-  stage.mount(stageHost);
-  stage.start();
-  if (import.meta.env.DEV) window.__resStage = stage;
 
-  if (!cut) {
-    if (champ) {
-      if (result === 'draw') champ.react('shrug', { dur: 3 });
-      else { champ.play('victory'); champ.mood('excited'); champ.boing(0.5); }
-    }
-    if (other) {
-      if (result === 'draw') other.react('shrug', { dur: 3 });
-      else { other.play('sad'); other.mood('cry'); }
-    }
-    audio.play(win ? 'fanfare' : loss ? 'error' : 'bell');
-    setTimeout(() => { if (root.isConnected) { engine.shake?.(loss ? 0.3 : 0.2); audio.play('stamp', { pitch: loss ? 0.7 : 1 }); } }, 140 + title.length * 60);
-    if (win) {
-      audio.play('cheer');
-      confetti(verdict, { count: 50, life: 5, spread: 1.4 });
-      setTimeout(() => root.isConnected && burst(verdict.querySelector('.cv-title'), { color: '#ffd84a', count: 26, scale: 1.2 }), 160 + title.length * 60);
-    }
-    // celebration beats
-    setTimeout(() => { if (alive && champ && result !== 'draw') champ.react(win ? 'celebrate' : 'laugh', { dur: 1.8 }); }, 1100);
-    await seq.wait(2900);
-  }
-  // dev: window.__resHold = true keeps the verdict up (screenshots on slow machines)
-  while (import.meta.env.DEV && window.__resHold && root.isConnected) await new Promise((res) => setTimeout(res, 300));
-  if (!root.isConnected) { end(); return 'ok'; }
-
-  // ======================= 2. BREAKING NEWS sting =======================
+  // ======================= 0. static + BREAKING NEWS sting =======================
+  const stat = staticCanvas();
+  root.appendChild(stat.cv);
+  stat.run(380);
+  SND.static();
+  await new Promise((res) => setTimeout(res, 340 * slowK()));
   const sting = h('div', { class: 'cres-sting' },
     h('i', { class: 'cs-band a' }), h('i', { class: 'cs-band b' }),
     h('div', { class: 'cs-txt' }, h('b', {}, 'BREAKING'), h('span', {}, 'NEWS')));
   root.appendChild(sting);
   SND.swoosh();
   SND.news();
-  await new Promise((res) => setTimeout(res, 420));
-  verdict.remove();
-  phase = 'news';
-  if (champ) stage.remove(champ.root);
-  if (other) stage.remove(other.root);
+  await new Promise((res) => setTimeout(res, 420 * slowK()));
+  stat.cv.remove();
+  if (!root.isConnected) { end(); return 'ok'; }
 
-  // ======================= 3. BEAST NEWS =======================
-  const news = buildNews({ result, names, bases, r, sum, portrait, opts });
+  // ======================= the broadcast =======================
+  const smashed = !bases[1].alive, fell = !bases[0].alive;
+  const mvp = sum?.mvp;
+  const mvpDef = mvp ? cardDef(mvp.id) : null;
+  const lines = noraLines({ result, names, smashed, fell, mvpName: mvpDef?.name, tr: r?.trophies ?? 0, mode: opts.mode });
+  const news = buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smashed, fell, mvp, mvpDef });
   root.appendChild(news.el);
-  setTimeout(() => sting.remove(), 700);
-  // the anchor at her desk
-  anchor = chibiFor({ char: 'anchor' });
-  try {
-    const desk = makeNewsDesk();
-    desk.position.set(0.15, -0.36, 0.62);
-    stage.add(desk);
-  } catch (e) { /* the studio works without its desk */ }
-  if (anchor) {
-    stage.add(anchor.root);
-    anchor.root.rotation.y = 0.28;
-    anchor.play('talk');
-    anchor.expr('happy', 'grin');
-  }
-  const aim = new THREE.Vector3();
-  const frameAnchor = () => {
-    if (!anchor) return;
-    cam.fov = 24;
-    cam.updateProjectionMatrix();
-    // frame from the hair tip down to just below the desk top (whatever the model's proportions)
-    anchor.root.updateMatrixWorld(true);
-    const top = new THREE.Box3().setFromObject(anchor.root).max.y + 0.1;
-    const bottom = 0.2;
-    // pull back a little so the anchor doesn't hide the studio screen
-    const vh = (top - bottom) * 1.22;
-    const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    // anchor sits left of centre (the BEAST NEWS screen fills the right)
-    const off = 0.2 * vh * cam.aspect;
-    aim.set(off, (top + bottom) / 2, 0);
-    cam.position.set(aim.x + Math.sin(0.12) * dist, aim.y + 0.12, Math.cos(0.12) * dist);
-    cam.lookAt(aim);
-  };
-  stage.onResize = () => frameAnchor();
-  stage.mount(news.cam);
-  frameAnchor();
+  setTimeout(() => sting.remove(), 700 * slowK());
+  studio?.shot('wide');
 
-  const seq2 = clock();
-  root.addEventListener('pointerdown', () => seq2.skip());
-  const anchorSay = (on) => anchor?.talk(on);
-  await seq2.wait(380);
-  // headline, read out by the anchor
-  anchorSay(true);
-  const hl = popWords(news.headline, news.headlineText, {
-    cps: 34,
-    onWord: (wd) => {
-      audio.play('blip', { pitch: wd.emph ? 1.15 : 1.3 + Math.random() * 0.15, gap: 0.05 });
-      if (wd.emph) anchor?.boing(0.12);
-    },
+  // Nora talks: voiced line + speech bubble that follows her head
+  const v8 = voiceOf('anchor');
+  let talkT = 0;
+  const say = (txt) => {
+    if (!txt) return 0;
+    news.sayTxt.textContent = txt;
+    news.say.classList.remove('on');
+    void news.say.offsetWidth;
+    news.say.classList.add('on');
+    const span = Math.max(0.9, txt.split(/\s+/).length * 0.27);
+    audio.babble(v8, txt, span);
+    anchor?.talk(true);
+    clearTimeout(talkT);
+    talkT = setTimeout(() => anchor?.talk(false), span * 1000 * slowK());
+    return span;
+  };
+  const hush = () => { clearTimeout(talkT); anchor?.talk(false); };
+  // per frame: bubble + PIP playback
+  const tick = () => {
+    if (!alive || !root.isConnected) return;
+    news.placeSay(studio);
+    news.pip.tick();
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  // taps skip the segment that is playing
+  let seg = null;
+  const onTap = (ev) => {
+    if (ev.target.closest?.('.cres-foot')) return;
+    seg?.skip();
+  };
+  root.addEventListener('pointerdown', onTap);
+
+  const run = async (fn) => {
+    if (!root.isConnected) return;
+    seg = clock();
+    try { await fn(seg); } catch (e) { console.warn('news segment', e); }
+    seg = null;
+  };
+
+  // 1. INTRO
+  await run(async (c) => {
+    await c.wait(250);
+    studio?.shot('mid', 3);
+    news.lower.classList.add('in');
+    anchor?.play('talk');
+    anchor?.expr('happy', 'grin');
+    const span = say(lines.intro);
+    await c.wait(260);
+    const hl = popWords(news.headline, news.headlineText, {
+      cps: 30,
+      onWord: (wd) => {
+        audio.play('blip', { pitch: wd.emph ? 1.15 : 1.3 + Math.random() * 0.15, gap: 0.05, vol: 0.7 });
+        if (wd.emph) anchor?.boing(0.12);
+      },
+    });
+    const off = () => hl.finish();
+    if (c.skipping) off();
+    const skipNow = c.skip;
+    c.skip = () => { off(); skipNow(); };
+    await Promise.all([hl.promise, c.wait(Math.max(1500, span * 1000))]);
   });
-  root.addEventListener('pointerdown', () => hl.finish());
-  if (seq2.skipping) hl.finish();
-  await hl.promise;
-  anchorSay(false);
-  anchor?.play('point', { dur: 1.4, then: 'talk' });
-  // reveal the report, item by item
-  for (const step of news.steps) {
-    if (!root.isConnected) break;
-    if (step.say) anchorSay(true);
-    await step.run(seq2);
-    if (step.react && anchor) step.react(anchor);
-    anchorSay(false);
-    await seq2.wait(step.gap ?? 150);
+  news.lower.classList.add('in');
+
+  // 2. REPLAY
+  if (news.pip.frames > 0) {
+    await run(async (c) => {
+      studio?.shot('close');
+      news.bumper('THE REPLAY');
+      news.live.classList.add('replay');
+      await c.wait(380);
+      news.pip.open();
+      say(lines.replay);
+      anchor?.play('point', { dur: 1.4, then: 'talk' });
+      await c.wait(Math.max(1900, news.pip.playMs()));
+    });
+    news.pip.dock();
+    news.live.classList.remove('replay');
+    hush();
   }
-  anchor?.play('talk');
+
+  // 3. RESULT, 4. NUMBERS, 5. PAYOUT
+  for (const s of news.segments) {
+    if (!root.isConnected) break;
+    await run(async (c) => {
+      if (s.shot) studio?.shot(s.shot);
+      if (s.bumper) news.bumper(s.bumper);
+      if (s.bumper) await c.wait(420);
+      if (s.say) say(lines[s.say]);
+      for (const step of s.steps) {
+        await step(c);
+        if (!root.isConnected) return;
+      }
+      if (s.react && anchor && !c.skipping) s.react(anchor);
+      await c.wait(s.hold ?? 300);
+    });
+    s.done?.();
+  }
+
+  // 6. SIGN OFF
+  studio?.shot('mid', 2.5);
+  say(lines.signoff);
+  anchor?.react?.('wave', { dur: 1.6 });
   news.el.classList.add('done');
+  root.removeEventListener('pointerdown', onTap);
 
   const buttons = opts.buttons ?? [{ id: 'ok', label: 'OK', color: 'blue' }];
   return new Promise((resolve) => {
     const foot = h('div', { class: 'res-foot cres-foot' }, buttons.map((b) => button(b.label, () => {
+      hush();
       root.remove();
       end();
       resolve(b.id);
     }, `${b.color ?? 'blue'} lg`, { icon: b.icon })));
     news.footSlot.appendChild(foot);
+    requestAnimationFrame(() => news.board.scrollTo?.({ top: news.board.scrollHeight, behavior: 'smooth' }));
     // the screen was torn down from outside (scene change)
-    const watch = setInterval(() => { if (!root.isConnected) { clearInterval(watch); end(); } }, 500);
+    const watch = setInterval(() => { if (!root.isConnected) { clearInterval(watch); hush(); end(); } }, 500);
   });
 }
 
 // ---------------------------------------------------------------------------
-// BEAST NEWS layout + reveal steps
+// BEAST NEWS layout + segment steps
 
-function buildNews({ result, names, bases, r, sum, portrait, opts }) {
+function buildNews({ result, names, bases, r, sum, opts, replay, arenaName, smashed, fell, mvp, mvpDef }) {
   const win = result === 'win', loss = result === 'loss';
   const me = names[0] ?? 'You', riv = names[1] ?? 'Rival';
   const st = sum?.sides?.[0]?.stats ?? {};
   const time = sum?.time ?? 0;
-  const smashed = !bases[1].alive, fell = !bases[0].alive;
   const headlineText = win
     ? (smashed ? `*${me}* SMASHES *${riv}*'s base${time >= 5 ? ` in ${fmtTime(time)}` : ''}!` : `*${me}* OUTLASTS *${riv}* on base HP!`)
     : loss
-      ? (fell ? `*${riv}* FLATTENS *${me}*'s base! Rematch incoming?` : `*${riv}* edges out *${me}* at the buzzer!`)
+      ? (fell ? `*${riv}* FLATTENS *${me}*'s base! Rematch?` : `*${riv}* edges out *${me}* at the buzzer!`)
       : `STALEMATE! *${me}* and *${riv}* can't be split!`;
 
-  const cam = h('div', { class: 'cn-cam' });
-  const headline = h('div', { class: 'cn-hl' });
-  const footSlot = h('div', { class: 'cn-footslot' });
-  const arenaName = sum?.arena?.name ?? 'Beast Island';
+  // ---- top bar: logo bug + LIVE / REPLAY
+  const live = h('div', { class: 'cn-live sk-plate-dark' }, recDot(), h('span', { class: 'l' }, 'LIVE'), h('span', { class: 'rp' }, 'REPLAY'));
+  const bug = h('div', { class: 'cn-bug' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS'));
 
-  // studio: wall, big screen, anchor (3D), desk, logo bug, LIVE
-  const studio = h('div', { class: 'cn-studio' },
-    h('i', { class: 'cn-wall' }), h('i', { class: 'cn-lights' }),
-    h('div', { class: 'cn-screen' },
-      h('i', { class: 'cn-screen-glow' }),
-      h('div', { class: 'cn-screen-in' },
-        h('small', {}, 'BATTLE REPORT'),
-        h('b', {}, win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW'),
-        h('span', {}, arenaName))),
-    cam,
-    h('div', { class: 'cn-bug' }, h('b', {}, 'BEAST'), h('span', {}, 'NEWS')),
-    h('div', { class: 'cn-live sk-plate-dark' }, recDot(), 'LIVE'));
+  // ---- Nora's speech bubble
+  const sayTxt = h('span', {});
+  const say = h('div', { class: 'cn-say' }, sayTxt, h('i', { class: 'cn-say-tail' }));
+  const placeSay = (studio) => {
+    if (!say.classList.contains('on')) return;
+    const p = studio?.headScreen?.();
+    const W = window.innerWidth, H = window.innerHeight;
+    const port = H > W;
+    const w = say.offsetWidth || 160, sh = say.offsetHeight || 40;
+    // to the right of her head, inside the studio area
+    let x = p ? p.x + Math.max(28, W * 0.06) : W * 0.42;
+    let y = p ? p.y + (port ? H * 0.06 : H * 0.08) : H * 0.2;
+    const maxX = port ? W - 10 : W * 0.44 - 6;
+    x = Math.max(8, Math.min(maxX - w, x));
+    const pip = pipEl.classList.contains('docked') ? pipEl.getBoundingClientRect() : null;
+    if (pip && x + w > pip.left && y < pip.bottom + 8) y = pip.bottom + 10;
+    y = Math.min(y, (lower.getBoundingClientRect().top || H * 0.4) - sh - 10);
+    say.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+    const ty = p ? Math.max(12, Math.min(sh - 12, p.y + 30 - y)) : sh / 2;
+    say.style.setProperty('--ty', Math.round(ty) + 'px');
+  };
+
+  // ---- lower third
+  const headline = h('div', { class: 'cn-hl' });
   const lower = h('div', { class: 'cn-lower' },
     h('div', { class: 'cn-tag sk-chip-red' }, 'BREAKING'),
-    h('div', { class: 'cn-hlw sk-plate-dark' }, headline, h('div', { class: 'cn-by' }, 'NORA NEWSLY  /  ', h('b', {}, arenaName.toUpperCase()))));
+    h('div', { class: 'cn-hlw' }, headline, h('div', { class: 'cn-by' }, h('b', {}, 'NORA NEWSLY'), h('span', {}, arenaName.toUpperCase()))));
 
-  // ---- the report board
+  // ---- replay box (picture in picture)
+  const frames = (replay?.frames ?? []).filter((f) => f?.width);
+  const pipCv = document.createElement('canvas');
+  pipCv.width = frames[0]?.width ?? 256; pipCv.height = frames[0]?.height ?? 144;
+  pipCv.className = 'cn-pip-cv';
+  const pg = pipCv.getContext('2d');
+  pg.imageSmoothingEnabled = false;
+  const pipEl = h('div', { class: 'cn-pip' },
+    pipCv, h('i', { class: 'cn-pip-scan' }),
+    h('div', { class: 'cn-pip-tag sk-chip-red' }, recDot(), frames.length > 2 ? 'REPLAY' : 'FINAL SHOT'),
+    frames.length > 2 ? h('div', { class: 'cn-pip-slow' }, 'SLOW MO') : null);
+  let fi = -1, ft = 0, playing = false;
+  const FRAME_MS = 145;
+  const drawFrame = (i) => { if (frames[i]) { pg.drawImage(frames[i], 0, 0, pipCv.width, pipCv.height); fi = i; } };
+  if (frames.length) drawFrame(frames.length - 1);
+  const pip = {
+    frames: frames.length,
+    playMs: () => frames.length * FRAME_MS + 500,
+    open() {
+      pipEl.classList.add('big');
+      playing = true;
+      ft = performance.now();
+      drawFrame(0);
+      audio.play('whoosh', { pitch: 1.3, vol: 0.5 });
+    },
+    dock() {
+      if (!frames.length) return;
+      playing = false;
+      pipEl.classList.remove('big');
+      pipEl.classList.add('docked');
+      drawFrame(frames.length - 1);
+    },
+    tick() {
+      if (!frames.length) return;
+      const now = performance.now();
+      // big: plays once through (slow), docked: loops the clip quietly
+      const per = (playing ? FRAME_MS : 240) * slowK();
+      if (now - ft < per) return;
+      ft = now;
+      if (playing) { if (fi < frames.length - 1) drawFrame(fi + 1); }
+      else if (pipEl.classList.contains('docked') && frames.length > 2) drawFrame((fi + 1) % frames.length);
+    },
+  };
+
+  // ---- the board (segment panels)
   const board = h('div', { class: 'cn-board' });
-  const steps = [];
+  const footSlot = h('div', { class: 'cn-footslot' });
+  const segments = [];
 
-  // bases: HP left (each name carries its Lab Level rank medal)
+  // keep what was just revealed in view (the board scrolls when it is taller than the screen)
+  const show = (e) => requestAnimationFrame(() => { try { e.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (x) { /* old browsers */ } });
+
+  // bumper: a band that wipes across the board with the segment's name
+  const bumperEl = h('div', { class: 'cn-bumper' }, h('i', { class: 'a' }), h('span', {}));
+  const bumperFx = (txt) => {
+    bumperEl.querySelector('span').textContent = txt;
+    bumperEl.classList.remove('go');
+    void bumperEl.offsetWidth;
+    bumperEl.classList.add('go');
+    SND.swoosh();
+  };
+
+  // 3. RESULT: base HP left (avatars + Lab Level rank medals)
   let levels = opts.levels;
   if (!levels) { try { levels = engine.current?.cfg?.sides?.map((sd) => sd?.labLevel) ?? []; } catch (e) { levels = []; } }
-  // profile pictures (src/ui/avatar.js) from the battle's side configs
   let sideCfgs = opts.sides;
   if (!sideCfgs) { try { sideCfgs = engine.current?.cfg?.sides ?? []; } catch (e) { sideCfgs = []; } }
   const baseRow = (i) => {
@@ -504,30 +463,31 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     const lv = levels[i];
     const medal = lv ? rankMedal(lv, { cls: 'cn-rank', shine: false }) : null;
     const av = sideCfgs?.[i] ? sideAvatarEl(sideCfgs[i], { cls: 'cn-av', anim: false }) : null;
-    const who = [h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')];
     const el = h('div', { class: `cn-base s${i}` },
-      medal || av ? h('div', { class: 'nm rk' }, av, medal, h('div', { class: 'nmc' }, who)) : h('div', { class: 'nm' }, who),
+      h('div', { class: 'who' }, av, medal),
+      h('div', { class: 'nm' }, h('span', {}, i ? riv : me), h('small', {}, icon('lab'), BASE_UPGRADES[b.tier ?? 0]?.name ?? 'Base')),
       h('b', { class: 'bar sk-well' }, h('i', { class: 'fw' }, fill), pct));
     return { el, fill, pct, b, medal };
   };
   const bRows = [baseRow(0), baseRow(1)];
-  const basesEl = h('div', { class: 'cn-card cn-bases sk-panel-dark' }, h('div', { class: 'cn-cap' }, 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
+  const basesEl = h('div', { class: 'cn-card cn-bases sk-panel-dark' }, h('div', { class: 'cn-cap' }, icon('lab'), 'BASE HP LEFT'), bRows[0].el, bRows[1].el);
   board.appendChild(basesEl);
-  steps.push({
-    say: true,
-    run: async (seq) => {
+  segments.push({
+    shot: 'mid',
+    steps: [async (c) => {
       basesEl.classList.add('in');
+      show(basesEl);
       audio.play('whoosh', { pitch: 1.5, vol: 0.5 });
-      await seq.wait(160);
+      await c.wait(200);
       await Promise.all(bRows.map((t, k) => new Promise((res) => {
-        const to = Math.max(0, t.b.frac), dur = seq.skipping ? 1 : 650;
-        const t0 = performance.now() + k * 120;
+        const to = Math.max(0, t.b.frac), dur = c.skipping ? 1 : 900 * slowK();
+        const t0 = performance.now() + k * 160;
         const stepF = (now) => {
           const q = Math.max(0, Math.min(1, (now - t0) / dur));
           const v = 1 - (1 - to) * (1 - Math.pow(1 - q, 3));
           t.fill.style.width = (v * 100).toFixed(1) + '%';
           t.pct.textContent = Math.round(v * 100) + '%';
-          if (q < 1 && !seq.skipping) requestAnimationFrame(stepF);
+          if (q < 1 && !c.skipping) requestAnimationFrame(stepF);
           else {
             t.fill.style.width = (to * 100).toFixed(1) + '%';
             t.pct.textContent = Math.round(to * 100) + '%';
@@ -538,90 +498,78 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
         };
         requestAnimationFrame(stepF);
       })));
-    },
-    gap: 120,
+    }],
+    hold: 250,
   });
 
-  // stat tiles
-  const spells = st.spells ?? 0;
+  // 4. NUMBERS: four stats tick up one by one, then the MVP card
   const tiles = [
     { ic: 'clock', label: 'BATTLE TIME', value: time, fmt: fmtTime },
     { ic: 'swords', label: 'TROOPS DEPLOYED', value: st.deployed ?? 0 },
     { ic: 'bolt', label: 'DAMAGE DEALT', value: Math.round(st.dmg ?? 0), fmt: fmtBig },
     { ic: 'skull', label: 'SWARMS DEFEATED', value: st.kills ?? 0 },
-    { ic: 'magic', label: 'SPELLS + SPECIALS', value: spells },
-    { ic: 'star', label: 'COMMANDER ULTS', value: (st.sigs ?? 0) + (sum?.megas ?? 0) },
   ];
+  const numsEl = h('div', { class: 'cn-card cn-nums' });
   const grid = h('div', { class: 'cn-grid' });
-  board.appendChild(grid);
+  numsEl.appendChild(grid);
+  board.appendChild(numsEl);
+  // the MVP card and the trophies share a row
+  const rowC = h('div', { class: 'cn-row' });
+  board.appendChild(rowC);
+  const numSteps = [async () => { numsEl.classList.add('in'); show(numsEl); }];
   tiles.forEach((tl, k) => {
     const v = h('b', { class: 'v' }, tl.fmt ? tl.fmt(0) : '0');
-    const el = h('div', { class: 'cn-card cn-tile sk-panel-dark' }, h('div', { class: 'ic' }, icon(tl.ic)), v, h('small', {}, tl.label));
+    const el = h('div', { class: 'cn-tile sk-panel-dark' }, h('div', { class: 'ic' }, icon(tl.ic)), v, h('small', {}, tl.label));
     grid.appendChild(el);
-    steps.push({
-      say: k % 2 === 0,
-      run: async (seq) => {
-        el.classList.add('in');
-        SND.tickRoll(1 + k * 0.06);
-        if (seq.skipping) v.textContent = tl.fmt ? tl.fmt(tl.value) : fmtN(tl.value);
-        else rollNumber(v, 0, tl.value, 0.55, tl.fmt ?? fmtN);
-        await seq.wait(140);
-      },
-      gap: 40,
+    numSteps.push(async (c) => {
+      el.classList.add('in');
+      SND.tickRoll(1 + k * 0.08);
+      if (c.skipping) v.textContent = tl.fmt ? tl.fmt(tl.value) : fmtN(tl.value);
+      else rollNumber(v, 0, tl.value, 0.5 * slowK(), tl.fmt ?? fmtN);
+      await c.wait(340);
     });
   });
-
-  // MVP card + trophies
-  const mvp = sum?.mvp;
-  const mvpDef = mvp ? cardDef(mvp.id) : null;
-  const row = h('div', { class: 'cn-row' });
-  board.appendChild(row);
   if (mvpDef) {
     let art = null;
     try { art = cardArtImg(mvp.id, 'base', null, 160, 'cn-mvp-art'); } catch (e) { art = null; }
     const dmgV = h('b', {}, '0');
-    const el = h('div', { class: 'cn-card cn-mvp sk-panel-gold' },
-      h('div', { class: 'cn-mvp-tag sk-chip-gold' }, icon('star'), 'MVP'),
+    const el = h('div', { class: 'cn-mvp sk-panel-gold' },
       h('div', { class: 'cn-mvp-frame sk-pod-gold' }, h('i', { class: 'px-rays w' }), art),
-      h('div', { class: 'cn-mvp-info' }, h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
+      h('div', { class: 'cn-mvp-info' },
+        h('div', { class: 'cn-mvp-tag sk-chip-gold' }, icon('star'), 'MVP'),
+        h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
         mvp.dmg ? h('span', { class: 'd' }, dmgV, ' DMG') : null,
         mvp.count ? h('small', {}, `deployed x${mvp.count}`) : null));
-    row.appendChild(el);
-    steps.push({
-      say: true,
-      run: async (seq) => {
-        el.classList.add('in');
-        audio.play('reveal', { pitch: 1.1 });
-        if (mvp.dmg) { if (seq.skipping) dmgV.textContent = fmtN(mvp.dmg); else rollNumber(dmgV, 0, mvp.dmg, 0.7, fmtN); }
-        setTimeout(() => el.isConnected && sparkle(el, { count: 12, colors: ['#ffd84a', '#ffffff'] }), 200);
-        await seq.wait(420);
-      },
-      react: (a) => a.react('thumbsUp', { dur: 1.3 }),
-      gap: 120,
+    rowC.appendChild(el);
+    numSteps.push(async (c) => {
+      el.classList.add('in');
+      show(rowC);
+      audio.play('reveal', { pitch: 1.1 });
+      if (mvp.dmg) { if (c.skipping) dmgV.textContent = fmtN(mvp.dmg); else rollNumber(dmgV, 0, mvp.dmg, 0.7 * slowK(), fmtN); }
+      setTimeout(() => el.isConnected && sparkle(el, { count: 12, colors: ['#ffd84a', '#ffffff'] }), 240);
+      await c.wait(700);
     });
   }
+  segments.push({ shot: 'desk', bumper: 'BY THE NUMBERS', say: 'numbers', steps: numSteps, react: (a) => a.react('thumbsUp', { dur: 1.3 }), hold: 450 });
+
+  // 5. PAYOUT: trophies, then the rewards drop in one by one with weight
+  const payEl = h('div', { class: 'cn-card cn-pay' });
+  const paySteps = [async () => { payEl.classList.add('in'); }];
   const tr = r?.trophies ?? 0;
   if (r && (tr || opts.mode === 'ranked' || opts.mode === 'online')) {
     const tv = h('b', { class: 'v' }, '0');
-    const el = h('div', { class: `cn-card cn-trophy sk-panel-gold ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), tv, h('small', {}, 'TROPHIES'));
-    row.appendChild(el);
-    steps.push({
-      say: false,
-      run: async (seq) => {
-        el.classList.add('in');
-        audio.play(tr >= 0 ? 'crown' : 'error');
-        if (seq.skipping) tv.textContent = (tr > 0 ? '+' : '') + tr;
-        else rollNumber(tv, 0, tr, 0.6, (n) => (tr > 0 && n > 0 ? '+' : '') + n);
-        if (tr > 0) setTimeout(() => el.isConnected && burst(el, { color: '#ffd84a', count: 18 }), 300);
-        await seq.wait(380);
-      },
-      react: (a) => (tr > 0 ? a.react('clap', { dur: 1.4 }) : tr < 0 ? a.react('shrug', { dur: 1.3 }) : null),
-      gap: 120,
+    const el = h('div', { class: `cn-trophy sk-panel-gold ${tr < 0 ? 'neg' : ''}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), h('div', { class: 'tx' }, tv, h('small', {}, 'TROPHIES')));
+    rowC.appendChild(el);
+    paySteps.push(async (c) => {
+      el.classList.add('in');
+      show(rowC);
+      audio.play(tr >= 0 ? 'crown' : 'error');
+      if (c.skipping) tv.textContent = (tr > 0 ? '+' : '') + tr;
+      else rollNumber(tv, 0, tr, 0.6 * slowK(), (n) => (tr > 0 && n > 0 ? '+' : '') + n);
+      if (!c.skipping) { engine.shake?.(0.05); if (tr > 0) setTimeout(() => el.isConnected && burst(el, { color: '#ffd84a', count: 18 }), 320); }
+      await c.wait(650);
     });
   }
-  if (!row.children.length) row.remove();
-
-  // rewards chips
   if (r) {
     const items = [];
     const add = (ic, value, label, o = {}) => {
@@ -642,26 +590,26 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
         }).catch(() => {});
       }
       add('vial', 0, vd?.name ?? 'Vial', { img, text: 'NEW!' });
-    } else if (r.slotsFull && result === 'win') add('vial', 0, 'Slots full!', { text: 'FULL', neg: true });
+    } else if (r.slotsFull && result === 'win') add('vial', 0, 'Slots full', { text: 'FULL', neg: true });
     if (r.calories) add('calorie', r.calories, 'Calories');
     if (r.cmdXp) add('star', r.cmdXp, 'Cmdr XP');
     if (r.labXp) add('lab', r.labXp, 'Lab XP');
     if (items.length) {
       const chips = h('div', { class: 'cn-chips' }, items.map((it) => it.el));
-      board.appendChild(chips);
-      steps.push({
-        say: false,
-        run: async (seq) => {
-          for (const [k, it] of items.entries()) {
-            it.el.classList.add('in');
-            if (it.text) it.v.textContent = it.text;
-            else if (seq.skipping) it.v.textContent = '+' + fmtN(it.value);
-            else rollNumber(it.v, 0, it.value, 0.5, (n) => '+' + fmtN(n));
-            audio.play('coin', { pitch: 1 + k * 0.08 });
-            await seq.wait(130);
+      payEl.appendChild(chips);
+      paySteps.push(async (c) => {
+        for (const [k, it] of items.entries()) {
+          it.el.classList.add('in');
+          if (!k) show(chips);
+          if (it.text) it.v.textContent = it.text;
+          else if (c.skipping) it.v.textContent = '+' + fmtN(it.value);
+          else rollNumber(it.v, 0, it.value, 0.5 * slowK(), (n) => '+' + fmtN(n));
+          if (!c.skipping) {
+            audio.play(k === 0 ? 'chaching' : 'coin', { pitch: 1 + k * 0.08, vol: 0.8 });
+            setTimeout(() => { if (it.el.isConnected) { audio.play('thud', { pitch: 1.4, vol: 0.35 }); bump(board, 'cn-thud'); } }, 200);
           }
-        },
-        gap: 60,
+          await c.wait(300);
+        }
       });
     }
     const ups = (r.levelUps ?? []).map((lu) => h('span', {}, icon('up'), `Commander level ${lu.level ?? lu}!`));
@@ -675,43 +623,52 @@ function buildNews({ result, names, bases, r, sum, portrait, opts }) {
     if (ms.length > 2) ups.push(h('span', { class: 'cn-up-ms' }, icon('star'), `+${ms.length - 2} more mastery rewards in CARDS`));
     if (ups.length) {
       const el = h('div', { class: 'cn-ups' }, ups);
-      board.appendChild(el);
-      steps.push({
-        say: false,
-        run: async (seq) => {
-          el.classList.add('in');
-          audio.play('levelUp');
-          if (labTo) {
-            await seq.wait(seq.skipping ? 0 : 260);
-            setRankMedal(labMedal, labTo, { pop: !seq.skipping });
-            if (bRows[0].medal) setRankMedal(bRows[0].medal, labTo, { pop: !seq.skipping });
-          }
-        },
-        gap: 100,
+      payEl.appendChild(el);
+      paySteps.push(async (c) => {
+        el.classList.add('in');
+        show(el);
+        audio.play('levelUp');
+        if (labTo) {
+          await c.wait(260);
+          setRankMedal(labMedal, labTo, { pop: !c.skipping });
+          if (bRows[0].medal) setRankMedal(bRows[0].medal, labTo, { pop: !c.skipping });
+        }
+        await c.wait(300);
       });
     }
   }
+  if (paySteps.length > 1) {
+    if (payEl.children.length) board.appendChild(payEl);
+    segments.push({ shot: 'close', bumper: loss ? 'DAMAGE REPORT' : 'THE PAYOUT', say: 'payout', steps: paySteps, react: (a) => (tr > 0 ? a.react('clap', { dur: 1.4 }) : tr < 0 ? a.react('shrug', { dur: 1.3 }) : null), hold: 400 });
+  }
+  board.appendChild(footSlot);
 
-  // ticker
+  // ---- ticker
+  const spells = st.spells ?? 0;
   const bits = [
     headlineText.replace(/\*/g, ''),
     mvpDef ? `MVP: ${mvpDef.name}${mvp.dmg ? ` dealt ${fmtN(mvp.dmg)} damage` : ''}` : null,
     `${fmtN(st.deployed ?? 0)} ${(st.deployed ?? 0) === 1 ? 'troop' : 'troops'} deployed`,
     `${fmtN(st.kills ?? 0)} ${(st.kills ?? 0) === 1 ? 'Swarm' : 'Swarms'} defeated`,
+    spells ? `${fmtN(spells)} ${spells === 1 ? 'spell' : 'spells'} cast` : null,
     r?.trophies ? `TROPHIES ${tr > 0 ? '+' : ''}${tr}` : null,
-    `Live from ${arenaName}`,
-    'Beast Tiger "totally fine", says Jimmy',
+    'Local toilet clogs, refuses to comment',
     'Feastables stock up 300%',
-    'Lab Packs flying off the shelves',
+    'Beast Tiger "totally fine", says Jimmy',
+    'Weather: 100% chance of confetti',
+    'Scientists confirm chocolate is a food group',
+    `Live from ${arenaName}`,
   ].filter(Boolean);
-  const tickTxt = bits.map((b) => h('span', {}, h('i', {}, '◆'), b.toUpperCase()));
+  const tickTxt = bits.map((b) => h('span', {}, h('i', {}), b.toUpperCase()));
   const ticker = h('div', { class: 'cn-ticker' }, h('b', { class: 'cn-ticker-tag' }, 'BEAST NEWS'), h('div', { class: 'cn-ticker-run' }, h('div', { class: 'cn-ticker-in' }, tickTxt, tickTxt.map((e) => e.cloneNode(true)))));
 
   const el = h('div', { class: 'cres-news' },
-    h('div', { class: 'cn-left' }, studio, lower),
-    h('div', { class: 'cn-right' }, board, footSlot),
-    ticker);
-  return { el, cam, headline, headlineText, steps, footSlot };
+    h('div', { class: 'cn-studio' }, h('i', { class: 'cn-vig' }), bug, live, lower),
+    h('div', { class: 'cn-right' }, board, bumperEl),
+    ticker,
+    pipEl, say,
+    h('div', { class: 'cn-hint' }, 'TAP TO SKIP'));
+  return { el, board, headline, headlineText, lower, segments, footSlot, live, pip, say, sayTxt, placeSay, bumper: bumperFx };
 }
 
 export { button };

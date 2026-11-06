@@ -1,24 +1,31 @@
 // Guided first session + progressive unlock presentation (logic in game/progression.js).
 //
-//   Home:   locked nav tabs / side buttons (lock + "2 WINS"), the unlock REVEAL (spotlight, the lock
-//           shakes and pops, the tab springs in, a short voiced line from Jimmy / Nolan / Juan), the
-//           GUIDED STEPS (a pointing hand + spotlight that follows whatever you need to tap next:
-//           claim the Trophy Road, open your first vial, put a card in your deck, upgrade...), each
-//           skippable, and the MAIN QUEST tracker (tap = quest list, CLAIM = reward fly-in).
-//   Battle: locked ULT / BASE buttons, battle lessons (base upgrades in your first ranked battle,
-//           the ULTIMATE once it unlocks), rival fairness (no rival ULT while yours is locked).
+//   Home:   locked nav tabs / side buttons / TRAIN / vial slots / profile picture are BLACKED OUT (a
+//           dark silhouette of the button with a small padlock; tap = shake + what unlocks it), the
+//           unlock REVEAL (spotlight, the padlock rattles and breaks, the button floods back from black
+//           to full colour, a short voiced line from Jimmy / Nolan / Juan), the GUIDED STEPS (a
+//           pointing hand + spotlight that follows whatever you need to tap next: claim the Trophy
+//           Road, open your first vial, put a card in your deck, upgrade...), each skippable, and the
+//           MAIN QUEST tracker (a pinned note: quest, objective, progress, reward, "!" when claimable;
+//           tap = the QUEST BOARD, ui/home/questBoard.js).
+//   Battle: locked ULT / BASE buttons (blacked out the same way), battle lessons (base upgrades in your
+//           first ranked battle, the ULTIMATE once it unlocks), rival fairness (no rival ULT while
+//           yours is locked).
 //
 // Other screens can mark a tap target for the guide with data-guide="<step target>" (e.g. the
 // research tree's start button: data-guide="research").
 import './guide.css';
-import { h, icon, button, say, pointAt, toast, burst, sparkle, flyIcons, confetti, bar, modal, $overlay, bump, rich, closeDialogue } from './ui.js';
+import { h, icon, animIcon, button, say, pointAt, toast, burst, sparkle, confetti, $overlay, rich, closeDialogue, iconURL } from './ui.js';
 import { audio } from '../core/audio.js';
 import { charPortrait } from './thumbs.js';
-import { state, upgradeInfo, currentDeck, passClaimable, trophyRoadClaimable } from '../game/state.js';
+import { frameSkin } from './skin.js';
+import { ensureBoardArt, tallyURL } from './home/questBoardArt.js';
+import { state, upgradeInfo, currentDeck, passClaimable, trophyRoadClaimable, refreshDaily, challengeList, questState } from '../game/state.js';
+import { QUEST_CHAINS } from '../data/arenas.js';
 import { STARTER_CARDS } from '../data/cards.js';
 import {
   FEATURES, featureUnlocked, featureRevealed, pendingReveals, markRevealed, lockInfo, guideDone, setGuideDone, releaseDeckHold,
-  lessonDone, setLessonDone, MAIN_QUESTS, mainQuest, claimMainQuest,
+  lessonDone, setLessonDone, mainQuest, chapterOf,
 } from '../game/progression.js';
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -28,16 +35,18 @@ const P = () => state.p;
 // Speakers (the dialogue system voices them: voiceOf in data/characters.js)
 
 const WHO = {
-  jimmy: { name: 'Jimmy', color: '#2b8cf2', eyes: 'happy', mouth: 'grin' },
-  nolan: { name: 'Nolan', color: '#3fbf5f', eyes: 'happy', mouth: 'grin' },
-  juan: { name: 'Juan', color: '#ff8a1f', eyes: 'happy', mouth: 'grin' },
+  jimmy: { name: 'Jimmy', char: 'jimmy', color: '#2b8cf2', eyes: 'happy', mouth: 'grin' },
+  nolan: { name: 'Nolan', char: 'nolan', color: '#3fbf5f', eyes: 'happy', mouth: 'grin' },
+  juan: { name: 'Juan', char: 'juan', color: '#ff8a1f', eyes: 'happy', mouth: 'grin' },
+  // the Shop's "totally different guy" (Nolan in a fedora)
+  lonan: { name: 'Lonan', char: 'shadyNolan', color: '#d8a548', eyes: 'normal', mouth: 'smile' },
 };
 export function speaker(id, mood = {}) {
   const w = WHO[id] ?? WHO.jimmy;
   const eyes = mood.eyes ?? w.eyes, mouth = mood.mouth ?? w.mouth;
   let portrait = null;
-  try { portrait = charPortrait(id, { eyes, mouth }); } catch (e) { /* face cam still works */ }
-  return { name: w.name, color: w.color, eyes, mouth, portrait };
+  try { portrait = charPortrait(w.char, { eyes, mouth }); } catch (e) { /* face cam still works */ }
+  return { name: w.name, char: w.char, color: w.color, eyes, mouth, portrait };
 }
 
 // ---------------------------------------------------------------------------
@@ -176,8 +185,9 @@ function scrollToEl(el) {
 function blocked() {
   return !!document.querySelector('#overlay .cdlg:not(.passive), #overlay .vo-wrap, #overlay .res-wrap');
 }
-// screens that sit over the lobby: modals and the island Trophy Road view (ui/home/trophyRoad.js)
-const SCREENS = '#overlay .modal-back, #ui .modal-back, #overlay .trd:not(.out)';
+// screens that sit over the lobby: modals, the island Trophy Road view (ui/home/trophyRoad.js) and the
+// QUEST BOARD (ui/home/questBoard.js)
+const SCREENS = '#overlay .modal-back, #ui .modal-back, #overlay .trd:not(.out), #overlay .qb:not(.out)';
 const busy = () => blocked() || !!document.querySelector(SCREENS);
 function resolveTarget(targets) {
   if (blocked()) return null;
@@ -247,10 +257,33 @@ function featureEl(hm, id) {
   return null;
 }
 
+// Locked = BLACKED OUT: the element keeps its shape as a dark silhouette (CSS: guide.css .pg-lock),
+// its icon / label go black, and a small padlock sits on it. No "2 WINS" text: a tap shakes it and a
+// toast says what opens it.
+let padIcon = false;
+function padEl(cls = '') {
+  if (!padIcon) {
+    padIcon = true;
+    try {
+      document.documentElement.style.setProperty('--pg-lock-ic', `url(${iconURL('lock')})`);
+      // the blacked-out jelly button: same 9-slice geometry as the .sk-btn-* skins, all ink
+      const sk = frameSkin({ w: 20, h: 22, r: 4, lip: 3, topRows: 8, dither: true, gloss: false, glint: false, bubbles: false, deep: 3, shadow: '#000000', fill: '#15131f', top: '#1d1b2b', lipColor: '#07060c', hi: '#3a3a56', lo: '#0c0b14', deepColor: '#110f1a', outline: '#000000' });
+      document.documentElement.style.setProperty('--pg-dark-btn', `url(${sk.url})`);
+    } catch (e) { /* plain fallback in CSS */ }
+  }
+  return h('i', { class: `pg-pad ${cls}`, 'aria-hidden': 'true' });
+}
+function setPads(host, n, on) {
+  const have = host.querySelectorAll(':scope > .pg-pad');
+  if (!on) { have.forEach((p) => p.remove()); return; }
+  if (have.length === n) return;
+  have.forEach((p) => p.remove());
+  for (let k = 0; k < n; k++) host.appendChild(padEl(n > 1 ? `k${k}` : ''));
+}
+
 function decorate(hm) {
   for (const id of ['road', 'vials', 'cards', 'shop', 'friends', 'pass', 'train', 'lab', 'profile', 'roadSign']) {
-    // the arena sign opens the Trophy Road too: same gate, no second chip
-    const fid = id === 'roadSign' ? 'road' : id;
+    // the arena sign opens the Trophy Road too: same gate, no second lock
     const el = id === 'roadSign' ? hm.zBox : featureEl(hm, id);
     if (!el) continue;
     if (id === 'roadSign') {
@@ -261,21 +294,15 @@ function decorate(hm) {
       }
       continue;
     }
-    void fid;
+    if (el.classList.contains('pg-unveil')) continue; // mid-reveal
     const locked = !featureRevealed(id);
     el.classList.toggle('pg-lock', locked);
-    let chip = el.querySelector(':scope > .pg-lk');
-    if (locked) {
-      const info = lockInfo(id);
-      if (!chip) {
-        chip = h('i', { class: 'pg-lk' }, icon('lock'), h('b', {}, info.short));
-        el.appendChild(chip);
-      } else chip.querySelector('b').textContent = info.short;
-      el.dataset.tip = info.text;
-    } else {
-      chip?.remove();
-      if (el.dataset.tip && el.dataset.tip.startsWith('Win ')) delete el.dataset.tip;
-    }
+    el.querySelector(':scope > .pg-lk')?.remove(); // the old "2 WINS" chip (older builds)
+    // the profile keeps your name + Lab Level readable: only the picture blacks out
+    const host = id === 'profile' ? el.querySelector('.hm-av') ?? el : el;
+    setPads(host, id === 'vials' ? hm.slotEls?.length ?? 4 : 1, locked);
+    if (locked) el.dataset.tip = lockInfo(id).text;
+    else if (el.dataset.tip && el.dataset.tip.startsWith('Win ')) delete el.dataset.tip;
     if (!el._pgGate) {
       el._pgGate = true;
       // locked: swallow the tap before the element's own handler runs
@@ -357,8 +384,18 @@ let revealing = false;
 async function reveal(hm, id) {
   const el = featureEl(hm, id);
   if (QUIET[id]) {
-    markRevealed(id);
-    if (el) unlockAnim(el);
+    // a short rattle, then the padlock snaps (decorate() waits so the pads are still there to break)
+    revealing = true;
+    try {
+      if (el && alive(hm)) {
+        el.classList.add('pg-rattle');
+        audio.play('rattle');
+        await wait(0.45);
+      }
+      markRevealed(id);
+      if (el) unlockAnim(el);
+      audio.play('shatter', { vol: 0.6 });
+    } finally { revealing = false; }
     toast(QUIET[id], { icon: FEATURES[id].icon ?? 'star' });
     audio.play('levelUp');
     await wait(0.5);
@@ -412,15 +449,36 @@ function placeCap(cap, el) {
   // above the element when it sits low (nav tabs), under it otherwise (side buttons)
   if (r.top > innerHeight * 0.5) { cap.style.top = r.top - 14 + 'px'; cap.classList.add('up'); } else cap.style.top = r.bottom + 14 + 'px';
 }
+/** The padlock snaps: its two halves and the shackle fly off as pixel shards. */
+function breakPad(pad) {
+  const r = pad.getBoundingClientRect();
+  pad.remove();
+  if (!r.width || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  const parts = [['l', -1, 0.3], ['r', 1, 0.3], ['s', 0.2, -1]];
+  for (const [k, dx, dy] of parts) {
+    const sh = h('i', { class: `pg-shard ${k}`, style: { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' } });
+    $overlay().appendChild(sh);
+    const ex = dx * (24 + Math.random() * 20), ey = dy * (26 + Math.random() * 12);
+    sh.animate([
+      { transform: 'translate(0, 0)', opacity: 1 },
+      { transform: `translate(${ex * 0.6}px, ${ey * 0.6 - 14}px)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(${ex}px, ${ey + 46}px) rotate(${dx * 90}deg)`, opacity: 0 },
+    ], { duration: 650, easing: 'cubic-bezier(.3,.6,.6,1)' }).onfinish = () => sh.remove();
+  }
+  sparkle(pad.isConnected ? pad : { getBoundingClientRect: () => r, isConnected: true }, { count: 10, spread: 34, colors: ['#ffd84a', '#ffffff', '#c8ccd8'] });
+}
 function unlockAnim(el) {
-  el.classList.remove('pg-rattle', 'pg-lock');
+  el.querySelectorAll('.pg-pad').forEach(breakPad);
+  el.classList.remove('pg-rattle', 'pg-lock', 'pg-unveil');
   el.querySelector(':scope > .pg-lk')?.remove();
-  el.classList.remove('pg-pop');
   void el.offsetWidth;
-  el.classList.add('pg-pop');
-  setTimeout(() => el.classList.remove('pg-pop'), 900);
-  burst(el, { color: '#ffd84a', count: 26, scale: 1.8 });
-  sparkle(el, { count: 18, spread: 90 });
+  // black silhouette -> white flash -> full colour, with a springy pop
+  el.classList.add('pg-unveil');
+  setTimeout(() => el.classList.remove('pg-unveil'), 1150);
+  setTimeout(() => {
+    burst(el, { color: '#ffd84a', count: 26, scale: 1.8, ring: false });
+    sparkle(el, { count: 18, spread: 90 });
+  }, 380);
   // the NEW tag stays until the feature is first used
   if (!el.querySelector(':scope > .pg-newtag')) {
     const tag = h('i', { class: 'pg-newtag' }, 'NEW');
@@ -512,122 +570,103 @@ async function runStep(hm, id) {
 }
 
 // ---------------------------------------------------------------------------
-// Main quest tracker (home, top left) + quest list
+// Main quest tracker (home, top left): a pinned paper note; tap = the QUEST BOARD
 
 let trackerEl = null;
 let trackerKey = '';
-let claiming = false;
+
+/** Daily + character quests ready to claim (the board's other tabs). */
+function sideClaims() {
+  if (!featureRevealed('pass')) return 0;
+  try {
+    refreshDaily();
+    return challengeList().filter((c) => c.done && !c.claimed).length + Object.keys(QUEST_CHAINS).filter((n) => questState(n)?.done).length;
+  } catch (e) { return 0; }
+}
+let boardMod = null;
+async function openBoard(hm, opts = {}) {
+  try {
+    boardMod = boardMod ?? (await import('./home/questBoard.js'));
+    if (alive(hm) && !boardMod.boardOpen()) boardMod.openQuestBoard(hm, opts);
+  } catch (e) { console.warn('quest board', e); }
+}
+/** Other screens (pass drawer, dev links) can open the board. */
+export function openQuestBoardFromHome(opts) { if (home) openBoard(home, opts); }
 
 function mountTracker(hm) {
   trackerKey = '';
-  trackerEl = h('button', { class: 'gd-qt', type: 'button' });
+  try { ensureBoardArt(); } catch (e) { /* plain paper fallback in CSS */ }
+  trackerEl = h('button', { class: 'gd-qt', type: 'button', 'aria-label': 'Open the quest board' });
   trackerEl.addEventListener('click', (e) => {
     e.stopPropagation();
-    const st = mainQuest();
-    if (st?.done && !st.finished) claimTracker(hm);
-    else { audio.play('tap'); openQuestList(hm); }
+    audio.play('tap');
+    audio.play('tear', { pitch: 1.5, vol: 0.35 });
+    openBoard(hm);
   });
   hm.root.appendChild(trackerEl);
+  cleanup.push(() => boardMod?.closeQuestBoard());
   updateTracker();
 }
+
+const REWARD_ICON = { coins: 'coin', bucks: 'bucks', calories: 'calorie', vial: 'vial', card: 'cards', commander: 'crown' };
+function rewardPeek(r) {
+  const k = ['coins', 'bucks', 'calories', 'vial', 'card', 'commander'].find((x) => r?.[x]);
+  if (!k) return null;
+  const amt = k === 'coins' || k === 'bucks' || k === 'calories' ? r[k].toLocaleString('en-US') : k === 'card' ? 'x' + (r.copies ?? 1) : '1';
+  return h('span', { class: 'gd-qt-rw' }, animIcon(REWARD_ICON[k]), h('b', {}, amt));
+}
+
 function updateTracker() {
   const el = trackerEl;
-  if (!el?.isConnected || claiming) return;
+  if (!el?.isConnected) return;
   const st = mainQuest();
-  if (!st || st.finished) { el.style.display = 'none'; return; }
+  if (!st) { el.style.display = 'none'; return; }
   el.style.display = '';
+  const side = sideClaims();
   const q = st.quest;
-  const key = `${q.id}|${st.prog}|${st.done}|${st.locked}`;
+  const key = `${q?.id ?? 'end'}|${st.prog}|${st.done}|${st.locked}|${side}|${featureRevealed('pass')}`;
   if (key === trackerKey) return;
-  const fresh = trackerKey && trackerKey.split('|')[0] !== q.id;
+  const fresh = trackerKey && trackerKey.split('|')[0] !== (q?.id ?? 'end');
   trackerKey = key;
-  el.className = `gd-qt ${st.done ? 'ready' : ''}`;
-  const pct = st.prog / st.need;
-  const bigNeed = st.need >= 100;
+  const bang = (st.done && !st.finished) || side > 0;
+  el.className = `gd-qt ${st.done && !st.finished ? 'ready' : ''} ${bang ? 'bang' : ''}`;
+  let face, k, title, goal, row;
+  if (st.finished) {
+    face = speaker('jimmy').portrait;
+    k = 'QUEST BOARD';
+    title = 'Story complete';
+    goal = featureRevealed('pass') ? 'Daily specials + crew quests' : 'Jimmy is writing more';
+    row = side > 0 ? h('span', { class: 'gd-qt-claim' }, icon('gift'), side === 1 ? '1 READY TO CLAIM' : `${side} READY TO CLAIM`) : null;
+  } else {
+    const ch = chapterOf(st.step);
+    face = speaker(q.by).portrait;
+    k = [h('span', {}, `CHAPTER ${ch.n}`), h('i', { class: 'gd-qt-sep' }), h('span', {}, `QUEST ${st.step + 1}/${st.steps}`)];
+    title = q.title;
+    goal = q.goal ?? q.text;
+    if (st.done) row = h('span', { class: 'gd-qt-claim' }, icon('gift'), 'DONE! TAP TO CLAIM');
+    else if (st.locked) row = h('span', { class: 'gd-qt-lock' }, icon('lock'), h('span', { html: rich(lockInfo(st.locked).text.replace(/\*/g, '')) }));
+    else {
+      const small = st.need <= 12;
+      row = h('div', { class: 'gd-qt-row' },
+        small
+          ? h('img', { class: 'gd-qt-tally', src: tallyURL(st.prog, st.need), alt: '', style: { '--tw': st.need <= 1 ? 14 : Math.ceil(st.need / 5) * 15 + 2 } })
+          : h('div', { class: 'gd-qt-bar' }, h('i', { style: { width: Math.max(3, (st.prog / st.need) * 100) + '%' } })),
+        h('b', { class: 'gd-qt-cnt' }, st.need >= 100 ? `${st.prog.toLocaleString('en-US')}/${st.need.toLocaleString('en-US')}` : `${st.prog}/${st.need}`),
+        rewardPeek(q.reward));
+    }
+  }
   el.replaceChildren(
-    h('div', { class: 'gd-qt-face' }, h('img', { src: speaker(q.by).portrait ?? '', alt: '', draggable: 'false' })),
+    h('i', { class: 'gd-qt-pin', 'aria-hidden': 'true' }),
+    h('div', { class: 'gd-qt-face' }, h('img', { src: face ?? '', alt: '', draggable: 'false' })),
     h('div', { class: 'gd-qt-txt' },
-      h('span', { class: 'gd-qt-k' }, `QUEST ${st.step + 1}/${st.steps}`),
-      h('b', { class: 'gd-qt-n' }, q.title),
-      st.done
-        ? h('span', { class: 'gd-qt-claim' }, icon('gift'), 'CLAIM!')
-        : st.locked
-          ? h('span', { class: 'gd-qt-lock' }, icon('lock'), lockInfo(st.locked).short)
-          : bar(Math.max(0.04, pct), 'gold', bigNeed ? `${st.prog.toLocaleString('en-US')}/${st.need.toLocaleString('en-US')}` : `${st.prog}/${st.need}`, { cls: 'gd-qt-bar' })));
+      h('span', { class: 'gd-qt-k' }, ...[k].flat()),
+      h('b', { class: 'gd-qt-n' }, title),
+      h('span', { class: 'gd-qt-goal' }, goal),
+      row),
+    ...(bang ? [h('i', { class: 'gd-qt-bang', 'aria-hidden': 'true' }, h('b', {}, '!'))] : []));
   if (fresh) { el.classList.add('gd-qt-in'); setTimeout(() => el.classList.remove('gd-qt-in'), 700); }
-}
-
-const REWARD_ICON = { coins: 'coin', bucks: 'bucks', calories: 'calorie', vial: 'vial', card: 'cards' };
-function rewardBits(r) {
-  const out = [];
-  if (r.coins) out.push({ icon: 'coin', text: r.coins.toLocaleString('en-US') });
-  if (r.bucks) out.push({ icon: 'bucks', text: String(r.bucks) });
-  if (r.calories) out.push({ icon: 'calorie', text: String(r.calories) });
-  if (r.vial) out.push({ icon: 'vial', text: '1' });
-  if (r.card) out.push({ icon: 'cards', text: String(r.copies ?? 1) });
-  return out;
-}
-
-async function claimTracker(hm) {
-  if (claiming) return;
-  const el = trackerEl;
-  const got = claimMainQuest();
-  if (!got) return;
-  claiming = true;
-  audio.play('levelUp');
-  burst(el, { color: '#ffd84a', count: 26, scale: 1.4 });
-  confetti($overlay(), { count: 30, spread: 0.5, life: 3 });
-  el.classList.add('gd-qt-claimed');
-  // the reward flies to where it lives: coins / bucks into their pills, vials into the slots
-  const r = got.quest.reward;
-  const flights = [];
-  if (r.coins) flights.push(flyIcons(el, 'coin', hm.coinPill, { count: 7 }));
-  if (r.bucks) flights.push(flyIcons(el, 'bucks', hm.buckPill, { count: 5 }));
-  if (r.calories) flights.push(flyIcons(el, 'calorie', hm.navBtns?.find((b) => b.dataset.tab === 'pass') ?? null, { count: 5 }));
-  if (r.vial) flights.push(flyIcons(el, 'vial', hm.slotsEl ?? null, { count: 3, size: 34 }));
-  if (r.card) flights.push(flyIcons(el, 'cards', hm.navBtns?.find((b) => b.dataset.tab === 'cards') ?? null, { count: 3 }));
-  const lbl = h('div', { class: 'gd-qt-got' }, ...got.rewards.map((x) => h('span', {}, icon(REWARD_ICON[x.kind] ?? x.icon ?? 'star'), x.label)));
-  el.appendChild(lbl);
-  await Promise.all(flights);
-  await wait(0.5);
-  claiming = false;
-  el.classList.remove('gd-qt-claimed');
-  trackerKey = trackerKey.replace(/^[^|]*/, 'x');
-  updateTracker();
-  hm.refresh?.();
-}
-
-function openQuestList(hm) {
-  const st = mainQuest();
-  const cur = st?.finished ? MAIN_QUESTS.length : st?.step ?? 0;
-  // done quests, the active one and the next one; the rest stay a surprise
-  const shownN = Math.min(MAIN_QUESTS.length, cur + 2);
-  const rows = MAIN_QUESTS.slice(0, shownN).map((q, i) => {
-    const state_ = i < cur ? 'done' : i === cur ? 'cur' : 'next';
-    const bits = rewardBits(q.reward);
-    const isCur = state_ === 'cur';
-    return h('div', { class: `gd-ql-row ${state_}` },
-      h('div', { class: 'gd-ql-face' }, h('img', { src: speaker(q.by).portrait ?? '', alt: '' })),
-      h('div', { class: 'gd-ql-txt' },
-        h('b', {}, q.title),
-        h('span', {}, q.text),
-        isCur && !st.done ? bar(Math.max(0.04, st.prog / st.need), 'gold', `${st.prog.toLocaleString('en-US')}/${st.need.toLocaleString('en-US')}`, { cls: 'gd-ql-bar' }) : null),
-      h('div', { class: 'gd-ql-rw' },
-        state_ === 'done' ? icon('check', 'l')
-          : isCur && st.done ? button('CLAIM', () => { m.close(); claimTracker(hm); }, 'green sm', { icon: 'gift' })
-            : bits.map((b) => h('span', { class: 'gd-ql-bit' }, icon(b.icon), b.text))));
-  });
-  const more = MAIN_QUESTS.length - shownN;
-  if (more > 0) rows.push(h('div', { class: 'gd-ql-more' }, icon('lock'), h('span', {}, more === 1 ? '1 more quest after these' : `${more} more quests after these`)));
-  const foot = [];
-  if (featureRevealed('pass')) foot.push(button('DAILY CHALLENGES', () => { m.close(); hm.setTab('pass', false, { sub: 'chal' }); }, 'pink', { icon: 'calorie' }));
-  const m = modal({
-    title: 'MAIN QUESTS', color: 'gold', size: 'narrow', cls: 'gd-ql-modal',
-    body: h('div', { class: 'gd-ql' }, rows),
-    foot: foot.length ? foot : null,
-  });
-  // scroll the active quest into view
-  requestAnimationFrame(() => m.body.querySelector('.gd-ql-row.cur')?.scrollIntoView({ block: 'center' }));
+  // the guided-step chip hangs under the tracker
+  requestAnimationFrame(() => { if (el.isConnected) el.parentElement?.style.setProperty('--gd-qt-b', el.offsetTop + el.offsetHeight + 'px'); });
 }
 
 // ---------------------------------------------------------------------------
@@ -638,16 +677,16 @@ export function battleLocks(mode) {
   if (mode === 'friend' || mode === 'online') return { base: false, ult: false, modules: false, emotes: false };
   return { base: !featureUnlocked('baseUp'), ult: !featureUnlocked('ult'), modules: !featureUnlocked('modules'), emotes: !featureUnlocked('emotes') };
 }
-/** Grey the locked ULT / BASE buttons out with a lock + what opens them. */
+/** Black the locked ULT / BASE buttons out (silhouette + padlock); a tap says what opens them. */
 export function applyBattleLocks(hud, locks) {
   hud.locked = locks;
-  const lockOn = (el, text) => {
+  const lockOn = (el) => {
     if (!el) return;
     el.classList.add('pg-blk');
-    el.appendChild(h('div', { class: 'pg-blk-chip' }, icon('lock'), h('span', {}, text)));
+    el.appendChild(padEl('pg-blk-pad'));
   };
-  if (locks.ult) lockOn(hud.sig, lockInfo('ult').short);
-  if (locks.base) lockOn(hud.ocBtn, lockInfo('baseUp').short);
+  if (locks.ult) lockOn(hud.sig);
+  if (locks.base) lockOn(hud.ocBtn);
   // emotes simply aren't there yet
   if (locks.emotes && hud.emoteBtn) hud.emoteBtn.style.display = 'none';
 }

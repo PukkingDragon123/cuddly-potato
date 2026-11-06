@@ -1,32 +1,70 @@
 /* =========================================================================
-   Progression UI (ui/guide.js): locked home tabs + side buttons, the unlock
-   reveal (spotlight with pixel corner brackets, rattle + pop, caption), the
-   guided-step chip, the MAIN QUEST tracker + list, locked battle buttons.
+   Progression UI (ui/guide.js): BLACKED-OUT locked home buttons + their
+   unlock reveal (spotlight with pixel corner brackets, the padlock rattles
+   and snaps, the silhouette floods back to full colour), the guided-step
+   chip, the MAIN QUEST tracker note, blacked-out battle buttons.
    ========================================================================= */
 
-/* ---------------------------------------------------------------- locked home features */
-.pg-lk {
-  position: absolute; z-index: 3; left: 50%; translate: -50% 0; pointer-events: none; display: flex; align-items: center; gap: 0.15em; white-space: nowrap;
-  padding: 0.05em 0.35em 0.08em; font-style: normal; font-family: var(--font-d); font-size: 0.62em; line-height: 1.05; color: #ffe9a0; text-shadow: var(--outline-thin);
-  background: linear-gradient(#3a2a10, #1c1206); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink), inset 0 calc(var(--px) * 0.75) 0 rgba(255, 216, 74, 0.45);
-}
-.pg-lk .pi { width: 1.15em; height: 1.15em; }
-.pg-lock > .pi, .pg-lock > span > .pi, .pg-lock .row > .pi { filter: grayscale(1) brightness(0.45) !important; animation: none !important; }
+/* ---------------------------------------------------------------- locked = blacked out */
+/* the element keeps its shape as a dark silhouette: buttons swap to an ink jelly skin, everything
+   inside (icon, label, art) goes pure black with a faint cold rim so the shape still reads */
+:root { --pg-sil: brightness(0) drop-shadow(0 0 calc(var(--px) * 0.75) rgba(140, 170, 255, 0.5)); }
+.pg-lock { animation: none !important; }
+.pg-lock:not(.hm-prof):not(.hm-slots) > :not(.pg-pad):not(.pg-newtag):not(.badge),
+.hm-slots.pg-lock > .hm-slot,
+.hm-prof.pg-lock .hm-av > :not(.pg-pad) { filter: var(--pg-sil) !important; animation: none !important; }
 .pg-lock .badge { display: none !important; }
-/* nav tabs: the label makes room for the lock chip */
-.hm-tabbtn.pg-lock .tl { opacity: 0 !important; }
-.hm-tabbtn.pg-lock .pg-lk { bottom: 6%; }
+.btn.pg-lock, .btn.pg-lock:active, .btn.pg-lock.pressed { border-image-source: var(--pg-dark-btn) !important; }
+.btn.pg-lock:not(.hm-sb)::after, .btn.pg-lock::before { display: none !important; }
+.btn.pg-lock .sub { opacity: 0; }
+/* nav tabs: icon + label as black silhouettes */
+.hm-tabbtn.pg-lock .tl { opacity: 1 !important; }
 .hm-tabbtn.pg-lock::before { display: none; }
-/* side buttons + TRAIN: chip across the bottom edge, the button itself dims */
-.hm-sb.pg-lock, .hm-side-play.pg-lock { filter: saturate(0.25) brightness(0.7) !important; animation: none !important; }
-.hm-sb.pg-lock::after { opacity: 0; }
-.hm-sb.pg-lock .pg-lk { top: auto; bottom: calc(var(--u) * -1.6); font-size: 0.6em; filter: saturate(4) brightness(1.4); }
-.hm-side-play.pg-lock .pg-lk { top: calc(var(--u) * -2.4); bottom: auto; font-size: 0.48em; filter: saturate(4) brightness(1.4); }
+/* side buttons: the caption plate under the button turns into a black bar with the word in black */
+.hm-sb.pg-lock, .hm-side-play.pg-lock { filter: none !important; }
+.hm-sb.pg-lock::after { color: #000 !important; text-shadow: 0 calc(var(--px) * 0.5) 0 rgba(140, 170, 255, 0.35) !important; background: #06050c !important; box-shadow: 0 0 0 calc(var(--px) * 0.67) #000, inset 0 calc(var(--px) * 0.67) 0 rgba(140, 170, 255, 0.18) !important; }
+/* vial slots: four black chambers, one padlock each (the pads sit in the row: no slot rebuild drops them) */
+.hm-slots.pg-lock { position: relative; }
+.hm-slots.pg-lock > .hm-slot { opacity: 1 !important; }
+.hm-slots { --pg-sw: calc(var(--u) * 21); --pg-sg: calc(var(--u) * 1.4); }
+body.landscape .hm-slots { --pg-sw: calc(var(--u) * 18); }
+/* the profile: name + Lab Level stay readable, the picture is a silhouette */
+.hm-prof.pg-lock .hm-av { position: relative; }
+
+/* the padlock: small pixel lock with a dark drop + warm glint */
+.pg-pad {
+  position: absolute; z-index: 5; right: calc(var(--px) * -2); bottom: calc(var(--px) * -2); width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6);
+  pointer-events: none; font-style: normal; background: var(--pg-lock-ic) center / 100% 100% no-repeat; image-rendering: pixelated;
+  filter: drop-shadow(0 calc(var(--px) * 1) 0 #000) drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 216, 74, 0.45));
+}
+.pg-pad.pg-pad { position: absolute; } /* buttons give their children position: relative (ui.css .btn > *) */
+.hm-tabbtn > .pg-pad { right: auto; left: 54%; bottom: auto; top: 30%; width: calc(var(--u) * 4.2); height: calc(var(--u) * 4.2); }
+.hm-sb > .pg-pad { right: calc(var(--px) * -3); bottom: calc(var(--px) * 1); }
+.hm-side-play > .pg-pad { right: calc(var(--px) * -3); bottom: auto; top: calc(var(--px) * -4); width: calc(var(--u) * 5.4); height: calc(var(--u) * 5.4); }
+.hm-av > .pg-pad { right: auto; bottom: auto; left: 50%; top: 50%; translate: -50% -50%; width: 52%; height: 52%; }
+.hm-slots > .pg-pad { right: auto; bottom: auto; top: 50%; translate: -50% -50%; width: calc(var(--u) * 6); height: calc(var(--u) * 6); }
+.hm-slots > .pg-pad.k0 { left: calc(50% - 1.5 * (var(--pg-sw) + var(--pg-sg))); }
+.hm-slots > .pg-pad.k1 { left: calc(50% - 0.5 * (var(--pg-sw) + var(--pg-sg))); }
+.hm-slots > .pg-pad.k2 { left: calc(50% + 0.5 * (var(--pg-sw) + var(--pg-sg))); }
+.hm-slots > .pg-pad.k3 { left: calc(50% + 1.5 * (var(--pg-sw) + var(--pg-sg))); }
+
 .pg-shake { animation: pgShake 0.36s steps(6) !important; }
 @keyframes pgShake { 0%, 100% { translate: 0 0; } 20% { translate: calc(var(--px) * -3) 0; } 40% { translate: calc(var(--px) * 3) 0; } 60% { translate: calc(var(--px) * -2) 0; } 80% { translate: calc(var(--px) * 2) 0; } }
-/* reveal: the lock rattles, then the feature springs in */
-.pg-rattle .pg-lk { animation: pgRattle 0.12s steps(2) infinite; }
-@keyframes pgRattle { 0% { translate: calc(-50% - var(--px) * 2) 0; } 100% { translate: calc(-50% + var(--px) * 2) calc(var(--px) * -1); } }
+
+/* ---------------------------------------------------------------- the unlock reveal */
+/* the padlock rattles... */
+.pg-rattle .pg-pad { animation: pgRattle 0.12s steps(2) infinite; }
+@keyframes pgRattle { 0% { margin-left: calc(var(--px) * -2); } 100% { margin-left: calc(var(--px) * 2); margin-top: calc(var(--px) * -1); } }
+/* ...snaps into shards (left half, right half, shackle) */
+.pg-shard { position: absolute; z-index: 81; pointer-events: none; background: var(--pg-lock-ic) center / 100% 100% no-repeat; image-rendering: pixelated; filter: drop-shadow(0 calc(var(--px) * 1) 0 #000); }
+.pg-shard.l { clip-path: inset(38% 50% 0 0); }
+.pg-shard.r { clip-path: inset(38% 0 0 50%); }
+.pg-shard.s { clip-path: inset(0 0 62% 0); }
+/* ...and the silhouette floods back: black, a white flash, full colour, with a springy pop */
+.pg-unveil { animation: pgUnveil 0.95s steps(10) both, pgPop 0.8s cubic-bezier(.2, 1.7, .4, 1) !important; }
+@keyframes pgUnveil { 0% { filter: brightness(0); } 30% { filter: brightness(0.15); } 55% { filter: brightness(2.6) saturate(0.2); } 75% { filter: brightness(1.4); } 100% { filter: brightness(1); } }
+.hm-prof.pg-unveil { animation: pgPop 0.8s cubic-bezier(.2, 1.7, .4, 1) !important; }
+.hm-prof.pg-unveil .hm-av { animation: pgUnveil 0.95s steps(10) both; }
 .pg-pop { animation: pgPop 0.8s cubic-bezier(.2, 1.7, .4, 1) !important; }
 @keyframes pgPop { 0% { scale: 0.3; } 45% { scale: 1.35; } 70% { scale: 0.92; } 100% { scale: 1; } }
 .pg-newtag {
@@ -35,11 +73,13 @@
   animation: badgeBob 1s ease-in-out infinite;
 }
 .hm-tabbtn .pg-newtag { right: 6%; top: 0; }
+.pg-newtag.pg-newtag { position: absolute; }
+.btn > .pg-newtag.pg-newtag { top: calc(var(--u) * -1.6); right: calc(var(--u) * -0.8); font-size: 0.5em; }
 
 /* ---------------------------------------------------------------- spotlight */
 .gd-spot {
   position: absolute; z-index: 44; pointer-events: none; transition: left 0.22s cubic-bezier(.3, 1.3, .5, 1), top 0.22s cubic-bezier(.3, 1.3, .5, 1), width 0.22s, height 0.22s, opacity 0.2s;
-  box-shadow: 0 0 0 200vmax rgba(5, 6, 26, 0.42); animation: gdSpotIn 0.35s ease-out both;
+  box-shadow: 0 0 0 200vmax rgba(5, 6, 26, 0.42); animation: gdSpotIn 0.35s ease-out backwards; /* not 'both': a held opacity would beat .off / .bye */
 }
 .gd-spot.strong { box-shadow: 0 0 0 200vmax rgba(5, 6, 26, 0.72); }
 .gd-spot.off { opacity: 0; }
@@ -60,7 +100,7 @@
 /* reveal caption: UNLOCKED + the feature name slam in next to the spotlight */
 .gd-cap {
   position: absolute; z-index: 46; translate: -50% 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.4);
-  animation: slam 0.5s cubic-bezier(.2, 1.5, .4, 1) both; white-space: nowrap;
+  animation: slam 0.5s cubic-bezier(.2, 1.5, .4, 1) backwards; white-space: nowrap;
 }
 .gd-cap.up { translate: -50% -100%; }
 .gd-cap.bye { opacity: 0; transition: opacity 0.25s; }
@@ -94,97 +134,64 @@ body.landscape .gd-chip { top: calc(var(--safe-t) + var(--u) * 21); }
 body.landscape .gd-chip.bot { top: auto; bottom: calc(var(--safe-b) + var(--u) * 13); }
 body.landscape .home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 10); }
 
-/* ---------------------------------------------------------------- main quest tracker */
+/* ---------------------------------------------------------------- main quest tracker (a pinned note) */
 .gd-qt {
-  position: absolute; z-index: 4; left: calc(var(--safe-l) + var(--u) * 1.6); top: calc(var(--safe-t) + var(--u) * 13); pointer-events: auto; cursor: pointer;
-  display: flex; align-items: center; gap: calc(var(--u) * 1.2); width: calc(var(--u) * 44); padding: calc(var(--u) * 0.9) calc(var(--u) * 1.4) calc(var(--u) * 1) calc(var(--u) * 0.9);
-  border: none; color: #fff; text-align: left; font: inherit;
-  background: var(--tx-grid) 0 0 / calc(16 * var(--px)) calc(16 * var(--px)), linear-gradient(rgba(10, 16, 56, 0.92), rgba(6, 10, 38, 0.92));
-  box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.75) rgba(127, 230, 255, 0.45), 0 0 calc(var(--px) * 4) rgba(63, 200, 255, 0.35);
+  --qs: calc(var(--qb-paper-s, 6) * var(--px));
+  position: absolute; z-index: 4; left: calc(var(--safe-l) + var(--u) * 1.6); top: calc(var(--safe-t) + var(--u) * 14.6); pointer-events: auto; cursor: pointer;
+  display: flex; align-items: flex-start; gap: calc(var(--u) * 1.6); width: min(calc(var(--u) * 75), calc(100vw - var(--safe-l) - var(--safe-r) - var(--u) * 19));
+  padding: calc(var(--u) * 0.4) calc(var(--u) * 0.6) calc(var(--u) * 0.6) calc(var(--u) * 0.4); margin: 0;
+  color: #2a1a0c; text-align: left; font: inherit;
+  border-style: solid; border-width: var(--qs); border-image: var(--qb-paper-cream) 6 fill / var(--qs) / 0 stretch; background: none;
+  box-shadow: var(--px) calc(var(--px) * 2) 0 rgba(10, 6, 30, 0.55);
   transition: transform 0.16s cubic-bezier(.3, 1.8, .5, 1);
 }
-.gd-qt:active { transform: scale(0.96, 0.92); }
+.gd-qt:active { transform: scale(0.97, 0.93); }
 .home.tabbed .gd-qt { display: none !important; }
+.gd-qt-pin { position: absolute; z-index: 2; left: calc(var(--u) * 7.5); top: calc(var(--qs) * -1 - var(--px) * 2); translate: -50% 0; width: calc(11 * var(--px) * 1.25); height: calc(13 * var(--px) * 1.25); background: var(--qb-pin-red) 0 0 / 100% 100%; pointer-events: none; }
 .gd-qt-face {
-  position: relative; flex: none; width: calc(var(--u) * 9); height: calc(var(--u) * 9); overflow: hidden;
-  background: linear-gradient(#4fb0ff, #1a52c8); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 1) 0 #9fe8ff;
+  position: relative; flex: none; width: calc(var(--u) * 15); padding: calc(var(--px) * 2) calc(var(--px) * 2) calc(var(--px) * 5); background: #fbfaf4;
+  box-shadow: 0 0 0 var(--px) #5a4a34, var(--px) calc(var(--px) * 1.5) 0 rgba(36, 18, 4, 0.4);
 }
-.gd-qt-face img { position: absolute; left: -12%; top: -6%; width: 124%; height: 124%; object-fit: cover; image-rendering: pixelated; }
-.gd-qt-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.4); min-width: 0; flex: 1 1 auto; }
-.gd-qt-k { font-family: var(--font-d); font-size: 0.62em; letter-spacing: 0.08em; color: var(--lab-cyan, #7fe6ff); line-height: 1; }
-.gd-qt-n { font-family: var(--font-d); font-weight: normal; font-size: 0.98em; line-height: 1; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gd-qt-bar { height: calc(var(--u) * 2.8); }
-.gd-qt-bar .lbl { font-size: 0.62em; }
-.gd-qt-lock, .gd-qt-claim { display: flex; align-items: center; gap: 0.2em; font-family: var(--font-d); font-size: 0.72em; line-height: 1.1; }
-.gd-qt-lock { color: #ffe9a0; }
-.gd-qt-lock .pi, .gd-qt-claim .pi { width: 1.2em; height: 1.2em; }
-.gd-qt-claim { align-self: flex-start; padding: 0.05em 0.45em; color: #fff; text-shadow: var(--outline-thin); background: linear-gradient(#a8f07a 0 22%, var(--green) 22% 76%, #238a2e 76%); box-shadow: 0 0 0 calc(var(--px) * 0.8) var(--ink), 0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.9); animation: chargeReady 0.9s ease-in-out infinite; }
-.gd-qt.ready { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.75) #fff27a, 0 0 calc(var(--px) * 6) rgba(255, 216, 74, 0.85); animation: readyBob 0.9s ease-in-out infinite; }
+.gd-qt-face img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: linear-gradient(#bfe6ff 0 50%, #6ab8f0 50%); box-shadow: inset 0 0 0 var(--px) rgba(0, 0, 0, 0.3); }
+.gd-qt-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.7); min-width: 0; flex: 1 1 auto; }
+.gd-qt-k { display: flex; align-items: center; gap: 0.4em; font-family: var(--font-d); font-size: 0.66em; letter-spacing: 0.08em; color: #8a6a40; line-height: 1; white-space: nowrap; }
+.gd-qt-sep { width: calc(var(--px) * 2); height: calc(var(--px) * 2); background: #c81e2a; flex: none; }
+.gd-qt-n { font-family: var(--font-d); font-weight: normal; font-size: 1.2em; line-height: 1; color: #2a1a0c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gd-qt-goal { font-size: 0.86em; font-weight: 900; line-height: 1.12; color: #2a1a0c; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gd-qt-row { display: flex; align-items: center; gap: calc(var(--u) * 1.2); min-height: calc(var(--u) * 5.6); }
+.gd-qt-tally { height: calc(14 * var(--px)); width: calc(var(--tw) * var(--px)); flex: none; image-rendering: pixelated; }
+.gd-qt-bar { position: relative; flex: 1 1 auto; height: calc(var(--u) * 3.2); min-width: calc(var(--u) * 10); background: rgba(255, 255, 255, 0.5); box-shadow: 0 0 0 var(--px) #2a1a0c; }
+.gd-qt-bar > i { position: absolute; left: 0; top: 0; bottom: 0; display: block; background: repeating-linear-gradient(90deg, #c81e2a 0 var(--px), rgba(200, 30, 42, 0.32) var(--px) calc(var(--px) * 3)); box-shadow: inset calc(var(--px) * -1) 0 0 #c81e2a; }
+.gd-qt-cnt { font-family: var(--font-d); font-weight: normal; font-size: 0.95em; line-height: 1; color: #23306e; white-space: nowrap; }
+.gd-qt-rw { display: flex; align-items: center; gap: 0.15em; margin-left: auto; padding-left: calc(var(--u) * 1); font-family: var(--font-d); white-space: nowrap; border-left: var(--px) dashed rgba(42, 26, 12, 0.35); }
+.gd-qt-rw .pi { width: 1.5em; height: 1.5em; }
+.gd-qt-rw b { font-weight: normal; font-size: 1em; color: #2a1a0c; line-height: 1; }
+.gd-qt-lock, .gd-qt-claim { display: flex; align-items: center; gap: 0.3em; font-family: var(--font-d); font-size: 0.8em; line-height: 1.1; align-self: flex-start; }
+.gd-qt-lock { color: #5a4a3a; font-family: var(--font-b); font-weight: 900; }
+.gd-qt-lock .pi, .gd-qt-claim .pi { width: 1.3em; height: 1.3em; flex: none; }
+.gd-qt-claim { padding: 0.15em 0.5em; color: #fff; text-shadow: var(--outline-thin); background: linear-gradient(#a8f07a 0 22%, var(--green) 22% 76%, #238a2e 76%); box-shadow: 0 0 0 calc(var(--px) * 0.8) var(--ink), 0 0 calc(var(--px) * 3) rgba(122, 255, 74, 0.9); animation: chargeReady 0.9s ease-in-out infinite; }
+.gd-qt.ready { box-shadow: var(--px) calc(var(--px) * 2) 0 rgba(10, 6, 30, 0.55), 0 0 0 calc(var(--px) * 2) #ffd84a, 0 0 calc(var(--px) * 7) rgba(255, 216, 74, 0.85); animation: readyBob 0.9s ease-in-out infinite; }
+/* "!" sticker: something to claim on the board */
+.gd-qt-bang {
+  position: absolute; z-index: 3; right: calc(var(--qs) * -1 - var(--px) * 4); top: calc(var(--qs) * -1 + var(--px) * 1); width: calc(var(--u) * 9.5); height: calc(var(--u) * 9.5);
+  display: flex; align-items: center; justify-content: center; pointer-events: none; font-style: normal; animation: gdBang 0.8s ease-in-out infinite;
+}
+.gd-qt-bang::before { content: ''; position: absolute; inset: 0; background: var(--qb-bang) center / 100% 100% no-repeat; image-rendering: pixelated; filter: drop-shadow(0 var(--px) 0 rgba(18, 12, 36, 0.6)); }
+.gd-qt-bang b { position: relative; z-index: 1; font-family: var(--font-d); font-weight: normal; font-size: 1.35em; line-height: 1; color: #fff; text-shadow: var(--outline-thin); }
+@keyframes gdBang { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(calc(var(--px) * -2)) scale(1.08); } }
 .gd-qt-in { animation: gdQtIn 0.6s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes gdQtIn { 0% { transform: translateX(-110%); } 60% { transform: translateX(4%); } 100% { transform: none; } }
-.gd-qt-claimed { animation: jelly 0.45s cubic-bezier(.3, 1.6, .5, 1); }
-.gd-qt-got {
-  position: absolute; left: 50%; top: 100%; translate: -50% calc(var(--u) * 1); display: flex; gap: calc(var(--u) * 1); white-space: nowrap; pointer-events: none;
-  font-family: var(--font-d); font-size: 0.85em; color: var(--gold); text-shadow: var(--outline-thin); animation: gdGot 1.4s ease-out both;
-}
-.gd-qt-got span { display: flex; align-items: center; gap: 0.2em; }
-.gd-qt-got .pi { width: 1.2em; height: 1.2em; }
-@keyframes gdGot { 0% { opacity: 0; transform: translateY(calc(var(--u) * 2)) scale(0.6); } 25% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(calc(var(--u) * -2)); } }
-body.landscape .gd-qt { top: calc(var(--safe-t) + var(--u) * 12); width: calc(var(--u) * 40); }
+body.landscape .gd-qt { top: calc(var(--safe-t) + var(--u) * 15); width: calc(var(--u) * 74); }
+body.landscape .gd-qt-face { width: calc(var(--u) * 13); }
+@media (prefers-reduced-motion: reduce) { .gd-qt-bang, .gd-qt.ready, .gd-qt-claim { animation: none; } }
 
-/* quest list */
-.gd-ql { display: flex; flex-direction: column; gap: calc(var(--u) * 1.2); }
-.gd-ql-row {
-  display: flex; align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1) calc(var(--u) * 1.2);
-  background: rgba(8, 12, 44, 0.55); box-shadow: 0 0 0 calc(var(--px) * 0.75) rgba(127, 200, 255, 0.25);
-}
-.gd-ql-row.cur { background: rgba(60, 44, 6, 0.6); box-shadow: 0 0 0 var(--px) var(--gold), 0 0 calc(var(--px) * 4) rgba(255, 216, 74, 0.5); }
-.gd-ql-row.done { opacity: 0.6; }
-.gd-ql-row.next { opacity: 0.8; }
-.gd-ql-face { flex: none; width: calc(var(--u) * 8); height: calc(var(--u) * 8); overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(#2a3a8a, #141c50); box-shadow: 0 0 0 var(--px) var(--ink); }
-.gd-ql-face img { width: 124%; height: 124%; object-fit: cover; image-rendering: pixelated; }
-.gd-ql-face .pi { width: 55%; height: 55%; opacity: 0.7; }
-.gd-ql-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.4); min-width: 0; flex: 1 1 auto; }
-.gd-ql-txt b { font-family: var(--font-d); font-weight: normal; font-size: 1em; line-height: 1; text-shadow: var(--outline-thin); }
-.gd-ql-row.cur .gd-ql-txt b { color: var(--gold); }
-.gd-ql-txt span { font-size: 0.78em; line-height: 1.2; color: #d4dcff; }
-.gd-ql-bar { height: calc(var(--u) * 2.6); margin-top: calc(var(--u) * 0.3); }
-.gd-ql-bar .lbl { font-size: 0.62em; }
-.gd-ql-rw { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: calc(var(--u) * 0.4); }
-.gd-ql-bit { display: flex; align-items: center; gap: 0.2em; font-family: var(--font-d); font-size: 0.82em; text-shadow: var(--outline-thin); }
-.gd-ql-bit .pi { width: 1.2em; height: 1.2em; }
-.gd-ql-rw > .pi { width: calc(var(--u) * 5); height: calc(var(--u) * 5); }
-
-/* ---------------------------------------------------------------- locked battle buttons */
-.pg-blk { animation: none !important; }
-.pg-blk > :not(.pg-blk-chip) { filter: saturate(0.15) brightness(0.6); }
-.pg-blk .u-pct, .pg-blk .u-rays, .pg-blk .bb-info, .pg-blk .bb-rays { visibility: hidden; }
-.pg-blk-chip {
-  position: absolute; z-index: 6; left: 50%; top: 50%; translate: -50% -50%; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 0.1em;
-  font-family: var(--font-d); font-size: calc(var(--u) * 2.6); line-height: 1; color: #ffe9a0; text-shadow: var(--outline-thin); white-space: nowrap;
-}
-.pg-blk-chip .pi { width: calc(var(--u) * 5); height: calc(var(--u) * 5); }
-.pg-blk-chip span { padding: 0.05em 0.35em; background: rgba(5, 3, 12, 0.8); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink); }
-
-/* on the island lobby the chip hangs under the quest tracker, clear of the right-hand buttons */
+/* on the island lobby the guided-step chip hangs under the quest tracker, clear of the right-hand buttons */
 .home:not(.tabbed) .gd-chip, .home:not(.tabbed) .gd-chip.bot {
-  left: calc(var(--safe-l) + var(--u) * 1.6); translate: none; top: calc(var(--safe-t) + var(--u) * 27); bottom: auto; max-width: calc(100vw - var(--u) * 24);
+  left: calc(var(--safe-l) + var(--u) * 1.6); translate: none; top: calc(var(--gd-qt-b, calc(var(--safe-t) + var(--u) * 40)) + var(--u) * 2.4); bottom: auto; max-width: calc(100vw - var(--u) * 24);
 }
-body.landscape .home:not(.tabbed) .gd-chip, body.landscape .home:not(.tabbed) .gd-chip.bot { top: calc(var(--safe-t) + var(--u) * 25); }
 
-/* buttons give their children position: relative (ui.css .btn > *): keep the tags pinned */
-.pg-lk.pg-lk, .pg-newtag.pg-newtag { position: absolute; }
-.btn > .pg-newtag.pg-newtag { top: calc(var(--u) * -1.6); right: calc(var(--u) * -0.8); font-size: 0.5em; }
-
-/* vial slots before the first win: dimmed glass, one lock plate across the row */
-.hm-slots.pg-lock { position: relative; }
-.hm-slots.pg-lock > .hm-slot { filter: saturate(0.3) brightness(0.6); }
-.hm-slots.pg-lock > .pg-lk.pg-lk { top: 50%; bottom: auto; translate: -50% -50%; font-size: 0.85em; padding: 0.15em 0.6em 0.2em; }
-.hm-slots.pg-lock > .pg-lk .pi { width: 1.25em; height: 1.25em; }
-/* profile before 5 wins: a small lock tag under the name (the name itself stays readable) */
-.hm-prof.pg-lock { position: relative; }
-.hm-prof.pg-lock > .pg-lk.pg-lk { left: auto; right: calc(var(--u) * 1); top: 50%; bottom: auto; translate: 0 -50%; font-size: 0.6em; }
-
-.gd-ql-modal .gd-ql { padding-top: calc(var(--u) * 4); }
-.gd-ql-more { display: flex; align-items: center; justify-content: center; gap: 0.35em; padding: calc(var(--u) * 1); font-family: var(--font-d); font-size: 0.85em; color: #b8c4ec; text-shadow: var(--outline-thin); }
-.gd-ql-more .pi { width: 1.2em; height: 1.2em; opacity: 0.8; }
+/* ---------------------------------------------------------------- locked battle buttons (blacked out) */
+.pg-blk { animation: none !important; }
+.pg-blk > :not(.pg-pad) { filter: var(--pg-sil) !important; animation: none !important; }
+.pg-blk .u-pct, .pg-blk .u-rays, .pg-blk .bb-info, .pg-blk .bb-rays { visibility: hidden; }
+.pg-blk > .pg-pad { right: auto; bottom: auto; left: 50%; top: 50%; translate: -50% -50%; width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); }
