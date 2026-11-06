@@ -24,7 +24,11 @@ async function boot() {
       new Promise((r) => setTimeout(r, 1500)),
     ]);
   } catch (e) { /* fonts optional */ }
-  setBoot(1);
+  setBoot(0.7);
+  // the first scene builds next (can take a few seconds on phones): keep the bar creeping toward
+  // 95% instead of sitting full and frozen, then fill it as the boot screen fades
+  let bootF = 0.7;
+  const creep = setInterval(() => { bootF += (0.95 - bootF) * 0.08; setBoot(bootF); }, 250);
   const unlock = () => audio.unlock();
   window.addEventListener('pointerdown', unlock, { capture: true });
   window.addEventListener('keydown', unlock, { capture: true });
@@ -49,6 +53,8 @@ async function boot() {
   else if (params.getAll('dev').includes('vial')) await game.go('vialopen', { type: params.get('type') ?? 'testTube', back: params.get('back') ?? 'home', instant: true });
   else if (params.get('scene')) await game.go(params.get('scene'), { instant: true, dev: true, ...Object.fromEntries(params) });
   else await game.go('title', { instant: true });
+  clearInterval(creep);
+  setBoot(1);
   const b = document.getElementById('boot');
   b.classList.add('hide');
   setTimeout(() => b.remove(), 500);

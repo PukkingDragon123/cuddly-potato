@@ -2,7 +2,7 @@
 // (baseFall.js explosion, endCine.js VICTORY / DEFEAT).
 //
 // showResult(parent, opts) resolves with the id of the button pressed.
-//   0. the feed changes channel (pixel TV static), BREAKING NEWS sting
+//   0. the feed changes channel (pixel TV static), BEAST NEWS sting
 //   1. INTRO     the studio (newsStudio.js: Nora Newsly at her desk, video wall, drawn by the
 //                main renderer as a backdrop) cuts from wide to mid; the lower third slides in
 //                and its headline types out while Nora says her first line (voiced, speech bubble)
@@ -198,16 +198,16 @@ export async function showResult(parent, opts) {
     document.body.classList.remove('news-on');
   };
 
-  // ======================= 0. static + BREAKING NEWS sting =======================
+  // ======================= 0. static + BEAST NEWS sting =======================
   const stat = staticCanvas();
   root.appendChild(stat.cv);
   stat.run(380);
   SND.static();
   await new Promise((res) => setTimeout(res, 340 * slowK()));
-  // three colour bands wipe across (pink, yellow, blue), the BREAKING NEWS plates slam in on top
+  // red / white / navy bands wipe across, the BEAST NEWS plates slam in on top
   const sting = h('div', { class: 'cres-sting' },
     h('i', { class: 'cs-band a' }), h('i', { class: 'cs-band b' }), h('i', { class: 'cs-band c' }),
-    h('div', { class: 'cs-txt' }, h('b', { class: 'nx-s-pink' }, 'BREAKING'), h('span', { class: 'nx-s-white' }, 'NEWS')));
+    h('div', { class: 'cs-txt' }, h('b', { class: 'nx-s-red' }, 'BEAST'), h('span', { class: 'nx-s-white' }, 'NEWS')));
   root.appendChild(sting);
   SND.swoosh();
   SND.news();
@@ -296,7 +296,7 @@ export async function showResult(parent, opts) {
   if (news.pip.frames > 0) {
     await run(async (c) => {
       studio?.shot('close');
-      news.bumper('REPLAY', 'cyan', 'play');
+      news.bumper('REPLAY', 'red', 'play');
       news.live.classList.add('replay');
       await c.wait(380);
       news.pip.open();
@@ -369,8 +369,8 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   // ---- top bar: logo bug + LIVE / REPLAY
   const live = h('div', { class: 'cn-live nx-c-red' }, recDot(), h('span', { class: 'l' }, 'LIVE'), h('span', { class: 'rp' }, 'REPLAY'));
   const bug = h('div', { class: 'cn-bug' },
-    h('b', { class: 'nx-s-yellow' }, icon('logoBolt', 'cn-bug-ic'), 'BEAST'),
-    h('span', { class: 'nx-s-pink' }, 'NEWS'),
+    h('b', { class: 'nx-s-red' }, icon('logoBolt', 'cn-bug-ic'), 'BEAST'),
+    h('span', { class: 'nx-s-white' }, 'NEWS'),
     h('i', { class: 'cn-bug-sheen' }));
 
   // ---- Nora's speech bubble
@@ -395,15 +395,15 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
     say.style.setProperty('--ty', Math.round(ty) + 'px');
   };
 
-  // ---- lower third: two stripe bands slide in under a BREAKING tag + the headline plate
+  // ---- lower third: two bands slide in under the BEAST NEWS tag + the headline plate
   //      (team colours on the names: blue = mine, red = theirs) and an arena strap
   const headline = h('div', { class: `cn-hl ${loss ? 'riv-first' : 'me-first'}` });
   const arenaName = String(sum?.arena?.name ?? 'Beast Island').toUpperCase();
   const lower = h('div', { class: 'cn-lower' },
-    h('div', { class: 'cn-strap nx-c-blue' }, icon('pin'), h('span', {}, arenaName)),
+    h('div', { class: 'cn-strap nx-c-navy' }, icon('pin'), h('span', {}, arenaName)),
     h('div', { class: 'cn-lrow' },
       h('i', { class: 'cn-ls a' }), h('i', { class: 'cn-ls b' }),
-      h('div', { class: 'cn-tag nx-s-pink' }, 'BREAKING'),
+      h('div', { class: 'cn-tag nx-s-red' }, 'BEAST NEWS'),
       h('div', { class: 'cn-hlw nx-s-white' }, headline)));
 
   // ---- replay box (picture in picture): a bevelled TV with scanline glass, a REPLAY tag and
@@ -417,7 +417,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   const pipBar = h('i', { class: 'f' });
   const pipEl = h('div', { class: 'cn-pip nx-s-steel' },
     h('div', { class: 'cn-pip-in' }, pipCv, h('i', { class: 'cn-pip-scan' }), h('i', { class: 'cn-pip-glare' }), h('b', { class: 'cn-pip-bar' }, pipBar)),
-    h('div', { class: 'cn-pip-tag nx-c-pink' }, recDot(), 'REPLAY'));
+    h('div', { class: 'cn-pip-tag nx-c-red' }, recDot(), 'REPLAY'));
   let fi = -1, ft = 0, playing = false;
   // the whole clip plays in about two seconds, however many snapshots there are
   const FRAME_MS = Math.max(110, Math.min(170, 2100 / Math.max(1, frames.length)));
@@ -470,9 +470,9 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   // bumper: three stripe bands wipe across the board, the segment's plate rides in the middle
   const bumperTx = h('span', {});
   const bumperIc = h('i', { class: 'ic' });
-  const bumperPl = h('div', { class: 'p nx-s-pink' }, bumperIc, bumperTx);
+  const bumperPl = h('div', { class: 'p nx-s-red' }, bumperIc, bumperTx);
   const bumperEl = h('div', { class: 'cn-bumper' }, h('i', { class: 'a' }), h('i', { class: 'b' }), h('i', { class: 'c' }), bumperPl);
-  const bumperFx = (txt, col = 'pink', ic = 'star') => {
+  const bumperFx = (txt, col = 'red', ic = 'star') => {
     bumperTx.textContent = txt;
     bumperIc.replaceChildren(icon(ic));
     bumperPl.className = `p nx-s-${col}`;
@@ -503,10 +503,10 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
     return { el, fill, pct, b, medal };
   };
   const bRows = [baseRow(0), baseRow(1)];
-  const basesEl = h('div', { class: 'cn-card cn-bases nx-g-pink' }, plate('RESULT', 'pink', 'flag'), bRows[0].el, bRows[1].el);
+  const basesEl = h('div', { class: 'cn-card cn-bases nx-g-steel' }, plate('RESULT', 'red', 'flag'), bRows[0].el, bRows[1].el);
   board.appendChild(basesEl);
   segments.push({
-    shot: 'mid', bumper: 'RESULT', col: 'pink', ic: 'flag',
+    shot: 'mid', bumper: 'RESULT', col: 'red', ic: 'flag',
     steps: [async (c) => {
       basesEl.classList.add('in');
       show(basesEl);
@@ -525,7 +525,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
             t.fill.style.width = (to * 100).toFixed(1) + '%';
             t.pct.textContent = Math.round(to * 100) + '%';
             if (!t.b.alive) { t.el.appendChild(h('div', { class: 'cn-stamp ic nx-c-red', role: 'img', 'aria-label': 'Destroyed' }, icon('skull'))); audio.play('stamp'); bump(t.el, 'cn-hit'); }
-            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp ic good nx-c-lime', role: 'img', 'aria-label': 'Flawless' }, icon('star'))); audio.play('stamp', { pitch: 1.2 }); }
+            else if (t.b.frac >= 0.999) { t.el.appendChild(h('div', { class: 'cn-stamp ic good nx-c-gold', role: 'img', 'aria-label': 'Flawless' }, icon('star'))); audio.play('stamp', { pitch: 1.2 }); }
             res();
           }
         };
@@ -535,15 +535,15 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
     hold: 250,
   });
 
-  // 4. NUMBERS: four stats tick up one by one (each its own colour), then the MVP card
+  // 4. NUMBERS: four stats tick up one by one, then the MVP card
   const tiles = [
-    { ic: 'clock', col: 'cyan', label: 'Battle time', value: time, fmt: fmtTime },
-    { ic: 'swords', col: 'orange', label: 'Troops deployed', value: st.deployed ?? 0 },
-    { ic: 'bolt', col: 'yellow', label: 'Damage dealt', value: Math.round(st.dmg ?? 0), fmt: fmtBig },
-    { ic: 'skull', col: 'pink', label: 'Swarms defeated', value: st.kills ?? 0 },
+    { ic: 'clock', label: 'Battle time', value: time, fmt: fmtTime },
+    { ic: 'swords', label: 'Troops deployed', value: st.deployed ?? 0 },
+    { ic: 'bolt', label: 'Damage dealt', value: Math.round(st.dmg ?? 0), fmt: fmtBig },
+    { ic: 'skull', label: 'Swarms defeated', value: st.kills ?? 0 },
   ];
   const grid = h('div', { class: 'cn-grid' });
-  const numsEl = h('div', { class: 'cn-card cn-nums nx-g-blue' }, plate('STATS', 'blue', 'bolt'), grid);
+  const numsEl = h('div', { class: 'cn-card cn-nums nx-g-steel' }, plate('STATS', 'red', 'bolt'), grid);
   board.appendChild(numsEl);
   // the MVP card and the trophies share a row
   const rowC = h('div', { class: 'cn-row' });
@@ -551,7 +551,7 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   const numSteps = [async () => { numsEl.classList.add('in'); show(numsEl); }];
   tiles.forEach((tl, k) => {
     const v = h('b', { class: 'v' }, tl.fmt ? tl.fmt(0) : '0');
-    const el = h('div', { class: `cn-tile nx-t-${tl.col}`, title: tl.label },
+    const el = h('div', { class: 'cn-tile nx-t-steel', title: tl.label },
       h('i', { class: 'cn-tile-pod' }, icon(tl.ic, 'cn-tile-ic')), v);
     grid.appendChild(el);
     numSteps.push(async (c) => {
@@ -567,9 +567,9 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
     try { art = cardArtImg(mvp.id, 'base', null, 160, 'cn-mvp-art'); } catch (e) { art = null; }
     const dmgV = h('b', {}, '0');
     // the MVP stands in a spotlight: a dithered pixel cone over its card art
-    const el = h('div', { class: 'cn-mvp nx-g-yellow' },
-      plate('MVP', 'yellow', 'star'),
-      h('div', { class: 'cn-mvp-frame nx-t-yellow' }, h('i', { class: 'px-rays w' }), h('i', { class: 'cn-spot' }), art),
+    const el = h('div', { class: 'cn-mvp nx-g-steel' },
+      plate('MVP', 'red', 'star'),
+      h('div', { class: 'cn-mvp-frame nx-t-steel' }, h('i', { class: 'px-rays w' }), h('i', { class: 'cn-spot' }), art),
       h('div', { class: 'cn-mvp-info' },
         h('span', { class: 'nm' }, mvpDef.name ?? mvp.id),
         mvp.dmg ? h('span', { class: 'd' }, icon('bolt'), dmgV) : mvp.count ? h('span', { class: 'd' }, icon('swords'), `x${mvp.count}`) : null));
@@ -579,21 +579,21 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
       show(rowC);
       audio.play('reveal', { pitch: 1.1 });
       if (mvp.dmg) { if (c.skipping) dmgV.textContent = fmtN(mvp.dmg); else rollNumber(dmgV, 0, mvp.dmg, 0.7 * slowK(), fmtN); }
-      setTimeout(() => el.isConnected && sparkle(el, { count: 12, colors: ['#ffd84a', '#ffffff', '#ff2e88'] }), 240);
+      setTimeout(() => el.isConnected && sparkle(el, { count: 12, colors: ['#ffd84a', '#ffffff'] }), 240);
       await c.wait(700);
     });
   }
-  segments.push({ shot: 'desk', bumper: 'STATS', col: 'blue', ic: 'bolt', say: 'numbers', steps: numSteps, react: (a) => a.react('thumbsUp', { dur: 1.3 }), hold: 450 });
+  segments.push({ shot: 'desk', bumper: 'STATS', col: 'red', ic: 'bolt', say: 'numbers', steps: numSteps, react: (a) => a.react('thumbsUp', { dur: 1.3 }), hold: 450 });
 
   // 5. PAYOUT: trophies, then the rewards drop in one by one with weight
-  const payEl = h('div', { class: 'cn-card cn-pay nx-g-lime' }, plate('REWARDS', 'lime', 'gift'));
+  const payEl = h('div', { class: 'cn-card cn-pay nx-g-steel' }, plate('REWARDS', 'gold', 'gift'));
   const paySteps = [async () => { payEl.classList.add('in'); }];
   // trophies held back by a Trophy Road boss (data/roadBosses.js) still count here, marked with a padlock
   const banked = Math.max(0, r?.banked ?? 0);
   const tr = (r?.trophies ?? 0) + banked;
   if (r && (tr || opts.mode === 'ranked' || opts.mode === 'online')) {
     const tv = h('b', { class: 'v' }, '0');
-    const el = h('div', { class: `cn-trophy ${tr < 0 ? 'neg nx-g-steel' : 'nx-g-orange'}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), h('div', { class: 'tx' }, tv), banked ? icon('lock', 'cn-tro-bank') : null, h('i', { class: 'cn-sheen' }));
+    const el = h('div', { class: `cn-trophy ${tr < 0 ? 'neg nx-g-steel' : 'nx-g-gold'}` }, h('i', { class: 'px-rays w' }), animIcon('trophy'), h('div', { class: 'tx' }, tv), banked ? icon('lock', 'cn-tro-bank') : null, h('i', { class: 'cn-sheen' }));
     rowC.appendChild(el);
     paySteps.push(async (c) => {
       el.classList.add('in');
@@ -607,17 +607,16 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   }
   if (r) {
     const items = [];
-    // reward tiles: icon + number, coloured by what they are (the vial by its rarity)
-    const RAR = { common: 'cyan', rare: 'orange', epic: 'purple', legendary: 'teal', mythic: 'pink' };
+    // reward tiles: icon + number on gold-rimmed tiles (gold is kept for rewards)
     const add = (ic, value, label, o = {}) => {
       const v = h('b', {}, '0');
-      const col = o.neg ? 'steel' : o.col ?? 'blue';
+      const col = o.neg ? 'steel' : 'gold';
       const el = h('div', { class: `cn-chip nx-t-${col} ${o.neg ? 'neg' : ''} k-${ic}`, title: o.title ?? '' },
         h('i', { class: 'cn-chip-pod' }, o.img ?? animIcon(ic)), h('div', {}, v, label ? h('small', {}, label) : null));
       items.push({ el, v, value, text: o.text });
     };
     // icon + number; only the two XP kinds keep a word (the icon says whose XP)
-    if (r.coins) add('coin', r.coins, null, { title: 'Coins', col: 'yellow' });
+    if (r.coins) add('coin', r.coins, null, { title: 'Coins' });
     if (r.vial) {
       const vd = VIALS[r.vial];
       let img = null;
@@ -629,11 +628,11 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
           try { const src = m.vialThumb(r.vial, 96); if (src && img.isConnected) { img.src = src; img.classList.add('vial3d'); } } catch (e) { /* keep the icon */ }
         }).catch(() => {});
       }
-      add('vial', 0, null, { img, text: 'NEW!', title: vd?.name ?? 'Vial', col: RAR[vd?.rarity] ?? 'cyan' });
+      add('vial', 0, null, { img, text: 'NEW!', title: vd?.name ?? 'Vial' });
     } else if (r.slotsFull && result === 'win') add('vial', 0, null, { text: 'FULL', neg: true, title: 'Vial slots full' });
-    if (r.calories) add('calorie', r.calories, null, { title: 'Calories', col: 'pink' });
-    if (r.cmdXp) add('star', r.cmdXp, 'XP', { title: 'Commander XP', col: 'blue' });
-    if (r.labXp) add('lab', r.labXp, 'XP', { title: 'Lab XP', col: 'lime' });
+    if (r.calories) add('calorie', r.calories, null, { title: 'Calories' });
+    if (r.cmdXp) add('star', r.cmdXp, 'XP', { title: 'Commander XP' });
+    if (r.labXp) add('lab', r.labXp, 'XP', { title: 'Lab XP' });
     if (items.length) {
       const chips = h('div', { class: 'cn-chips' }, items.map((it) => it.el));
       payEl.appendChild(chips);
@@ -652,16 +651,16 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
         }
       });
     }
-    // level ups: icon + level on coloured chips, no sentences
-    const ups = (r.levelUps ?? []).map((lu) => h('span', { class: 'nx-c-blue' }, icon('up'), `CMDR LV ${lu.level ?? lu}`));
+    // level ups: icon + level on navy chips (gold text), no sentences
+    const ups = (r.levelUps ?? []).map((lu) => h('span', { class: 'nx-c-navy' }, icon('up'), `CMDR LV ${lu.level ?? lu}`));
     // Lab Level up: the rank medal pops from the old level to the new one (and so does the one by your name)
     const labTo = r.labUps?.length ? r.labUps[r.labUps.length - 1].level ?? r.labUps[r.labUps.length - 1] : null;
     const labMedal = labTo ? rankMedal(Math.max(1, labTo - r.labUps.length), { cls: 'cn-up-rank' }) : null;
-    if (labTo) ups.push(h('span', { class: 'cn-up-lab nx-c-lime' }, labMedal, `LAB LV ${labTo}`));
+    if (labTo) ups.push(h('span', { class: 'cn-up-lab nx-c-navy' }, labMedal, `LAB LV ${labTo}`));
     // TROOP MASTERY: levels that just became claimable (claim them from the card's info)
     const ms = (r.mastery ?? []).filter((x) => cardDef(x.id));
-    for (const x of ms.slice(0, 2)) ups.push(h('span', { class: 'cn-up-ms nx-c-purple' }, icon('star'), `${cardDef(x.id).name} ${MASTERY_NAMES[x.level - 1].toUpperCase()}`));
-    if (ms.length > 2) ups.push(h('span', { class: 'cn-up-ms nx-c-purple' }, icon('star'), `+${ms.length - 2}`));
+    for (const x of ms.slice(0, 2)) ups.push(h('span', { class: 'cn-up-ms nx-c-navy' }, icon('star'), `${cardDef(x.id).name} ${MASTERY_NAMES[x.level - 1].toUpperCase()}`));
+    if (ms.length > 2) ups.push(h('span', { class: 'cn-up-ms nx-c-navy' }, icon('star'), `+${ms.length - 2}`));
     if (ups.length) {
       const el = h('div', { class: 'cn-ups' }, ups);
       payEl.appendChild(el);
@@ -680,21 +679,21 @@ function buildNews({ result, names, bases, r, sum, opts, replay, smashed, fell, 
   }
   if (paySteps.length > 1) {
     if (payEl.children.length > 1) board.appendChild(payEl);
-    segments.push({ shot: 'close', bumper: 'REWARDS', col: 'lime', ic: 'gift', say: 'payout', steps: paySteps, react: (a) => (tr > 0 ? a.react('clap', { dur: 1.4 }) : tr < 0 ? a.react('shrug', { dur: 1.3 }) : null), hold: 400 });
+    segments.push({ shot: 'close', bumper: 'REWARDS', col: 'gold', ic: 'gift', say: 'payout', steps: paySteps, react: (a) => (tr > 0 ? a.react('clap', { dur: 1.4 }) : tr < 0 ? a.react('shrug', { dur: 1.3 }) : null), hold: 400 });
   }
   board.appendChild(footSlot);
 
-  // ---- ticker: the headline, the score and a few gags, each with its own icon and colour
+  // ---- ticker: the headline, the score and a few gags, each with its own icon
   const bits = [
-    [headlineText.replace(/\*/g, ''), 'flag', 'yellow'],
-    r?.trophies ? [`TROPHIES ${tr > 0 ? '+' : ''}${tr}`, 'trophy', 'orange'] : null,
-    ['Local toilet clogs, refuses to comment', 'megaphone', 'cyan'],
-    ['Beast Tiger "totally fine", says Jimmy', 'swarm', 'pink'],
-    ['Weather: 100% chance of confetti', 'spark4', 'lime'],
+    [headlineText.replace(/\*/g, ''), 'flag'],
+    r?.trophies ? [`TROPHIES ${tr > 0 ? '+' : ''}${tr}`, 'trophy'] : null,
+    ['Local toilet clogs, refuses to comment', 'megaphone'],
+    ['Beast Tiger "totally fine", says Jimmy', 'swarm'],
+    ['Weather: 100% chance of confetti', 'spark4'],
   ].filter(Boolean);
-  const tickTxt = bits.map(([b, ic, col]) => h('span', { style: `--tc: var(--nx-${col})` }, icon(ic), b.toUpperCase(), h('i', {})));
+  const tickTxt = bits.map(([b, ic]) => h('span', {}, icon(ic), b.toUpperCase(), h('i', {})));
   const ticker = h('div', { class: 'cn-ticker' },
-    h('b', { class: 'cn-ticker-tag nx-s-yellow' }, 'BEAST NEWS'),
+    h('b', { class: 'cn-ticker-tag nx-s-red' }, 'BEAST NEWS'),
     h('div', { class: 'cn-ticker-run' }, h('div', { class: 'cn-ticker-in' }, tickTxt, tickTxt.map((e) => e.cloneNode(true)))));
 
   const studio = h('div', { class: 'cn-studio' }, h('i', { class: 'cn-vig' }), bug, live, lower);

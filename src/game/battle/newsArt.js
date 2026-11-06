@@ -11,10 +11,10 @@
 //   var(--nx-df-pink)            // dither fade (4 x 16 tile): solid at the top, dissolving downward
 //   var(--nx-scan), var(--nx-glare), var(--nx-spot), var(--nx-sheen)
 
-/** Saturated broadcast palette. Team colours: mine = blue, theirs = red. */
+/** Restrained broadcast palette: navy / steel base, Beast red + white accents, gold only for rewards.
+ *  Team colours: mine = blue, theirs = red. */
 export const NX = {
-  pink: '#ff2e88', blue: '#1f8bff', cyan: '#2fe0ff', yellow: '#ffd23f', lime: '#8cf53a',
-  orange: '#ff8a1a', purple: '#a45cff', teal: '#2ef2c0', red: '#ff3a4a', white: '#f2f5ff', steel: '#8a96c0',
+  red: '#e8203a', white: '#f2f5ff', steel: '#7c89b4', navy: '#34417a', gold: '#ffc23a', blue: '#3a7ee8',
 };
 const INK = '#120c24';
 const NAVY = '#0a0d2e';
@@ -162,7 +162,7 @@ export function injectNewsArt() {
     rules.push(`.nx-t-${k}{--nx:${col};--nx-d:${shade(col, -0.45)};border-style:solid;border-width:calc(3 * var(--px));border-image:url(${frame(col, 't')}) 3 / calc(3 * var(--px)) / 0 stretch;background:var(--nx-dg-${k}) 0 0 / calc(4 * var(--px)) calc(16 * var(--px)) repeat-x, linear-gradient(${mix(col, NAVY, 0.8)}, ${glass2});background-clip:padding-box;}`);
     rules.push(`.nx-c-${k}{--nx:${col};--nx-d:${shade(col, -0.45)};border-style:solid;border-width:calc(3 * var(--px));border-image:url(${frame(col, 'c')}) 3 fill / calc(3 * var(--px)) / 0 stretch;}`);
   }
-  vars.push(`--nx-st-ink:url(${stripes('#1a1440', '#100c2c')})`, `--nx-scan:url(${scan()})`, `--nx-glare:url(${glare()})`, `--nx-sheen:url(${sheen()})`, `--nx-spot:url(${spot()})`);
+  vars.push(`--nx-st-ink:url(${stripes('#121838', '#0d1230')})`, `--nx-scan:url(${scan()})`, `--nx-glare:url(${glare()})`, `--nx-sheen:url(${sheen()})`, `--nx-spot:url(${spot()})`);
   rules.unshift(`:root{${vars.join(';')}}`);
   const st = document.createElement('style');
   st.id = 'news-art';

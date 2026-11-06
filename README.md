@@ -64,14 +64,15 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
   no guard towers).
 - **Upgrade your base** with the big BASE button (it shows the next tier in 3D), or tap the base itself: it starts as a humble **Camp Lab** (a folding lab table under a pop-up canopy), then becomes a **Lab Shack**, **Trailer
   Lab**, **Field Lab**, **Beast Lab** and finally the **Mega HQ**. Every tier adds HP, a stronger zapper, faster POWER
-  and a bigger POWER bar.
+  and a bigger POWER bar (100 at the Camp Lab, then 130 / 160 / 190 / 220 / 250; upgrades cost 80 / 110 / 140 / 170 / 200).
 - **Clash Royale card cycle**: an 8-card deck cycles through a hand of 4 with a **NEXT** card. Tap a troop card and
   that Swarm pops out of your base and marches (or drag it onto your half); the played card goes to the back of the
-  deck and the next one slides in. Cards cost electric **POWER** (2x in the last minute, 3x in overtime). Spells are
+  deck and the next one slides in. Cards cost electric **POWER**, Battle Cats style: every card has its own price (cheap swarms ~15-25, tanks and
+  legendaries up to ~95), the bar starts at 60 and fills ~7 per second (2x in the last minute, 3x in overtime). Spells are
   aimed: tap the spell, then tap the field (or drag it).
 - **SPECIAL cards** are card-game tricks (tap to play) that play with your hand: **Quick Draw** (DRAW 2, hand up to 6),
-  **Energy Drink** (+3 POWER, EXHAUST = once per battle), **Coupon Book** (your hand costs 1 less), **Trash Compactor**
-  (DISCARD your hand for +1 POWER each and draw a fresh one), **Double Up** (ECHO: the next troop deploys twice),
+  **Energy Drink** (+30 POWER, EXHAUST = once per battle), **Coupon Book** (your hand costs 10 less), **Trash Compactor**
+  (DISCARD your hand for +10 POWER each and draw a fresh one), **Double Up** (ECHO: the next troop deploys twice),
   **Copy Cat** (a temporary COPY of your last card) and **Golden Ticket** (draw your priciest card at 0 cost).
 - You start with a 4-card deck (Panther, Clogged Toilet, Quick Draw, Energy Drink); more deck slots open with
   trophies (all 8 at 200) and the rest of the squad unlocks over your first wins on the Trophy Road.
