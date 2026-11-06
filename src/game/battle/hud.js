@@ -974,7 +974,6 @@ export class BattleHUD {
     if (max !== this.lastMax) {
       this.lastMax = max;
       this.pwrMax.textContent = '/' + max;
-      this.energyRow.classList.toggle('w3', max >= 100);
       this.ebar.style.setProperty('--segs', Math.max(1, Math.round(max / 10)));
     }
     if (Math.abs(e - this.lastE) > 0.004) {
@@ -1162,7 +1161,8 @@ export class BattleHUD {
     if (reduced()) return;
     bump(this.energyRow, 'spend');
     const r = this.pwrNow.getBoundingClientRect();
-    const el = h('div', { class: 'pw-spent', style: { left: r.right + 'px', top: r.top + 'px' } }, `-${n}`);
+    // starts just above the counter (3-digit prices would cover the "/max" beside it) and floats up
+    const el = h('div', { class: 'pw-spent', style: { left: r.left + r.width * 0.35 + 'px', top: r.top - r.height * 0.7 + 'px' } }, `-${n}`);
     this.root.appendChild(el);
     setTimeout(() => el.remove(), 700);
   }
