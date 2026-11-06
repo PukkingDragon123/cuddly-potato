@@ -13,6 +13,7 @@
 import { h, icon, button, bar, sparkle, bump } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
+import { fmtTime } from '../../core/util.js';
 import {
   state, equipCommander, setCmdSkin, labXpInfo, researchStatus, onResearch, researchTimeLeft, researchSpeedUpPrice,
   speedUpResearch, researchBadgeCount, researchFresh, takePerkRefund,
@@ -46,12 +47,6 @@ const lxp = (kind, o = '') => ({ 'data-lxp': kind, 'data-lxo': o || null });
 const dymo = (text, color = '', cls = '') => h('span', { class: `lx-dymo t-d ${cls}`, ...lxp('dymo', color ? `c=${color}` : '') }, h('span', { class: 'lx-dymo-t' }, text));
 /** Section divider: a tape label, then hazard paint to the right edge (+ optional right-hand info). */
 const divider = (text, right = null, color = '') => h('div', { class: 'lx-div' }, dymo(text, color), h('i', { class: 'lx-div-hz' }), right ? h('span', { class: 'lx-div-r' }, right) : null);
-const fmtLeft = (sec) => {
-  sec = Math.max(0, Math.ceil(sec));
-  if (sec >= 3600) return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
-  if (sec >= 60) return `${Math.floor(sec / 60)}m ${sec % 60}s`;
-  return `${sec}s`;
-};
 
 /** The base tier the yard shows: grows with your rank (a Lab skin shows on the Beast Lab, tier 5). */
 const RANK_TIER = [1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6];
@@ -149,7 +144,7 @@ export function mount(el, ctx, opts = {}) {
     rsCount.textContent = String(n);
     rsCount.style.display = n ? '' : 'none';
     const a = researchStatus().active;
-    rsTime.textContent = a ? fmtLeft(researchTimeLeft()) : '';
+    rsTime.textContent = a ? fmtTime(researchTimeLeft()) : '';
     rsTime.style.display = a ? '' : 'none';
     rsBtn.classList.toggle('lx-locked', !featureOpen('research'));
   }
