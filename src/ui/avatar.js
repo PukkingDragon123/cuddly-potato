@@ -821,3 +821,4 @@ export function prewarmLooks(looks = []) {
 }
 /** Stable seed helper for rivals without one. */
 export const lookSeed = (name) => hashString(String(name ?? 'rival'));
+export const __compose = composePicture; // DEBUG-REMOVE
