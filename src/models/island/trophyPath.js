@@ -251,9 +251,9 @@ function flagGrid() {
 /** Treasure-map dash on the trail ahead (voxel 0.06): a red stroke with a dark edge. Along local z. */
 function dashGrid() {
   const g = new VoxGrid();
-  g.box(-1, 0, -3, 0, 0, 2, 0x7a1a14);
-  g.box(-1, 1, -2, 0, 1, 1, 0xd8352a);
-  g.set(0, 1, 1, 0xff6a50);
+  g.box(-2, 0, -4, 1, 0, 3, 0x7a1a14);
+  g.box(-1, 1, -3, 0, 1, 2, 0xd8352a);
+  g.box(-1, 1, 2, 0, 1, 2, 0xff6a50);
   return g;
 }
 /** A pair of boot prints behind you (voxel 0.06). Along local z. */
@@ -956,6 +956,8 @@ export function addTrophyPath({ T, root, roadPoints, roadIdx, zones, plinthR, ex
     // keep the trees well clear: nothing may hide the boss, its barricade or where you wait
     M0.posAt(sStop, _st);
     exclude.push([tmp.x, tmp.z, 4.2], [pos.x, pos.z, 4], [_st.x, _st.z, 3]);
+    // ...and the ground between it and the road camera (which looks from the south)
+    for (const q of [tmp, pos]) exclude.push([q.x + CAM_DIR.x * 4, q.z + CAM_DIR.y * 4, 3.4]);
     const B = {
       rb, id: rb.id, k, t: rb.t, pos, yaw, bar, parts, broken: false, anim: null,
       miBoss: miOfS0(sBoss), miStop: miOfS0(sStop), s: 0, stopS: 0,

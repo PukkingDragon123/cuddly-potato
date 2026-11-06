@@ -188,6 +188,7 @@ export function setupIslandRoad(home) {
     const k = BOSS_H / Math.max(0.5, rig.height || 1);
     rig.root.scale.setScalar(k);
     rig.root.position.copy(B.pos);
+    rig.root.rotation.order = 'YXZ'; // it faces you; when it falls it tips over backwards
     rig.root.rotation.y = B.yaw;
     rig.posed = true;
     rig.setState('idle');
@@ -404,8 +405,11 @@ export function setupIslandRoad(home) {
     if (st.kind === 'chest') {
       const M = st.M;
       TP.posAt(M.s, _w);
+      // the chest is the star: frame between the road and the chest (a chest on another trail pulls further)
       latTo.set(M.roadPos.x - _w.x, 0, M.roadPos.z - _w.z);
       if (latTo.lengthSq() < 4) latTo.set(0, 0, 0);
+      latTo.x += (M.anchor.x - M.roadPos.x) * 0.45;
+      latTo.z += (M.anchor.z - M.roadPos.z) * 0.45;
       return M.s;
     }
     if (st.kind === 'boss') {
@@ -600,9 +604,9 @@ export function setupIslandRoad(home) {
   async function defeatBoss(B, bossRes) {
     const F = figs.get(B.id) ?? buildFig(B);
     const kB = stopOfMs.get('b:' + B.id);
-    if (kB !== undefined) setFocus(kB, false);
-    // the camera holds on you and the boss while it falls
-    seqCam = { s: (B.stopS + B.s) / 2 + 0.4 };
+    // the camera holds on you, the barricade and the boss while it falls
+    if (kB !== undefined) { setFocus(kB, false); seqCam = { s: stopFrame(kB), lat: latTo.clone() }; }
+    else seqCam = { s: (B.stopS + B.s) / 2, lat: new THREE.Vector3() };
     hud?.walking(true);
     await sleep(seq?.skip ? 0 : 0.7);
     // it staggers (white flashes), roars one last time and topples over
@@ -743,6 +747,8 @@ export function setupIslandRoad(home) {
     const B0 = defeats[0];
     const sStart = B0 ? B0.stopS : TP.sOfTrophies(t0 ?? p.trophies, ch);
     const sEnd = youS;
+    // the YOU tag counts the trophies up as you walk (HUD: road.youCount())
+    seq.count = { t0: t0 ?? p.trophies, t1: p.trophies, sA: sStart, sB: sEnd };
     // the chests on the way wait closed for you
     held.clear();
     if (t0 !== null) for (const { st } of chestsBetween(sStart, sEnd)) held.add(st.i);
@@ -883,6 +889,13 @@ export function setupIslandRoad(home) {
     },
     youS: () => youS,
     youObj: () => you,
+    /** The trophy count the YOU tag shows: climbing along with your Commander during a walk. */
+    youCount() {
+      const C = seq?.count;
+      if (!C || C.sB <= C.sA + 0.01) return state.p.trophies;
+      const u = Math.max(0, Math.min(1, (W.s - C.sA) / (C.sB - C.sA)));
+      return Math.round(C.t0 + (C.t1 - C.t0) * u);
+    },
     debug: () => ({ s, target, flying, focus, lat: lat.toArray().map((x) => +x.toFixed(2)), active, walker: { s: +W.s.toFixed(2), legs: W.legs.map((L) => [L.kind, +L.t.toFixed(2), +L.dur.toFixed(2)]), home: W.home, off: W.off, job: W.job }, seq: !!seq, figs: [...figs.keys()] }),
     /** Claim the chest at stop k right away (no walk): it pops open. Returns the granted rewards. */
     claim(k) { return claimNow(k); },
@@ -981,7 +994,7 @@ export function setupIslandRoad(home) {
           target = null;
           v = 0;
           s += (seqCam.s - s) * Math.min(1, dt * 3.5);
-          latTo.set(0, 0, 0);
+          latTo.copy(seqCam.lat);
         } else if (seq || W.legs.some((L) => L.kind !== 'wait' && L.follow)) {
           // the camera follows your Commander (a little ahead of him)
           target = null;

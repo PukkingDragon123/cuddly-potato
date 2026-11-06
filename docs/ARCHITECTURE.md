@@ -89,9 +89,11 @@ src/
     island/            Beast Island world: terrain (chunked), water, sky, props, makeBeastIsland() - 15 zones
                        incl. the northern region and the floating space station, laid out in design units x SC
                        (terrain.js; coves, flats, forests, meadows, the glacier falls); trophyPath.js builds the
-                       TROPHY_ROAD into it (pedestals + wood / iron / gold / legendary treasure chests with a
-                       coin spill, floating reward billboards, arena gates with a camera-facing trophy sign,
-                       the fork trails with their signs + barricades, the orbit road past the last arena);
+                       TROPHY_ROAD into it like a treasure map (wood / iron / gold / legendary chests on red-X
+                       sand daises with stake signs, a glint shine + pixel light beam when claimable, a red
+                       dashed trail ahead / footprints behind, map signposts, a coin spill, floating reward
+                       billboards, arena gates with a camera-facing trophy sign, a road boss barricade in front
+                       of every gate, the fork trails with their signs + barricades, the orbit road);
                        town.js = Beast Town (cottages, shops, fountain, stalls) + roadside fences / barrels /
                        benches; fun.js = grids for the tappable things (hives, bees, palms, crabs, the X...)
     props/             base tiers Camp Lab -> Mega HQ (base.js: lab-gear brushes, dressBox), MEGA containment vessel (containment.js), legacy Lab
@@ -109,9 +111,13 @@ src/
                        geyser, cave, lighthouse, seagull, townsfolk; daily coin treats in game/islandFun.js);
                        homeExplore.js = drag / pinch free look over the island with a BACK button;
                        homeRoad.js = Trophy Road mode (camera flies onto the island road, drag / inertia pan,
-                       tap a chest, CLAIM pops it, pick a trail at each fork) + the YOU marker; its HUD is
-                       mountIslandRoad() in home/trophyRoad.js; fork data in data/roadForks.js, picks + bonus
-                       chests in game/roadForks.js (state.p.roadForks)
+                       tap a chest, CLAIM walks your Commander to it to kick it open, pick a trail at each fork,
+                       a road boss swarm guards every gate) + the YOU marker; afterBattle() = back from a win
+                       your Commander walks the road from the old trophy count to the new one opening chests
+                       (or watches a beaten road boss fall); its HUD is mountIslandRoad() in home/trophyRoad.js;
+                       fork data in data/roadForks.js, picks + bonus chests in game/roadForks.js
+                       (state.p.roadForks); road bosses in data/roadBosses.js (state.p.roadBoss: wins, losses,
+                       falls seen, banked trophies; addTrophies caps at an unbeaten checkpoint)
     frozenBattle.js    title / loading cinematic: a time-stopped lane fight in an arena (real arena/bases/
                        Commanders/Swarms, suspended fx snapshot, live arcs/glows/streaks), scripted camera shots
     battle.js          battle scene: modes (tutorial/ranked/practice/boss/friend), input, tutorial, finish

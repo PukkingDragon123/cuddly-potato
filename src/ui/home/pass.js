@@ -179,9 +179,9 @@ export function mount(el, ctx, opts = {}) {
     const n = passClaimCount();
     if (n === shownReady) return;
     shownReady = n;
+    // one short line: the verb + how many (the gift icon says what)
     const cta = n > 0 ? button(h('span', { class: 'pz-cb' },
-      h('b', { class: 't-d' }, n === 1 ? '1 REWARD READY' : `${n} REWARDS READY`),
-      h('small', { class: 't-d' }, n === 1 ? 'TAP TO CLAIM' : 'CLAIM ALL')), n === 1 ? claimFirst : claimAll, 'green pz-claimbar', { icon: 'gift', sound: 'tap' })
+      h('b', { class: 't-d' }, n === 1 ? 'CLAIM' : `CLAIM ALL ${n}`)), n === 1 ? claimFirst : claimAll, 'green pz-claimbar', { icon: 'gift', sound: 'tap' })
       : null;
     midSlot.replaceChildren(...(cta ? [cta] : []));
   }

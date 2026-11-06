@@ -204,3 +204,4 @@
 @media (prefers-reduced-motion: reduce) {
   .trd-bag.trd-bag-pop { animation: none; }
 }
+.trd-name.long { font-size: 0.86em; -webkit-line-clamp: 3; }

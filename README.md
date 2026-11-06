@@ -40,6 +40,11 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
   *Atomic Reactor*, *Lost Pyramid*, *Beast Island Paradise*, *Lost Jungle Temple*, *Laser Maze Vault*, *Haunted
   Mansion*, *TeamSeas Reef*, *Volcano Forge* and the legendary *Zero-G Space Station* floating above the island on a
   space elevator. Reaching an arena's trophy gate plays an unlock cinematic and unlocks its cards.
+- The **Trophy Road** reads like a treasure map: every reward is a treasure chest on a red X (dashed trail ahead,
+  footprints behind). Back from a win your Commander walks up the road and kicks open every chest on the way; CLAIM
+  sends him to the chest too. A **road boss** blocks the road in front of every arena gate: your trophies stop at its
+  barricade (wins meanwhile go into a small trophy bank) until you beat it in a boss battle tuned to your deck, then it
+  falls, the barricade bursts, it drops a loot chest and the bank pays out.
 - Each arena has a **boss challenge**, NPCs with quest chains (Nolan, Juan), hidden secrets, and your own deck's
   Swarms hanging out on it.
 - **Vials** modelled on the real packaging (test tubes, Lab Packs, the Mega Lab, the Cash Case, Hyperchrome tubes)
@@ -137,7 +142,7 @@ there is no matchmaking server.
 ## Developer URLs
 
 - `?dev=reset` wipes the save (stored in `localStorage`). `?seed=1|mid|all` gives a populated test profile.
-- `?scene=home` (add `&skipUnlock=1` to skip arena-unlock cinematics), `?scene=battle&mode=practice|ranked|boss&bossId=kingClog`,
+- `?scene=home` (add `&skipUnlock=1` to skip arena-unlock cinematics, `&walkFrom=<trophies>` to replay the post-win road walk), `?scene=battle&mode=practice|ranked|boss&bossId=kingClog` (road bosses: `bossId=rb.<gate arena id>`),
   `?scene=lab[&step=afterPack|won]` the Lab start scene.
 - `?dev=modellab&id=panther,steelPanther[&variant=gold][&anim=attack]` model turntable,
   `?dev=arena&theme=factory[&zone=1]` arena viewer, `?dev=island[&zone=k|&overview=1]` Beast Island viewer,

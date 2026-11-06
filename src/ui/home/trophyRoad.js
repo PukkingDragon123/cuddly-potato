@@ -10,7 +10,7 @@
 // the milestone rewards earned inside that arena, along a goo-filled tube.
 // Everything is read from ARENAS / TROPHY_ROAD, so new arenas just appear.
 import './trophyRoad.css';
-import { h, icon, iconURL, button, pill, sparkle, bump, burst, flyIcons, clear, $overlay } from '../ui.js';
+import { h, icon, iconURL, button, pill, bump, burst, flyIcons, clear, $overlay } from '../ui.js';
 import { cardEl } from '../cards.js';
 import { arenaImg } from '../thumbs.js';
 import { ensureSkin } from '../skin.js';
@@ -359,7 +359,6 @@ export function mountIslandRoad(road, ctx) {
   function header() {
     const P = state.p;
     troVal.textContent = fmtN(P.trophies);
-    youVal.textContent = fmtN(P.trophies);
     bestEl.textContent = P.bestTrophies > P.trophies ? `Best ${fmtN(P.bestTrophies)}` : '';
     bestEl.style.display = bestEl.textContent ? '' : 'none';
     const n = claimCount(), pick = pendingForks().length, boss = blockingBoss(P);
@@ -413,7 +412,9 @@ export function mountIslandRoad(road, ctx) {
     kindEl.style.display = A || tr ? '' : 'none';
     // currencies already show their amount on the tile: only cards, vials and the like get a name
     const small = SMALL_KINDS.has(M.m.reward?.type);
-    nameEl.textContent = small ? '' : rewardLabel(M.m.reward);
+    // the tile already shows the copies (x2): the name goes without them so it never gets cut
+    nameEl.textContent = small ? '' : rewardLabel(M.m.reward).replace(/ x\d+$/, '');
+    nameEl.classList.toggle('long', nameEl.textContent.length > 15);
     nameEl.style.display = small ? 'none' : '';
     clear(reqEl);
     reqEl.append(icon('trophy', 's'), h('span', { class: 't-d' }, fmtN(M.t)));
@@ -444,6 +445,7 @@ export function mountIslandRoad(road, ctx) {
     kindEl.append(icon('boss', 's'));
     nameEl.style.display = '';
     nameEl.textContent = rb.name.toUpperCase();
+    nameEl.classList.toggle('long', rb.name.length > 13);
     clear(reqEl);
     reqEl.append(icon('trophy', 's'), h('span', { class: 't-d' }, fmtN(rb.t)));
     clear(actEl);
@@ -519,7 +521,8 @@ export function mountIslandRoad(road, ctx) {
   };
   let claiming = false;
   async function claim(k) {
-    if (claiming || stateOf(k) !== 'ready' || road.walking) return;
+    // (a walk back from the last chest is fine: he turns around for this one; a post-win walk is not)
+    if (claiming || stateOf(k) !== 'ready' || root.classList.contains('walking')) return;
     const st = stops[k];
     if (st.kind !== 'chest') return;
     const M = st.M;
@@ -552,6 +555,7 @@ export function mountIslandRoad(road, ctx) {
     }, 900);
   }
   let bagCount = 0;
+  let shownYou = state.p.trophies;
   const api = {
     el: root,
     focus(k) { if (k !== shownIdx || stateOf(k) !== shownState) fill(k, k !== shownIdx); },
@@ -617,7 +621,9 @@ export function mountIslandRoad(road, ctx) {
     },
     refresh() { header(); if (shownIdx >= 0 && stateOf(shownIdx) !== shownState && !claiming) fill(shownIdx, false); },
     frame() {
-      // YOU tag rides above your Commander's head
+      // YOU tag rides above your Commander's head (its count climbs while he walks)
+      const n = road.youCount?.() ?? state.p.trophies;
+      if (n !== shownYou) { shownYou = n; youVal.textContent = fmtN(n); }
       const o = road.youObj();
       const sp = road.screenOf(o.position.clone().setY(o.position.y + 4.75));
       if (!sp.visible) { youTag.style.display = 'none'; return; }

@@ -97,3 +97,4 @@ body.landscape .pf-grid.sm:not(.k-banner) { grid-template-columns: repeat(auto-f
 /* pixel type (round 8): the bold pixel face runs wider, so the card name sizes down and the title may wrap */
 .pf-name { font-size: 1.6em; }
 .pf-title { font-size: 0.95em; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.1; }
+.pf-tile .pf-tile-n { font-size: 0.72em; overflow-wrap: normal; } /* long single words fit whole (no mid-word breaks) */

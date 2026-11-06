@@ -516,3 +516,7 @@ body.landscape .bh-pause { top: calc(var(--safe-t) + var(--u) * 1); }
   .tw-f, .tw-seam .sp, .tw-seam .chev, .tw-cap.low, .tw-clock .tag.in { animation: none !important; }
 }
 .tw-cap .tn { font-size: calc(var(--u) * 2.7); }
+/* pixel type (round 8): the wider pixel digits keep "100%" and the base icon inside the cap */
+.tw-cap { gap: 0; }
+.tw-cap .pc { font-size: calc(var(--u) * 3.1); min-width: 0; letter-spacing: 0; }
+.tw-cap > .pi { width: calc(var(--u) * 3.1); height: calc(var(--u) * 3.1); }
