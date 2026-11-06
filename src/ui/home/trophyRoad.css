@@ -137,6 +137,9 @@
   .trd-card.fork { width: min(calc(100% - var(--u) * 4), calc(var(--u) * 104)); }
   .trd-fork { gap: calc(var(--u) * 0.6); }
   .trd-fk-head { flex-direction: row; justify-content: center; gap: calc(var(--u) * 1.4); align-items: baseline; }
+  .trd-fk-head .trd-kind { display: none; }
+  .trd-fk-head .trd-name { white-space: nowrap; flex: none; }
+  .trd-fk-head .trd-fk-note { text-align: left; }
   .trd-fk-it .mn-rw { --rw: calc(var(--u) * 9); }
   .trd-fk-opt { flex-direction: row; flex-wrap: wrap; justify-content: center; padding: calc(var(--u) * 0.7); }
   .trd-fk-n { width: 100%; justify-content: center; }

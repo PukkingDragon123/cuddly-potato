@@ -250,11 +250,19 @@ export function buildTerrain(spec) {
         H[id] = lerp(Z.y - 0.5, H[id], s);
         fine[id] = 1;
       }
-      for (const [bx, bz, by, br, bb] of [...(spec.basins ?? []), ...(spec.flats ?? [])]) {
+      for (const [bx, bz, by, br, bb] of spec.basins ?? []) {
         const d = Math.hypot(x - bx, z - bz);
         if (d > br + bb) continue;
         const s = smooth(br, br + bb, d + (vnoise(x * 0.25, 6, z * 0.25) - 0.5) * 2);
         H[id] = lerp(by, H[id], s);
+      }
+      // level ground (town streets): flattened, and kept on the fine 0.5 steps so no terraces show
+      for (const [bx, bz, by, br, bb] of spec.flats ?? []) {
+        const d = Math.hypot(x - bx, z - bz);
+        if (d > br + bb) continue;
+        const s = smooth(br, br + bb, d);
+        H[id] = lerp(by, H[id], s);
+        if (s < 0.97) fine[id] = 1;
       }
     }
   }

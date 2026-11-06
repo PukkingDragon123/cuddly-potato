@@ -392,7 +392,7 @@ export function mountIslandRoad(road, ctx) {
       });
       let foot;
       if (ss === 'pick') {
-        foot = button('PICK', () => choose(sd), `${sd === 'a' ? 'yellow' : 'blue'} sm trd-pick pulse`, { icon: tr.icon, sound: 'tap' });
+        foot = button('PICK', () => choose(sd), `${sd === 'a' ? 'yellow' : 'purple'} sm trd-pick pulse`, { icon: tr.icon, sound: 'tap' });
         foot.dataset.guide = 'road-fork';
       } else if (open) foot = h('div', { class: 'trd-fk-st on t-d outline' }, icon('check', 's'), mine && ss !== 'open' ? 'YOUR TRAIL' : 'OPEN');
       else if (picked) foot = h('div', { class: 'trd-fk-st t-d outline' }, icon('lock', 's'), 'LOCKED');

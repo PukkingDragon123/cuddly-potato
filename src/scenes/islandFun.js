@@ -202,7 +202,7 @@ export function setupIslandFun(home) {
   // a fan on the beach
   if (F.palms?.length) {
     const p0 = F.palms[0];
-    npc('fan', p0.clone().add(V(1.8, 0, 1.4)), FACE_Y - 0.4, { who: 'fan', idle: ['dance', 'cheer', 'peace', 'waveBoth'], react: 'laugh' });
+    npc('fan', p0.clone().add(V(2.7, 0, -1.2)), FACE_Y - 0.6, { who: 'fan', idle: ['dance', 'cheer', 'peace', 'waveBoth'], react: 'laugh' });
   }
 
   // ---------------------------------------------------------------- Nolan fishing off the pier
