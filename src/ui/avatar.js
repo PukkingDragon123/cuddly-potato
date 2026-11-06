@@ -1,16 +1,17 @@
 // Profile avatars: the player's PICTURE inside a pixel-art FRAME, shown wherever a player's
 // identity appears (home top bar, profile, VS intro, battle HUD name plates, Beast News, shop).
 //
-//   avatarEl(avatarId, frameId, { cls, anim })  -> <span class="pav">
+//   avatarEl(avatarId, frameId, { cls, anim, who })  -> <span class="pav">
 //   setAvatar(el, avatarId, frameId)            -> point an element at a new look
 //   myAvatarEl(opts)                            -> your own look (state.p.cosmetics), kept in sync by refreshMine()
-//   framePreviewEl(frameId) / pictureEl(id)     -> frame alone (over a dark glass window) / picture alone
+//   sideAvatarEl(sideCfg, opts)                 -> a battle side's look ("Me" pictures show that side's Commander)
+//   framePreviewEl(frameId)                     -> frame alone (over a dark glass window)
 //
 // PICTURES are composited once per (picture, size bucket) into a PNG: a pixel-art backdrop plate
-// (dithered two-tone + light rays, upscaled with hard pixels), then the portrait: a 3D chibi
-// head render (Commanders, NPCs), a 3D troop render (Troop Mastery), or a pixel-art Beast Lab
-// icon painted on the icon set's canvas and shader (src/ui/icons.js). The window has stepped
-// pixel corners, matching every frame.
+// (dithered two-tone + light rays, upscaled with hard pixels), then a 3D portrait from the
+// thumbnail renderer: "Me" = your Commander chibi in your outfit (re-rendered when you change
+// either), Commander / NPC chibis, or a Swarm troop model. No flat 2D icon pictures. The window
+// has stepped pixel corners, matching every frame.
 //
 // FRAMES are painted on a 48-unit design grid with the icon shader (bevels, hue-shifted ramps,
 // selective outline) at a resolution picked from the laid-out size (24 px name plates get a
@@ -21,14 +22,16 @@
 import './avatar.css';
 import { PixCanvas, renderPixArt } from './icons.js';
 import { h } from './ui.js';
-import { lazyImg, charPortrait } from './thumbs.js';
+import * as THREE from 'three';
+import { lazyImg } from './thumbs.js';
 import { engine } from '../core/engine.js';
 import { createSwarm } from '../models/swarmModels.js';
 import { Chibi } from '../core/chibi.js';
 import { CHARACTERS } from '../data/characters.js';
 import { mulberry32, hashString } from '../core/util.js';
 import { state } from '../game/state.js';
-import { AVATARS, FRAMES, TITLES, DEFAULT_AVATAR, DEFAULT_FRAME } from '../data/profileItems.js';
+import { AVATARS, FRAMES, TITLES, DEFAULT_FRAME, avatarId as avatarIdOf } from '../data/profileItems.js';
+import { COMMANDERS } from '../data/commanders.js';
 import { CMD_SKINS } from '../data/season.js';
 import { SERIES } from '../data/swarms.js';
 import { cardDef } from '../data/cards.js';
@@ -410,123 +413,14 @@ function stripURL(id, q) {
   return u;
 }
 
-// --------------------------------------------------------------------------- Beast Lab icon pictures (32 grid)
-
-const ICON = {};
-ICON.flask = (p) => {
-  p.rect(13, 3, 6, 2, '#cfeeff');
-  p.rect(13.5, 5, 5, 8, '#cfeeff');
-  p.circ(16, 20, 9.5, '#cfeeff');
-  p.each((x, y) => ((x - 16) ** 2 + (y - 20) ** 2 <= 8 * 8 && y > 17 + Math.sin(x * 1.1) * 0.8 ? '#4cd24a' : undefined), false, [7, 12, 25, 29]);
-  p.rect(14.5, 6, 1.4, 6, '#ffffff');
-  for (const [x, y, r] of [[13, 23, 1.4], [18.5, 21, 1], [17, 26, 0.9]]) p.circ(x, y, r, '#a8f07a');
-  p.rect(12, 2, 8, 1.6, '#8a96b8');
-};
-ICON.goggles = (p) => {
-  p.rect(1, 13, 30, 4, '#3a4256');
-  for (const x of [9.5, 22.5]) { p.rr(x - 7, 8, 14, 13, 4, '#ffc21a'); p.rr(x - 5.4, 9.6, 10.8, 9.8, 3, '#5af0c8'); p.rect(x - 3.8, 11, 2.4, 2.4, '#e6fffa'); }
-  p.rect(15, 12, 2, 3, '#ffc21a');
-};
-ICON.barrel = (p) => {
-  p.rr(7, 6, 18, 23, 3, '#ffc21a');
-  for (const y of [11, 23]) p.rect(6.4, y, 19.2, 2.2, '#9a5410');
-  p.poly([[16, 13.6], [20.2, 20.6], [11.8, 20.6]], '#1c1a28');
-  p.poly([[16, 15.6], [18.4, 19.6], [13.6, 19.6]], '#ffc21a');
-  p.ell(16, 6.4, 9, 2.6, '#7cff3a');
-  p.rect(10, 6, 2.4, 7, '#7cff3a'); p.circ(11.2, 13, 1.3, '#7cff3a');
-  p.rect(20, 6, 1.8, 4.4, '#7cff3a'); p.circ(20.9, 10.4, 1, '#7cff3a');
-};
-ICON.brain = (p) => {
-  p.rr(5, 4, 22, 25, 4, '#cfeeff');
-  p.rect(4, 3, 24, 3, '#8a96b8');
-  p.each((x, y) => (((x - 16) / 8.6) ** 2 + ((y - 17) / 7) ** 2 <= 1 ? '#ff8ac4' : undefined), false, [7, 9, 25, 25]);
-  for (const [x0, y0, x1, y1] of [[11, 14, 14, 17], [16, 11, 16, 21], [19, 15, 22, 13], [12, 19, 15, 21], [18, 20, 21, 19]]) p.line(x0, y0, x1, y1, '#b8125e', 0, true);
-  p.line(9, 9, 6, 1, '#ffc21a', 0.2); p.line(23, 9, 26, 1, '#ffc21a', 0.2);
-  p.rect(5.6, 24, 20.8, 4, '#7ae8ff');
-};
-ICON.skull = (p) => {
-  p.rr(6, 4, 20, 18, 7, '#f2ead8');
-  p.rr(10, 19, 12, 8, 2, '#f2ead8');
-  p.rr(9, 11, 5.4, 5.4, 2, '#3a1a5a'); p.rr(17.6, 11, 5.4, 5.4, 2, '#3a1a5a');
-  p.poly([[16, 17], [17.6, 20], [14.4, 20]], '#3a1a5a');
-  for (let i = 0; i < 4; i++) p.rect(11.4 + i * 2.6, 23, 1, 3.4, '#b8b0a0');
-  p.dot(11, 12, '#ff2e88'); p.dot(19, 12, '#ff2e88');
-  p.poly([[3, 3], [8, 7], [6, 9]], '#ffc21a'); p.poly([[29, 3], [24, 7], [26, 9]], '#ffc21a');
-};
-ICON.mustache = (p) => {
-  // the peel-off sticker card it came on
-  p.rr(3, 6, 26, 21, 2, '#eef4ff');
-  p.poly([[23, 27], [29, 21], [29, 27]], '#b4bfd8');
-  p.rect(6, 23, 9, 1.2, '#8fd4ff'); p.rect(6, 9, 6, 1.2, '#ff8ac4');
-  // handlebar mustache: two lobes, curled tips
-  p.ell(11.2, 16.6, 6.2, 3.4, '#a0602e');
-  p.ell(20.8, 16.6, 6.2, 3.4, '#a0602e');
-  p.poly([[6.4, 18], [3.4, 12.6], [5.2, 11.6], [8.8, 15.4]], '#a0602e');
-  p.poly([[25.6, 18], [28.6, 12.6], [26.8, 11.6], [23.2, 15.4]], '#a0602e');
-  p.circ(4.6, 12, 1.5, '#653818'); p.circ(27.4, 12, 1.5, '#653818');
-  p.rect(15.4, 14.4, 1.2, 3.6, '#653818');
-};
-ICON.choco = (p) => {
-  p.rr(5, 5, 22, 23, 2, '#6a3a1e');
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) p.rr(7 + j * 9.8, 7 + i * 6.8, 8.4, 5.6, 1, '#8a4e2a');
-  p.each((x, y) => ((x - 27) ** 2 + (y - 7) ** 2 < 25 || (x - 23.6) ** 2 + (y - 4.4) ** 2 < 9 ? null : undefined), false, [18, 0, 32, 14]);
-  p.poly([[4, 18], [28, 18], [28, 29], [4, 29]], '#ff4fa3');
-  p.poly([[4, 18], [7, 16.4], [10, 18.2], [13, 16.2], [16, 18.2], [19, 16.4], [22, 18.2], [25, 16.4], [28, 18]], '#ff4fa3');
-  p.rect(8, 21.6, 16, 3.4, '#ffffff');
-  p.rect(10, 22.4, 12, 1.6, '#29b6f6');
-};
-ICON.duck = (p) => {
-  p.ell(16, 22, 11, 7, '#ffd23f');
-  p.circ(14, 11, 7, '#ffd23f');
-  p.ell(25.4, 18, 4, 2.6, '#ffd23f');
-  // gas mask
-  p.rr(9.2, 10, 10, 8, 3, '#3a4256');
-  p.circ(11.6, 12.6, 1.8, '#5af0c8'); p.circ(16.6, 12.6, 1.8, '#5af0c8');
-  p.rr(11.4, 16, 6, 5.4, 2, '#5a6690');
-  for (let i = 0; i < 3; i++) p.rect(12.4 + i * 1.6, 17.2, 0.8, 3, '#1c1a28');
-  p.rect(6.6, 9.6, 2.6, 2, '#3a4256'); p.rect(19.2, 9.6, 3, 2, '#3a4256');
-  p.ell(18, 23, 5, 3, '#ffc21a');
-};
-ICON.ticket = (p) => {
-  p.poly([[2, 9], [30, 4], [30, 23], [2, 28]], '#ffc21a');
-  p.each((x, y) => ((x - 2) ** 2 + (y - 18.5) ** 2 < 6 || (x - 30) ** 2 + (y - 13.5) ** 2 < 6 ? null : undefined), false, [0, 14, 32, 22]);
-  p.poly([[6, 11], [26, 7.4], [26, 20.4], [6, 24]], '#fff6c8');
-  p.star(16, 15.8, 5, 2.2, 5, '#ff4fa3');
-  for (let i = 0; i < 4; i++) p.dot(8 + i * 5, 25.4 - i * 0.9, '#d8861a');
-};
-ICON.case = (p) => {
-  p.rr(11, 4, 10, 5, 2, '#1c1a28'); p.rr(13, 5.6, 6, 3, 1, null);
-  p.each((x, y) => (x > 13 && x < 19 && y > 5.8 && y < 8.4 ? null : undefined), false, [12, 5, 20, 9]);
-  for (let i = 0; i < 4; i++) p.rect(6 + i * 5.4, 6.6 - (i % 2) * 1.6, 4.6, 6, '#4cd24a');
-  p.rr(3, 10, 26, 18, 2.6, '#3a4256');
-  p.rect(3, 17.4, 26, 2.2, '#26304a');
-  p.rr(13.4, 15.6, 5.2, 5.6, 1, '#ffc21a');
-  p.rect(15.4, 17.6, 1.2, 1.8, '#9a5410');
-  p.rect(6, 7, 3.2, 1.2, '#a8f07a');
-};
-
-const iconCache = new Map();
-/** Shaded pixel-art canvas for a Beast Lab picture at HD factor q. */
-function labIconCanvas(art, q) {
-  const key = art + '|' + q;
-  let c = iconCache.get(key);
-  if (c) return c;
-  const p = new PixCanvas(32, 1, q);
-  (ICON[art] ?? ICON.flask)(p);
-  renderPixArt(p, { glints: 2 });
-  c = renderPixArt.last;
-  iconCache.set(key, c);
-  return c;
-}
-
 // --------------------------------------------------------------------------- pictures
+// Every picture is a 3D render of a real game model on a pixel-art plate: "Me" pictures are YOUR
+// Commander (the chibi in the outfit you wear; a rival's own Commander on their side config),
+// Commander / NPC pictures are those chibis, troop pictures are the Swarm models. Portraits are
+// drawn straight from the thumbnail renderer's canvas into the picture (no PNG round trip), get a
+// 1-texel ink outline so they read at 24 px, and the finished picture is PNG-encoded off the main
+// thread (canvas.toBlob) where the browser can.
 
-const loadImg = (src) => new Promise((res) => {
-  const im = new Image();
-  im.onload = () => res(im);
-  im.onerror = () => res(null);
-  im.src = src;
-});
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const plateCache = new Map();
 /** Backdrop plate: 24x24 pixel art (dithered two-tone + light rays from below), as a canvas. */
@@ -553,72 +447,137 @@ function plateCanvas(c0, c1) {
   plateCache.set(key, c);
   return c;
 }
-/** Square 3D troop portrait (bust framing), PNG data URL. */
-const troopCache = new Map();
-function troopPortrait(id, size) {
-  const key = id + '|' + size;
-  if (troopCache.has(key)) return troopCache.get(key);
-  const rig = createSwarm(id, {});
-  rig.setState('idle');
-  for (let i = 0; i < 6; i++) rig.update(0.016);
-  const url = engine.renderThumb(rig.root, { size, yaw: 0.55, pitch: 0.14, zoom: 0.9, lift: 0.02 });
-  troopCache.set(key, url);
-  return url;
-}
-/** Head-and-shoulders chibi portrait framed for a square avatar (the whole head, hat included). */
-const headCache = new Map();
-function headPortrait(charId, override, size) {
-  const key = `${charId}|${size}|${JSON.stringify(override)}`;
-  if (headCache.has(key)) return headCache.get(key);
-  const c = new Chibi({ ...CHARACTERS[charId], ...(override ?? {}) }, { fidget: false });
-  c.expr('normal', 'smile');
-  c.face.blinkT = 99;
-  c.face.autoLook = false;
-  c.snap();
-  c.face.redraw();
-  const url = engine.renderThumb(c.root, { size, yaw: -0.3, pitch: 0.08, zoom: 0.72, focusHead: true, lift: -0.04 });
-  headCache.set(key, url);
-  return url;
-}
+
+const toHex = (n) => '#' + (n >>> 0 & 0xffffff).toString(16).padStart(6, '0');
 function cmdOverride(skinId) {
   const s = CMD_SKINS[skinId];
   if (!s) return null;
   const { name, commander, ...rest } = s;
   return rest;
 }
+/** The Commander a "Me" picture shows: `who` = a battle side config (its commander), or none = you. */
+function meCommander(who) {
+  if (who) {
+    const c = who.commander;
+    return { char: CHARACTERS[c?.char] ? c.char : 'recruit', override: c?.override ?? null };
+  }
+  const cm = state.p?.commanders;
+  const id = cm?.equipped, def = COMMANDERS[id];
+  const char = CHARACTERS[def?.char] ? def.char : 'recruit';
+  return { char, override: cmdOverride(cm?.owned?.[id]?.skin) };
+}
+/**
+ * What a picture draws, plus its cache key: { key, plate: [c0, c1], chibi?: { def, pose, eyes, mouth }, troop?: id }.
+ * The key changes with what is drawn (a "Me" picture follows your Commander + outfit).
+ */
+export function pictureSpec(avatarId, who = null) {
+  const a = AVATARS[avatarIdOf(avatarId)];
+  if (a.kind === 'troop') return { key: a.id, plate: a.plate, troop: a.card };
+  if (a.kind === 'me') {
+    const { char, override } = meCommander(who);
+    const def = { ...CHARACTERS[char], ...(override ?? {}) };
+    const col = typeof def.color === 'string' ? def.color : toHex(def.accent ?? 0x29b6f6);
+    return {
+      key: `${a.id}~${char}~${hashString(JSON.stringify(override ?? null))}`,
+      plate: a.plate ?? [col, shade(col, -0.72)],
+      chibi: { def, pose: a.pose, eyes: a.eyes, mouth: a.mouth },
+    };
+  }
+  const def = { ...CHARACTERS[a.char], ...(a.skin ? cmdOverride(a.skin) ?? {} : {}), ...(a.look ?? {}) };
+  return { key: a.id, plate: a.plate, chibi: { def } };
+}
+
+const _hb = new THREE.Box3(), _hs = new THREE.Vector3();
+/** 3/4 head-and-shoulders render of a chibi, `px` square: the shared thumbnail canvas (copy it out at once). */
+function chibiShot(o, px) {
+  const c = new Chibi(o.def, { fidget: false });
+  if (o.pose) c.play(o.pose, { face: false });
+  c.expr(o.eyes ?? 'normal', o.mouth ?? 'smile');
+  c.face.blinkT = 99;
+  c.face.autoLook = false;
+  c.snap();
+  c.face.redraw();
+  c.root.updateMatrixWorld(true);
+  // frame on the bare head (hats and helmets may poke out of the top, like a real headshot)
+  _hb.setFromObject(c.headMesh ?? c.head).getSize(_hs);
+  const hh = _hs.y;
+  return engine.drawThumb(c.root, { size: px, yaw: -0.42, pitch: 0.1, focusObj: c.headMesh ?? c.head, focusDy: -hh * 0.16, fit: hh * 1.24 });
+}
+/**
+ * Troop portrait framing. Default: aim a little under the model's head part and fit the head plus
+ * some body; a model without a head part is framed whole. Per-troop tweaks (TROOP_CAM): yaw (turn),
+ * fit (x the framed height), dy / dx (shift the aim, x the framed height), whole (frame it all).
+ */
+const TROOP_CAM = {};
+const _wb = new THREE.Box3(), _ws = new THREE.Vector3();
+function troopShot(id, px) {
+  const rig = createSwarm(id, {});
+  rig.setState('idle');
+  for (let i = 0; i < 6; i++) rig.update(0.016);
+  rig.root.updateMatrixWorld(true);
+  const t = TROOP_CAM[id] ?? {};
+  const yaw = t.yaw ?? 0.5;
+  const head = t.whole ? null : rig.parts?.head;
+  _wb.setFromObject(rig.root).getSize(_ws);
+  const H = _ws.y;
+  // visible height of the square picture (the renderer shows 1.2 x fit)
+  let V, focus, dy;
+  if (head) {
+    _hb.setFromObject(head).getSize(_hs);
+    V = Math.min(H * 1.08, Math.max(_hs.y * 1.32, _hs.x * 1.2, H * 0.62));
+    focus = head;
+    dy = -_hs.y * 0.1;
+  } else {
+    V = Math.max(H, _ws.x * 0.85) * 1.02;
+    focus = rig.root;
+    dy = 0;
+  }
+  V *= t.fit ?? 1;
+  return engine.drawThumb(rig.root, { size: px, yaw, pitch: 0.14, focusObj: focus, focusDy: dy + V * (t.dy ?? 0), focusDx: V * (t.dx ?? 0), fit: V / 1.2 });
+}
+const inkCanvas = { a: null, b: null };
+/** Draw `src` onto `g` with a 1-texel ink outline (dilated silhouette) underneath. */
+function drawInked(g, src, px, w = 1) {
+  const sil = (inkCanvas.a ??= document.createElement('canvas'));
+  if (sil.width !== px || sil.height !== px) { sil.width = px; sil.height = px; }
+  const sg = sil.getContext('2d');
+  sg.globalCompositeOperation = 'copy';
+  sg.drawImage(src, 0, 0, px, px);
+  sg.globalCompositeOperation = 'source-in';
+  sg.fillStyle = '#120c24';
+  sg.fillRect(0, 0, px, px);
+  sg.globalCompositeOperation = 'source-over';
+  g.save();
+  g.globalAlpha = 0.9;
+  for (const [dx, dy] of [[-w, 0], [w, 0], [0, -w], [0, w]]) g.drawImage(sil, dx, dy);
+  g.restore();
+  g.drawImage(src, 0, 0, px, px);
+}
 /** Picture size buckets (px of the composited PNG). */
-const PIC_PX = [64, 160];
-/** Composite a picture: plate + portrait, clipped to the stepped window. Resolves to a data URL. */
-async function composePicture(id, px) {
-  const a = AVATARS[id] ?? AVATARS[DEFAULT_AVATAR];
+const PIC_PX = [64, 128, 224];
+/** Composite a picture: plate + 3D portrait, clipped to the stepped window. Resolves to an image URL. */
+function composePicture(spec, px) {
   const c = document.createElement('canvas');
   c.width = c.height = px;
   const g = c.getContext('2d');
   g.imageSmoothingEnabled = false;
-  g.drawImage(plateCanvas(a.plate?.[0] ?? '#2b8cf2', a.plate?.[1] ?? '#122a7a'), 0, 0, px, px);
-  g.imageSmoothingEnabled = true;
-  g.imageSmoothingQuality = 'high';
-  if (a.kind === 'lab') {
-    const q = px >= 120 ? 4 : 2;
-    const ic = labIconCanvas(a.art, q);
-    const s = Math.round(px * 1.12), o = Math.round((px - s) / 2);
-    g.imageSmoothingEnabled = s < ic.width;
-    g.drawImage(ic, o, o + Math.round(px * 0.02), s, s);
-  } else {
-    let url = null;
-    try {
-      if (a.kind === 'troop') url = troopPortrait(a.card, Math.round(px * 1.1));
-      else if (a.full) url = charPortrait(a.char, { size: Math.round(px * 1.1), full: true, yaw: -0.45 });
-      else url = headPortrait(a.char, a.skin ? cmdOverride(a.skin) : null, Math.round(px * 1.1));
-    } catch (e) { console.warn('avatar portrait', id, e); }
-    const im = url ? await loadImg(url) : null;
-    if (im) {
-      // troops: whole head + upper body; people: head and shoulders, shoulders cut by the frame
-      const s = px * 1.04;
-      g.drawImage(im, (px - s) / 2, (px - s) / 2 + px * 0.03, s, s);
-    }
+  g.drawImage(plateCanvas(spec.plate?.[0] ?? '#2b8cf2', spec.plate?.[1] ?? '#122a7a'), 0, 0, px, px);
+  // soft key-light glow behind the head (a few stepped rings, so it stays pixel art)
+  const glow = shade(spec.plate?.[0] ?? '#2b8cf2', 0.55);
+  g.globalAlpha = 0.16;
+  g.fillStyle = glow;
+  const u = Math.max(1, Math.round(px / 24));
+  for (let k = 3; k >= 1; k--) {
+    const r = Math.round((px * (0.16 + k * 0.08)) / u) * u, cx = px / 2, cy = Math.round(px * 0.4);
+    for (let y = -r; y < r; y += u) { const hw = Math.round(Math.sqrt(Math.max(0, r * r - (y + u / 2) ** 2)) / u) * u; g.fillRect(cx - hw, cy + y, hw * 2, u); }
   }
-  // stepped corner window (matches the frames' window) + a 1px inner shade on the lower edges
+  g.globalAlpha = 1;
+  g.imageSmoothingEnabled = true;
+  try {
+    const src = spec.troop ? troopShot(spec.troop, px) : chibiShot(spec.chibi, px);
+    drawInked(g, src, px, px >= 160 ? 2 : 1);
+  } catch (e) { console.warn('avatar portrait', spec.key, e); }
+  // stepped corner window (matches the frames' window)
   const ch = Math.max(1, Math.round((CHW / (W1 - W0)) * px));
   g.globalCompositeOperation = 'destination-out';
   for (let i = 0; i < ch; i++) {
@@ -627,12 +586,13 @@ async function composePicture(id, px) {
     g.fillRect(0, px - 1 - i, w, 1); g.fillRect(px - w, px - 1 - i, w, 1);
   }
   g.globalCompositeOperation = 'source-over';
-  return c.toDataURL('image/png');
+  if (typeof c.toBlob !== 'function') return c.toDataURL('image/png');
+  return new Promise((res) => c.toBlob((b) => res(b ? URL.createObjectURL(b) : c.toDataURL('image/png')), 'image/png'));
 }
-const picKey = (id, px) => `pav|${id}|${px}`;
+const picKey = (spec, px) => `pav|${spec.key}|${px}`;
 /** <img> of a picture at a size bucket (lazy: rendered on the thumb queue, cached). */
-function picImg(id, px, cls = '', lazy = false) {
-  return lazyImg(picKey(id, px), () => composePicture(id, px), 'pav-img ' + cls, lazy ? { visible: true } : { priority: true });
+function picImg(spec, px, cls = '', lazy = false) {
+  return lazyImg(picKey(spec, px), () => composePicture(spec, px), 'pav-img ' + cls, lazy ? { visible: true } : { priority: true });
 }
 
 // --------------------------------------------------------------------------- the element
@@ -645,7 +605,7 @@ const needQ = (el) => {
 const needPx = (el) => {
   const w = el.offsetWidth * (AV_GEOM.picSize / 100) * (window.devicePixelRatio || 1);
   if (!(w > 0)) return 0; // hidden (display: none): no size yet, keep the small picture
-  return w <= 72 ? PIC_PX[0] : PIC_PX[1];
+  return w <= 72 ? PIC_PX[0] : w <= 140 ? PIC_PX[1] : PIC_PX[2];
 };
 // frames are painted inside a small time budget per frame; the rest waits for idle time
 let spent = 0, spentAt = 0;
@@ -742,7 +702,9 @@ function watch(el) {
 function setPic(el) {
   const st = el._av;
   const px = st.px || PIC_PX[0];
-  const img = picImg(st.avatar, px, '', st.lazy);
+  const spec = pictureSpec(st.avatar, st.who);
+  st.picKey = spec.key;
+  const img = picImg(spec, px, '', st.lazy);
   img.classList.add('pav-pic');
   // keep the old picture until the new one has loaded (no blank flash on a size upgrade)
   const old = st.pic;
@@ -766,13 +728,14 @@ function setPic(el) {
 
 /**
  * Avatar element: picture + frame. Size it with --av (CSS) or opts.size (px or any CSS length).
- * opts: { cls, anim (default true: animated frames move), size, lazy (render the picture once scrolled near the view) }
+ * opts: { cls, anim (default true: animated frames move), size, lazy (render the picture once scrolled near the view),
+ *   who (a battle side config: whose Commander a "Me" picture shows; default you) }
  */
 export function avatarEl(avatarId, frameId, opts = {}) {
   const frm = h('img', { class: 'pav-frm', alt: '', draggable: 'false' });
   const el = h('span', { class: `pav ${opts.lazy ? 'pav-lazy ' : ''}${opts.cls ?? ''}`.trim(), role: 'img' }, frm);
   if (opts.size) el.style.setProperty('--av', typeof opts.size === 'number' ? opts.size + 'px' : opts.size);
-  el._av = { avatar: null, frame: null, q: 0, px: 0, frm, pic: null, strip: null, stripBox: null, anim: opts.anim !== false, lazy: !!opts.lazy };
+  el._av = { avatar: null, picKey: null, who: opts.who ?? null, frame: null, q: 0, px: 0, frm, pic: null, strip: null, stripBox: null, anim: opts.anim !== false, lazy: !!opts.lazy };
   setAvatar(el, avatarId, frameId);
   watch(el);
   return el;
@@ -781,14 +744,14 @@ export function avatarEl(avatarId, frameId, opts = {}) {
 export function setAvatar(el, avatarId, frameId) {
   const st = el?._av;
   if (!st) return;
-  const a = AVATARS[avatarId] ? avatarId : DEFAULT_AVATAR;
+  const a = avatarIdOf(avatarId);
   const f = FRAMES[frameId] ? frameId : DEFAULT_FRAME;
   const fd = FRAMES[f];
   el.setAttribute('aria-label', `${AVATARS[a].name}, ${fd.name}`);
   el.classList.remove('pav-a-shine', 'pav-a-goo', 'pav-a-laser', 'pav-a-holo', 'pav-a-flame', 'pav-a-cosmic', 'pav-strip-on');
   if (fd.anim && st.anim) el.classList.add('pav-a-' + fd.anim);
   if (fd.anim === 'shine') el.style.setProperty('--pav-d', -(Math.random() * 5).toFixed(2) + 's');
-  if (st.avatar !== a) { st.avatar = a; if (!st.px) st.px = PIC_PX[0]; setPic(el); }
+  if (st.avatar !== a || st.picKey !== pictureSpec(a, st.who).key) { st.avatar = a; if (!st.px) st.px = PIC_PX[0]; setPic(el); }
   if (st.frame !== f) {
     st.frame = f;
     if (st.stripBox) { st.stripBox.remove(); st.strip = st.stripBox = null; }
@@ -803,7 +766,7 @@ export function setAvatar(el, avatarId, frameId) {
 /** The player's own look. */
 export const myLook = () => {
   const c = state.p.cosmetics ?? {};
-  return { avatar: c.avatar ?? DEFAULT_AVATAR, frame: c.frame ?? DEFAULT_FRAME, title: c.title ?? null };
+  return { avatar: avatarIdOf(c.avatar), frame: c.frame ?? DEFAULT_FRAME, title: c.title ?? null };
 };
 const mine = new Set();
 /** Your own avatar (it follows equips: call refreshMine() or it updates on the next state change). */
@@ -817,34 +780,35 @@ export function refreshMine() {
   const l = myLook();
   for (const el of mine) {
     if (!el.isConnected) { mine.delete(el); continue; }
-    if (el._av.avatar !== l.avatar || el._av.frame !== l.frame) setAvatar(el, l.avatar, l.frame);
+    // a "Me" picture also re-renders when you swap Commander or outfit (its key changes)
+    if (el._av.avatar !== l.avatar || el._av.frame !== l.frame || el._av.picKey !== pictureSpec(l.avatar).key) setAvatar(el, l.avatar, l.frame);
   }
 }
-state.on((what) => { if (!what || what === 'profile' || what === 'reward' || what === 'mastery') refreshMine(); });
+state.on((what) => { if (!what || what === 'profile' || what === 'reward' || what === 'mastery' || what === 'commanders') refreshMine(); });
 
 /** A side config's look ({ avatar, frame } on battle side configs; ghosts get theirs from profileItems.ghostLook). */
 export function sideAvatarEl(side, opts = {}) {
-  return avatarEl(side?.avatar ?? DEFAULT_AVATAR, side?.frame ?? DEFAULT_FRAME, opts);
+  return avatarEl(side?.avatar, side?.frame ?? DEFAULT_FRAME, { who: side ?? null, ...opts });
 }
 /** Title display name (or ''). */
 export const titleName = (id) => TITLES[id]?.name ?? '';
 
 /** A frame on its own over an empty glass window (frame picker tiles). */
 export function framePreviewEl(frameId, opts = {}) {
-  const el = avatarEl('lab_flask', frameId, opts);
+  const el = avatarEl('me', frameId, opts);
   el.classList.add('pav-empty');
   return el;
 }
 /** Warm the cache for a few looks (the battle's two players) so the VS intro, the entrance title
- * card and the HUD plates show them already drawn: frames at the common scales + both picture sizes. */
+ * card and the HUD plates show them already drawn: frames at the common scales + the two smaller picture sizes. */
 export function prewarmLooks(looks = []) {
   for (const l of looks) {
     if (!l) continue;
     const f = FRAMES[l.frame] ?? FRAMES[DEFAULT_FRAME];
     for (const q of [2, 3]) if (!frameCache.has(f.id + '|' + q)) { try { frameURL(f.id, q); } catch (e) { /* drawn on demand */ } }
-    const a = AVATARS[l.avatar] ? l.avatar : DEFAULT_AVATAR;
+    const spec = pictureSpec(l.avatar, l);
     // force: the job runs even though this <img> is never attached; later avatarEl()s hit the cache
-    for (const px of PIC_PX) lazyImg(picKey(a, px), () => composePicture(a, px), 'pav-img', { priority: true, force: true });
+    for (const px of PIC_PX.slice(0, 2)) lazyImg(picKey(spec, px), () => composePicture(spec, px), 'pav-img', { priority: true, force: true });
   }
 }
 /** Stable seed helper for rivals without one. */

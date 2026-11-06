@@ -101,23 +101,21 @@
   clip-path: polygon(0 0, 100% 0, 100% 30%, 70% 30%, 70% 65%, 50% 65%, 50% 100%, 30% 100%, 30% 30%, 0 30%);
 }
 
-/* ---- shop preview stage (entrancePreview.js): the shop hides while the 3D plays */
-/* opacity (not visibility) so no child can show itself again (e.g. the seller's speech bubble) */
-body.ent-pv-on #ui, body.ent-pv-on #world-ui, body.ent-pv-on #overlay > :not(.ent):not(.ent-pv-ui) { opacity: 0 !important; transition: none !important; }
-.ent-pv-ui { position: absolute; inset: 0; z-index: 59; pointer-events: none; }
-/* while the set is being built, taps go nowhere (the shop sits invisible underneath) */
-.ent-pv-ui:not(.live) { pointer-events: auto; }
-.ent-pv-btns {
-  position: absolute; left: 0; right: 0; bottom: calc(10.5% + 18px); display: flex; justify-content: center; gap: 12px; pointer-events: auto;
-  opacity: 0; transform: translateY(12px); transition: opacity 0.25s, transform 0.25s;
-}
-.ent-pv-ui.done .ent-pv-btns { opacity: 1; transform: none; }
-.ent-pv-load {
-  position: absolute; left: 50%; top: 50%; translate: -50% -50%; font-family: var(--font-d); font-size: clamp(16px, 4vmin, 22px); letter-spacing: 0.12em; color: #fff;
-  text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c;
-}
-.ent-pv-bg { position: absolute; inset: 0; background: #0b0d22; z-index: -1; transition: opacity 0.3s; }
-.ent-pv-ui.live .ent-pv-bg { opacity: 0; }
+/* ---- shop preview (entrancePreview.js): the same overlay inside the shop's stage window.
+   Sized by the window (container units); taps go to the shop (the window has its own close button). */
+.ent.inl { z-index: 2; pointer-events: none; cursor: default; --bar: 7%; --pxl: max(2px, calc(var(--px, 3px) * 0.6)); container-type: size; }
+.ent.inl .ent-skip { display: none; }
+.ent.inl .ent-card.land { bottom: calc(var(--bar) + 3cqh); width: min(54cqw, 250px); }
+.ent.inl .ent-card.land.s0 { right: 4cqw; }
+.ent.inl .ent-card.port { left: 4cqw; right: 4cqw; bottom: calc(var(--bar) + 3cqh); }
+.ent.inl .ent-card-in { gap: clamp(6px, 2cqmin, 10px); padding: calc(clamp(6px, 2cqmin, 10px) + var(--pxl) * 2) clamp(8px, 2.6cqmin, 12px) clamp(6px, 2cqmin, 10px); }
+.ent.inl .ent-card-av { --av: clamp(24px, 8.5cqmin, 40px); }
+.ent.inl .ent-card-rk { --rm: clamp(28px, 9.5cqmin, 46px); }
+.ent.inl .ent-card-tx { gap: clamp(3px, 1cqmin, 5px); }
+.ent.inl .ent-card-tag { font-size: clamp(9px, 2.8cqmin, 12px); padding: 2px 6px 1px; }
+.ent.inl .ent-card-nm { font-size: calc(clamp(14px, 6.4cqmin, 26px) * var(--nk, 1)); text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
+.ent.inl .ent-card-sub { font-size: clamp(10px, 3.4cqmin, 14px); gap: 6px; }
+.ent.inl .ent-say { max-width: min(78cqw, 300px); font-size: clamp(13px, 5.2cqmin, 20px); padding: clamp(5px, 1.6cqmin, 8px) clamp(8px, 2.4cqmin, 12px); }
 @media (prefers-reduced-motion: reduce) { .ent-card, .ent-say, .ent-bar { transition: none !important; } }
 /* profile picture + frame on the title card (src/ui/avatar.js) */
 .ent-card-av { --av: clamp(44px, 11vmin, 70px); flex: 0 0 auto; margin: calc(var(--av) * 0.22); }

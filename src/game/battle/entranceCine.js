@@ -397,11 +397,15 @@ export function playEntrance(stage, side, id, o = {}) {
     if (!sayOn) return;
     const p = ch.headTop ? ch.headTop(_hp) : _hp.copy(ch.root.position).setY(ch.root.position.y + H);
     p.y += H * 0.12;
+    // screen point -> overlay coords (the battle: the whole screen; the shop preview: its window)
+    const bx = stage.box?.();
     const s = stage.toScreen(p);
-    const W = window.innerWidth, Hh = window.innerHeight;
+    if (bx) { s.x -= bx.left; s.y -= bx.top; }
+    const W = bx ? bx.width : window.innerWidth, Hh = bx ? bx.height : window.innerHeight;
+    const m = bx ? 8 : 12;
     const w = sayEl.offsetWidth || 160;
-    const x = Math.max(12 + w / 2, Math.min(W - 12 - w / 2, s.x));
-    const y = Math.max(Hh * 0.13 + sayEl.offsetHeight + 6, Math.min(Hh * 0.8, s.y));
+    const x = Math.max(m + w / 2, Math.min(W - m - w / 2, s.x));
+    const y = Math.max(Hh * (bx ? 0.09 : 0.13) + sayEl.offsetHeight + 6, Math.min(Hh * 0.8, s.y));
     sayEl.style.transform = `translate3d(${Math.round(x - w / 2)}px, ${Math.round(y - sayEl.offsetHeight)}px, 0)`;
     sayEl.style.setProperty('--tx', Math.round(Math.max(14, Math.min(w - 14, s.x - (x - w / 2)))) + 'px');
   };
@@ -440,6 +444,7 @@ export function playEntrance(stage, side, id, o = {}) {
     // dev: window.__entT = seconds pins the timeline (screenshots on slow machines)
     if (import.meta.env.DEV && typeof window.__entT === 'number') t = window.__entT;
     ctl.t = t;
+    ctl.phase = phase;
     P.update(dt, cam);
     if (phase === 'arrive') {
       const ta = Math.min(t, T);

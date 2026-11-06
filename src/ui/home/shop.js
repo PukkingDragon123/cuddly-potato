@@ -145,6 +145,7 @@ export function mount(el, ctx) {
   refreshDaily();
   let day = todayKey();
   let disposed = false;
+  let pv = null, pvLoad = null; // the entrance preview in the stage window (entrancePreview.js, on first use)
   const bk = bunker();
   const firstVisit = !bk.ready; // the roller shutter only plays while the bunker is first built
   el.classList.add('hm-tab-bunker');
@@ -201,7 +202,7 @@ export function mount(el, ctx) {
     tapStage(e.clientX, e.clientY);
   });
   function tapStage(x, y) {
-    if (talking) return;
+    if (talking || pv?.on) return;
     if (!bk.live) { talk(); return; }
     let what = bk.pick(x, y);
     if (!what) {
@@ -289,7 +290,7 @@ export function mount(el, ctx) {
   let talkOff = 0;
   /** Say a line in a bubble over his head (voiced babble, mouth flaps, optional reaction). */
   function bubble(text, o = {}) {
-    if (disposed || !text) return;
+    if (disposed || !text || pv?.on) return;
     if (document.querySelector('.cdlg') && !o.force) return;
     bubbleTxt.innerHTML = '';
     bubbleTxt.appendChild(h('span', { html: rich(text) }));
@@ -427,8 +428,10 @@ export function mount(el, ctx) {
   /** Stamp + crate pop + confetti + the coat flash; resolves when the reward should show. */
   async function saleFx(tile, kind) {
     audio.play('chaching');
-    bk.act('buy');
-    bk.onParcel = (p) => { if (!disposed && p.visible) pixConfetti(p.x, p.y, { count: 34, power: 55 }); };
+    if (!pv?.on) {
+      bk.act('buy');
+      bk.onParcel = (p) => { if (!disposed && p.visible) pixConfetti(p.x, p.y, { count: 34, power: 55 }); };
+    }
     const line = T.BUY_KIND[kind] && Math.random() < 0.6 ? T.pick(T.BUY_KIND[kind]) : T.pick(T.BUY);
     bubble(line, { mood: 'rich', force: true });
     if (tile?.isConnected) {
@@ -620,12 +623,47 @@ export function mount(el, ctx) {
     return tile;
   }
 
-  /** Preview a battle entrance: the real cinematic on a little test range (entrancePreview.js), then back here. */
-  function previewEntrance(id) {
+  // ------------------------------------------------------------------ entrance preview (in the stage window)
+
+  /**
+   * The entrance cinematic plays right here, in the stage window, with your Commander
+   * (entrancePreview.js): the shutter drops, the window becomes a little test range, then
+   * Lonan comes back. Another entrance cancels the current one; the goods stay usable.
+   */
+  const getPv = () => (pvLoad ??= import('../../game/battle/entrancePreview.js').then((m) => {
+    if (disposed) return null;
+    pv = m.entranceStage({
+      host: stage,
+      onShow() { hideBubble(); if (talking) closeDialogue(); },
+      onHide() { if (!disposed) { rectDirty = true; bk.attach(); } },
+      onEnd(id, o) { setTimeout(() => { if (!disposed && !pv?.on && !talking) bubble(entLine(id, o.celebrate), { act: 'hello', mood: 'smug' }); }, 450); },
+      onState(id) { for (const t of scroll.querySelectorAll('.bk-ent')) t.classList.toggle('pv', t.dataset.ent === id); },
+    });
+    return pv;
+  }).catch((err) => { console.warn('entrance preview', err); pvLoad = null; return null; }));
+  function previewEntrance(id, o = {}) {
     if (talking) closeDialogue();
-    import('../../game/battle/entrancePreview.js')
-      .then((m) => m.playEntrancePreview(id, { onClose: () => { if (!disposed) bk.attach(); } }))
-      .catch((err) => console.warn('entrance preview', err));
+    getPv().then((p) => p?.play(id, o));
+  }
+  /** Lonan's word once the window is his again. */
+  function entLine(id, bought) {
+    const e = ENTRANCES[id];
+    if (!e) return null;
+    if (bought || equippedEntrance() === id) return T.pick(['Looks good on you. Still no refunds.', 'Smooth. The other guy won\'t know what hit him.']);
+    if (ownsEntrance(id)) return 'You already own that one. *Equip* it.';
+    if (e.pass) return 'That one\'s a *Food Pass* thing. Not my racket.';
+    if (e.trophies) return `Free at *${fmtN(e.trophies)} trophies*. Go earn it.`;
+    if (e.price) return `*${fmtN(e.price)} Bucks* and you walk in like that.`;
+    return null;
+  }
+  /** Bought / claimed: equip it and play it once, right here, as the celebration. */
+  async function entGot(e, got) {
+    equipEntrance(e.id);
+    const extra = (got ?? []).filter((g) => g.type !== 'entrance');
+    if (extra.length) await showRewards(extra, { title: 'REWARDS!' });
+    if (disposed) return;
+    if (!pv?.on) await wait(450); // let Lonan's parcel pop first
+    if (!disposed) previewEntrance(e.id, { celebrate: true });
   }
 
   function entranceTile(e) {
@@ -643,8 +681,9 @@ export function mount(el, ctx) {
     else if (claim) {
       act = button('CLAIM', async () => {
         const got = grantReward({ type: 'entrance', id: e.id });
-        equipEntrance(e.id);
-        await showRewards(got, { title: 'NEW ENTRANCE!', note: 'Equipped. You walk into your next battle with it.' });
+        audio.play('upgrade');
+        sparkle(tile, { count: 14 });
+        await entGot(e, got);
         shell.render();
       }, 'green sm', { sound: 'tap' });
     } else if (e.trophies) act = h('div', { class: 'bk-pass bk-ent-tro t-d' }, icon('trophy', 's'), fmtN(e.trophies));
@@ -653,15 +692,13 @@ export function mount(el, ctx) {
         key, cur: 'bucks', price: e.price, tile, kind: 'entrance',
         title: 'ENTRANCE', art: entranceArt(e.id, 'mn-ent-confirm'), text: `Get the <b>${e.name}</b> entrance?`,
         async onPaid() {
-          const got = grantReward({ type: 'entrance', id: e.id });
-          equipEntrance(e.id);
-          await showRewards(got, { title: 'NEW ENTRANCE!', note: 'Equipped. You walk into your next battle with it.' });
+          await entGot(e, grantReward({ type: 'entrance', id: e.id }));
         },
       }), { cls: 'green sm' });
     }
-    const tile = h('div', { class: `bk-plate bk-ent ${owned ? 'owned' : ''} ${equipped && open ? 'eq' : ''}`, style: { '--ec': e.color } },
+    const tile = h('div', { class: `bk-plate bk-ent ${owned ? 'owned' : ''} ${equipped && open ? 'eq' : ''} ${pv?.id === e.id ? 'pv' : ''}`, 'data-ent': e.id, style: { '--ec': e.color } },
       equipped && open ? ribbon('EQUIPPED', 'teal') : e.pass && !owned ? ribbon('FOOD PASS', 'pink') : e.trophies && !owned ? ribbon(claim ? 'CLAIM IT' : 'TROPHY REWARD', 'gold') : null,
-      h('div', { class: 'bk-ent-art' }, entranceArt(e.id)),
+      h('div', { class: 'bk-ent-art', onclick: () => { audio.play('tap'); previewEntrance(e.id); } }, entranceArt(e.id)),
       h('div', { class: 'bk-plate-n t-d' }, e.name),
       h('div', { class: 'bk-ent-btns' },
         button('', () => previewEntrance(e.id), 'blue sm bk-ent-pv', { icon: 'play', sound: 'tap' }),
@@ -745,9 +782,11 @@ export function mount(el, ctx) {
     if (gear) inner.appendChild(gear);
     // battle entrances (live preview, Beast Bucks / trophy claims / Food Pass)
     const entHint = featureHint('entrances');
-    inner.appendChild(h('div', { class: 'bk-sec', 'data-guide': 'entrances' }, head('ENTRANCES'),
+    const entSec = h('div', { class: 'bk-sec', 'data-guide': 'entrances' }, head('ENTRANCES'),
       entHint ? h('div', { class: 'bk-ent-hint' }, icon('lock', 's'), h('span', { html: rich(entHint) })) : null,
-      h('div', { class: 'bk-ents' }, ...Object.values(ENTRANCES).sort((x, y) => entOrder(x) - entOrder(y)).map(entranceTile))));
+      h('div', { class: 'bk-ents' }, ...Object.values(ENTRANCES).sort((x, y) => entOrder(x) - entOrder(y)).map(entranceTile)));
+    inner.appendChild(entSec);
+    if (!pv) entIO?.observe(entSec);
     // vials
     const restVials = off.vials.filter((v) => v.id !== hero?.heroId);
     if (restVials.length) inner.appendChild(h('div', { class: 'bk-sec' }, head('VIALS'), h('div', { class: 'bk-grid3' }, ...restVials.map(vialTile))));
@@ -762,6 +801,8 @@ export function mount(el, ctx) {
 
   function cleanup() {
     disposed = true;
+    entIO?.disconnect();
+    pv?.dispose();
     if (talking) closeDialogue();
     offFrame();
     ro?.disconnect();
@@ -772,9 +813,16 @@ export function mount(el, ctx) {
     bk.release();
   }
 
+  // the entrance preview's test range is built ahead once the ENTRANCES section comes into view
+  const entIO = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((ents) => {
+    if (!ents.some((x) => x.isIntersecting) || disposed) return;
+    entIO.disconnect();
+    setTimeout(() => { if (!disposed) getPv().then((p) => p?.prewarm()); }, 600);
+  }, { root: scroll, rootMargin: '0px 0px 200px 0px' }) : null;
+
   shell.render();
-  // build the bunker (first visit only), then show it behind the tab
-  bk.build().then(() => { if (!disposed) { bk.act('idle'); rectDirty = true; bk.attach(); } }).catch((e) => console.warn('bunker unavailable', e));
+  // build the bunker (first visit only), then show it behind the tab (not over a preview in the window)
+  bk.build().then(() => { if (!disposed) { bk.act('idle'); rectDirty = true; if (!pv?.on) bk.attach(); } }).catch((e) => console.warn('bunker unavailable', e));
   return { dispose: () => shell.dispose(), refresh: () => shell.schedule(40) };
 }
 

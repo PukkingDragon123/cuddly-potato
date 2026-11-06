@@ -1,7 +1,8 @@
 // Profile customization items: PICTURES (avatars), FRAMES, mastery BANNERS and TITLES.
 //
-//   AVATARS   commander faces (3D chibi portraits), NPC faces, Beast Lab icons (pixel art,
-//             src/ui/avatar.js) and one portrait per troop (Troop Mastery Silver)
+//   AVATARS   every picture is a 3D render (src/ui/avatar.js): "Me" (your own Commander in your
+//             outfit, kept current), Commander faces, NPC chibis and one portrait per troop
+//             (Troop Mastery Silver). No flat 2D icon pictures.
 //   FRAMES    pixel-art avatar frames (src/ui/avatar.js draws them): rank frames, shop frames,
 //             animated legendary frames and one troop-themed frame per troop (Mastery Gold)
 //   BANNERS   one banner per troop (Mastery Platinum), merged into season.js BANNERS at load
@@ -31,8 +32,16 @@ export const MASTERY_CARDS = ALL_CARDS.filter((c) => !isSpell(c.id) && !c.specia
 
 const A = {};
 const av = (id, o) => { A[id] = { id, ...o }; };
+// YOU: your own Commander (the 3D chibi, in the outfit you wear), re-rendered whenever you swap
+// Commander or outfit. Rivals wearing a "me" picture show THEIR Commander. pose / eyes / mouth set
+// the portrait; no plate = the Commander's own colour.
+av('me', { name: 'Me', kind: 'me', rarity: 'common', get: { free: true }, desc: 'Your Commander. Changes when you do.' });
+av('me_grin', { name: 'Winner Grin', kind: 'me', pose: 'thumbsUp', eyes: 'happy', mouth: 'grin', plate: ['#ffd23f', '#b8461e'], rarity: 'common', get: { stat: 'wins', n: 25 }, desc: 'You, mid-victory. Smug about it.' });
+av('me_cool', { name: 'Too Cool', kind: 'me', pose: 'crossArms', eyes: 'determined', mouth: 'smirk', plate: ['#3ff2c8', '#0c3a5a'], rarity: 'rare', get: { trophies: 1200 }, desc: 'Arms crossed. Trophies counted.' });
+av('me_brain', { name: 'Big Brain', kind: 'me', pose: 'think', eyes: 'think', mouth: 'pout', plate: ['#ff8ac4', '#4a1a6a'], rarity: 'rare', get: { lab: 6 }, desc: 'Thinking very hard. About snacks.' });
+av('me_boss', { name: 'Boss Mode', kind: 'me', pose: 'fistPump', eyes: 'angry', mouth: 'teeth', plate: ['#b05cff', '#1a0a2a'], rarity: 'epic', get: { bosses: 3 }, desc: 'Three bosses down. Who is next?' });
 // commander faces (plate = two-tone backdrop behind the portrait)
-av('cmd_recruit', { name: 'Lab Recruit', kind: 'cmd', char: 'recruit', full: true, plate: ['#ff8a2a', '#7a2a6a'], rarity: 'common', get: { free: true }, desc: 'Helmet stays on. Always.' });
+av('cmd_recruit', { name: 'Lab Recruit', kind: 'cmd', char: 'recruit', plate: ['#ff8a2a', '#7a2a6a'], rarity: 'common', get: { free: true }, desc: 'Helmet stays on. Always.' });
 av('cmd_jimmy', { name: 'Jimmy', kind: 'cmd', char: 'jimmy', plate: ['#29b6f6', '#163c8a'], rarity: 'rare', get: { cmd: 'jimmy' }, desc: 'The beard. The legend.' });
 av('cmd_nolan', { name: 'Nolan', kind: 'cmd', char: 'nolan', plate: ['#ffd23f', '#b8461e'], rarity: 'rare', get: { cmd: 'nolan' }, desc: 'Professional fall guy.' });
 av('cmd_juan', { name: 'Juan', kind: 'cmd', char: 'juan', plate: ['#1f9e4a', '#0c3a4a'], rarity: 'rare', get: { cmd: 'juan' }, desc: 'Number 10. Every season.' });
@@ -49,24 +58,28 @@ av('npc_guard', { name: 'Guard Gus', kind: 'npc', char: 'guard', plate: ['#8a93b
 av('npc_fan', { name: 'Super Fan', kind: 'npc', char: 'fan', plate: ['#ff2e88', '#1d4fa0'], rarity: 'epic', get: { shop: 'bucks', price: 60 }, desc: 'Subscribed twice. Somehow.' });
 av('npc_anchor', { name: 'Nora Newsly', kind: 'npc', char: 'anchor', plate: ['#ff3a52', '#14183a'], rarity: 'epic', get: { shop: 'bucks', price: 60 }, desc: 'Breaking news: it is you.' });
 av('npc_boss', { name: 'Boss Jimmy', kind: 'npc', char: 'jimmyBoss', plate: ['#ff2e88', '#14183a'], rarity: 'legendary', get: { bosses: 5 }, desc: 'Suit on. Wallet out.' });
-// Beast Lab icons (pixel art, drawn in src/ui/avatar.js)
-av('lab_flask', { name: 'Goo Flask', kind: 'lab', art: 'flask', plate: ['#2b8cf2', '#122a7a'], rarity: 'common', get: { free: true }, desc: 'Do not drink. Again.' });
-av('lab_goggles', { name: 'Lab Goggles', kind: 'lab', art: 'goggles', plate: ['#3ff2c8', '#0c4a5a'], rarity: 'common', get: { stat: 'wins', n: 25 }, desc: 'Safety first. Style second.' });
-av('lab_barrel', { name: 'Toxic Barrel', kind: 'lab', art: 'barrel', plate: ['#7cff3a', '#1a4a1a'], rarity: 'rare', get: { trophies: 1200 }, desc: 'Contents: yes.' });
-av('lab_brain', { name: 'Brain Jar', kind: 'lab', art: 'brain', plate: ['#ff8ac4', '#4a1a6a'], rarity: 'rare', get: { lab: 6 }, desc: 'Smarter than the intern.' });
-av('lab_skull', { name: 'Boss Skull', kind: 'lab', art: 'skull', plate: ['#b05cff', '#1a0a2a'], rarity: 'epic', get: { bosses: 3 }, desc: 'Proof you were there.' });
-av('lab_mustache', { name: 'Mustache', kind: 'lab', art: 'mustache', plate: ['#d8a548', '#4a2a18'], rarity: 'common', get: { shop: 'coins', price: 999 }, desc: "Lonan's spare. Barely used." });
-av('lab_choco', { name: 'Feastables Bar', kind: 'lab', art: 'choco', plate: ['#ff4fa3', '#5a1a3a'], rarity: 'rare', get: { shop: 'coins', price: 2400 }, desc: 'One bite missing. Not us.' });
-av('lab_duck', { name: 'Hazmat Duck', kind: 'lab', art: 'duck', plate: ['#ffd23f', '#2a5a8a'], rarity: 'epic', get: { shop: 'coins', price: 3600 }, desc: 'Squeaks through a gas mask.' });
-av('lab_ticket', { name: 'Golden Ticket', kind: 'lab', art: 'ticket', plate: ['#ffe46a', '#a8461e'], rarity: 'epic', get: { shop: 'bucks', price: 120 }, desc: 'Admits one. Probably.' });
-av('lab_case', { name: 'Cash Case', kind: 'lab', art: 'case', plate: ['#4cd24a', '#123a2a'], rarity: 'legendary', get: { shop: 'bucks', price: 160 }, desc: '$100K, minus snacks.' });
+// shop-only character variants (the same 3D chibis, dressed up); they took the old 2D lab-icon
+// pictures' shelf slots at the same prices (sanitizeLooks swaps any that were bought)
+av('npc_stanParty', { name: 'Party Stan', kind: 'npc', char: 'stocker', look: { acc: [{ type: 'partyhat' }, { type: 'nametag', color: 0xff8a2a }, 'pens'] }, plate: ['#5fdc4a', '#5a1a5a'], rarity: 'common', get: { shop: 'coins', price: 999 }, desc: 'Aisle 7 has cake now.' });
+av('npc_cassChef', { name: 'Chef Cass', kind: 'npc', char: 'cashier', look: { hat: { type: 'chef' } }, plate: ['#ff8a5a', '#5a1a3a'], rarity: 'rare', get: { shop: 'coins', price: 2400 }, desc: 'Paper, plastic or pasta?' });
+av('npc_gusFancy', { name: 'Fancy Gus', kind: 'npc', char: 'guard', look: { hat: { type: 'tophat', color: 0x1a1a28 }, acc: ['shades', 'earpiece', { type: 'bowtie', color: 0xff2e88 }] }, plate: ['#ffd23f', '#2a3a8a'], rarity: 'epic', get: { shop: 'coins', price: 3600 }, desc: 'Dressed up. Still guarding.' });
+av('npc_lonanGold', { name: 'Golden Lonan', kind: 'npc', char: 'shadyNolan', look: { coat: 0xffc21a, accent: 0xb8860b }, plate: ['#ffe46a', '#a8461e'], rarity: 'epic', get: { shop: 'bucks', price: 120 }, desc: 'Same guy. Shinier coat.' });
+av('npc_noraCrown', { name: 'Nora Live', kind: 'npc', char: 'anchor', look: { acc: ['earpiece', 'mic', { type: 'crown' }] }, plate: ['#ff3a52', '#3a1a6a'], rarity: 'legendary', get: { shop: 'bucks', price: 160 }, desc: 'Ratings are up. The crown stays.' });
 // troop portraits (Troop Mastery: Silver)
 for (const id of MASTERY_CARDS) {
   const d = cardDef(id), s = SERIES[d.series];
   av('troop_' + id, { name: d.name, kind: 'troop', card: id, plate: [s?.color ?? '#29b6f6', '#141a4a'], rarity: d.rarity === 'mythic' ? 'legendary' : d.rarity, get: { mastery: id, level: 2 }, desc: `Proof you play a lot of ${d.name}.` });
 }
 export const AVATARS = A;
-export const DEFAULT_AVATAR = 'cmd_recruit';
+export const DEFAULT_AVATAR = 'me';
+/** Pictures that were removed (the old flat 2D lab icons): what a rival / battle config still
+ * naming one shows instead, and what a bought one became (same shelf price). */
+export const AVATAR_ALIAS = {
+  lab_flask: 'me', lab_goggles: 'npc_labTech', lab_barrel: 'me_cool', lab_brain: 'me_brain', lab_skull: 'npc_boss',
+  lab_mustache: 'npc_stanParty', lab_choco: 'npc_cassChef', lab_duck: 'npc_gusFancy', lab_ticket: 'npc_lonanGold', lab_case: 'npc_noraCrown',
+};
+/** A picture id that exists (removed ids map to their replacement, unknown ones to the default). */
+export const avatarId = (id) => (A[id] ? id : A[AVATAR_ALIAS[id]] ? AVATAR_ALIAS[id] : DEFAULT_AVATAR);
 
 // ---------------------------------------------------------------------------
 // FRAMES (art: src/ui/avatar.js). anim: shine | goo | laser | holo | flame | cosmic
@@ -216,6 +229,17 @@ export const ownedItems = (p, kind) => Object.keys(KINDS[kind]).filter((id) => o
 export function sanitizeLooks(p) {
   const c = p.cosmetics;
   for (const k of ['avatars', 'frames', 'titles']) c[k] = Array.isArray(c[k]) ? c[k].filter((id, i, a) => typeof id === 'string' && a.indexOf(id) === i) : [];
+  // the flat 2D lab-icon pictures are gone: a bought one becomes the 3D picture that took its shelf
+  // slot (same price; refunded if you already own that one), a worn one becomes "Me"
+  for (const old of c.avatars.filter((id) => !A[id] && AVATAR_ALIAS[id])) {
+    c.avatars = c.avatars.filter((id) => id !== old);
+    const to = AVATAR_ALIAS[old];
+    if (A[to]?.get?.shop && !c.avatars.includes(to)) c.avatars.push(to);
+    else if (A[to]?.get?.shop) { const g = A[to].get; p[g.shop] = (p[g.shop] ?? 0) + g.price; }
+  }
+  if (!A[c.avatar] && AVATAR_ALIAS[c.avatar]) c.avatar = DEFAULT_AVATAR;
+  // "Me" became the default picture: the old default (the Recruit's face) moves over to it once
+  if (!c.meMig) { c.meMig = 1; if (!c.avatar || c.avatar === 'cmd_recruit') c.avatar = DEFAULT_AVATAR; }
   if (!ownsItem(p, 'avatar', c.avatar)) c.avatar = DEFAULT_AVATAR;
   if (!ownsItem(p, 'frame', c.frame)) c.frame = DEFAULT_FRAME;
   if (!ownsItem(p, 'title', c.title)) c.title = DEFAULT_TITLE;
@@ -250,13 +274,14 @@ export function ghostLook(trophies = 0, seed = 1) {
   const rng = mulberry32(typeof seed === 'number' ? seed : hashString(String(seed)));
   const t = Math.max(0, trophies | 0);
   const roll = (arr) => arr[Math.floor(rng() * arr.length)];
-  const lab = Object.values(AVATARS).filter((a) => a.kind === 'lab' && (!a.get.trophies || a.get.trophies <= t)).map((a) => a.id);
+  // "me" pictures show the rival's own Commander (src/ui/avatar.js reads it off the battle side config)
+  const mes = Object.values(AVATARS).filter((a) => a.kind === 'me' && (!a.get.trophies || a.get.trophies <= t) && (!a.get.lab || t > 1500) && (!a.get.bosses || t > 1000)).map((a) => a.id);
   const cmds = ['cmd_recruit', 'cmd_jimmy', 'cmd_nolan', ...(t > 300 ? ['cmd_juan', 'cmd_juanChef'] : []), ...(t > 1500 ? ['cmd_nolanFry', 'cmd_jimmyFeast', 'cmd_juanGold'] : [])];
   const npcs = ['npc_labTech', 'npc_cashier', 'npc_stocker', 'npc_guard', 'npc_fan', 'npc_anchor', ...(t > 800 ? ['npc_lonan'] : []), ...(t > 2500 ? ['npc_boss'] : [])];
   // troop portraits: the cheap early troops low down, anything at the top
   const troops = MASTERY_CARDS.filter((id) => { const r = cardDef(id).rarity; return t > 2000 || r === 'common' || (t > 600 && r === 'rare'); });
   const r = rng();
-  const avatar = r < 0.42 && troops.length ? 'troop_' + roll(troops) : r < 0.62 ? roll(cmds) : r < 0.8 ? roll(npcs) : roll(lab);
+  const avatar = r < 0.42 && troops.length ? 'troop_' + roll(troops) : r < 0.64 ? roll(mes) : r < 0.8 ? roll(cmds) : roll(npcs);
   let ladder = FRAME_LADDER[0][1];
   for (const [min, list] of FRAME_LADDER) if (t >= min) ladder = list;
   // high up, some rivals show off a troop mastery frame instead

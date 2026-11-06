@@ -360,3 +360,28 @@ body.landscape .cdlg.bk-dlg .cdlg-panel { left: calc(var(--bk-left) + (100vw - v
 .bk-goods.mn-scroll { background: linear-gradient(180deg, rgba(14, 10, 8, 0.97) 0, rgba(12, 9, 7, 0.98) calc(var(--u) * 26), rgba(8, 6, 5, 0.985) 100%); }
 body.landscape .bk-goods.mn-scroll { background: linear-gradient(90deg, rgba(12, 9, 7, 0.98), rgba(12, 9, 7, 0.96)); }
 .bk-flat .bk-goods.mn-scroll { background: linear-gradient(180deg, rgba(12, 9, 7, 0.9), rgba(8, 6, 5, 0.94)); }
+
+/* ---------------------------------------------------------------- entrance preview in the stage window (entrancePreview.js)
+   The shutter drops, the window becomes a test range where your Commander makes the entrance, then Lonan is back. */
+.bk-pvshut {
+  position: absolute; inset: 0; z-index: 6; pointer-events: none; display: flex; align-items: center; justify-content: center;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0) 70%, rgba(0, 0, 0, 0.35)),
+    repeating-linear-gradient(180deg, #8a929c 0 calc(var(--px) * 1), #6e7680 calc(var(--px) * 1) calc(var(--px) * 5), #4e555e calc(var(--px) * 5) calc(var(--px) * 6), #2a2e34 calc(var(--px) * 6) calc(var(--px) * 7));
+  transform: translateY(-102%); transition: transform 0.38s cubic-bezier(.25, .9, .3, 1);
+}
+.bk-pvshut.down { transform: none; transition: transform 0.26s cubic-bezier(.6, 0, .85, .45); }
+.bk-pvshut-t {
+  max-width: 86%; text-align: center; font-size: 1.45em; line-height: 1.15; letter-spacing: 0.14em; margin-bottom: calc(var(--px) * 4);
+  color: rgba(20, 16, 12, 0.62); text-shadow: 0 var(--px) 0 rgba(255, 255, 255, 0.18);
+}
+.bk-stage.pv-on { cursor: default; }
+.bk-stage.pv-on :is(.bk-signbox, .bk-restock, .bk-talk, .bk-bubble, .bk-shutter, .bk-fallback) { visibility: hidden; }
+.bk-pv-x.btn { position: absolute; top: calc(var(--u) * 2); right: calc(var(--u) * 2.4 + var(--safe-r)); z-index: 7; visibility: hidden; }
+.bk-stage.pv-on .bk-pv-x.btn { visibility: visible; }
+/* the entrance playing in the window: its tile lights up in the entrance's colour */
+.bk-ent-art { cursor: pointer; }
+.bk-ent.pv { box-shadow: 0 calc(var(--px) * 3) 0 rgba(0, 0, 0, 0.45), 0 0 0 var(--px) var(--ec), 0 0 calc(var(--px) * 6) color-mix(in srgb, var(--ec) 60%, transparent); }
+.bk-ent.pv .bk-ent-pv .pi { animation: bkPvBlink 0.8s steps(2) infinite; }
+@keyframes bkPvBlink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .bk-pvshut, .bk-pvshut.down { transition: none; } .bk-ent.pv .bk-ent-pv .pi { animation: none; } }

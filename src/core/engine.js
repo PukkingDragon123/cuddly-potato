@@ -626,8 +626,10 @@ class Engine {
     const c = box.getCenter(new THREE.Vector3());
     const sz = box.getSize(new THREE.Vector3());
     if (opts.focusHead) c.y = box.max.y - sz.y * 0.3;
+    // portraits: aim at one part (a head) and fit a set height (world units) instead of the whole box
+    if (opts.focusObj) { new THREE.Box3().setFromObject(opts.focusObj).getCenter(c); c.y += opts.focusDy ?? 0; c.x += opts.focusDx ?? 0; }
     if (opts.lift) c.y += sz.y * opts.lift;
-    const fitH = Math.max(sz.y, sz.x * hgt / w, sz.z * 0.8 * hgt / w);
+    const fitH = opts.fit ?? Math.max(sz.y, sz.x * hgt / w, sz.z * 0.8 * hgt / w);
     const rad = fitH * 0.6 * (opts.zoom ?? 1);
     const dist = rad / Math.tan(THREE.MathUtils.degToRad(13));
     const pitch = opts.pitch ?? 0.28;
