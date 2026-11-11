@@ -36,7 +36,7 @@ export function addIslandDecor2D({ T, root, updaters, zones, exclude = [] }) {
   zones.forEach((Z, k) => {
     const items = [], cols = new Map();
     const cx = Z.center.x, cz = Z.center.z, r0 = Z.radius + 1.2, r1 = Z.radius + 17;
-    for (let i = 0, n = 0; i < 2400 && n < (k < 5 ? 900 : 640)  i++) {
+    for (let i = 0, n = 0; i < 2400 && n < (k < 5 ? 900 : 640); i++) {
       // patchy: a patch centre and 3-6 clumps around it (MoleForge clump [3, 5])
       const a = R() * Math.PI * 2, d = r0 + Math.sqrt(R()) * (r1 - r0);
       const px = cx + Math.cos(a) * d, pz = cz + Math.sin(a) * d;
@@ -71,13 +71,13 @@ export function addIslandDecor2D({ T, root, updaters, zones, exclude = [] }) {
       }
     };
     const P = LIFE[k === 0 ? 'lab' : k < 5 ? 'meadow' : 'jungle'];
-    tries(22, Z.radius + 1, Z.radius + 12, (x, y, z) => stat.push([P.flowers[Math.floor(R() * P.flowers.length)], x, y, z, 0.085, R() < 0.5]));
-    tries(5, Z.radius + 3, Z.radius + 14, (x, y, z) => { stat.push(['bush', x, y, z, 0.11, R() < 0.5]); exclude.push([x, z, 0.8]); });
-    if (SIGNS[Z.id]) tries(1, Z.radius + 2, Z.radius + 4, (x, y, z) => stat.push(['sign:' + SIGNS[Z.id], x, y, z, 0.1, false]));
+    tries(22, Z.radius + 1, Z.radius + 12, (x, y, z) => stat.push([P.flowers[Math.floor(R() * P.flowers.length)], x, y, z, 0.12, R() < 0.5]));
+    tries(5, Z.radius + 3, Z.radius + 14, (x, y, z) => { stat.push(['bush', x, y, z, 0.15, R() < 0.5]); exclude.push([x, z, 0.8]); });
+    if (SIGNS[Z.id]) tries(1, Z.radius + 2, Z.radius + 4, (x, y, z) => stat.push(['sign:' + SIGNS[Z.id], x, y, z, 0.13, false]));
     if (k < 6) {
-      tries(3, Z.radius + 2, Z.radius + 9, (x, y, z) => movers.push({ kind: 'wave', name: P.people[Math.floor(R() * P.people.length)] ?? 'manRed', x, y, z, p: 0.09, ph: R() * 6, rate: 0.5 + R() * 0.8, flip: R() < 0.5 }));
-      tries(2, Z.radius + 2, Z.radius + 12, (x, y, z) => movers.push({ kind: 'hop', name: R() < 0.5 ? 'bun' : 'bunBrown', x, y, z, p: 0.08, ph: R() * 10, a: R() * 6 }));
-      for (let i = 0; i < 3; i++) movers.push({ kind: 'fly', name: ['fly', 'flyBlue', 'flyYellow'][i], x: cx, y: Z.center.y + 1.2, z: cz, p: 0.075, ph: R() * 20, sp: 0.25 + R() * 0.2, r: Z.radius + 2 + R() * 6 });
+      tries(3, Z.radius + 2, Z.radius + 9, (x, y, z) => movers.push({ kind: 'wave', name: P.people[Math.floor(R() * P.people.length)] ?? 'manRed', x, y, z, p: 0.12, ph: R() * 6, rate: 0.5 + R() * 0.8, flip: R() < 0.5 }));
+      tries(2, Z.radius + 2, Z.radius + 12, (x, y, z) => movers.push({ kind: 'hop', name: R() < 0.5 ? 'bun' : 'bunBrown', x, y, z, p: 0.11, ph: R() * 10, a: R() * 6 }));
+      for (let i = 0; i < 3; i++) movers.push({ kind: 'fly', name: ['fly', 'flyBlue', 'flyYellow'][i], x: cx, y: Z.center.y + 1.2, z: cz, p: 0.1, ph: R() * 20, sp: 0.25 + R() * 0.2, r: Z.radius + 2 + R() * 6 });
       movers.push({ kind: 'bird', name: 'bird', x: cx, y: Z.center.y + 9 + R() * 4, z: cz, p: 0.15, ph: R() * 6, sp: 0.18 + R() * 0.1, r: Z.radius + 10 + R() * 8 });
     }
   });

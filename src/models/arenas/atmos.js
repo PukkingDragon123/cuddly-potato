@@ -439,7 +439,7 @@ export const DECO = {
     life: { preset: 'spooky', sign: 'BOO', signs: [[-6, -4.2], [20, -4.4]], tint: 0xb8b0e0 },
     ads: [{ x: 15.5, z: -20, ry: -0.28, legH: 3, ads: ['news', 'alert', 'lab'], dim: 0.7 }],
   },
-  reef: { life: { preset: 'beach', sign: 'BEACH', signs: [[20, -4.4]] }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3, ads: ['sale', 'feast', 'news'] }] },
+  reef: { life: { preset: 'beach', sign: 'BEACH', signs: [[20, -4.4]], n: { flowers: 0 } }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3, ads: ['sale', 'feast', 'news'] }] },
   volcano: { life: { preset: 'sky', sign: 'HOT', signs: [[-20, -4.4]], n: { birds: 3 } } },
   mart: { ads: [{ x: 15.5, z: -14, ry: -0.28, legH: 3, ads: ['sale', 'feast', 'burger'] }] },
 };

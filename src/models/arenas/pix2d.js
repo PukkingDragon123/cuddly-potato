@@ -1,136 +1,61 @@
 // Hand-pixeled 2D background life + in-world ad billboards.
 //
-//   * SPRITES: tiny ascii-art pixel sprites (flowers, bushes, mushrooms, butterflies, birds, bats, bunnies,
-//     background people, penguins, crabs, cacti, signs, clouds) packed into one NearestFilter atlas with
-//     the UI icons' 1px dark outline (src/ui/icons.js INK_LO, corners left open). Drawn as camera-facing
+//   * Sprites (flowers, bushes, mushrooms, butterflies, birds, bats, bunnies, background people, penguins,
+//     crabs, cacti, signs, clouds) are painted on a fine grid and shaded in pixart.js (hue-shifted ramps,
+//     rim light, selective outline), packed into one NearestFilter atlas and drawn as camera-facing
 //     instanced quads (one draw per layer, alpha-cut, fogged), animated with 2-frame flaps / hops / waves.
-//   * Ad boards: a voxel billboard frame with a 64x32 hand-pixeled poster canvas that rolls between
-//     2-3 parody ads (text is always level with the board: the roll is a plain vertical UV scroll).
+//   * Ad boards: a voxel billboard frame with 128x64 hand-pixeled posters that roll between 2-3 parody
+//     ads (text is always level with the board: the roll is a plain vertical UV scroll).
 //
-//   const L = addSpriteLife(K, preset, { x, frontZ, backZ, ... })    battle arenas (see atmos.js DECO)
+//   addSpriteLife(K, preset, { x, frontZ, backZ, ... })    battle arenas (see atmos.js DECO)
 //   addAdBoard(K, { x, z, ry, ads: ['feast', 'news', 'lab'] })
-//   makeSpriteLayer(n, o) / spriteRect(name) / adTexture(list)       low level (Beast Island)
+//   SpriteLayer / spriteRect(name) / adTexture(list)      low level (Beast Island, island/decor2d.js)
 import * as THREE from 'three';
 import { VoxGrid } from '../../core/voxel.js';
 import { mulberry32 } from '../../core/util.js';
 import { pixelGlyph } from '../props/common.js';
+import { buildSprites, posterArt, ramp, textW, INK } from './pixart.js';
 import { Billboards } from '../island/sky.js';
 
-export const INK = 0x1b1530;
+export { INK };
 
-// ------------------------------------------------------------------ sprite art
-// '.' empty; palette letters below (per-sprite overrides via pal). Outline is added automatically.
-const BASE_PAL = {
-  k: INK, w: 0xffffff, W: 0xd8dcec, e: 0x8a92b0, E: 0x4e5878, y: 0xffd23f, Y: 0xe08a1a, p: 0xff6fb8, P: 0xc02a78,
-  r: 0xf23a4a, R: 0xa01a2a, g: 0x3cb43a, G: 0x23803a, l: 0x8ee05a, b: 0xa0602e, B: 0x653818, s: 0xf2c4a2, S: 0xc88a6a,
-  c: 0x8fd4ff, C: 0x2b8cf2, o: 0xff8a1f, v: 0x6a4a9a, V: 0x3a2a5a, m: 0x7af0c8, h: 0x6a3a1e, t: 0xf23a4a, j: 0x3a5ab8,
-};
-const ART = {
-  daisy: ['.w.w.', 'wwyww', '.www.', '..g..', '.lg..', '..gl.', '..g..'],
-  tulip: ['y.y.y', 'yyyyy', 'YyyyY', '.YyY.', '..g..', 'lg...', '..gl.', '..g..'],
-  rose: ['.pPp.', 'ppPpp', 'Ppppp', '.pPp.', '..g..', '.lg..', '..g..', '..gl.', '..g..'],
-  bush: ['....llll....', '..lllgll.l..', '.llgglllllll', 'lllgggrgglll', 'llggggggglgl', 'lgggGggrgggl', 'gggGGgggGggg', '.gGGGGGGGGg.'],
-  mushroom: ['..rrr..', '.rwrrr.', 'rrrrrwr', 'RRRRRRR', '..wWw..', '..wWw..', '..WWW..'],
-  flyA: ['pp...pp', 'pppkppp', '.pPkPp.', 'pp.k.pp', 'p..k..p'],
-  flyB: ['...k...', '.ppkpp.', '.pPkPp.', '..pkp..', '...k...'],
-  birdA: ['WW.....WW', '.WW...WW.', '..WWwWW..', '....wy...'],
-  birdB: ['.........', '..WWwWW..', '.WW.wyWW.', 'WW.....WW'],
-  batA: ['v.......v', 'vv.VkV.vv', '.vvvvvvv.', '..v...v..'],
-  batB: ['...VkV...', '.vvvvvvv.', 'vv.....vv', 'v.......v'],
-  bunA: ['......w.w.', '......wpwp', '.....wwww.', '.wwwwwwkw.', 'wwwwwwwwwp', 'wwwwwwwww.', '.WWwwwWW..', '.WW...WW..'],
-  bunB: ['.......w.w', '.......wpw', '......wwww', 'wwwwwwwwkw', '.wwwwwwwww', '..WWWWWW..', '.W......W.', 'W........W'],
-  manA: ['..hhh..', '.hhhhh.', '.hsss..', '..sks..', '..sss..', '..ttt..', '.ttttt.', 't.ttt.t', 's.ttt.s', '..ttt..', '..jjj..', '..j.j..', '..j.j..', '..k.k..'],
-  manB: ['..hhh.s', '.hhhhhs', '.hsss.t', '..sks.t', '..ssst.', '..ttt..', '.tttt..', 't.ttt..', 's.ttt..', '..ttt..', '..jjj..', '..j.j..', '..j.j..', '..k.k..'],
-  penguin: ['..kkk..', '.kkwkk.', '.kwwwko', 'kkwwwkk', 'kkwwwkk', '.kwwwk.', '.kwwwk.', '..www..', '.oo.oo.'],
-  crabA: ['r.......r', 'rr.k.k.rr', '.rrrrrrr.', 'rrRRRRRrr', '.r.r.r.r.'],
-  crabB: ['.r.....r.', 'rr.k.k.rr', '.rrrrrrr.', 'rrRRRRRrr', 'r.r.r.r.r'],
-  cactus: ['...gg...', '..gglg..', '..gglg.g', 'g.gglg.g', 'g.gglggg', 'gggglg..', '..gglg..', '..gglg..', '..GGGG..'],
-  cloud: [
-    '........wwww............', '......wwwwwwww....ww.....', '..wwwwwwwwwwwwwwwwwwww...', '.wwwwwwwwwwwwwwwwwwwwwww.',
-    'wwwwwwwwwwwwwwwwwwwwwwwww', 'wwwwwwwwwwwwwwwwwwwwwwwww', '.cWWwwwWcWwwwwwWWcwwwWWc.', '..cccccccccccccccccccccc..',
-  ],
-};
-// per-sprite palette tweaks + outline colour (clouds get a soft blue outline, like the icons' tinted lit-side rim)
-const VARIANTS = {
-  manRedA: ['manA', { t: 0xf23a4a }], manRedB: ['manB', { t: 0xf23a4a }],
-  manBlueA: ['manA', { t: 0x29b6f6, h: 0xffd23f }], manBlueB: ['manB', { t: 0x29b6f6, h: 0xffd23f }],
-  manLabA: ['manA', { t: 0xf4f8ff, h: 0x2a2a3a, j: 0x4e5878 }], manLabB: ['manB', { t: 0xf4f8ff, h: 0x2a2a3a, j: 0x4e5878 }],
-  manPinkA: ['manA', { t: 0xff4fa3, h: 0xa0602e, s: 0xc88a6a }], manPinkB: ['manB', { t: 0xff4fa3, h: 0xa0602e, s: 0xc88a6a }],
-  flyBlueA: ['flyA', { p: 0x7ae8ff, P: 0x2b8cf2 }], flyBlueB: ['flyB', { p: 0x7ae8ff, P: 0x2b8cf2 }],
-  flyYellowA: ['flyA', { p: 0xffe46a, P: 0xff8a1f }], flyYellowB: ['flyB', { p: 0xffe46a, P: 0xff8a1f }],
-  bunBrownA: ['bunA', { w: 0xc89060, W: 0x8a5a30 }], bunBrownB: ['bunB', { w: 0xc89060, W: 0x8a5a30 }],
-  birdDarkA: ['birdA', { W: 0x4e5878, w: 0x8a92b0 }], birdDarkB: ['birdB', { W: 0x4e5878, w: 0x8a92b0 }],
-  parrotA: ['birdA', { W: 0xf23a4a, w: 0xffd23f, y: 0xffe46a }], parrotB: ['birdB', { W: 0xf23a4a, w: 0xffd23f, y: 0xffe46a }],
-  daisyPink: ['daisy', { w: 0xff8ac4 }], tulipRed: ['tulip', { y: 0xf23a4a, Y: 0xa01a2a }], tulipBlue: ['tulip', { y: 0x8fd4ff, Y: 0x2b8cf2 }],
-  shroomBlue: ['mushroom', { r: 0x7a5aff, R: 0x3a2a8a }], bushDark: ['bush', { l: 0x6a8a5a, g: 0x3e5a3a, G: 0x26382a, r: 0x9a7aff }],
-  candyBush: ['bush', { l: 0xffc8e8, g: 0xff8ac4, G: 0xc0407a, r: 0x7af0c8 }],
-};
-const OUTLINE = { cloud: 0x7a8ab8 };
-
-// signs: a post + a plank with a short word (3x5 font), generated as art rows
-function signArt(word) {
-  const gw = [...word].reduce((a, ch) => a + pixelGlyph(ch)[0].length + 1, -1);
-  const W = gw + 4, rows = [];
-  rows.push('.' + 'b'.repeat(W - 2) + '.');
-  const line = Array.from({ length: 5 }, () => ['b', 'w'].concat(Array(gw).fill('w')).concat(['w', 'b']));
-  let cx = 2;
-  for (const ch of word) {
-    const g = pixelGlyph(ch);
-    g.forEach((r, y) => { if (y < 5) [...r].forEach((c, x) => { if (c === '#') line[y][cx + x] = 'k'; }); });
-    cx += g[0].length + 1;
-  }
-  for (const l of line) rows.push(l.join(''));
-  rows.push('B' + 'b'.repeat(W - 2) + 'B');
-  const mid = Math.floor(W / 2);
-  for (let i = 0; i < 4; i++) rows.push('.'.repeat(mid - 1) + 'bB' + '.'.repeat(W - mid - 1));
-  return rows;
-}
-
-// ------------------------------------------------------------------ atlas
-const AW = 256, AH = 128;
+// ------------------------------------------------------------------ atlas (hi-res shaded sprites, see pixart.js)
+const AW = 512, AH = 512, DENS = 4; // atlas px per caller "pixel" (callers pass sizes on the coarse 1/4 grid)
 let atlas = null;
 const RECTS = {};
-function rasterise(rows, pal, outline) {
-  const h = rows.length, w = Math.max(...rows.map((r) => r.length));
-  const W = w + 2, H = h + 2, px = new Array(W * H).fill(-1);
-  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.' && ch !== ' ' && pal[ch] !== undefined) px[(y + 1) * W + x + 1] = pal[ch]; }));
-  // 1px outline, 4-connected only (diagonal corners stay open, like hand-placed outlines)
-  const out = px.slice();
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (px[y * W + x] >= 0) continue;
-    const n = (xx, yy) => xx >= 0 && yy >= 0 && xx < W && yy < H && px[yy * W + xx] >= 0;
-    if (n(x - 1, y) || n(x + 1, y) || n(x, y - 1) || n(x, y + 1)) out[y * W + x] = outline;
+function blit(data, DW, s, ox, oy) {
+  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
+    const c = s.px[y * s.w + x];
+    if (c < 0) continue;
+    const i = ((oy + y) * DW + ox + x) * 4;
+    data[i] = (c >> 16) & 255; data[i + 1] = (c >> 8) & 255; data[i + 2] = c & 255; data[i + 3] = 255;
   }
-  return { w: W, h: H, px: out };
 }
-function buildAtlas(extraSigns = []) {
-  const ctx = document.createElement('canvas').getContext('2d');
-  ctx.canvas.width = AW; ctx.canvas.height = AH;
+const nearestTex = (canvas) => {
+  const t = new THREE.CanvasTexture(canvas);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+};
+function buildAtlas() {
+  const S = buildSprites();
+  const c = document.createElement('canvas');
+  c.width = AW; c.height = AH;
+  const ctx = c.getContext('2d');
   const img = ctx.createImageData(AW, AH);
   let cx = 0, cy = 0, rowH = 0;
-  const put = (name, rows, pal, outline) => {
-    const S = rasterise(rows, pal, outline);
-    if (cx + S.w > AW) { cx = 0; cy += rowH + 1; rowH = 0; }
-    if (cy + S.h > AH) return; // atlas full (never at the current art size)
-    for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
-      const c = S.px[y * S.w + x];
-      if (c < 0) continue;
-      const i = ((cy + y) * AW + cx + x) * 4;
-      img.data[i] = (c >> 16) & 255; img.data[i + 1] = (c >> 8) & 255; img.data[i + 2] = c & 255; img.data[i + 3] = 255;
-    }
-    RECTS[name] = { u0: cx / AW, v0: 1 - (cy + S.h) / AH, du: S.w / AW, dv: S.h / AH, w: S.w, h: S.h };
-    cx += S.w + 1; rowH = Math.max(rowH, S.h);
-  };
-  for (const [k, rows] of Object.entries(ART)) put(k, rows, BASE_PAL, OUTLINE[k] ?? INK);
-  for (const [k, [src, over]] of Object.entries(VARIANTS)) put(k, ART[src], { ...BASE_PAL, ...over }, INK);
-  for (const word of ['LAB', 'FANS', 'SWEET', 'GO', 'BOO', 'KEEP OUT', 'COLD', 'BEACH', 'SALE', 'DIG', 'HOT', ...extraSigns]) put('sign:' + word, signArt(word), BASE_PAL, INK);
+  for (const n of Object.keys(S).sort((p, q) => S[q].h - S[p].h)) { // shelf packing, tallest first
+    const s = S[n];
+    if (cx + s.w > AW) { cx = 0; cy += rowH + 1; rowH = 0; }
+    if (cy + s.h > AH) { console.warn('sprite atlas full', n); continue; }
+    blit(img.data, AW, s, cx, cy);
+    RECTS[n] = { u0: cx / AW, v0: 1 - (cy + s.h) / AH, du: s.w / AW, dv: s.h / AH, w: s.w / DENS, h: s.h / DENS };
+    cx += s.w + 1; rowH = Math.max(rowH, s.h);
+  }
   ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(ctx.canvas);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.generateMipmaps = false;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return nearestTex(c);
 }
 export function spriteAtlas() { return (atlas ||= buildAtlas()); }
 export function spriteRect(name) { spriteAtlas(); return RECTS[name] ?? RECTS.daisy; }
@@ -143,7 +68,7 @@ export class SpriteLayer extends Billboards {
   }
   /** Place sprite `name` (pixel size p world units) with its feet at (x, y, z). */
   put(i, name, x, y, z, p = this.px, flip = false, fade = 1) {
-    const r = spriteRect(name);
+    const r = spriteRect(name); // r.w / r.h on the coarse grid: world size = r.w * p
     this._p.set(x, y, z);
     this._s.set(r.w * p, r.h * p, 1);
     this._m.compose(this._p, this._q, this._s);
@@ -256,138 +181,118 @@ export function addSpriteLife(K, preset, o = {}) {
   return L;
 }
 
-// ------------------------------------------------------------------ ad posters (64 x 32 each)
-const AD_W = 64, AD_H = 32;
-function poster(ctx, oy) {
-  const rect = (x, y, w, h, c) => { ctx.fillStyle = '#' + c.toString(16).padStart(6, '0'); ctx.fillRect(x, oy + y, w, h); };
-  const dot = (x, y, c) => rect(x, y, 1, 1, c);
-  const word = (s, x, y, c, sc = 1, shadow = INK) => {
-    const draw = (ox, oy2, col) => {
-      let cx = x;
-      for (const ch of s) {
-        const g = pixelGlyph(ch);
-        g.forEach((r, gy) => [...r].forEach((b, gx) => { if (b === '#') rect(cx + gx * sc + ox, y + gy * sc + oy2, sc, sc, col); }));
+// ------------------------------------------------------------------ ad posters (128 x 64 each, hand-pixeled)
+const AD_W = 128, AD_H = 64;
+const BAY4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+function poster(data, oy) {
+  const put = (x, y, c) => {
+    if (x < 0 || y < 0 || x >= AD_W || y >= AD_H) return;
+    const i = ((oy + y) * AD_W + x) * 4;
+    data[i] = (c >> 16) & 255; data[i + 1] = (c >> 8) & 255; data[i + 2] = c & 255; data[i + 3] = 255;
+  };
+  const rect = (x, y, w, h, c) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) put(xx, yy, c); };
+  const D = {
+    rect, put,
+    /** vertical colour bands, seams broken with an ordered-dither row pair (no smooth gradient) */
+    bands(cols) {
+      const n = cols.length;
+      for (let y = 0; y < AD_H; y++) for (let x = 0; x < AD_W; x++) {
+        const f = (y / AD_H) * n, k = Math.min(n - 1, Math.floor(f)), fr = f - k;
+        const up = k < n - 1 && fr > 0.8 && BAY4[(y & 3) * 4 + (x & 3)] / 16 < (fr - 0.8) * 5;
+        put(x, y, cols[up ? k + 1 : k]);
+      }
+    },
+    /** sunburst rays around (cx, cy) */
+    rays(cx, cy, a, b, n = 14) { for (let y = 0; y < AD_H; y++) for (let x = 0; x < AD_W; x++) { const t = (Math.atan2(y - cy, x - cx) / (Math.PI * 2) + 1) * n; put(x, y, Math.floor(t) % 2 ? a : b); } },
+    dots(c, step = 6) { for (let y = 2; y < AD_H; y += step) for (let x = ((y / step) & 1) * (step >> 1) + 2; x < AD_W; x += step) { put(x, y, c); put(x + 1, y, c); put(x, y + 1, c); put(x + 1, y + 1, c); } },
+    hazard(y, h) { for (let yy = y; yy < y + h; yy++) for (let x = 0; x < AD_W; x++) put(x, yy, ((x + yy) >> 3) & 1 ? INK : 0xffd23f); },
+    /** shaded lettering: drop shadow + ink outline, lit top row, shaded bottom row per font pixel */
+    text(str, x, y, sc, col, o = {}) {
+      const tw = textW(str, sc), th = 7 * sc, m = new Uint8Array((tw + 2) * (th + 2));
+      let cx = 0;
+      for (const ch of str) {
+        const g = pixelGlyph(ch), off = g.length > 5 ? -sc : 0;
+        g.forEach((row, gy) => [...row].forEach((b, gx) => { if (b === '#') for (let a = 0; a < sc; a++) for (let q = 0; q < sc; q++) { const yy = gy * sc + q + off + sc; if (yy >= 0 && yy < th) m[yy * (tw + 2) + cx + gx * sc + a] = 1 + (q === 0 ? 1 : 0) + (q === sc - 1 && sc > 2 ? 2 : 0); } }));
         cx += (g[0].length + 1) * sc;
       }
-    };
-    if (shadow !== null) draw(1, 1, shadow);
-    draw(0, 0, c);
+      const at = (xx, yy) => (xx >= 0 && yy >= 0 && xx < tw + 2 && yy < th + 2 ? m[yy * (tw + 2) + xx] : 0);
+      const R = ramp(col), y0 = y - sc;
+      // small lettering stays clean: sc 1 plain, sc 2 drop shadow only, sc 3+ shadow + full outline
+      const sh = sc >= 3 ? 2 : 1;
+      if (o.shadow !== false && sc > 1) for (let yy = 0; yy < th; yy++) for (let xx = 0; xx < tw; xx++) if (at(xx, yy)) { put(x + xx + sh - 1, y0 + yy + sh, o.ink ?? INK); put(x + xx + sh, y0 + yy + sh, o.ink ?? INK); }
+      if (sc >= 3) for (let yy = -1; yy <= th; yy++) for (let xx = -1; xx <= tw; xx++) {
+        if (at(xx, yy)) continue;
+        if (at(xx - 1, yy) || at(xx + 1, yy) || at(xx, yy - 1) || at(xx, yy + 1)) put(x + xx, y0 + yy, o.ink ?? INK);
+      }
+      for (let yy = 0; yy < th; yy++) for (let xx = 0; xx < tw; xx++) { const v = at(xx, yy); if (v) put(x + xx, y0 + yy, v === 2 ? R[3] : v === 3 ? R[1] : col); }
+    },
+    center(str, y, sc, col, o) { D.text(str, Math.round((AD_W - textW(str, sc)) / 2), y, sc, col, o); },
+    art(name, x, y, w, h) { const s = posterArt(name, w, h); for (let yy = 0; yy < s.h; yy++) for (let xx = 0; xx < s.w; xx++) { const c = s.px[yy * s.w + xx]; if (c >= 0) put(x + xx, y + yy, c); } },
   };
-  const wordW = (s, sc = 1) => [...s].reduce((a, ch) => a + (pixelGlyph(ch)[0].length + 1) * sc, -sc);
-  const center = (s, y, c, sc = 1, shadow) => word(s, Math.round((AD_W - wordW(s, sc)) / 2), y, c, sc, shadow);
-  const art = (rows, x, y, pal) => rows.forEach((r, yy) => [...r].forEach((ch, xx) => { if (pal[ch] !== undefined) dot(x + xx, y + yy, pal[ch]); }));
-  return { rect, dot, word, wordW, center, art };
+  return D;
 }
 const ADS = {
   // Feastables-style chocolate bar
   feast(D) {
-    D.rect(0, 0, 64, 32, 0x2b8cf2);
-    for (let y = 0; y < 32; y += 4) D.rect(0, y, 64, 1, 0x3a9cff);
-    D.word('FEASTIES', 3, 3, 0xffffff, 1);
-    D.word('NEW!', 4, 11, 0xffd23f, 1);
-    D.word('YUM', 4, 23, 0xff6fb8, 1);
-    // the bar: wrapper + chocolate grid poking out
-    const bar = [
-      '..kkkkkkkkkkkkkkkkkkkkkkkkk',
-      '.kccccccccccccchhhhhhhhhhhk',
-      'kcpppppppppppcchHhHhHhHhHhk',
-      'kcpwwwwwpwwwpcchhhhhhhhhhhk',
-      'kcpwkkwwpwkwpcchHhHhHhHhHhk',
-      'kcpwwwwwpwwwpcchhhhhhhhhhhk',
-      'kcpppppppppppcchHhHhHhHhHhk',
-      '.kccccccccccccchhhhhhhhhhhk',
-      '..kkkkkkkkkkkkkkkkkkkkkkkkk',
-    ];
-    D.art(bar, 22, 13, { k: INK, c: 0xff2e88, p: 0xffd23f, w: 0xffffff, h: 0x6a3a1e, H: 0x8a4a26 });
+    D.rays(98, 40, 0x2b8cf2, 0x4aa4ff);
+    D.text('FEASTIES', 7, 7, 2, 0xffffff);
+    D.text('NEW!', 7, 28, 2, 0xffd23f);
+    D.text('NOM NOM', 7, 47, 1, 0xff8ac4);
+    D.art('bar', 66, 26, 52, 32);
   },
   news(D) {
-    D.rect(0, 0, 64, 32, 0x15121f);
-    D.rect(0, 0, 64, 9, 0xf23a4a);
-    D.word('BEAST NEWS', 3, 2, 0xffffff, 1, 0x7a0a1a);
-    // tiny TV with a swarm blob on screen
-    D.art([
-      '.k...k...',
-      '..k.k....',
-      'kkkkkkkkk',
-      'kcccccccsk',
-      'kcgcggccsk',
-      'kcgggggcsk',
-      'kccgcgccsk',
-      'kcccccccsk',
-      'kkkkkkkkkk',
-    ], 4, 13, { k: 0x8a92b0, c: 0x2a4a8a, g: 0x7cff3a, s: 0x4e5878 });
-    D.word('SWARM', 18, 13, 0xffd23f, 1);
-    D.word('SPOTTED', 18, 21, 0xffffff, 1);
-    D.rect(52, 11, 10, 7, 0xf23a4a);
-    D.word('LIVE', 53, 12, 0xffffff, 1, null);
+    D.rect(0, 0, AD_W, AD_H, 0x15121f); D.dots(0x221c3a, 6);
+    D.rect(0, 0, AD_W, 17, 0xd8243a); D.rect(0, 0, AD_W, 2, 0xff5a6a); D.rect(0, 16, AD_W, 1, 0x8a0a1e);
+    D.center('BEAST NEWS', 4, 2, 0xffffff, { ink: 0x5a0614 });
+    D.art('tv', 6, 25, 36, 32);
+    D.text('SWARM', 50, 25, 2, 0xffd23f);
+    D.text('SPOTTED', 50, 43, 2, 0xffffff);
+    D.rect(101, 22, 22, 11, 0xf23a4a); D.rect(101, 22, 22, 1, 0xff8a90);
+    D.text('LIVE', 104, 25, 1, 0xffffff, { shadow: false });
   },
   lab(D) {
-    D.rect(0, 0, 64, 32, 0xf4f8ff);
-    D.rect(0, 27, 64, 5, 0x29b6f6);
-    D.word('LAB', 4, 3, 0x29b6f6, 2);
-    D.word('NEEDS YOU', 4, 16, 0x15121f, 1, null);
-    // flask with bubbling slime
-    D.art([
-      '...kkkk...',
-      '....kk....',
-      '....kk....',
-      '...k..k...',
-      '..k.gg.k..',
-      '.kggggggk.',
-      'kgglggggk.',
-      'kggggglggk',
-      '.kkkkkkkk.',
-    ], 48, 4, { k: INK, g: 0x7cff3a, l: 0xd8ffb0 });
-    D.dot(52, 2, 0x7cff3a); D.dot(54, 0, 0x7cff3a);
-    D.word('JOIN', 22, 28, 0xffffff, 1, null);
+    D.bands([0xffffff, 0xf0f6ff, 0xdcecff]);
+    D.rect(0, 52, AD_W, 12, 0x29b6f6); D.rect(0, 52, AD_W, 1, 0x8fd4ff);
+    D.text('LAB', 8, 7, 4, 0x29b6f6);
+    D.text('NEEDS YOU', 8, 35, 2, 0x2a2440, { shadow: false });
+    D.text('JOIN NOW', 8, 55, 1, 0xffffff);
+    D.art('flask', 84, 14, 32, 32);
   },
   alert(D) {
-    D.rect(0, 0, 64, 32, 0xffd23f);
-    for (let x = -32; x < 64; x += 8) for (let y = 0; y < 4; y++) { D.rect(x + y, y, 4, 1, INK); D.rect(x + y, 28 + y, 4, 1, INK); }
-    D.center('SWARM', 6, INK, 2, null);
-    D.center('ALERT!', 19, 0xf23a4a, 1, INK);
+    D.rect(0, 0, AD_W, AD_H, 0xffd23f); D.dots(0xf0c030, 5);
+    D.hazard(0, 6); D.hazard(58, 6);
+    D.art('bug', 8, 16, 34, 30);
+    D.text('SWARM', 48, 14, 3, 0xffffff);
+    D.text('ALERT!', 48, 37, 2, 0xf23a4a);
+    D.text('STAY IN', 48, 50, 1, 0x2a2440, { shadow: false });
   },
   burger(D) {
-    D.rect(0, 0, 64, 32, 0xff8a1f);
-    D.rect(0, 0, 64, 2, 0xffc06a);
-    D.word('BEAST', 3, 4, 0xffffff, 1);
-    D.word('BURGER', 3, 11, 0xffffff, 1);
-    D.word('$1', 3, 21, 0xffd23f, 2);
-    D.art([
-      '....kkkkkkkk....',
-      '..kkyyywyyyykk..',
-      '.kyyyyyyyywyyyk.',
-      'kyywyyyyyyyyyyyk',
-      'kkkkkkkkkkkkkkkk',
-      'kllllgllllllgllk',
-      'krrrrrrrrrrrrrrk',
-      'kbbbbbbbbbbbbbbk',
-      'kBBBBBBBBBBBBBBk',
-      '.kyyyyyyyyyyyyk.',
-      '..kkkkkkkkkkkk..',
-    ], 42, 10, { k: INK, y: 0xe8a040, w: 0xfff2d0, l: 0x8ee05a, g: 0x3cb43a, r: 0xffd23f, b: 0x8a4a26, B: 0x6a3a1e });
+    D.rays(98, 36, 0xff8a1f, 0xffa040);
+    D.text('BEAST', 7, 8, 2, 0xffffff);
+    D.text('BURGER', 7, 25, 2, 0xffffff);
+    D.text('$1', 7, 44, 3, 0xffd23f);
+    D.art('burger', 80, 20, 34, 30);
   },
   cash(D) {
-    D.rect(0, 0, 64, 32, 0x23803a);
-    D.rect(1, 1, 62, 30, 0x2e9a36);
-    D.center('WIN $1M', 4, 0xffd23f, 1);
-    D.center('LAST ONE', 13, 0xffffff, 1);
-    D.center('IN WINS', 21, 0xffffff, 1);
+    D.bands([0x2e9a36, 0x23803a, 0x1a6a2e]); D.dots(0x3aa840, 8);
+    D.center('WIN $1M', 7, 3, 0xffd23f);
+    D.center('LAST ONE IN', 31, 2, 0xffffff);
+    D.center('WINS', 47, 2, 0xffffff);
   },
   sale(D) {
-    D.rect(0, 0, 64, 32, 0xffffff);
-    D.rect(0, 0, 64, 10, 0xff2e88);
-    D.center('BEAST MART', 2, 0xffffff, 1, 0x8a0a4a);
-    D.word('50%', 4, 14, 0xff2e88, 2);
-    D.word('OFF', 34, 16, 0x15121f, 1, null);
-    D.word('ALL', 34, 23, 0x15121f, 1, null);
-    D.art(['k......', '.kkkkkk', '.kwkwkk', '.kkkkk.', '..k..k.'], 52, 22, { k: INK, w: 0xffd23f });
+    D.rect(0, 0, AD_W, AD_H, 0xffffff); D.dots(0xffe0ee, 6);
+    D.rect(0, 0, AD_W, 17, 0xff2e88); D.rect(0, 0, AD_W, 2, 0xff8ac4); D.rect(0, 16, AD_W, 1, 0xa0125e);
+    D.center('BEAST MART', 4, 2, 0xffffff, { ink: 0x6a0a3a });
+    D.text('50%', 7, 24, 4, 0xff2e88);
+    D.text('OFF', 60, 26, 2, 0x2a2440);
+    D.text('ALL', 60, 44, 2, 0x2a2440);
+    D.art('cart', 90, 30, 34, 26);
   },
 };
 export const AD_NAMES = Object.keys(ADS);
 
 const adCache = new Map();
-/** Stacked poster texture (ads top to bottom) + a roll animator. */
+/** Stacked poster texture (ads top to bottom); addAdBoard rolls through it. */
 export function adTexture(list) {
   const key = list.join(',');
   let tex = adCache.get(key);
@@ -395,24 +300,23 @@ export function adTexture(list) {
     const c = document.createElement('canvas');
     c.width = AD_W; c.height = AD_H * list.length;
     const ctx = c.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
+    const img = ctx.createImageData(AD_W, AD_H * list.length);
     list.forEach((n, i) => {
-      const D = poster(ctx, i * AD_H);
+      const D = poster(img.data, i * AD_H);
       (ADS[n] ?? ADS.news)(D);
-      // 1px ink frame inside the poster so seams read as panel edges
-      D.rect(0, 0, 64, 1, INK); D.rect(0, 31, 64, 1, INK); D.rect(0, 0, 1, 32, INK); D.rect(63, 0, 1, 32, INK);
+      // panel edge: ink line + a 1px lit bevel inside
+      D.rect(0, 0, AD_W, 1, INK); D.rect(0, AD_H - 1, AD_W, 1, INK); D.rect(0, 0, 1, AD_H, INK); D.rect(AD_W - 1, 0, 1, AD_H, INK);
+      D.rect(1, 1, AD_W - 2, 1, 0xffffff); D.rect(1, 1, 1, AD_H - 2, 0xffffff);
     });
-    tex = new THREE.CanvasTexture(c);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-    tex.colorSpace = THREE.SRGBColorSpace;
+    ctx.putImageData(img, 0, 0);
+    tex = nearestTex(c);
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(1, 1 / list.length);
     adCache.set(key, tex);
   }
   return tex;
 }
+
 
 /** Board frame: dark steel posts, a catwalk and two lamps, board face on +z at y in [legH, legH + h]. Voxel size v. */
 function adFrameGrid(wv, hv, legH) {
