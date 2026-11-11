@@ -411,18 +411,18 @@ export const ATMOS = {
 const CREEK = (x) => 6.4 + Math.sin(x * 0.17) * 0.6 + Math.sin(x * 0.05 + 2) * 0.8; // jungle.js creek line
 export const DECO = {
   lab: {
-    grass: { seed: 3, n: [2100, 420], back: [-11.5, -LH - 0.4] },
+    grass: { seed: 3, n: [3600, 1000], back: [-11.5, -LH - 0.35] },
     life: { preset: 'lab', sign: 'LAB', signs: [[-5.6, -3.9], [21.5, -4.2]] },
     ads: [{ x: -16, z: -21, ry: 0.28, ads: ['lab', 'feast', 'news'] }, { x: 16.5, z: -22, ry: -0.28, ads: ['alert', 'burger', 'cash'], ph: 2.4 }],
   },
   circle: {
-    grass: { seed: 4, n: [1400, 380], cols: [0x4ab83a, 0x5ac84a, 0x3a9a36, 0x72d24a], ok: (x, z) => Math.abs(Math.hypot(x, z) - 15) > 1.5 },
+    grass: { seed: 4, n: [3400, 800], ok: (x, z) => Math.abs(Math.hypot(x, z) - 15) > 1.5 },
     life: { preset: 'meadow', sign: 'FANS', signs: [[-21, -4.6]], ok: (x, z) => Math.abs(Math.hypot(x, z) - 15) > 1.2 },
     ads: [{ x: -15.5, z: -22, ry: 0.28, legH: 4.2, ads: ['cash', 'feast', 'news'] }, { x: 16, z: -23, ry: -0.28, legH: 4.2, ads: ['burger', 'alert', 'sale'], ph: 2 }],
   },
   factory: { life: { preset: 'candy', sign: 'SWEET', signs: [[20, -4.4]] }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3.4, ads: ['feast', 'burger', 'alert'] }] },
   redlight: {
-    grass: { seed: 6, n: [520, 200], cols: [0xb8c870, 0xa8b860, 0xd8e090, 0x8aa050], h: [0.2, 0.34] },
+    grass: { seed: 6, n: [900, 350], frontMix: 'dry', backMix: 'dry' },
     life: { preset: 'sand', sign: 'GO', signs: [[-20, -4.4]] },
     ads: [{ x: 15.5, z: -21, ry: -0.28, legH: 3.4, ads: ['cash', 'news', 'alert'] }],
   },
@@ -431,11 +431,11 @@ export const DECO = {
   pyramid: { life: { preset: 'sand', sign: 'DIG', signs: [[20, -4.4]], n: { people: 3 } }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3, ads: ['burger', 'cash', 'news'] }] },
   island: { life: { preset: 'beach', sign: 'BEACH', signs: [[-19, -4.4]] }, ads: [{ x: 15.5, z: -21, ry: -0.28, legH: 3, ads: ['feast', 'sale', 'news'] }] },
   jungle: {
-    grass: { seed: 8, n: [1300, 420], cols: [0x2a7a3e, 0x3a9a46, 0x55a83e, 0x6ac04a], h: [0.3, 0.5], ok: (x, z) => Math.abs(z + 0.25 - CREEK(x + 0.25)) > 2.4 },
+    grass: { seed: 8, n: [2400, 900], frontMix: 'verge', backMix: 'shade', scale: 1.15, ok: (x, z) => Math.abs(z + 0.25 - CREEK(x + 0.25)) > 2.4 },
     life: { preset: 'jungle', ok: (x, z) => Math.abs(z + 0.25 - CREEK(x + 0.25)) > 2.4 },
   },
   haunted: {
-    grass: { seed: 9, n: [1100, 380], cols: [0x5a4a6a, 0x4a5a4a, 0x6a7a5a, 0x3e4a3e], h: [0.26, 0.44] },
+    grass: { seed: 9, n: [1800, 700], frontMix: 'shade', backMix: 'shade', light: { bright: 0.5, key: 0xa898ff, sky: 0x5a4a8a, ground: 0x2a2440, hue: 0xc0b0e0 } },
     life: { preset: 'spooky', sign: 'BOO', signs: [[-6, -4.2], [20, -4.4]], tint: 0xb8b0e0 },
     ads: [{ x: 15.5, z: -20, ry: -0.28, legH: 3, ads: ['news', 'alert', 'lab'], dim: 0.7 }],
   },

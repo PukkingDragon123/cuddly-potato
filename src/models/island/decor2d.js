@@ -1,19 +1,14 @@
-// Beast Island background life: MoleForge-style meadow grass patches around the arena plateaus (one
+// Beast Island background life: MoleForge title-forest grass + ground cover around the arena plateaus (one
 // instanced draw per zone, culled with the zone), hand-pixeled 2D sprites (flowers, bushes, signs,
 // background people, bunnies, butterflies, circling birds; one draw for the whole island) and rolling
 // parody ad boards beside the first zones, facing each zone's camera.
 import { mulberry32 } from '../../core/util.js';
 import { MAT } from './terrain.js';
-import { makeGrassField, grassMaterial, MOLE_GRASS } from '../arenas/meadow.js';
+import { makeForestGrass, forestGrassMaterial, MIX } from '../arenas/meadow.js';
 import { SpriteLayer, addAdBoard, LIFE } from '../arenas/pix2d.js';
 import { ArenaKit } from '../arenas/kit.js';
 
 const GREEN = [MAT.GRASS, MAT.MEADOW, MAT.LUSH, MAT.FOREST, MAT.PASTEL, MAT.TOWN, MAT.JUNGLE];
-const GRASS_COLS = {
-  [MAT.JUNGLE]: [0x2a7a3e, 0x3a9a46, 0x55a83e, 0x6ac04a],
-  [MAT.FOREST]: [0x2e8a3a, 0x3a9a40, 0x4aa84a, 0x5ab84a],
-  [MAT.PASTEL]: [0x7ae0a8, 0x8af0b8, 0x9ae0c8, 0x6ad09a],
-};
 const ADS = [['lab', 'feast', 'news'], ['cash', 'burger', 'alert'], ['feast', 'sale', 'lab'], ['sale', 'news', 'burger'], ['alert', 'cash', 'feast']];
 const SIGNS = { lab: 'LAB', circle: 'FANS', factory: 'SWEET', mart: 'SALE', redlight: 'GO', pyramid: 'DIG', island: 'BEACH', haunted: 'BOO', antarctica: 'COLD', volcano: 'HOT', reactor: 'KEEP OUT' };
 
@@ -30,29 +25,31 @@ export function addIslandDecor2D({ T, root, updaters, zones, exclude = [] }) {
     return id;
   };
 
-  // ---- grass: one patch per zone ring
-  const gmat = grassMaterial({ amp: 0.5, freq: 0.35 });
+  // ---- MoleForge forest grass: one field per zone ring (culled with it), mixes picked by the ground type
+  const gmat = forestGrassMaterial({ light: { bright: 1.05, back: 0.3 } });
+  const rng = mulberry32(4413);
+  const range = (a, b) => a + rng() * (b - a);
+  const rr = Object.assign(() => rng(), { range });
+  const S = 2.4; // the island is seen from much further away than the forest clearing
   const patches = [];
   zones.forEach((Z, k) => {
-    const items = [], cols = new Map();
-    const cx = Z.center.x, cz = Z.center.z, r0 = Z.radius + 1.2, r1 = Z.radius + 17;
-    for (let i = 0, n = 0; i < 2400 && n < (k < 5 ? 900 : 640); i++) {
-      // patchy: a patch centre and 3-6 clumps around it (MoleForge clump [3, 5])
-      const a = R() * Math.PI * 2, d = r0 + Math.sqrt(R()) * (r1 - r0);
-      const px = cx + Math.cos(a) * d, pz = cz + Math.sin(a) * d;
-      const m = 3 + Math.floor(R() * 4);
-      for (let j = 0; j < m; j++) {
-        const x = px + (R() - 0.5) * 1.6, z = pz + (R() - 0.5) * 1.6;
-        const id = ground(x, z, 0.25);
-        if (id < 0 || !offZones(x, z, 0.8) || !free(x, z, 0.3)) continue;
-        items.push([x, T.heightAt(x, z), z, 0.85 + R() * 0.35]);
-        cols.set(T.mat[id], (cols.get(T.mat[id]) ?? 0) + 1);
-        n++;
-      }
+    const items = [];
+    const cx = Z.center.x, cz = Z.center.z, r0 = Z.radius + 1, r1 = Z.radius + 18;
+    for (let i = 0, n = 0; i < 6000 && n < (k < 5 ? 2600 : 1500); i++) {
+      const a = rng() * Math.PI * 2, d = r0 + Math.sqrt(rng()) * (r1 - r0);
+      const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
+      const id = ground(x, z, 0.2);
+      if (id < 0 || !offZones(x, z, 0.6) || !free(x, z, 0.2)) continue;
+      const m = T.mat[id], roll = rng(), drift = Math.sin(x * 0.11 + 3) * Math.cos(z * 0.13);
+      const nearRoad = T.roadD[id] < (T.RW ?? 1.5) + 3;
+      const mix = m === MAT.FOREST ? (drift > 0.55 ? MIX.bluebell : drift < -0.6 ? MIX.anemone : MIX.floor)
+        : m === MAT.JUNGLE ? MIX.shade : nearRoad ? MIX.verge : d < r0 + 3 ? MIX.turf : MIX.meadow;
+      const [cell, size] = mix(roll, rr);
+      items.push({ x, y: T.heightAt(x, z) - 0.03, z, rot: rng() * 6.28, size: size * S, cell, tint: (0.85 + rng() * 0.3) * (m === MAT.FOREST ? 0.92 : 1) });
+      n++;
     }
     if (items.length < 20) return;
-    const main = [...cols.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    const G = makeGrassField(items, { mat: gmat, cols: GRASS_COLS[main] ?? MOLE_GRASS, h: [0.75, 1.15], w: 2.1, lit: 1.3, dark: 0.88, seed: k + 1, name: 'meadow:' + Z.id, blades: 5 });
+    const G = makeForestGrass(items, { mat: gmat, seed: k + 1, name: 'forestGrass:' + Z.id });
     root.add(G.mesh);
     patches.push(G);
   });
