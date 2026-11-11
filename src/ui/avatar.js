@@ -499,14 +499,14 @@ function chibiShot(o, px) {
   c.face.redraw();
   c.root.updateMatrixWorld(true);
   // frame on the head: the bare head plus shoulders, grown upward (part way) for a tall hat so a chef
-  // hat or top hat reads; a posed picture (thumbs up, crossed arms) pulls back to show the pose
+  // hat or top hat reads; a posed picture (peace sign, crossed arms, flex) pulls back to show the pose
   const hm = c.headMesh ?? c.head;
   _hb.setFromObject(hm);
   const hh = _hb.max.y - _hb.min.y, top = _hb.max.y;
   _wb.setFromObject(c.head);
   const hat = Math.min(Math.max(0, _wb.max.y - top), hh * 0.5) * 0.8;
-  const V = hh * 1.5 * (o.pose ? 1.22 : 1) + hat;
-  const dy = -hh * (o.pose ? 0.3 : 0.2) + hat / 2;
+  const V = hh * 1.62 * (o.pose ? 1.22 : 1) + hat;
+  const dy = -hh * (o.pose ? 0.26 : 0.14) + hat / 2;
   return engine.drawThumb(c.root, { size: px, yaw: -0.42, pitch: 0.1, focusObj: hm, focusDy: dy, fit: V / 1.2 });
 }
 /**
@@ -543,10 +543,10 @@ function troopShot(id, px) {
   V *= t.fit ?? 1;
   return engine.drawThumb(rig.root, { size: px, yaw, pitch: 0.14, focusObj: focus, focusDy: dy + V * (t.dy ?? 0), focusDx: V * (t.dx ?? 0), fit: V / 1.2 });
 }
-const inkCanvas = { a: null, b: null };
+let inkCanvas = null;
 /** Draw `src` onto `g` with a 1-texel ink outline (dilated silhouette) underneath. */
 function drawInked(g, src, px, w = 1) {
-  const sil = (inkCanvas.a ??= document.createElement('canvas'));
+  const sil = (inkCanvas ??= document.createElement('canvas'));
   if (sil.width !== px || sil.height !== px) { sil.width = px; sil.height = px; }
   const sg = sil.getContext('2d');
   sg.globalCompositeOperation = 'copy';
@@ -821,4 +821,3 @@ export function prewarmLooks(looks = []) {
 }
 /** Stable seed helper for rivals without one. */
 export const lookSeed = (name) => hashString(String(name ?? 'rival'));
-export const __compose = composePicture; // DEBUG-REMOVE

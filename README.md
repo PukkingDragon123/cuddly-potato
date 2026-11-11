@@ -102,8 +102,8 @@ The build is fully static (relative `base`), so the `dist/` folder can be upload
 - 60+ Swarms across the Beast Originals, Home Horrors, Techno Terrors, Atomic, Lab Hybrids, Snack Squad, Mega-Tech,
   Fire & Ice, Battle Fusion, Wildlands, Spooky and Cosmic series, plus spells. Rarities: Common, Rare, Ultra Rare, Legendary, Limited. Shiny **Silver, Gold and Chrome**
   variants, skins and the Feastables Panther **Mega Form**.
-- **Profile customization** (after 5 wins): a player card with your **picture** (Commander faces, NPCs, pixel-art Beast
-  Lab icons, troop portraits) in a pixel-art **frame** (rank frames, shop frames, animated legendary frames, one per
+- **Profile customization** (after 5 wins): a player card with your **picture** (all 3D renders: "Me", your own Commander
+  in your outfit, plus Commander faces, NPC chibis and troop portraits) in a pixel-art **frame** (rank frames, shop frames, animated legendary frames, one per
   troop), a **banner** and a **title**. Tap anything locked to try it on. It shows in the top bar, the VS intro, the
   battle name plates and Beast News; rivals dress for their trophies. Lonan sells 4 pieces a day in the shop.
 - **Troop Mastery** (after 6 wins): every troop has 5 levels (Bronze to Master) earned by playing it (deploys, wins

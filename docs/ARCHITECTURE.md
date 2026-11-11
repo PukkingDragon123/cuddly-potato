@@ -137,7 +137,7 @@ src/
                        pixel textures as CSS vars, 16/24 px pixel icons
     cards.js           cardEl(): the card component (rarity frame, cost, level, copies progress)
     avatar.js          profile avatars: avatarEl(picture, frame) everywhere a player shows up; pictures composited
-                       once per size bucket (pixel plate + 3D head / troop render or pixel-art lab icon), frames
+                       once per size bucket (pixel plate + 3D chibi head / troop render; "Me" = your Commander), frames
                        painted on the icon shader at the laid-out size; animated frames = masked shine or a
                        stepped sprite strip (no per-frame redraws)
     thumbs.js          cached 3D thumbnails: swarmThumb, charPortrait, spell art, arenaThumb (diorama snapshots),
