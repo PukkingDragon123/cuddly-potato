@@ -523,7 +523,7 @@ export function rsIconURL(name) {
   const d = D[name];
   const p = new PixCanvas(32, 1, HD);
   d.fn(p);
-  u = renderPixLo(p, { lo: 16, ...d.o });
+  u = renderPixLo(p, { lo: 32, ...d.o });
   cache.set(name, u);
   return u;
 }

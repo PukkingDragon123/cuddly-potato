@@ -1684,7 +1684,7 @@ export function questArt(key) {
   return cached('art|' + name, () => {
     const p = new PixCanvas(ART_N, 1, 2);
     ART[name](p);
-    return renderPixLo(p, { lo: 24 });
+    return renderPixLo(p, { lo: 40 });
   });
 }
 export const QUEST_ART_NAMES = Object.keys(ART);

@@ -292,14 +292,22 @@ function render(p, o = {}) {
   return c.toDataURL();
 }
 
-// --------------------------------------------------------------------------- low-res "hand pixel" renderer
-// The UI icon look (matches the voxel emotes): a chunky ~16 px grid (rewards ~24),
-// flat colour regions with ONE light step on top edges and ONE shadow step on bottom
-// edges, a single highlight pixel on big regions, a 1px ink outline (corners left
-// open, like hand-placed outlines) and a hard 1px drop shadow. No dithering, no
-// gradients, no glow. Vector designs are boxed down by a weighted majority vote
-// (ink and flat detail pixels win ties, so eyes / glints survive the shrink);
-// hand-pixeled sprites (SPR) skip the vote and the auto shading.
+// --------------------------------------------------------------------------- hand-pixel cel renderer
+// The UI icon look: a 32 px grid (reward art 40-48), every colour region cel-shaded
+// with its 5-step hue-shifted ramp (warm highlights, cool purple shadows) as hard
+// bands - no dithering, gradients or glow:
+//   - form shading: the whole object is lit from the top-left, so the far side of
+//     every part sits a step or two darker
+//   - bevel: a lighter inner edge along the top / left of each region, a darker one
+//     along the bottom / right
+//   - rim light: a cool reflected-light pixel line on the shadowed silhouette edge
+//   - one hand-placed specular highlight on the biggest regions
+//   - selective outline: a dark, colour-tinted outline on the lit side, ink on the
+//     shadow side, plus a hard 1px drop shadow
+// Vector designs are boxed down by a weighted majority vote (ink and flat detail
+// pixels win ties, so eyes / glints survive); hand-pixeled sprites (SPR, drawn on
+// 16 px) are scaled 2x with Scale2x (clean pixel-art diagonals) and get the form
+// shading, rim and outline over their hand-placed tones.
 const INK_LO = '#1b1530';
 function downsample(p, T) {
   const R = p.R, g = p.g, fl = p.fl, k = Math.max(1, Math.round(R / T)), W = Math.ceil(R / k);
@@ -325,66 +333,110 @@ function downsample(p, T) {
   }
   return { W, g: lg, fl: lf };
 }
+const RIM = '#9fe0ff';
 function renderLo(p, o = {}) {
-  const { W, g, fl } = p.lo ?? downsample(p, o.lo ?? 16);
+  const { W, g, fl, spr } = p.lo ?? downsample(p, o.lo ?? 32);
   const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= W ? null : g[y * W + x]);
   const out = g.slice();
-  if (o.shade !== false && !p.lo) {
-    // regions (4-connected) for size checks + one highlight pixel
+  const flatCol = (c) => c === C.ink || c === C.white || c === INK_LO;
+  if (o.shade !== false) {
+    // silhouette bbox (whole-object form light)
+    let sx0 = W, sx1 = 0, sy0 = W, sy1 = 0;
+    for (let k = 0; k < W * W; k++) if (g[k] !== null) { const x = k % W, y = (k / W) | 0; sx0 = Math.min(sx0, x); sx1 = Math.max(sx1, x); sy0 = Math.min(sy0, y); sy1 = Math.max(sy1, y); }
+    const scx = (sx0 + sx1) / 2, scy = (sy0 + sy1) / 2, shw = (sx1 - sx0) / 2 + 1, shh = (sy1 - sy0) / 2 + 1;
+    // regions (4-connected same colour)
     const lab = new Int32Array(W * W).fill(-1), regs = [];
     for (let k0 = 0; k0 < W * W; k0++) {
       if (g[k0] === null || lab[k0] >= 0) continue;
-      const col = g[k0], r = { n: 0, ks: [] }, st = [k0];
+      const col = g[k0], r = { n: 0, ks: [], x0: W, x1: 0, y0: W, y1: 0 }, st = [k0];
       lab[k0] = regs.length; regs.push(r);
       while (st.length) {
         const k = st.pop(), x = k % W, y = (k / W) | 0;
-        r.n++; r.ks.push(k);
+        r.n++; r.ks.push(k); r.x0 = Math.min(r.x0, x); r.x1 = Math.max(r.x1, x); r.y0 = Math.min(r.y0, y); r.y1 = Math.max(r.y1, y);
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const xx = x + dx, yy = y + dy, kk = yy * W + xx;
           if (xx >= 0 && yy >= 0 && xx < W && yy < W && lab[kk] < 0 && g[kk] === col) { lab[kk] = lab[k]; st.push(kk); }
         }
       }
     }
+    // tiny details (eyes, ticks) sit ON a surface and don't bevel the region around them
+    const edgeOf = (x, y, col) => { const c = at(x, y); if (c === col) return false; if (c === null) return true; const r = regs[lab[y * W + x]]; return r.n >= 10; };
+    const big = regs.filter((r) => r.n >= 40 && !flatCol(g[r.ks[0]]) && !fl[r.ks[0]]).sort((a, b) => b.n - a.n).slice(0, o.glints ?? 2);
     for (const r of regs) {
       const col = g[r.ks[0]];
-      if (r.n < 4 || col === C.ink || col === C.white || col === INK_LO || fl[r.ks[0]]) continue;
-      const rp = ramp(col);
-      let hi = -1;
+      if (flatCol(col) || fl[r.ks[0]] || r.n < 3) continue;
+      const rp = ramp(col), rw = (r.x1 - r.x0) / 2 + 1, rh = (r.y1 - r.y0) / 2 + 1, rcx = (r.x0 + r.x1) / 2, rcy = (r.y0 + r.y1) / 2;
+      let best = -9, bk = -1;
       for (const k of r.ks) {
         const x = k % W, y = (k / W) | 0;
-        const up = at(x, y - 1) === col, dn = at(x, y + 1) === col, lf = at(x - 1, y) === col, rt = at(x + 1, y) === col;
-        let v = (up ? 0 : 1) - (dn ? 0 : 1) + (r.n > 9 ? (lf ? 0 : 0.5) - (rt ? 0 : 0.5) : 0);
-        out[k] = v >= 0.5 ? rp[3] : v <= -0.5 ? rp[1] : col;
-        if (r.n >= 14 && up && lf && !(at(x - 1, y - 1) === col && at(x, y - 2) === col && at(x - 2, y) === col) && (hi < 0 || k < hi)) hi = k;
+        const form = -(((x - scx) / shw) * 0.45 + ((y - scy) / shh) * 0.8);
+        const part = -(((x - rcx) / rw) * 0.35 + ((y - rcy) / rh) * 0.55);
+        let e = 0;
+        if (!spr && r.n >= 8) {
+          if (edgeOf(x, y - 1, col)) e += 1; else if (r.n > 60 && edgeOf(x, y - 2, col)) e += 0.4;
+          if (edgeOf(x - 1, y, col)) e += 0.5;
+          if (edgeOf(x, y + 1, col)) e -= 0.9; else if (r.n > 60 && edgeOf(x, y + 2, col)) e -= 0.35;
+          if (edgeOf(x + 1, y, col)) e -= 0.5;
+        }
+        const v = spr ? form * 0.75 + part * 0.25 : e * 0.6 + form * 0.4 + part * 0.35 + (o.bias ?? 0);
+        const lv = Math.max(spr ? -1 : -2, Math.min(spr ? 1 : 2, Math.round(v * (spr ? 1.3 : 1.7))));
+        out[k] = rp[lv + 2];
+        // rim light: shadow-side silhouette edge catches cool bounce light
+        if (r.n >= 12 && (at(x + 1, y) === null || at(x, y + 1) === null) && at(x - 1, y) !== null && at(x, y - 1) !== null && (x - scx) / shw + (y - scy) / shh > 0.55) out[k] = mix(rp[2], RIM, 0.38);
+        if (v > best && edgeOf(x, y - 1, col) === false && edgeOf(x - 1, y, col) === false) { best = v; bk = k; }
       }
-      if (hi >= 0 && o.glint !== false) out[hi] = mix(rp[4], '#ffffff', 0.55);
+      if (big.includes(r) && bk >= 0 && o.glint !== false) {
+        out[bk] = mix(rp[4], '#ffffff', 0.7);
+        if (lab[bk + 1] === lab[bk]) out[bk + 1] = mix(rp[4], '#ffffff', 0.3);
+        if (bk + W < W * W && lab[bk + W] === lab[bk] && r.n > 120) out[bk + W] = mix(rp[4], '#ffffff', 0.3);
+      }
     }
   }
-  // canvas: 1px outline all round, 1px hard shadow below, square
+  // canvas: outline all round, hard shadow below-right, square
   const S = W + 3, ink = o.outline === C.ink || !o.outline ? INK_LO : o.outline;
   const c = document.createElement('canvas');
   c.width = S; c.height = S;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   const img = ctx.createImageData(S, S), d = img.data;
   const put = (x, y, hex, a = 255) => { const i = (y * S + x) * 4, [r, gg, b] = rgbOf(hex); d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = a; };
-  const solid = (x, y) => at(x - 1, y - 1) !== null; // canvas coords -> art
-  const edge = (x, y) => !solid(x, y) && (solid(x + 1, y) || solid(x - 1, y) || solid(x, y + 1) || solid(x, y - 1));
+  const art = (x, y) => at(x - 1, y - 1); // canvas coords -> art
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    if (solid(x, y)) put(x, y, out[(y - 1) * W + x - 1]);
-    else if (o.outlineOff !== true && edge(x, y)) put(x, y, ink);
-    else if (o.drop !== false && y > 0 && (solid(x, y - 1) || edge(x, y - 1)) ) put(x, y, '#060414', 96);
+    const a0 = art(x, y);
+    if (a0 !== null) { put(x, y, out[(y - 1) * W + x - 1]); continue; }
+    if (o.outlineOff === true) continue;
+    // selective outline: tinted (the shape's deepest tone, toward ink) where the shape lies
+    // below / right of the outline (the lit side), pure ink on the shadow side
+    const dn = art(x, y + 1), rt = art(x + 1, y), up = art(x, y - 1), lf = art(x - 1, y);
+    if (dn !== null || rt !== null || up !== null || lf !== null) {
+      const lit = dn ?? rt;
+      put(x, y, lit && !flatCol(lit) && o.selout !== false && up === null && lf === null ? mix(ramp(lit)[0], ink, 0.45) : ink);
+    } else if (o.drop !== false && y > 0 && x > 0 && (art(x - 1, y - 1) !== null || art(x, y - 1) !== null && art(x, y - 2) !== null)) put(x, y, '#060414', 110);
   }
   ctx.putImageData(img, 0, 0);
   renderLo.last = c;
   return c.toDataURL();
 }
-/** Hand-pixeled sprite -> the low-res grid renderLo takes (1 char = 1 pixel, '.' empty). */
+/** Scale2x (EPX): a clean 2x pixel-art upscale that rounds diagonals instead of doubling blocks. */
+function scale2x(g, W) {
+  const W2 = W * 2, o = new Array(W2 * W2).fill(null);
+  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= W ? null : g[y * W + x]);
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+    const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), Cc = at(x - 1, y), Dd = at(x, y + 1);
+    const i = y * 2 * W2 + x * 2;
+    o[i] = Cc === A && Cc !== Dd && A !== B ? A : P;
+    o[i + 1] = A === B && A !== Cc && B !== Dd ? B : P;
+    o[i + W2] = Dd === Cc && Dd !== B && Cc !== A ? Cc : P;
+    o[i + W2 + 1] = B === Dd && B !== A && Dd !== Cc ? Dd : P;
+  }
+  return o;
+}
+/** Hand-pixeled sprite (1 char = 1 pixel on a 16 grid, '.' empty) -> the 32 px grid renderLo takes. */
 function sprGrid(rows, pal, W) {
-  const g = new Array(W * W).fill(null), fl = new Uint8Array(W * W);
+  const g = new Array(W * W).fill(null);
   const h = rows.length, w = Math.max(...rows.map((r) => r.length));
   const ox = Math.floor((W - w) / 2), oy = Math.floor((W - h) / 2);
   rows.forEach((r, y) => [...r].forEach((ch, x) => { const c = ch === 'k' ? INK_LO : pal[ch]; if (c) g[(y + oy) * W + x + ox] = c; }));
-  return { W, g, fl };
+  return { W: W * 2, g: scale2x(g, W), fl: new Uint8Array(W * W * 4), spr: true };
 }
 
 // --------------------------------------------------------------------------- icon designs
@@ -1541,8 +1593,8 @@ SPR.power = SPR.energy;
  */
 const HD = 2;
 const cache = new Map();
-/** Target low-res grid: 16 px for UI icons, 22-24 px for the big reward art. */
-const loOf = (o) => o.lo ?? ((o.size ?? N) * (o.s ?? 2) >= 48 ? 22 : 16);
+/** Target pixel grid: 32 px for UI icons, 48 px for the big reward art. */
+const loOf = (o) => o.lo ?? ((o.size ?? N) * (o.s ?? 2) >= 48 ? 48 : 32);
 /** Paint one icon (or one frame of a hand-pixeled sprite) and return its canvas. */
 function paint(name, frame = 0) {
   const spr = SPR[name];
@@ -1567,14 +1619,14 @@ export function iconURL(name) {
 export const ICON_NAMES = Object.keys(D);
 
 // --------------------------------------------------------------------------- animated variants
-// Tiny hand-timed loops on the low-res sprite (2-4 distinct frames, idle frames
+// Tiny hand-timed loops on the pixel sprite (2-4 distinct frames, idle frames
 // repeated in the strip to hold a pose; CSS steps() plays the strip, so there is
 // no per-icon JS ticker, and reduced motion freezes it on frame 0):
 //   spin    - the coin turns: full, narrow, edge, narrow (back face darker)
-//   glint   - a 2px white glint steps across the body, then rests
+//   glint   - a 4px white glint steps across the body, then rests
 //   flicker - the bolt flashes a palette step brighter with a pixel spark
 //   bubble  - one white pixel bubble rises through the liquid
-//   bob     - hops up 1px and back (hearts, gifts, chests)
+//   bob     - hops up 2px and back (hearts, gifts, chests)
 //   flame   - the flame tips swap sides (fire)
 //   frames  - a hand-pixeled multi-frame sprite (SPR[name].frames)
 const ANIM_KIND = {
@@ -1597,11 +1649,11 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
   const src = paint(name);
   const S = src.width, H = src.height;
   const base = src.getContext('2d').getImageData(0, 0, S, H).data;
-  const at = (x, y) => (y * S + x) * 4;
+  const at = (x, y) => (y * S + x) * 4, u = Math.max(1, Math.round(S / 19));
   const solid = (b, x, y) => x >= 0 && y >= 0 && x < S && y < H && b[at(x, y) + 3] > 200;
   const shift = (dy) => { const out = new Uint8ClampedArray(base.length); for (let y = 0; y < H; y++) { const yy = y - dy; if (yy < 0 || yy >= H) continue; out.set(base.subarray(at(0, yy), at(0, yy + 1)), at(0, y)); } return out; };
   const lighten = (b, k) => { const out = new Uint8ClampedArray(b); for (let i = 0; i < out.length; i += 4) if (out[i + 3] > 200 && lumA(b, i) > 40) for (let c = 0; c < 3; c++) out[i + c] = Math.min(255, out[i + c] + (255 - out[i + c]) * k); return out; };
-  const spark = (b, x, y, col = [255, 255, 255]) => { for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= S || yy >= H) continue; const i = at(xx, yy); b[i] = dx || dy ? 255 : col[0]; b[i + 1] = dx || dy ? 236 : col[1]; b[i + 2] = dx || dy ? 140 : col[2]; b[i + 3] = 255; } return b; };
+  const spark = (b, x, y, col = [255, 255, 255]) => { const arms = [[0, 0]]; for (let a = 1; a <= u; a++) arms.push([a, 0], [-a, 0], [0, a], [0, -a]); for (const [dx, dy] of arms) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= S || yy >= H) continue; const i = at(xx, yy); const tip = Math.abs(dx) + Math.abs(dy) === u && u > 1; b[i] = tip ? 255 : col[0]; b[i + 1] = tip ? 236 : col[1]; b[i + 2] = tip ? 140 : col[2]; b[i + 3] = 255; } return b; };
   let frames = [], dur = 2.4;
   if (kind === 'frames') {
     const n = SPR[name].frames.length, hold = SPR[name].hold ?? Array(n).fill(1);
@@ -1631,15 +1683,15 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
       const out = new Uint8ClampedArray(base), t = Math.round(S * (0.55 + f * 0.45));
       for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
         const i = at(x, y), dd = x + y - t;
-        if (base[i + 3] < 250 || lumA(base, i) < 50 || (dd !== 0 && dd !== 1)) continue;
-        const kk = dd === 0 ? 0.85 : 0.5;
+        if (base[i + 3] < 250 || lumA(base, i) < 50 || dd < 0 || dd >= 2 * u) continue;
+        const kk = dd < u ? 0.85 : 0.45;
         out[i] += (255 - out[i]) * kk; out[i + 1] += (255 - out[i + 1]) * kk; out[i + 2] += (255 - out[i + 2]) * kk;
       }
       frames.push(out);
     }
     dur = 2.7;
   } else if (kind === 'flicker') {
-    const hi = spark(lighten(base, 0.35), S - 3, 2);
+    const hi = spark(lighten(base, 0.3), S - 2 - u, 1 + u);
     for (let f = 0; f < 5; f++) frames.push(base);
     frames.push(hi, base, hi);
     dur = 2;
@@ -1654,16 +1706,16 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
     for (let x = 1; x < S - 1 && !col; x++) {
       const xs = Math.round(S * 0.42) + (x % 2 ? x >> 1 : -(x >> 1));
       let yb = -1; for (let y = H - 2; y > 0; y--) if (inner(xs, y)) { yb = y; break; }
-      if (yb > 0) { let yt = yb; while (yt > 1 && inner(xs, yt - 1)) yt--; if (yb - yt >= 3) col = { x: xs, yb, yt }; }
+      if (yb > 0) { let yt = yb; while (yt > 1 && inner(xs, yt - 1)) yt--; if (yb - yt >= 3 * u) col = { x: xs, yb, yt }; }
     }
     for (let f = 0; f < 4; f++) {
       const out = new Uint8ClampedArray(base);
-      if (col) { const y = Math.round(col.yb - ((col.yb - col.yt) * f) / 3), i = at(col.x, y); out[i] = 255; out[i + 1] = 255; out[i + 2] = 255; }
+      if (col) { const y = Math.round(col.yb - ((col.yb - col.yt - u) * f) / 3); for (let b2 = 0; b2 < u; b2++) for (let a2 = 0; a2 < u; a2++) { if (!solid(base, col.x + a2, y - b2)) continue; const i = at(col.x + a2, y - b2); out[i] = 255; out[i + 1] = 255; out[i + 2] = 255; } }
       frames.push(out);
     }
     dur = 1.2;
   } else if (kind === 'bob') {
-    const up = shift(-1);
+    const up = shift(-u);
     frames = [base, base, up, up];
     dur = 1.1;
   } else if (kind === 'flame') {
