@@ -39,6 +39,7 @@ import { makeSky, Billboards, makeDistantIslands, HORIZON } from './sky.js';
 import * as P from './props.js';
 import { addIslandExtras, makeCloudUniforms, patchCloudShadows } from './extras.js';
 import { addTrophyPath } from './trophyPath.js';
+import { addIslandDecor2D } from './decor2d.js';
 import { FORKS } from '../../data/roadForks.js';
 import * as TOWN from './town.js';
 
@@ -501,6 +502,11 @@ export async function makeBeastIsland(opts = {}) {
     addIslandExtras({ T, root, updaters, R, zones, ZONES, boats, CX, CZ, exclude, falls: rivers[0]?.splashes ?? [] });
   } catch (e) {
     console.error('island extras failed', e);
+  }
+  try {
+    addIslandDecor2D({ T, root, updaters, zones, exclude });
+  } catch (e) {
+    console.error('island 2D decor failed', e);
   }
   lap('extras');
   // light rig extras: a cool sky fill from the camera side (no shadows); colour grade for the home scene

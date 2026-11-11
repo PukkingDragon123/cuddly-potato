@@ -11,6 +11,8 @@
 // without per-frame allocations. Battle-lane rules: shafts + mist stay behind
 // the lane (z < -3.5); foreground motes stay tiny and low.
 import { engine } from '../../core/engine.js';
+import { addGrassField } from './meadow.js';
+import { addSpriteLife, addAdBoard } from './pix2d.js';
 import { THREE, VoxGrid, greedyGeometry, mulberry32, hash3, clamp, canvasTex, bayer, liveInstances, setInstance, swayInst, FIELD } from './kit.js';
 
 /** Multiply a hex colour's channels by k (0..1+). */
@@ -403,6 +405,53 @@ export const ATMOS = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Background life per arena: MoleForge-style instanced meadow grass (meadow.js), hand-pixeled 2D sprites
+// (flowers, critters, people, birds; pix2d.js) and rolling parody ad boards. Each is one draw call.
+const CREEK = (x) => 6.4 + Math.sin(x * 0.17) * 0.6 + Math.sin(x * 0.05 + 2) * 0.8; // jungle.js creek line
+export const DECO = {
+  lab: {
+    grass: { seed: 3, n: [2100, 420], back: [-11.5, -LH - 0.4] },
+    life: { preset: 'lab', sign: 'LAB', signs: [[-5.6, -3.9], [21.5, -4.2]] },
+    ads: [{ x: -16, z: -21, ry: 0.28, ads: ['lab', 'feast', 'news'] }, { x: 16.5, z: -22, ry: -0.28, ads: ['alert', 'burger', 'cash'], ph: 2.4 }],
+  },
+  circle: {
+    grass: { seed: 4, n: [1400, 380], cols: [0x4ab83a, 0x5ac84a, 0x3a9a36, 0x72d24a], ok: (x, z) => Math.abs(Math.hypot(x, z) - 15) > 1.5 },
+    life: { preset: 'meadow', sign: 'FANS', signs: [[-21, -4.6]], ok: (x, z) => Math.abs(Math.hypot(x, z) - 15) > 1.2 },
+    ads: [{ x: -15.5, z: -22, ry: 0.28, legH: 4.2, ads: ['cash', 'feast', 'news'] }, { x: 16, z: -23, ry: -0.28, legH: 4.2, ads: ['burger', 'alert', 'sale'], ph: 2 }],
+  },
+  factory: { life: { preset: 'candy', sign: 'SWEET', signs: [[20, -4.4]] }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3.4, ads: ['feast', 'burger', 'alert'] }] },
+  redlight: {
+    grass: { seed: 6, n: [520, 200], cols: [0xb8c870, 0xa8b860, 0xd8e090, 0x8aa050], h: [0.2, 0.34] },
+    life: { preset: 'sand', sign: 'GO', signs: [[-20, -4.4]] },
+    ads: [{ x: 15.5, z: -21, ry: -0.28, legH: 3.4, ads: ['cash', 'news', 'alert'] }],
+  },
+  antarctica: { life: { preset: 'snow', sign: 'COLD', signs: [[19, -4.4]] } },
+  reactor: { life: { preset: 'sky', sign: 'KEEP OUT', signs: [[-20, -4.4]] }, ads: [{ x: 15.5, z: -21, ry: -0.28, legH: 3.4, ads: ['alert', 'news', 'lab'] }] },
+  pyramid: { life: { preset: 'sand', sign: 'DIG', signs: [[20, -4.4]], n: { people: 3 } }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3, ads: ['burger', 'cash', 'news'] }] },
+  island: { life: { preset: 'beach', sign: 'BEACH', signs: [[-19, -4.4]] }, ads: [{ x: 15.5, z: -21, ry: -0.28, legH: 3, ads: ['feast', 'sale', 'news'] }] },
+  jungle: {
+    grass: { seed: 8, n: [1300, 420], cols: [0x2a7a3e, 0x3a9a46, 0x55a83e, 0x6ac04a], h: [0.3, 0.5], ok: (x, z) => Math.abs(z + 0.25 - CREEK(x + 0.25)) > 2.4 },
+    life: { preset: 'jungle', ok: (x, z) => Math.abs(z + 0.25 - CREEK(x + 0.25)) > 2.4 },
+  },
+  haunted: {
+    grass: { seed: 9, n: [1100, 380], cols: [0x5a4a6a, 0x4a5a4a, 0x6a7a5a, 0x3e4a3e], h: [0.26, 0.44] },
+    life: { preset: 'spooky', sign: 'BOO', signs: [[-6, -4.2], [20, -4.4]], tint: 0xb8b0e0 },
+    ads: [{ x: 15.5, z: -20, ry: -0.28, legH: 3, ads: ['news', 'alert', 'lab'], dim: 0.7 }],
+  },
+  reef: { life: { preset: 'beach', sign: 'BEACH', signs: [[20, -4.4]] }, ads: [{ x: -15.5, z: -21, ry: 0.28, legH: 3, ads: ['sale', 'feast', 'news'] }] },
+  volcano: { life: { preset: 'sky', sign: 'HOT', signs: [[-20, -4.4]], n: { birds: 3 } } },
+  mart: { ads: [{ x: 15.5, z: -14, ry: -0.28, legH: 3, ads: ['sale', 'feast', 'burger'] }] },
+};
+
+export function applyBattleDeco(K, id) {
+  const D = DECO[id];
+  if (!D) return;
+  try { if (D.grass) addGrassField(K, D.grass); } catch (e) { console.error('arena grass failed', id, e); }
+  try { if (D.life) addSpriteLife(K, D.life.preset, { seed: id.length * 7, ...D.life }); } catch (e) { console.error('arena sprites failed', id, e); }
+  try { for (const a of D.ads ?? []) addAdBoard(K, a); } catch (e) { console.error('arena ads failed', id, e); }
+}
+
 /** Layer the arena's atmosphere preset on top of its hand-built scenery (battle arenas). */
 export function applyBattleAtmos(K, id, params = {}) {
   const A = ATMOS[id];
@@ -412,6 +461,7 @@ export function applyBattleAtmos(K, id, params = {}) {
   for (const m of A.motes ?? []) addMotes(K, m);
   if (A.mist) addMist(K, A.mist);
   if (A.ground) addGroundDetail(K, A.ground);
+  applyBattleDeco(K, id);
   K.root.userData.grade = { ...A.grade, ...(params.grade ?? {}) };
   return { ...params, grade: K.root.userData.grade };
 }

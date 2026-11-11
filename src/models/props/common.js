@@ -64,6 +64,7 @@ const F = {
   '♥': ['.#.#.', '#####', '#####', '.###.', '..#..'],
 };
 const glyph = (ch) => F[ch] ?? F[ch.toUpperCase()] ?? F['?'];
+export const pixelGlyph = glyph;
 
 /** Width (in voxels) of a string at a scale. */
 export function textW(str, scale = 1, gap = 1) {
