@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
 import { voiceOf, DEFAULT_VOICE } from '../data/characters.js';
-import { iconURL as pixIconURL, iconAnim, animKindOf } from './icons.js';
+import { iconURL as pixIconURL, iconAnim, animKindOf, AUTO_ANIM } from './icons.js';
 import { injectSkins } from './skin.js';
 import { injectPixShapes } from './pixshapes.js';
 import { fmt } from '../core/util.js';
@@ -103,6 +103,7 @@ export function icon(name, cls = '') {
     import('./chibiIcons.js').then((m) => m.chibiIconURL(name)).then((u) => { img.src = u ?? iconURL(name); }).catch(() => { img.src = iconURL(name); });
     return img;
   }
+  if (AUTO_ANIM.has(name)) return animIcon(name, cls);
   return h('img', { src: iconURL(name), class: 'pi ' + cls, alt: name, draggable: 'false' });
 }
 /**
@@ -114,7 +115,7 @@ export function icon(name, cls = '') {
 export function animIcon(name, cls = '', kind = undefined) {
   let a = null;
   try { a = animKindOf(name) || kind ? iconAnim(name, kind ?? animKindOf(name)) : null; } catch (e) { a = null; }
-  if (!a) return icon(name, cls);
+  if (!a) return h('img', { src: iconURL(name), class: 'pi ' + cls, alt: name, draggable: 'false' });
   const el = h('img', { src: a.url, class: `pi pia pia-${kind ?? animKindOf(name)} ${cls}`, alt: name, draggable: 'false' });
   el.style.setProperty('--n', a.n);
   el.style.setProperty('--dur', a.dur + 's');

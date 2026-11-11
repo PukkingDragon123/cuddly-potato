@@ -8,7 +8,7 @@
 //   frameURL(color, state)     -> node frame (state: open | got | max | lock)
 //   chainURL() / junctionURL(on) / lampURL(kind)
 //   drawBeaker(ctx, w, h, frac, t, color) -> paints one beaker frame on a w x h pixel canvas
-import { PixCanvas, renderPixArt, ICON_COLORS as C, iconURL } from '../icons.js';
+import { PixCanvas, renderPixArt, renderPixLo, ICON_COLORS as C, iconURL } from '../icons.js';
 
 const HD = 2;
 const cache = new Map();
@@ -523,7 +523,7 @@ export function rsIconURL(name) {
   const d = D[name];
   const p = new PixCanvas(32, 1, HD);
   d.fn(p);
-  u = renderPixArt(p, { glints: 1, ...d.o });
+  u = renderPixLo(p, { lo: 16, ...d.o });
   cache.set(name, u);
   return u;
 }

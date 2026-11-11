@@ -24,7 +24,7 @@
 //   ensureBoardArt()          sprites as CSS custom properties (--qb-*): cork tile, pins, tape, stamp
 //                             ink, polaroid + speech bubbles, paper clip, tabs, counter plates, coffee
 //                             rings, doodle scraps, the "!" sticker.
-import { PixCanvas, renderPixArt, ICON_COLORS as C } from '../icons.js';
+import { PixCanvas, renderPixArt, renderPixLo, ICON_COLORS as C } from '../icons.js';
 
 // ============================================================================ colour, noise, dither
 
@@ -1684,7 +1684,7 @@ export function questArt(key) {
   return cached('art|' + name, () => {
     const p = new PixCanvas(ART_N, 1, 2);
     ART[name](p);
-    return renderPixArt(p, { glints: 2 });
+    return renderPixLo(p, { lo: 24 });
   });
 }
 export const QUEST_ART_NAMES = Object.keys(ART);

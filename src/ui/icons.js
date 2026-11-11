@@ -292,6 +292,101 @@ function render(p, o = {}) {
   return c.toDataURL();
 }
 
+// --------------------------------------------------------------------------- low-res "hand pixel" renderer
+// The UI icon look (matches the voxel emotes): a chunky ~16 px grid (rewards ~24),
+// flat colour regions with ONE light step on top edges and ONE shadow step on bottom
+// edges, a single highlight pixel on big regions, a 1px ink outline (corners left
+// open, like hand-placed outlines) and a hard 1px drop shadow. No dithering, no
+// gradients, no glow. Vector designs are boxed down by a weighted majority vote
+// (ink and flat detail pixels win ties, so eyes / glints survive the shrink);
+// hand-pixeled sprites (SPR) skip the vote and the auto shading.
+const INK_LO = '#1b1530';
+function downsample(p, T) {
+  const R = p.R, g = p.g, fl = p.fl, k = Math.max(1, Math.round(R / T)), W = Math.ceil(R / k);
+  const lg = new Array(W * W).fill(null), lf = new Uint8Array(W * W);
+  const wt = new Map();
+  for (let by = 0; by < W; by++) for (let bx = 0; bx < W; bx++) {
+    wt.clear();
+    let filled = 0, cells = 0, flats = 0;
+    for (let j = by * k; j < Math.min(R, by * k + k); j++) for (let i = bx * k; i < Math.min(R, bx * k + k); i++) {
+      cells++;
+      const c = g[j * R + i];
+      if (c === null) continue;
+      filled++;
+      const f = fl[j * R + i];
+      if (f) flats++;
+      wt.set(c, (wt.get(c) ?? 0) + (c === C.ink ? 1.7 : f || c === C.white ? 2.2 : 1));
+    }
+    if (filled < cells * 0.42 && !(flats && flats * 3 >= cells)) continue;
+    let best = null, bw = -1;
+    for (const [c, w] of wt) if (w > bw) { bw = w; best = c; }
+    lg[by * W + bx] = best;
+    lf[by * W + bx] = flats * 2 >= filled ? 1 : 0;
+  }
+  return { W, g: lg, fl: lf };
+}
+function renderLo(p, o = {}) {
+  const { W, g, fl } = p.lo ?? downsample(p, o.lo ?? 16);
+  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= W ? null : g[y * W + x]);
+  const out = g.slice();
+  if (o.shade !== false && !p.lo) {
+    // regions (4-connected) for size checks + one highlight pixel
+    const lab = new Int32Array(W * W).fill(-1), regs = [];
+    for (let k0 = 0; k0 < W * W; k0++) {
+      if (g[k0] === null || lab[k0] >= 0) continue;
+      const col = g[k0], r = { n: 0, ks: [] }, st = [k0];
+      lab[k0] = regs.length; regs.push(r);
+      while (st.length) {
+        const k = st.pop(), x = k % W, y = (k / W) | 0;
+        r.n++; r.ks.push(k);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const xx = x + dx, yy = y + dy, kk = yy * W + xx;
+          if (xx >= 0 && yy >= 0 && xx < W && yy < W && lab[kk] < 0 && g[kk] === col) { lab[kk] = lab[k]; st.push(kk); }
+        }
+      }
+    }
+    for (const r of regs) {
+      const col = g[r.ks[0]];
+      if (r.n < 4 || col === C.ink || col === C.white || col === INK_LO || fl[r.ks[0]]) continue;
+      const rp = ramp(col);
+      let hi = -1;
+      for (const k of r.ks) {
+        const x = k % W, y = (k / W) | 0;
+        const up = at(x, y - 1) === col, dn = at(x, y + 1) === col, lf = at(x - 1, y) === col, rt = at(x + 1, y) === col;
+        let v = (up ? 0 : 1) - (dn ? 0 : 1) + (r.n > 9 ? (lf ? 0 : 0.5) - (rt ? 0 : 0.5) : 0);
+        out[k] = v >= 0.5 ? rp[3] : v <= -0.5 ? rp[1] : col;
+        if (r.n >= 14 && up && lf && !(at(x - 1, y - 1) === col && at(x, y - 2) === col && at(x - 2, y) === col) && (hi < 0 || k < hi)) hi = k;
+      }
+      if (hi >= 0 && o.glint !== false) out[hi] = mix(rp[4], '#ffffff', 0.55);
+    }
+  }
+  // canvas: 1px outline all round, 1px hard shadow below, square
+  const S = W + 3, ink = o.outline === C.ink || !o.outline ? INK_LO : o.outline;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const img = ctx.createImageData(S, S), d = img.data;
+  const put = (x, y, hex, a = 255) => { const i = (y * S + x) * 4, [r, gg, b] = rgbOf(hex); d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = a; };
+  const solid = (x, y) => at(x - 1, y - 1) !== null; // canvas coords -> art
+  const edge = (x, y) => !solid(x, y) && (solid(x + 1, y) || solid(x - 1, y) || solid(x, y + 1) || solid(x, y - 1));
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (solid(x, y)) put(x, y, out[(y - 1) * W + x - 1]);
+    else if (o.outlineOff !== true && edge(x, y)) put(x, y, ink);
+    else if (o.drop !== false && y > 0 && (solid(x, y - 1) || edge(x, y - 1)) ) put(x, y, '#060414', 96);
+  }
+  ctx.putImageData(img, 0, 0);
+  renderLo.last = c;
+  return c.toDataURL();
+}
+/** Hand-pixeled sprite -> the low-res grid renderLo takes (1 char = 1 pixel, '.' empty). */
+function sprGrid(rows, pal, W) {
+  const g = new Array(W * W).fill(null), fl = new Uint8Array(W * W);
+  const h = rows.length, w = Math.max(...rows.map((r) => r.length));
+  const ox = Math.floor((W - w) / 2), oy = Math.floor((W - h) / 2);
+  rows.forEach((r, y) => [...r].forEach((ch, x) => { const c = ch === 'k' ? INK_LO : pal[ch]; if (c) g[(y + oy) * W + x + ox] = c; }));
+  return { W, g, fl };
+}
+
 // --------------------------------------------------------------------------- icon designs
 
 const D = {};
@@ -1129,6 +1224,315 @@ def('beastLogo', (p) => {
   p.spark(29, 26, 2).spark(3, 27, 1);
 }, nat({ glints: 1 }));
 
+// --------------------------------------------------------------------------- hand-pixeled sprites
+
+// Drawn pixel by pixel on a 16 px grid in the voxel-emote style: 3 tones + white per
+// colour, no outer outline in the rows (renderLo adds the 1px ink outline + shadow),
+// 'k' = ink for inner lines / eyes, '.' = empty. `frames` sprites animate by hand.
+const GOLD = { Y: C.gold, L: C.goldL, O: C.goldD, D: C.goldDD, W: C.goldW };
+const SPR = {
+  coin: { pal: GOLD, rows: [
+    '....LLLLLL....',
+    '..LLYYYYYYOO..',
+    '.LYYYYYYYYYYO.',
+    '.LYYYOOOOYYYO.',
+    'LYYYOYWWYOYYYO',
+    'LYYOYYWYYYOYYO',
+    'LYYOYYWYYYOYYO',
+    'LYYOYYWYYYOYYO',
+    'LYYOYYYYYYOYYO',
+    'LYYYOYYYYOYYYO',
+    '.LYYYOOOOYYYO.',
+    '.OYYYYYYYYYYD.',
+    '..OOYYYYYYDD..',
+    '....DDDDDD....'] },
+  gem: { pal: { Q: C.pinkW, P: C.pinkL, M: C.pink, D: C.pinkD, W: C.white }, rows: [
+    '...QQQQQQQQ...',
+    '..PQWWQQQQMM..',
+    '.PPQWQQQQQMMD.',
+    'PPPQQQQQQQMMMD',
+    'DMMMMMMMMMMMDD',
+    '.PPMMMMMMMMDD.',
+    '..PPMMMMMMDD..',
+    '...PPMMMMDD...',
+    '....PPMMDD....',
+    '.....PMMD.....',
+    '......MD......'] },
+  energy: { pal: { B: C.blue, L: C.blueL, D: C.blueD, Y: C.gold, G: C.goldW, O: C.goldD }, rows: [
+    '....LLLLLL....',
+    '..LLBBBBBBDD..',
+    '.LBBBBBBYYBBD.',
+    '.LBBBBBYYOBBD.',
+    'LBBBBBYYOBBBBD',
+    'LBBBBYGYOBBBBD',
+    'LBBBYGYYYYYBBD',
+    'LBBYYYYYYYOBBD',
+    'LBBBBBBYYOBBBD',
+    'LBBBBBYYOBBBBD',
+    '.LBBBBYOBBBBD.',
+    '.DBBBYOBBBBBD.',
+    '..DDBBBBBBDD..',
+    '....DDDDDD....'] },
+  star: { pal: GOLD, rows: [
+    '......L......',
+    '.....LYO.....',
+    '.....LYO.....',
+    '....LYYYO....',
+    'LLLLLYYYYYYYO',
+    '.LYYYWYYYYYO.',
+    '..LYYYYYYYO..',
+    '...LYYYYYO...',
+    '...LYYYYYO...',
+    '..LYYYOYYYO..',
+    '..LYYO.OYYO..',
+    '.LYO.....OYO.',
+    '.LO.......OO.'] },
+  heart: { pal: { R: C.red, L: C.redL, D: C.redD, W: C.white }, rows: [
+    '..LLL...LLL..',
+    '.LWWRL.LRRRD.',
+    'LWWRRRLRRRRRD',
+    'LWRRRRRRRRRRD',
+    'LRRRRRRRRRRRD',
+    '.RRRRRRRRRRD.',
+    '..RRRRRRRRD..',
+    '...RRRRRRD...',
+    '....RRRRD....',
+    '.....RRD.....',
+    '......D......'] },
+  trophy: { pal: { ...GOLD, B: C.wood, b: C.woodD }, rows: [
+    '..LLLLLLLLLO..',
+    'LLLWYYYYYYYOOO',
+    'L.LWYYYYYYYO.O',
+    'L.LYYYYYYYYO.O',
+    '.LLYYYYYYYYOO.',
+    '...LYYYYYYO...',
+    '....LYYYYO....',
+    '.....LYYO.....',
+    '......YO......',
+    '......YO......',
+    '....LYYYYO....',
+    '...BBBBBBBB...',
+    '...BbLLLLbB...',
+    '...bbbbbbbb...'] },
+  crown: { pal: { ...GOLD, R: C.red, B: C.blueL, P: C.pink }, rows: [
+    '.L....LO....L.',
+    'LYO..LYYO..LYO',
+    '.Y....YO....Y.',
+    '.YY..YYYO..YO.',
+    '.YYYYYYYYYYYO.',
+    '.LYYRYYPYYBYO.',
+    '.LYRRRYYYBBBO.',
+    '.LYYRYYPYYBYO.',
+    '.OOOOOOOOOOOO.',
+    '.LYWYYYYYYYYO.',
+    '.DDDDDDDDDDDD.'] },
+  chest: { pal: { T: '#d08a4a', W: C.wood, w: C.woodD, G: C.gold, g: C.goldD, L: C.goldL }, rows: [
+    '..TTTTTTTTTT..',
+    '.TWWWGWWGWWWw.',
+    'TWWWWGWWGWWWWw',
+    'TWWWWGWWGWWWWw',
+    'GGGGGLLLLGGGGg',
+    'wwwwGGkkGGwwww',
+    'TWWWGGkkGGWWWw',
+    'TWWWWGGGGWWWWw',
+    'TWWWWGWWGWWWWw',
+    'TWWWWGWWGWWWWw',
+    'GGGGGGGGGGGGGg',
+    'wwwwwwwwwwwwww'] },
+  gift: { pal: { P: C.pink, Q: C.pinkL, p: C.pinkD, Y: C.gold, L: C.goldL, O: C.goldD }, rows: [
+    '..YYY....YYY..',
+    '.YLLYY..YYLOY.',
+    '.YLYOYYYYOYOY.',
+    '..YYYYYYYYYY..',
+    'QQQQQQLYQQQQQp',
+    'QPPPPPLYPPPPPp',
+    'pppppppOpppppp',
+    '.QPPPPLOPPPPp.',
+    '.QPPPPLOPPPPp.',
+    '.QPPPPLOPPPPp.',
+    '.QPPPPLOPPPPp.',
+    '.QPPPPLOPPPPp.',
+    '.pppppOOpppppp'.slice(0, 14)] },
+  lock: { pal: { ...GOLD, S: C.snow, s: C.silverD, M: C.silver }, rows: [
+    '...SSSSSS...',
+    '..SMssssMs..',
+    '.SM......Ms.',
+    '.SM......Ms.',
+    '.SM......Ms.',
+    'LLLLLLLLLLLO',
+    'LYWYYYYYYYYO',
+    'LYYYYkkYYYYO',
+    'LYYYYkkYYYYO',
+    'LYYYYYkYYYYO',
+    'LYYYYYkYYYYO',
+    'LYYYYYYYYYYO',
+    'OOOOOOOOOOOO'] },
+  skull: { pal: { B: '#f4f4f4', b: '#b4bfd8', W: C.white }, rows: [
+    '...BBBBBB...',
+    '.BBWWBBBBBb.',
+    'BBWBBBBBBBBb',
+    'BBBBBBBBBBBb',
+    'BkkkkBBkkkkb',
+    'BkkkkBBkkkkb',
+    'BBkkBBBBkkBb',
+    '.BBBBkkBBBb.',
+    '..bBBBBBBb..',
+    '..BkBkBkBb..',
+    '...bbbbbb...'] },
+  check: { pal: { G: C.green, L: C.greenL, D: C.greenD }, rows: [
+    '...........LL',
+    '..........LGD',
+    '.........LGGD',
+    '........LGGD.',
+    'LL.....LGGD..',
+    'LGL...LGGD...',
+    'DGGL.LGGD....',
+    '.DGGLGGD.....',
+    '..DGGGD......',
+    '...DGD.......',
+    '....D........'] },
+  x: { pal: { R: C.red, L: C.redL, D: C.redD }, rows: [
+    'LL......LL',
+    'LRL....LRD',
+    'DRRL..LRRD',
+    '.DRRLLRRD.',
+    '..DRRRRD..',
+    '..LRRRRL..',
+    '.LRRDDRRL.',
+    'LRRD..DRRL',
+    'LRD....DRD',
+    'DD......DD'] },
+  plus: { pal: { G: C.green, L: C.greenL, D: C.greenD }, rows: [
+    '...LLLL...',
+    '...LGGD...',
+    '...LGGD...',
+    'LLLLGGLLLD',
+    'LGGGGGGGGD',
+    'LGGGGGGGGD',
+    'DDDDGGDDDD',
+    '...LGGD...',
+    '...LGGD...',
+    '...DDDD...'] },
+  gear: { pal: { S: C.steel, s: C.silverD, L: C.snow }, rows: [
+    '.....LLLL.....',
+    '..LL.LSSs.Ls..',
+    '.LSSLSSSSLSSs.',
+    '.LSSSSSSSSSSs.',
+    '..LSSSssSSSs..',
+    'LLSSSs..sSSSss',
+    'LSSSs....sSSSs',
+    'LSSSs....sSSSs',
+    'ssSSSs..sSSSss',
+    '..sSSSssSSSs..',
+    '.LSSSSSSSSSSs.',
+    '.sSSsSSSSsSSs.',
+    '..ss.sSSs.ss..',
+    '.....ssss.....'] },
+  fire: { pal: { R: C.red, O: C.orange, Y: C.gold, W: C.goldW, D: C.redD }, dur: 0.5, frames: [[
+    '.....R......',
+    '....RR...R..',
+    '....ROR..RR.',
+    '...ROOR.ROR.',
+    '..ROOOORROR.',
+    '.RROOYOOOOR.',
+    '.ROOYYOOOORR',
+    'ROOOYYYOOOOR',
+    'ROOYYWYYOOOR',
+    'ROOYWWWYYOOR',
+    'ROOYWWWWYOOR',
+    '.ROOYWWYYOR.',
+    '..DROOOORD..'], [
+    '......R.....',
+    '..R...RR....',
+    '.RR..ROR....',
+    '.ROR.ROOR...',
+    '.RORROOOOR..',
+    '.ROOOOYOORR.',
+    'RROOOYYOOOR.',
+    'ROOOYYYOOOOR',
+    'ROOYYWYYOOOR',
+    'ROOYWWWYYOOR',
+    'ROOYWWWWYOOR',
+    '.ROOYWWYYOR.',
+    '..DROOOORD..']] },
+};
+// smiley + chat bubble: hand-timed blinks (open, open..., shut)
+const FACE = [
+  '....LLLLLL....',
+  '..LLYYYYYYOO..',
+  '.LYWYYYYYYYYO.',
+  '.LWYYYYYYYYYO.',
+  'LYYYkYYYYkYYYO',
+  'LYYYkYYYYkYYYO',
+  'LYYYYYYYYYYYYO',
+  'LYPYYYYYYYYPYO',
+  'LYYkYYYYYYkYYO',
+  'LYYYkkkkkkYYYO',
+  '.LYYYkRRkYYYO.',
+  '.OYYYYkkYYYYO.',
+  '..OOYYYYYYOO..',
+  '....OOOOOO....'];
+const blink = (rows, r0, cols, fill) => rows.map((r, y) => (y === r0 ? r.replace(/k/g, fill) : y === r0 + 1 ? [...r].map((ch, x) => (cols.includes(x) ? 'k' : ch)).join('') : r));
+SPR.smile = { pal: { ...GOLD, P: C.pinkL, R: C.red }, dur: 3.2, hold: [11, 1], frames: [FACE, blink(FACE, 4, [3, 4, 5, 8, 9, 10], 'Y')] };
+const BUB = [
+  '...WWWWWWWWWW...',
+  '.WWWWWWWWWWWWWW.',
+  'WWWWWWWWWWWWWWWw',
+  'WWWWkWWWWWWkWWWw',
+  'WWWWkWWWWWWkWWWw',
+  'WWWWWWWWWWWWWWWw',
+  'WWWWkWWWWWWkWWWw',
+  'wWWWWkkkkkkWWWWw',
+  '.wWWWWWPPWWWWWw.',
+  '..wwwWwwwwwwww..',
+  '...Ww...........',
+  '..w.............'];
+SPR.emote = { pal: { W: C.white, w: '#c8d4f0', P: C.pinkL }, dur: 3, hold: [9, 1], frames: [BUB, blink(BUB, 3, [3, 4, 5, 10, 11, 12], 'W')] };
+SPR.alert = { pal: { R: C.red, L: C.redL, D: C.redD, W: C.white }, rows: [
+  '.LLLL.',
+  'LWRRRD',
+  'LWRRRD',
+  'LRRRRD',
+  'LRRRRD',
+  '.LRRD.',
+  '.LRRD.',
+  '.LRRD.',
+  '..RD..',
+  '......',
+  '.LLLL.',
+  'LRRRRD',
+  '.DDDD.'] };
+SPR.info = { pal: { B: C.blue, L: C.blueL, D: C.blueD, W: C.white }, rows: [
+  '..LLL..',
+  '.LWBBD.',
+  '..DDD..',
+  '.......',
+  '.LLLL..',
+  '..LBBD.',
+  '..LBBD.',
+  '..LBBD.',
+  '..LBBD.',
+  '..LBBD.',
+  '.LLBBDD',
+  '.DDDDDD'] };
+SPR.lab = { pal: { C: C.wood, c: C.woodD, G: C.glass, g: C.glassD, W: C.white, P: C.pink, Q: C.pinkL, D: C.pinkD }, rows: [
+  '....CCCCC....',
+  '....ccccc....',
+  '.....GWg.....',
+  '.....GWg.....',
+  '.....GWg.....',
+  '....GWGGg....',
+  '...GWGGGGg...',
+  '..GWQQQQQQg..',
+  '.GWPPWPPPPPg.',
+  '.GPPPPPPPPPg.',
+  'GPPPPPPPWPPPg',
+  'GPPPPPPPPPPDg',
+  '.gDPPPPPPPDg.',
+  '..ggDDDDDgg..'] };
+SPR.bucks = SPR.gem;
+SPR.power = SPR.energy;
+
 // --------------------------------------------------------------------------- API
 
 /**
@@ -1137,32 +1541,52 @@ def('beastLogo', (p) => {
  */
 const HD = 2;
 const cache = new Map();
-export function iconURL(name) {
-  if (cache.has(name)) return cache.get(name);
-  const d = D[name] ?? D.star;
-  const o = d.opts ?? {};
+/** Target low-res grid: 16 px for UI icons, 22-24 px for the big reward art. */
+const loOf = (o) => o.lo ?? ((o.size ?? N) * (o.s ?? 2) >= 48 ? 22 : 16);
+/** Paint one icon (or one frame of a hand-pixeled sprite) and return its canvas. */
+function paint(name, frame = 0) {
+  const spr = SPR[name];
+  if (spr) {
+    const fr = spr.frames ? spr.frames[frame % spr.frames.length] : spr.rows;
+    const p = { lo: sprGrid(fr, spr.pal, spr.W ?? 16) };
+    renderLo(p, spr.o ?? {});
+    return renderLo.last;
+  }
+  const d = D[name] ?? D.star, o = d.opts ?? {};
   const p = new Pix(o.size ?? N, o.s ?? 2, HD);
   d.fn(p);
-  const url = render(p, o);
+  renderLo(p, { ...o, lo: loOf(o) });
+  return renderLo.last;
+}
+export function iconURL(name) {
+  if (cache.has(name)) return cache.get(name);
+  const url = paint(name).toDataURL();
   cache.set(name, url);
   return url;
 }
 export const ICON_NAMES = Object.keys(D);
 
 // --------------------------------------------------------------------------- animated variants
-// Pixel-art sprite strips built from the finished (shaded + outlined) icon, so
-// every frame keeps the icon's exact palette and silhouette:
-//   spin    - the coin turns edge-on and back (re-sampled columns, darker back face)
-//   glint   - a diagonal white glint sweeps across the opaque body (gems, stars, trophies)
-//   flicker - the bolt flares brighter with a 1px electric halo, then dims
-//   bubble  - tiny bubbles rise through the liquid inside vials and flasks
-// iconAnim(name, kind?) -> { url, n, dur } | null; frames sit side by side in one PNG.
+// Tiny hand-timed loops on the low-res sprite (2-4 distinct frames, idle frames
+// repeated in the strip to hold a pose; CSS steps() plays the strip, so there is
+// no per-icon JS ticker, and reduced motion freezes it on frame 0):
+//   spin    - the coin turns: full, narrow, edge, narrow (back face darker)
+//   glint   - a 2px white glint steps across the body, then rests
+//   flicker - the bolt flashes a palette step brighter with a pixel spark
+//   bubble  - one white pixel bubble rises through the liquid
+//   bob     - hops up 1px and back (hearts, gifts, chests)
+//   flame   - the flame tips swap sides (fire)
+//   frames  - a hand-pixeled multi-frame sprite (SPR[name].frames)
 const ANIM_KIND = {
   coin: 'spin', coinStack: 'glint', coinPile: 'glint', coinChest: 'glint',
-  bucks: 'glint', bucksPile: 'glint', gem: 'glint', star: 'glint', crown: 'glint', trophy: 'glint', chrome: 'glint', spark4: 'glint', ticket: 'glint', chest: 'glint',
+  bucks: 'glint', bucksPile: 'glint', gem: 'glint', star: 'glint', crown: 'glint', trophy: 'glint', chrome: 'glint', spark4: 'glint', ticket: 'glint', chest: 'bob',
   energy: 'flicker', power: 'flicker', powerBolt: 'flicker', bolt: 'flicker', lightning: 'flicker', logoBolt: 'flicker', mega: 'flicker',
   vial: 'bubble', tube: 'bubble', flask: 'bubble', flaskCur: 'bubble', flaskOn: 'bubble', flaskGold: 'bubble', flaskPrem: 'bubble', lab: 'bubble',
+  heart: 'bob', hp: 'bob', gift: 'bob', fire: 'flame', calorie: 'flame', boss: 'bob', quest: 'bob',
 };
+for (const k of Object.keys(SPR)) if (SPR[k].frames) ANIM_KIND[k] = 'frames';
+/** Icons that loop even through plain icon() (calm, small loops only). */
+export const AUTO_ANIM = new Set(['fire', 'heart', 'smile', 'emote']);
 export const animKindOf = (name) => ANIM_KIND[name] ?? null;
 const animCache = new Map();
 const lumA = (d, i) => d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
@@ -1170,113 +1594,94 @@ export function iconAnim(name, kind = ANIM_KIND[name]) {
   if (!kind || typeof document === 'undefined') return null;
   const key = name + '|' + kind;
   if (animCache.has(key)) return animCache.get(key);
-  iconURL(name);
-  // re-render to get the canvas (iconURL caches the data URL only)
-  const d0 = D[name] ?? D.star, o = d0.opts ?? {};
-  const p0 = new Pix(o.size ?? N, o.s ?? 2, HD);
-  d0.fn(p0);
-  render(p0, o);
-  const src = render.last;
+  const src = paint(name);
   const S = src.width, H = src.height;
   const base = src.getContext('2d').getImageData(0, 0, S, H).data;
-  const frames = [];
-  const blank = () => new Uint8ClampedArray(base.length);
   const at = (x, y) => (y * S + x) * 4;
-  let n = 0, dur = 2.4;
-  if (kind === 'spin') {
-    const spin = 8, idle = 10;
-    // horizontal extent of the coin body
+  const solid = (b, x, y) => x >= 0 && y >= 0 && x < S && y < H && b[at(x, y) + 3] > 200;
+  const shift = (dy) => { const out = new Uint8ClampedArray(base.length); for (let y = 0; y < H; y++) { const yy = y - dy; if (yy < 0 || yy >= H) continue; out.set(base.subarray(at(0, yy), at(0, yy + 1)), at(0, y)); } return out; };
+  const lighten = (b, k) => { const out = new Uint8ClampedArray(b); for (let i = 0; i < out.length; i += 4) if (out[i + 3] > 200 && lumA(b, i) > 40) for (let c = 0; c < 3; c++) out[i + c] = Math.min(255, out[i + c] + (255 - out[i + c]) * k); return out; };
+  const spark = (b, x, y, col = [255, 255, 255]) => { for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= S || yy >= H) continue; const i = at(xx, yy); b[i] = dx || dy ? 255 : col[0]; b[i + 1] = dx || dy ? 236 : col[1]; b[i + 2] = dx || dy ? 140 : col[2]; b[i + 3] = 255; } return b; };
+  let frames = [], dur = 2.4;
+  if (kind === 'frames') {
+    const n = SPR[name].frames.length, hold = SPR[name].hold ?? Array(n).fill(1);
+    for (let f = 0; f < n; f++) { const fd = paint(name, f).getContext('2d').getImageData(0, 0, S, H).data; for (let r = 0; r < hold[f]; r++) frames.push(fd); }
+    dur = SPR[name].dur ?? 1.2;
+  } else if (kind === 'spin') {
     let x0 = S, x1 = 0;
     for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) if (base[at(x, y) + 3] > 200) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
     const cx = (x0 + x1) / 2;
-    for (let f = 0; f < idle; f++) frames.push(base);
-    for (let f = 1; f <= spin; f++) {
-      const c = Math.cos((f / (spin + 1)) * Math.PI * 2);
-      const w = Math.sign(c || 1) * Math.max(0.14, Math.abs(c));
-      const out = blank(), dark = c < 0 ? 0.78 : 1;
+    const squash = (w, dark) => {
+      const out = new Uint8ClampedArray(base.length);
       for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
         const sx = Math.round(cx + (x - cx) / w);
         if (sx < 0 || sx >= S) continue;
         const si = at(sx, y), di = at(x, y);
         if (!base[si + 3]) continue;
-        const edge = Math.abs(w) < 0.4 && base[si + 3] > 200 ? 0.82 : 1;
-        out[di] = base[si] * dark * edge; out[di + 1] = base[si + 1] * dark * edge; out[di + 2] = base[si + 2] * dark * edge; out[di + 3] = base[si + 3];
-      }
-      frames.push(out);
-    }
-    dur = 2.6;
-  } else if (kind === 'glint') {
-    const idle = 8, sweep = 7;
-    for (let f = 0; f < idle; f++) frames.push(base);
-    for (let f = 0; f < sweep; f++) {
-      const out = new Uint8ClampedArray(base);
-      const t = -4 * HD + ((S + H + 8 * HD) * f) / (sweep - 1);
-      for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
-        const i = at(x, y);
-        if (base[i + 3] < 250 || lumA(base, i) < 45) continue;
-        const dd = Math.abs(x + y - t);
-        const k = dd < 1.2 * HD ? 0.8 : dd < 2.4 * HD ? 0.42 : 0;
-        if (!k) continue;
-        out[i] += (255 - out[i]) * k; out[i + 1] += (255 - out[i + 1]) * k; out[i + 2] += (255 - out[i + 2]) * k;
-      }
-      frames.push(out);
-    }
-    dur = 3.2;
-  } else if (kind === 'flicker') {
-    const bright = (m, halo) => {
-      const out = new Uint8ClampedArray(base);
-      for (let i = 0; i < out.length; i += 4) if (base[i + 3]) { out[i] = Math.min(255, base[i] * m); out[i + 1] = Math.min(255, base[i + 1] * m); out[i + 2] = Math.min(255, base[i + 2] * m); }
-      if (halo) for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
-        const i = at(x, y);
-        if (base[i + 3]) continue;
-        const nb = (xx, yy) => xx >= 0 && yy >= 0 && xx < S && yy < H && base[at(xx, yy) + 3] > 200;
-        if (nb(x + 1, y) || nb(x - 1, y) || nb(x, y + 1) || nb(x, y - 1)) { out[i] = 255; out[i + 1] = 246; out[i + 2] = 160; out[i + 3] = 150; }
+        out[di] = base[si] * dark; out[di + 1] = base[si + 1] * dark; out[di + 2] = base[si + 2] * dark; out[di + 3] = base[si + 3];
       }
       return out;
     };
-    const hi = bright(1.32, true), lo = bright(0.78, false), mid = bright(1.12, false);
-    for (let f = 0; f < 9; f++) frames.push(base);
-    frames.push(hi, lo, hi, mid, base, hi, base);
-    dur = 2.2;
-  } else if (kind === 'bubble') {
-    // interior liquid pixels: opaque, surrounded by opaque, mid luminance, saturated
-    const inner = (x, y) => {
-      if (x < 1 || y < 1 || x >= S - 1 || y >= H - 1) return false;
-      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (base[at(x + dx, y + dy) + 3] < 250) return false;
-      const i = at(x, y), l = lumA(base, i), mx = Math.max(base[i], base[i + 1], base[i + 2]), mn = Math.min(base[i], base[i + 1], base[i + 2]);
-      return l > 50 && l < 225 && mx - mn > 45;
-    };
-    const cols = [];
-    for (let x = 0; x < S; x++) {
-      let yb = -1;
-      for (let y = H - 1; y >= 0; y--) if (inner(x, y)) { yb = y; break; }
-      if (yb > 0) { let yt = yb; while (yt > 0 && inner(x, yt - 1)) yt--; if (yb - yt >= 4 * HD) cols.push({ x, yb, yt }); }
-    }
-    const F = 12;
-    const picks = cols.length ? [cols[Math.floor(cols.length * 0.3)], cols[Math.floor(cols.length * 0.62)], cols[Math.floor(cols.length * 0.85)]] : [];
-    for (let f = 0; f < F; f++) {
-      const out = new Uint8ClampedArray(base);
-      picks.forEach((c, b) => {
-        if (!c) return;
-        const span = c.yb - c.yt, ph = ((f + b * 4) % F) / F, y = Math.round(c.yb - ph * span);
-        if (y < c.yt) return;
-        for (let b2 = 0; b2 < HD; b2++) for (let a2 = 0; a2 < HD; a2++) {
-          if (y - b2 < c.yt || c.x + a2 >= S || !inner(c.x + a2, y - b2)) continue;
-          const i = at(c.x + a2, y - b2);
-          out[i] = 255; out[i + 1] = 255; out[i + 2] = 255;
-        }
-        if (ph > 0.4 && y - 1 >= c.yt && c.x + HD < S && inner(c.x + HD, y)) { const j = at(c.x + HD, y); out[j] = Math.min(255, out[j] + 90); out[j + 1] = Math.min(255, out[j + 1] + 90); out[j + 2] = Math.min(255, out[j + 2] + 90); }
-      });
+    for (let f = 0; f < 5; f++) frames.push(base);
+    frames.push(squash(0.55, 1), squash(0.2, 0.8), squash(0.55, 0.78));
+    dur = 2.4;
+  } else if (kind === 'glint') {
+    for (let f = 0; f < 6; f++) frames.push(base);
+    for (let f = 0; f < 3; f++) {
+      const out = new Uint8ClampedArray(base), t = Math.round(S * (0.55 + f * 0.45));
+      for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) {
+        const i = at(x, y), dd = x + y - t;
+        if (base[i + 3] < 250 || lumA(base, i) < 50 || (dd !== 0 && dd !== 1)) continue;
+        const kk = dd === 0 ? 0.85 : 0.5;
+        out[i] += (255 - out[i]) * kk; out[i + 1] += (255 - out[i + 1]) * kk; out[i + 2] += (255 - out[i + 2]) * kk;
+      }
       frames.push(out);
     }
-    dur = 1.6;
+    dur = 2.7;
+  } else if (kind === 'flicker') {
+    const hi = spark(lighten(base, 0.35), S - 3, 2);
+    for (let f = 0; f < 5; f++) frames.push(base);
+    frames.push(hi, base, hi);
+    dur = 2;
+  } else if (kind === 'bubble') {
+    // liquid = saturated mid-tone pixels with solid neighbours
+    const inner = (x, y) => {
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (!solid(base, x + dx, y + dy)) return false;
+      const i = at(x, y), l = lumA(base, i), mx = Math.max(base[i], base[i + 1], base[i + 2]), mn = Math.min(base[i], base[i + 1], base[i + 2]);
+      return l > 45 && l < 225 && mx - mn > 45;
+    };
+    let col = null;
+    for (let x = 1; x < S - 1 && !col; x++) {
+      const xs = Math.round(S * 0.42) + (x % 2 ? x >> 1 : -(x >> 1));
+      let yb = -1; for (let y = H - 2; y > 0; y--) if (inner(xs, y)) { yb = y; break; }
+      if (yb > 0) { let yt = yb; while (yt > 1 && inner(xs, yt - 1)) yt--; if (yb - yt >= 3) col = { x: xs, yb, yt }; }
+    }
+    for (let f = 0; f < 4; f++) {
+      const out = new Uint8ClampedArray(base);
+      if (col) { const y = Math.round(col.yb - ((col.yb - col.yt) * f) / 3), i = at(col.x, y); out[i] = 255; out[i + 1] = 255; out[i + 2] = 255; }
+      frames.push(out);
+    }
+    dur = 1.2;
+  } else if (kind === 'bob') {
+    const up = shift(-1);
+    frames = [base, base, up, up];
+    dur = 1.1;
+  } else if (kind === 'flame') {
+    // mirror the top half (flame tips) for the second frame
+    const out = new Uint8ClampedArray(base);
+    let y0 = H, y1 = 0; for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) if (base[at(x, y) + 3] > 200) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    const cut = Math.round(y0 + (y1 - y0) * 0.5);
+    let x0 = S, x1 = 0; for (let y = 0; y < H; y++) for (let x = 0; x < S; x++) if (base[at(x, y) + 3]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    for (let y = 0; y < cut; y++) for (let x = x0; x <= x1; x++) { const si = at(x0 + x1 - x, y), di = at(x, y); for (let c = 0; c < 4; c++) out[di + c] = base[si + c]; }
+    frames = [base, out];
+    dur = 0.5;
   } else return null;
-  n = frames.length;
+  const n = frames.length;
   const c = document.createElement('canvas');
   c.width = S * n;
   c.height = H;
   const g2 = c.getContext('2d');
-  frames.forEach((fd, k) => g2.putImageData(new ImageData(fd instanceof Uint8ClampedArray ? fd : new Uint8ClampedArray(fd), S, H), k * S, 0));
+  frames.forEach((fd, k) => g2.putImageData(new ImageData(new Uint8ClampedArray(fd), S, H), k * S, 0));
   const res = { url: c.toDataURL(), n, dur };
   animCache.set(key, res);
   return res;
@@ -1286,4 +1691,4 @@ export const ICON_COLORS = C;
 // --------------------------------------------------------------------------- shared raster kit [engineer K]
 // The rank medals (src/ui/rankMedal.js) paint on the same pixel canvas and run
 // through the same shader, so they read as part of this icon set.
-export { Pix as PixCanvas, render as renderPixArt, ramp as pixRamp };
+export { Pix as PixCanvas, render as renderPixArt, renderLo as renderPixLo, ramp as pixRamp };

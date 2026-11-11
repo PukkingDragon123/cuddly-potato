@@ -287,7 +287,7 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12) 40%, transparent);
 }
 .pill.has-plus { padding-right: calc(var(--u) * 4.6); }
-.pill > .pi { position: absolute; left: calc(var(--u) * -2.6); top: 50%; translate: 0 -50%; width: calc(var(--u) * 7.6); height: calc(var(--u) * 7.6); filter: drop-shadow(0 0 calc(var(--px) * 1.5) rgba(255, 255, 255, 0.25)); }
+.pill > .pi { position: absolute; left: calc(var(--u) * -2.6); top: 50%; translate: 0 -50%; width: calc(var(--u) * 7.6); height: calc(var(--u) * 7.6); }
 .pill .plus { position: absolute; right: calc(var(--u) * -2.6); top: 50%; translate: 0 -50%; width: calc(var(--u) * 6.4); min-height: 0; height: calc(var(--u) * 6.6); border-width: calc(4 * var(--pxs)) !important; border-image-width: calc(5 * var(--pxs)) !important; }
 
 /* progress bars = test tubes: glass trough with graduation marks, glowing bubbling liquid with a meniscus */
@@ -962,12 +962,7 @@ body.landscape .dlg-port { width: clamp(70px, calc(var(--u) * 25), 112px); }
   .btn { transition: none; }
 }
 
-/* HD pixel icons (icons.js draws them at 2x their design grid, 64-96 px): nearest-neighbour when
-   they are shown at / above native size (2-3x phone screens), smooth downsampling on 1x screens
-   where an icon is drawn smaller than its pixels (nearest would drop whole outline rows). */
-@media (max-resolution: 1.99dppx) {
-  img.pi, .pi, .ui-fly, .spark.star, .tr-ar-isle { image-rendering: auto; }
-}
+/* Pixel icons are low-res hand-pixel sprites (16-24 px): always nearest-neighbour upscaled. */
 
 /* =========================================================================
    Pixel shapes v1 (pixshapes.js): no smooth CSS circles / soft radial blobs.
