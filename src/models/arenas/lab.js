@@ -450,23 +450,6 @@ function addDrone(K, path) {
   });
 }
 
-/** Animated LED video wall frames for the HQ (pixel art). */
-function ledFrames() {
-  const glyph = { M: ['#...#', '##.##', '#.#.#', '#...#', '#...#'], R: ['##.', '#.#', '##.', '#.#', '#.#'], B: ['##.', '#.#', '##.', '#.#', '##.'], E: ['###', '#..', '##.', '#..', '###'], A: ['.#.', '#.#', '###', '#.#', '#.#'], S: ['.##', '#..', '.#.', '..#', '##.'], T: ['###', '.#.', '.#.', '.#.', '.#.'], $: ['.#.', '###', '#..', '###', '..#', '###', '.#.'], 1: ['.#.', '##.', '.#.', '.#.', '###'], 0: ['###', '#.#', '#.#', '#.#', '###'], ',': ['.', '.', '.', '#', '#'], '!': ['#', '#', '#', '.', '#'], ' ': ['..', '..', '..', '..', '..'], L: ['#..', '#..', '#..', '#..', '###'], N: ['#..#', '##.#', '#.##', '#..#', '#..#'], W: ['#...#', '#...#', '#.#.#', '##.##', '#...#'], I: ['###', '.#.', '.#.', '.#.', '###'] };
-  const write = (ctx, str, cx, y, col, s = 1) => {
-    let w = 0;
-    for (const ch of str) w += ((glyph[ch] ?? glyph[' '])[0].length + 1) * s;
-    let x = Math.round(cx - w / 2);
-    for (const ch of str) { const gl = glyph[ch] ?? glyph[' ']; gl.forEach((row, r) => [...row].forEach((c, i) => { if (c === '#') px(ctx, x + i * s, y + r * s, s, s, col); })); x += (gl[0].length + 1) * s; }
-  };
-  return [0, 1, 2, 3].map((f) => canvasTex('lab_led' + f, 48, 20, (ctx, w, h) => {
-    if (f === 0) { paintGradient(ctx, 0, 0, w, h, [[0, 0x1a2a6a], [1, 0x29b6f6]], { bands: 4 }); write(ctx, 'MRBEAST', w / 2, 3, 0xffffff); write(ctx, 'LAB', w / 2, 11, 0xff2e88); }
-    else if (f === 1) { px(ctx, 0, 0, w, h, 0x0e3a1a); write(ctx, '$1,000,000', w / 2, 7, 0x7cff6a); for (let i = 0; i < 12; i++) px(ctx, (i * 9) % w, (i * 5) % h, 2, 1, 0x3faa48); }
-    else if (f === 2) { paintGradient(ctx, 0, 0, w, h, [[0, 0xff2e88], [1, 0xffd23f]], { bands: 4 }); write(ctx, 'WIN!', w / 2, 4, 0xffffff, 2); }
-    else { px(ctx, 0, 0, w, h, 0x15121f); disc(ctx, w / 2, h / 2, 7, 0x29b6f6); px(ctx, w / 2 - 4, h / 2 - 2, 2, 2, 0xffffff); px(ctx, w / 2 + 2, h / 2 - 2, 2, 2, 0xffffff); px(ctx, w / 2 - 3, h / 2 + 3, 6, 1, 0x15121f); write(ctx, 'SWARMS', w / 2, 1, 0xffd23f); }
-  }, { mip: false }));
-}
-
 // --------------------------------------------------------------------------- battle
 
 export function buildBattle(K) {
@@ -584,18 +567,6 @@ export function buildBattle(K) {
 
   // ---- the HQ campus: building, LED wall, flags, reflecting pool + fountain, antenna beacons
   K.mesh('hq', hqGrid, { scale: 0.2, pivot: [0, 0, 0] }, HQ.x, 0, HQ.z, 0, 1, { shadow: false });
-  {
-    const frames = ledFrames();
-    const mat = new THREE.MeshBasicMaterial({ map: frames[0], toneMapped: false });
-    const led = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.6), mat);
-    led.position.set(HQ.x, 6.05, HQ.z + 2.95);
-    led.name = 'ledWall';
-    K.add(led);
-    K.mesh('ledFrame', () => new VoxGrid().box(-34, -14, 0, 33, 13, 0, (x, y) => (Math.abs(y) === 14 || y === 13 || x === -34 || x === 33 ? C.blue : NAVY)), { scale: 0.1, pivot: [0, 0, 0] }, HQ.x, 6.05, HQ.z + 2.83);
-    let last = -1;
-    K.onUpdate((dt, t) => { const f = Math.floor(t / 2.2) % 4; if (f !== last) { last = f; mat.map = frames[f]; } });
-    // NB the LED wall replaces part of the curtain wall above the entrance
-  }
   blinkInst(K, 'hqBeacon', beaconGrid(0xff2e88), { scale: 0.12, pivot: 'center' }, [[HQ.x - 0.1, 14.1, HQ.z - 0.1], [HQ.x - 13.9, 9.7, HQ.z - 0.3], [HQ.x + 13.9, 9.7, HQ.z - 0.3]], { groups: 1, mode: 'twinkle', rate: 0.6, duty: 0.2 });
   K.inst('hqMast', mastGrid(26), { scale: 0.1 }, [[HQ.x - 0.1, 11.4, HQ.z - 0.1], [HQ.x - 13.9, 7.0, HQ.z - 0.3], [HQ.x + 13.9, 7.0, HQ.z - 0.3]]);
   // helicopter idling on the pad (rotor spins)

@@ -12,7 +12,6 @@
 // the lane (z < -3.5); foreground motes stay tiny and low.
 import { engine } from '../../core/engine.js';
 import { addGrassField } from './meadow.js';
-import { addSpriteLife, addAdBoard } from './pix2d.js';
 import { THREE, VoxGrid, greedyGeometry, mulberry32, hash3, clamp, canvasTex, bayer, liveInstances, setInstance, swayInst, FIELD } from './kit.js';
 
 /** Multiply a hex colour's channels by k (0..1+). */
@@ -448,8 +447,6 @@ export function applyBattleDeco(K, id) {
   const D = DECO[id];
   if (!D) return;
   try { if (D.grass) addGrassField(K, D.grass); } catch (e) { console.error('arena grass failed', id, e); }
-  try { if (D.life) addSpriteLife(K, D.life.preset, { seed: id.length * 7, ...D.life }); } catch (e) { console.error('arena sprites failed', id, e); }
-  try { for (const a of D.ads ?? []) addAdBoard(K, a); } catch (e) { console.error('arena ads failed', id, e); }
 }
 
 /** Layer the arena's atmosphere preset on top of its hand-built scenery (battle arenas). */
