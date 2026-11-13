@@ -329,7 +329,7 @@ body.landscape .res-sub { margin-top: calc(var(--u) * 0.6); font-size: max(var(-
 }
 
 /* ARMOR ping (a hit soaked by a special-card shield) */
-.ftext.armor { color: #cfeeff; font-size: max(var(--fmin), round(calc(var(--u) * 3.8), var(--fq))); letter-spacing: 0; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(143, 216, 255, 0.9); }
+.ftext.armor { color: #cfeeff; font-size: max(var(--fmin), round(calc(var(--u) * 3.8), var(--fq))); letter-spacing: 0; text-shadow: var(--outline-thin); }
 
 /* EMOTE wind-up: a little charge pill over the Commander's head */
 .emo-wind {
@@ -391,7 +391,7 @@ body.landscape .res-sub { margin-top: calc(var(--u) * 0.6); font-size: max(var(-
 .tw-clock .pi { width: calc(var(--u) * 2.8); height: calc(var(--u) * 2.8); opacity: 0.9; }
 .tw-clock .tm {
   font-family: var(--font-d); font-weight: normal; font-size: max(var(--fmin), round(calc(var(--u) * 4.5), var(--fq))); line-height: 1; min-width: 2.3em; text-align: center; letter-spacing: 0;
-  color: #ffffff; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(127, 230, 255, 0.8); font-variant-numeric: tabular-nums;
+  color: #ffffff; text-shadow: var(--outline-thin); font-variant-numeric: tabular-nums;
 }
 .tw-clock .tag {
   font-style: normal; font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 2.6), var(--fq))); line-height: 1.1; padding: 0 0.3em; white-space: nowrap;

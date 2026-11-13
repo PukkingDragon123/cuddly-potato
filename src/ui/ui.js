@@ -482,7 +482,7 @@ export function updateWorldUI(dt) {
       continue;
     }
     const s = engine.toScreen(f.pos);
-    const pop = f.pop ? (k < 0.12 ? 0.5 + (k / 0.12) * 0.9 : k < 0.26 ? 1.4 - ((k - 0.12) / 0.14) * 0.4 : 1) : 1;
+    const pop = f.pop ? (k < 0.06 ? 0.6 : k < 0.14 ? 1.4 : k < 0.24 ? 1.15 : 1) : 1; // stepped pixel pop
     f.el.style.transform = `translate(${s.x + f.dx * k}px, ${s.y - f.rise * Math.sqrt(k)}px) translate(-50%,-50%) scale(${pop})`;
     f.el.style.opacity = k > 0.72 ? String(1 - (k - 0.72) / 0.28) : '1';
   }
