@@ -2,6 +2,9 @@
 import * as THREE from 'three';
 import { rand, pick, TAU } from './util.js';
 import { animate } from './tween.js';
+import { hpx } from '../game/battle/hitPix.js';
+// in battle (hpx attached) smoke / fire / shockwaves are drawn as pixel-art sprites
+const PIX = () => !!hpx.scene;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -328,6 +331,7 @@ export const fx = {
   },
 
   smoke(pos, o = {}) {
+    if (PIX()) return hpx.smoke(pos, { count: Math.ceil((o.count ?? 8) / 2), scale: (o.scale ?? 1) * 0.8, radius: o.radius ?? 1, life: o.life, rise: o.rise, color: o.color });
     const n = o.count ?? 8;
     for (let i = 0; i < n; i++) {
       particles.spawn('cube', {
@@ -403,6 +407,7 @@ export const fx = {
   },
 
   fire(pos, o = {}) {
+    if (PIX()) return hpx.fire(pos, { count: Math.ceil((o.count ?? 10) / 2), scale: o.scale ?? 1, radius: o.radius ?? 1 });
     const n = o.count ?? 10;
     for (let i = 0; i < n; i++) {
       particles.spawn('glow', {
@@ -428,25 +433,14 @@ export const fx = {
     }
   },
 
-  /** Expanding flat shockwave ring. */
+  /** Shockwave: a ring of pixel dust puffs + chips rolling outward (no smooth ring mesh). */
   shockwave(pos, o = {}) {
-    const scene = particles.scene;
-    if (!scene) return;
-    const geo = new THREE.RingGeometry(0.75, 1, 28);
-    const mat = new THREE.MeshBasicMaterial({
-      color: o.color ?? 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false,
-      blending: THREE.AdditiveBlending, toneMapped: false,
-    });
-    const ring = new THREE.Mesh(geo, mat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(pos.x, (pos.y ?? 0) + 0.05, pos.z);
-    scene.add(ring);
-    const R = o.radius ?? 3;
-    animate(o.dur ?? 0.45, (e) => {
-      const s = 0.1 + e * R;
-      ring.scale.set(s, s, s);
-      mat.opacity = 0.85 * (1 - e);
-    }, { ease: 'outCubic', onComplete: () => { scene.remove(ring); geo.dispose(); mat.dispose(); } });
+    const R = o.radius ?? 3, n = Math.round(8 + R * 2), y = pos.y ?? 0;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + rand(-0.2, 0.2), sp = R / (o.dur ?? 0.45) * 0.6;
+      if (PIX()) hpx.dust({ x: pos.x, z: pos.z }, { count: 1, vx: Math.cos(a) * sp, spread: 0.2, scale: 0.9, color: o.color ?? 0xf2ead8 });
+      else particles.spawn('cube', { x: pos.x, y: y + 0.1, z: pos.z, vx: Math.cos(a) * sp, vy: 0.4, vz: Math.sin(a) * sp, size: 0.14, life: 0.5, grav: 0, drag: 2.2, color: o.color ?? 0xffffff });
+    }
   },
 
   /** Big impact = shockwave + debris + dust. */

@@ -588,6 +588,13 @@ class HitPix {
     for (let i = 0; i < (o.flames ?? 3); i++) this.emit('solid', 'boom', { x: pos.x + rnd(-0.7, 0.7) * s, y: pos.y + rnd(-0.3, 0.6) * s, z: (pos.z ?? 0) + rnd(0.2, 0.7), vy: rnd(0.3, 1.2), life: rnd(0.35, 0.55), scale: rnd(0.7, 1.1) * s, color: pickc([0xff5a1a, 0xff8a1a, 0xe8401a]), fadeOut: 0.8 });
     this.sparks(pos, { count: Math.round(10 * s), scale: 1, speed: 6 * Math.sqrt(s) });
     this.smoke(pos.clone ? pos.clone().setY(pos.y + 0.2) : pos, { count: Math.round(4 * s), scale: 0.9 * s, radius: s, colors: [0x5a5468, 0x46404f, 0x6e687c] });
+    // pixel debris + shards + embers + twinkles (more bits, all sprite-art)
+    if (this.load < 0.7) {
+      this.chips(pos, { count: Math.round(6 * s), speed: 5 * Math.sqrt(s), colors: o.debris ?? [0x5a4a3a, 0x8a6a4a, 0x3a3038, 0xb08a5a] });
+      this.chips(pos, { anim: 'shard', count: Math.round(3 * s), speed: 6 * Math.sqrt(s), colors: [0xffd23f, 0xff8a1a] });
+      this.embers(pos, { count: Math.round(5 * s), scale: s });
+      for (let i = 0; i < Math.round(3 * s); i++) this.emit('glow', 'twinkle', { x: pos.x + rnd(-0.8, 0.8) * s, y: pos.y + rnd(-0.2, 0.9) * s, z: (pos.z ?? 0) + 0.7, vy: rnd(0.4, 1.6), delay: 0, life: rnd(0.25, 0.5), scale: rnd(1, 1.5), color: pickc([0xffffff, 0xffe27a]), fadeOut: 0.5 });
+    }
   }
   /** Cartoon KO poof: cloud burst + twinkles (tint = cloud colour). */
   poof(pos, o = {}) {

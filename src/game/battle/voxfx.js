@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { VoxGrid, makeMesh, cachedGeometry, Mats } from '../../core/voxel.js';
 import { animate } from '../../core/tween.js';
+import { hpx } from './hitPix.js';
 
 const CUBE = new THREE.BoxGeometry(1, 1, 1);
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
@@ -128,60 +129,20 @@ export function groundHit(pos, o = {}) {
   const col = toHex(o.color ?? 0xffffff);
   const pw = o.power ?? Math.min(1.6, 0.45 + R * 0.28);
   const x = pos.x, z = pos.z ?? 0, y = Math.max(0, pos.y ?? 0);
-  // flash pop: a 4-point pixel star (two crossed thin streaks + a hot core), not a blob
-  const L = 0.5 + R * 0.22, T = 0.05 + R * 0.012;
-  for (const [sx, sy, c, lf] of [[L, T, 0xffffff, 0.14], [T, L * 0.8, 0xffffff, 0.14], [L * 0.6, T * 1.6, col, 0.2], [T * 1.6, L * 0.5, col, 0.2], [T * 2.2, T * 2.2, 0xffffff, 0.1]]) {
-    particles.spawn('glow', {
-      x, y: y + 0.35, z: z + 0.3, vx: 0, vy: 0, vz: 0, rx: 0, ry: 0, rz: 0, rvx: 0, rvy: 0, rvz: 0,
-      sx, sy, sz: T, life: lf, grav: 0, drag: 0, shrinkStart: 0.2, color: c,
-    });
-  }
-  // sparks: fast glowing chips flung up + out
-  const ns = o.sparks ?? Math.round(8 + R * 5);
-  for (let i = 0; i < ns; i++) {
-    const a = rnd(0, Math.PI * 2), sp = rnd(2.5, 6.5) * pw;
-    particles.spawn('glow', {
-      x, y: y + 0.15, z,
-      vx: Math.cos(a) * sp, vy: rnd(2.5, 7) * pw, vz: Math.sin(a) * sp * 0.45,
-      rvx: rnd(-9, 9), rvy: rnd(-9, 9), size: rnd(0.04, 0.09), life: rnd(0.25, 0.55), grav: -16, drag: 1.2,
-      ground: 0, bounce: 0.3, color: Math.random() < 0.35 ? 0xffffff : pickc(o.colors ?? [col]),
-    });
-  }
-  // voxel debris: chunky bits that tumble and bounce
-  const nd = o.debris ?? Math.round(5 + R * 3);
-  for (let i = 0; i < nd; i++) {
-    const a = rnd(0, Math.PI * 2), sp = rnd(1.5, 4.5) * pw;
-    const s = rnd(0.06, 0.15) * Math.min(1.6, 0.7 + R * 0.15);
-    particles.spawn('cube', {
-      x: x + Math.cos(a) * 0.2, y: y + 0.1, z: z + Math.sin(a) * 0.15,
-      vx: Math.cos(a) * sp, vy: rnd(3, 7.5) * pw, vz: Math.sin(a) * sp * 0.5,
-      rvx: rnd(-10, 10), rvy: rnd(-10, 10), rvz: rnd(-10, 10), size: s, life: rnd(0.8, 1.4), grav: -18, drag: 0.4,
-      ground: 0, bounce: 0.4, color: pickc(o.debrisColors ?? o.colors ?? DUSTS),
-    });
-  }
-  // dust: billowing puffs that roll outward and rise (irregular, clumped)
-  const nu = o.dust ?? Math.round(6 + R * 4);
+  const P = { x, y: y + 0.3, z };
+  // pixel-art only (hitPix sprites): star flash, sparks, debris chips, dust puffs
+  hpx.emit('glow', 'star', { x, y: y + 0.35, z: z + 0.5, life: 0.16, scale: 0.8 + R * 0.25, color: col, fadeOut: 0.3 });
+  hpx.sparks(P, { count: o.sparks ?? Math.round(6 + R * 3), speed: 5 * pw, scale: 1, colors: [0xffffff, col, ...(o.colors ?? [])] });
+  hpx.chips({ x, y: y + 0.15, z }, { count: o.debris ?? Math.round(4 + R * 2), speed: 4 * pw, scale: Math.min(1.5, 0.8 + R * 0.12), colors: o.debrisColors ?? o.colors ?? DUSTS });
+  const nu = o.dust ?? Math.round(4 + R * 2);
   for (let i = 0; i < nu; i++) {
-    const a = rnd(0, Math.PI * 2), r = rnd(0.1, 0.5) * R * 0.5, sp = rnd(0.8, 2.6) * Math.sqrt(R) * 0.8;
-    particles.spawn('cube', {
-      x: x + Math.cos(a) * r, y: 0.08 + rnd(0, 0.15), z: z + Math.sin(a) * r * 0.6,
-      vx: Math.cos(a) * sp, vy: rnd(0.3, 1.4), vz: Math.sin(a) * sp * 0.5,
-      rvx: rnd(-2, 2), rvy: rnd(-2, 2), size: rnd(0.12, 0.26) * Math.min(1.8, 0.6 + R * 0.2), grow: 1.4,
-      life: rnd(0.45, 0.9), grav: 0.6, drag: 2.6, shrinkStart: 0.45, fadeIn: 0.04,
-      color: pickc(o.dustColors ?? DUSTS),
-    });
+    const a = rnd(0, Math.PI * 2), sp = rnd(0.8, 2.4) * Math.sqrt(R);
+    hpx.dust({ x: x + Math.cos(a) * 0.2 * R, z }, { count: 1, vx: Math.cos(a) * sp, spread: 0.3, scale: Math.min(1.8, 0.7 + R * 0.25), color: pickc(o.dustColors ?? DUSTS) });
   }
 }
 /** Big impact (spell / slam): groundHit + a heavier smoke billow. */
 export function groundImpact(pos, o = {}) {
   groundHit(pos, { ...o, color: o.color ?? o.colors?.[0] ?? 0xffffff, debrisColors: o.colors ?? DUSTS, power: o.power ?? 1.2 });
   const R = o.radius ?? 2.5;
-  for (let i = 0; i < 6; i++) {
-    particles.spawn('cube', {
-      x: pos.x + rnd(-0.3, 0.3) * R * 0.5, y: 0.2 + rnd(0, 0.3), z: (pos.z ?? 0) + rnd(-0.3, 0.3),
-      vx: rnd(-0.8, 0.8), vy: rnd(0.8, 1.8), vz: rnd(-0.4, 0.4), rvx: rnd(-1, 1), rvy: rnd(-1, 1),
-      size: rnd(0.2, 0.36), grow: 1.2, life: rnd(0.8, 1.4), grav: 0.5, drag: 1.4, shrinkStart: 0.5, fadeIn: 0.1,
-      color: pickc([0x9aa0aa, 0xb8bec8, 0x80868f]),
-    });
-  }
+  hpx.smoke({ x: pos.x, y: 0.3, z: pos.z ?? 0 }, { count: 4, scale: 0.8 + R * 0.15, radius: R * 0.3 });
 }

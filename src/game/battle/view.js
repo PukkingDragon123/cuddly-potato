@@ -1543,6 +1543,7 @@ export class BattleView {
           const p = _pv.set(ev.unit.x, 0.3, ev.unit.z);
           hpx.emit('solid', 'splat', { x: p.x, y: 0.3, z: p.z + 0.35, life: 0.18, scale: 0.3, color: seriesColor(ev.unit.type), fadeOut: 0.6 });
           hpx.dust(p, { count: 1, scale: 0.6 * Math.min(1.6, ev.unit.size), color: this.dustColor });
+          if (hpx.load < 0.6) hpx.sparks(p, { count: 3, speed: 2.5, up: 2, scale: 0.8, colors: [0xffffff, seriesColor(ev.unit.type)] });
           if (ev.unit.boss) {
             engine.shake(0.6);
             audio.play('roar', { pitch: 0.7 });
@@ -1686,6 +1687,7 @@ export class BattleView {
           a.flushDamage();
           const p = a.rig.root.position.clone();
           this.deathFx(a, ev, big);
+          if (hpx.load < 0.6) { hpx.chips(p.clone().setY(0.4), { anim: 'shard', count: big ? 6 : 3, speed: 3.5, colors: [0xffffff, 0xffe27a, seriesColor(ev.unit.type)] }); hpx.dust(p, { count: big ? 3 : 1, scale: big ? 1.3 : 0.8, color: this.dustColor }); }
           if (ev.unit.type === 'feastablesPanther' || ev.unit.type === 'chocoChomper') fx.chocolate(p.clone().setY(0.6), { count: 12 });
           if (SWARMS[ev.unit.type]?.series === 'food') fx.groceries(p.clone().setY(0.5), { count: 4 });
           audio.play(big ? 'explode' : 'death', { pitch: 0.8 + Math.random() * 0.4, gap: 0.03 });
