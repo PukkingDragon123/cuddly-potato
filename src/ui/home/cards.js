@@ -144,7 +144,7 @@ export function mount(el, ctx) {
       } else if (i >= slots) {
         // locked deck slot: opens at a trophy count
         const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: { flexDirection: 'column', opacity: 0.8 } },
-          icon('lock', 's'), h('span', { class: 't-d c-gold', style: { fontSize: '0.8em', display: 'flex', alignItems: 'center', gap: '0.15em' } }, icon('trophy', 's'), String(LINEUP_UNLOCKS[i]))));
+          icon('lock', 's'), h('span', { class: 't-d c-gold', style: { fontSize: 'max(var(--fmin), round(0.8em, var(--fq)))', display: 'flex', alignItems: 'center', gap: '0.15em' } }, icon('trophy', 's'), String(LINEUP_UNLOCKS[i]))));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.classList.add('lockd-slot');
         cell.appendChild(em);
@@ -152,7 +152,7 @@ export function mount(el, ctx) {
         // an empty slot: '+' when a card is waiting in the collection, else a hint to go find more
         const spare = Object.keys(p.cards).some((cid) => !deck.includes(cid));
         const em = h('div', { class: 'gcard mn-empty' }, h('div', { class: 'mn-empty-in sk-slot', style: spare ? null : { flexDirection: 'column', gap: '0.1em' } },
-          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.55 } }, '?'), h('span', { class: 'c-muted', style: { fontSize: 'calc(var(--u) * 2.1)', fontWeight: 700, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' } }, 'Open vials')]));
+          spare ? h('span', { class: 't-d' }, '+') : [h('span', { class: 't-d', style: { opacity: 0.55 } }, '?'), h('span', { class: 'c-muted', style: { fontSize: 'max(var(--fmin), round(calc(var(--u) * 2.1), var(--fq)))', fontWeight: 700, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' } }, 'Open vials')]));
         em.style.width = 'min(100%, calc(var(--u) * 17))';
         cell.appendChild(em);
       }

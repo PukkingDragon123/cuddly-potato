@@ -57,12 +57,12 @@
   /* portrait: beside the button, over the field (the MEGA badge owns the column above it) */
   position: absolute; bottom: 105%; right: calc(100% + var(--u) * 0.5); z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 0.15em;
   width: max-content; max-width: min(64vw, 260px); padding: 0.45em 0.7em 0.5em; pointer-events: none;
-  font-family: var(--font-d); font-size: calc(var(--u) * 2.5); line-height: 1.15; color: #fff; text-align: center; text-shadow: var(--outline-thin, 0 1px 0 #000);
+  font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 2.5), var(--fq))); line-height: 1.15; color: #fff; text-align: center; text-shadow: var(--outline-thin);
   background: linear-gradient(rgba(16, 22, 70, 0.97), rgba(6, 8, 30, 0.97));
   box-shadow: 0 0 0 var(--px) var(--ink, #05030c), inset 0 var(--px) 0 color-mix(in srgb, var(--uc) 70%, transparent), 0 0 calc(var(--px) * 5) color-mix(in srgb, var(--uc) 50%, transparent);
   animation: uTipIn 0.32s cubic-bezier(.2, 1.5, .4, 1);
 }
-.bh-ult .u-tip b { font-weight: normal; color: var(--uc); font-size: 1.15em; letter-spacing: 0.08em; }
+.bh-ult .u-tip b { font-weight: normal; color: var(--uc); font-size: max(var(--fmin), round(1.15em, var(--fq))); letter-spacing: 0; }
 .bh-ult .u-tip span { white-space: nowrap; }
 .bh-ult .u-tip .u-tip-ic { display: flex; align-items: center; gap: 0.25em; }
 .bh-ult .u-tip .u-tip-ic .pi { width: 1.5em; height: 1.5em; }
@@ -78,7 +78,7 @@
 .bh-ult.charge-hit { animation: uChargeHit 0.45s steps(6); }
 @keyframes uChargeHit { 0% { transform: scale(1.12); filter: brightness(2) drop-shadow(0 0 calc(var(--u) * 1.5) var(--uc)); } 100% { transform: none; } }
 .bh-ult .u-tip.ready { background: linear-gradient(color-mix(in srgb, var(--uc) 85%, #fff), color-mix(in srgb, var(--uc) 70%, #000)); color: #05030c; text-shadow: none; animation: uTipIn 0.32s cubic-bezier(.2, 1.5, .4, 1), uTipPulse 0.5s 0.32s steps(2) 4; }
-.bh-ult .u-tip.ready b { color: #fff; text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
+.bh-ult .u-tip.ready b { color: #fff; text-shadow: var(--outline); }
 @keyframes uTipPulse { 50% { filter: brightness(1.35); } }
 /* landscape: above the popped-out Commander, right-aligned with the button at the screen edge */
 body.landscape .bh-ult .u-tip { bottom: 160%; right: 0; }

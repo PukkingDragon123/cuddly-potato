@@ -14,15 +14,11 @@
 .rmedal > .rm-n {
   position: absolute; left: var(--fx, 50%); top: var(--fy, 55%); translate: -50% -54%; z-index: 2;
   font-family: var(--font-d); font-weight: 400; font-style: normal; letter-spacing: 0; line-height: 1; white-space: nowrap;
-  font-size: max(10px, calc(var(--rm) * var(--fr, 0.46) * 1.12)); color: #fff;
-  text-shadow:
-    calc(var(--ro) * -1) calc(var(--ro) * -1) 0 var(--ink), 0 calc(var(--ro) * -1) 0 var(--ink), var(--ro) calc(var(--ro) * -1) 0 var(--ink),
-    calc(var(--ro) * -1) 0 0 var(--ink), var(--ro) 0 0 var(--ink),
-    calc(var(--ro) * -1) var(--ro) 0 var(--ink), 0 var(--ro) 0 var(--ink), var(--ro) var(--ro) 0 var(--ink),
-    0 calc(var(--ro) * 2) 0 var(--ink), var(--ro) calc(var(--ro) * 2) 0 var(--ink), calc(var(--ro) * -1) calc(var(--ro) * 2) 0 var(--ink);
+  font-size: max(var(--fmin), round(max(10px, calc(var(--rm) * var(--fr, 0.46) * 1.12)), var(--fq))); color: #fff;
+  text-shadow: calc(var(--ro) * -1) calc(var(--ro) * -1) 0 var(--ink), 0 calc(var(--ro) * -1) 0 var(--ink), var(--ro) calc(var(--ro) * -1) 0 var(--ink), calc(var(--ro) * -1) 0 0 var(--ink), var(--ro) 0 0 var(--ink), calc(var(--ro) * -1) var(--ro) 0 var(--ink), 0 var(--ro) 0 var(--ink), var(--ro) var(--ro) 0 var(--ink), 0 calc(var(--ro) * 2) 0 var(--ink), var(--ro) calc(var(--ro) * 2) 0 var(--ink), calc(var(--ro) * -1) calc(var(--ro) * 2) 0 var(--ink);
   pointer-events: none;
 }
-.rmedal.rm-d2 > .rm-n { font-size: max(10px, calc(var(--rm) * var(--fr, 0.46) * 0.96)); letter-spacing: 0; }
+.rmedal.rm-d2 > .rm-n { font-size: max(var(--fmin), round(max(10px, calc(var(--rm) * var(--fr, 0.46) * 0.96)), var(--fq))); letter-spacing: 0; }
 /* two-tone pixel fill: white top, tier-tinted lower half (the outline stays on the parent) */
 .rmedal > .rm-n::after {
   content: attr(data-n); position: absolute; inset: 0; text-shadow: none; color: transparent;
@@ -55,7 +51,7 @@
 .rmedal.mn-rank.big { --rm: calc(var(--u) * 21); }
 .rmedal.mn-rank.sm { --rm: calc(var(--u) * 10); }
 /* tier name ("Gold III"), profile only */
-.rm-tname { display: block; font-size: 1.15em; line-height: 1; white-space: nowrap; color: #fff; }
+.rm-tname { display: block; font-size: max(var(--fmin), round(1.15em, var(--fq))); line-height: 1; white-space: nowrap; color: #fff; }
 .rm-tname.rm-t-bronze { color: #ffb47a; }
 .rm-tname.rm-t-silver { color: #dfe8ff; }
 .rm-tname.rm-t-gold { color: #ffd84a; }
@@ -76,7 +72,7 @@
 body.landscape .tw-nm:has(> .tw-rank) { padding-top: calc(var(--u) * 1.4); }
 body.landscape .tw-nm .rmedal.tw-rank { --rm: 1.8em; margin-block: -0.42em; }
 /* VS intro: the medal leads the trophy pill under the name */
-.vsx-pills .rmedal.vsx-rank { --rm: 3em; margin: -0.2em -0.1em -0.62em; font-size: clamp(15px, 1.05em, 22px); }
+.vsx-pills .rmedal.vsx-rank { --rm: 3em; margin: -0.2em -0.1em -0.62em; font-size: max(var(--fmin), round(clamp(15px, 1.05em, 22px), var(--fq))); }
 /* Beast News result: medal by each name in BASE HP LEFT, and the Lab Level up line */
 .cn-base .nm.rk { flex-direction: row; align-items: center; gap: 0.3em; }
 .cn-base .nm.rk > .nmc { display: flex; flex-direction: column; min-width: 0; }

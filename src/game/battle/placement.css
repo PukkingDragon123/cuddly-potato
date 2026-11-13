@@ -53,7 +53,7 @@
 .pl-wait img { width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); image-rendering: pixelated; }
 .pl-wbar { position: relative; display: block; width: calc(var(--u) * 9); height: calc(var(--px) * 3); background: #0a0620; box-shadow: 0 0 0 var(--px) #3a2c6a; }
 .pl-wbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(#fff3a0 0 34%, #ffd23a 34% 70%, #e09a12 70%); }
-.pl-wait b { font-family: var(--font-num, inherit); color: #ffe56a; font-size: calc(var(--u) * 2.8); line-height: 1; text-shadow: var(--px) var(--px) 0 #120c24; }
+.pl-wait b { font-family: var(--font-num, inherit); color: #ffe56a; font-size: max(var(--fmin), round(calc(var(--u) * 2.8), var(--fq))); line-height: 1; text-shadow: var(--outline); }
 
 /* edge pan: pixel arrows while the camera slides */
 .pl-edge {

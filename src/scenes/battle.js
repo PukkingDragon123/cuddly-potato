@@ -1005,7 +1005,7 @@ export class BattleScene {
   netStatus(st) {
     if (this.ended) return;
     if (!this.netChip) {
-      this.netChip = h('div', { style: { position: 'absolute', zIndex: '45', left: '50%', top: 'calc(var(--u) * 17)', translate: '-50% 0', padding: '0.15em 0.7em', fontWeight: '700', fontSize: '0.85em', color: '#ffe9a0', background: 'rgba(10,6,30,0.85)', boxShadow: '0 0 0 var(--px) #120c24', pointerEvents: 'none' } });
+      this.netChip = h('div', { style: { position: 'absolute', zIndex: '45', left: '50%', top: 'calc(var(--u) * 17)', translate: '-50% 0', padding: '0.15em 0.7em', fontWeight: '700', fontSize: 'max(var(--fmin), round(0.85em, var(--fq)))', color: '#ffe9a0', background: 'rgba(10,6,30,0.85)', boxShadow: '0 0 0 var(--px) #120c24', pointerEvents: 'none' } });
       $overlay().appendChild(this.netChip);
     }
     const text = { lagging: 'Opponent connection unstable...', reconnecting: 'Reconnecting...' }[st];

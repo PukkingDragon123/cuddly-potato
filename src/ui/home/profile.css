@@ -11,17 +11,17 @@
 .pf-card-av { flex: none; padding: calc(var(--u) * 3.2) calc(var(--u) * 1.6) calc(var(--u) * 1.8); }
 .pf-card-av .pav.pf-av { --av: calc(var(--u) * 20); }
 .pf-card-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.7); min-width: 0; flex: 1 1 auto; }
-.pf-name { font-size: 2em; line-height: 0.95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-title { font-size: 1.05em; line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-name { font-size: max(var(--fmin), round(2em, var(--fq))); line-height: 0.95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-title { font-size: max(var(--fmin), round(1.05em, var(--fq))); line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pf-chips { margin-top: calc(var(--u) * 0.3); }
-.pf-chips .mn-chip { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 0.86em; }
+.pf-chips .mn-chip { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: max(var(--fmin), round(0.86em, var(--fq))); }
 .pf-rank { flex: none; gap: 0; margin: calc(var(--u) * 2.6) calc(var(--u) * 2.6) 0 0; }
 .pf-rank .rmedal { --rm: calc(var(--u) * 13.5); margin: calc(var(--u) * -1.2) 0 calc(var(--u) * -0.8); }
-.pf-rank .rm-tname { font-size: 0.95em; }
+.pf-rank .rm-tname { font-size: max(var(--fmin), round(0.95em, var(--fq))); }
 .pf-card-av { position: relative; }
 .pf-tryon {
   position: absolute; z-index: 2; left: 50%; bottom: calc(var(--u) * -0.4); translate: -50% 0; display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap;
-  padding: 0.18em 0.55em; font-size: 0.78em; color: var(--ink); background: linear-gradient(#ffe46a, #ffb21a);
+  padding: 0.18em 0.55em; font-size: max(var(--fmin), round(0.78em, var(--fq))); color: var(--ink); background: linear-gradient(#ffe46a, #ffb21a);
   box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * -1.5) 0 rgba(0, 0, 0, 0.2); animation: pfTry 1.2s steps(2) infinite;
 }
 .pf-tryon .pi { width: 1.1em; height: 1.1em; }
@@ -29,15 +29,15 @@
 /* ---- customize */
 .pf-custom { display: flex; flex-direction: column; gap: calc(var(--u) * 1.4); }
 .pf-tabs { flex-wrap: nowrap; }
-.pf-tabs .mn-seg-b { flex: 1 1 0; min-width: 0; padding-inline: calc(var(--u) * 0.4); font-size: 0.84em; }
+.pf-tabs .mn-seg-b { flex: 1 1 0; min-width: 0; padding-inline: calc(var(--u) * 0.4); font-size: max(var(--fmin), round(0.84em, var(--fq))); }
 .pf-tabs .mn-seg-b .pi { width: 1.2em; height: 1.2em; }
 .pf-info { display: flex; align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.3) calc(var(--u) * 1.8); min-height: calc(var(--u) * 13); }
 .pf-info-txt { display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); min-width: 0; flex: 1 1 auto; }
-.pf-info-n { font-size: 1.25em; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-info-s { font-size: 0.82em; line-height: 1.15; color: #d8e0ff; }
+.pf-info-n { font-size: max(var(--fmin), round(1.25em, var(--fq))); line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-info-s { font-size: max(var(--fmin), round(0.82em, var(--fq))); line-height: 1.15; color: #d8e0ff; }
 .pf-info-s b { color: #ffe27a; }
 .pf-info-r { flex: none; display: flex; align-items: center; }
-.pf-state.on { display: inline-flex; align-items: center; gap: 0.3em; color: var(--green-l, #a8f07a); font-size: 0.95em; }
+.pf-state.on { display: inline-flex; align-items: center; gap: 0.3em; color: var(--green-l, #a8f07a); font-size: max(var(--fmin), round(0.95em, var(--fq))); }
 .pf-prog { width: calc(var(--u) * 22); }
 .pf-locked { display: flex; align-items: center; gap: calc(var(--u) * 1.6); padding: calc(var(--u) * 1.6) calc(var(--u) * 2); }
 .pf-locked .pi.l { width: calc(var(--u) * 9); height: calc(var(--u) * 9); flex: none; }
@@ -73,8 +73,8 @@
 .pf-tile.lock.cur .pf-tile-art > .pav { filter: none; }
 .pf-tile.lock.cur.k-avatar .pf-tile-art > .pav > .pav-pic { filter: none; }
 .pf-tile-lock { position: absolute; right: 4%; bottom: 4%; width: min(30%, calc(var(--u) * 6)) !important; height: auto !important; aspect-ratio: 1; z-index: 2; filter: drop-shadow(0 var(--px) 0 var(--ink)); }
-.pf-tile-n { width: 100%; font-family: var(--font-d); font-size: 0.8em; line-height: 1; text-align: center; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pf-tile-s { width: 100%; font-size: 0.66em; line-height: 1.1; text-align: center; color: #c8d0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-tile-n { width: 100%; font-family: var(--font-d); font-size: max(var(--fmin), round(0.8em, var(--fq))); line-height: 1; text-align: center; text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-tile-s { width: 100%; font-size: max(var(--fmin), round(0.66em, var(--fq))); line-height: 1.1; text-align: center; color: #c8d0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pf-tile.lock .pf-tile-s { color: #ffd27a; }
 .pf-tile-tick { position: absolute; right: calc(var(--px) * -3); top: calc(var(--px) * -3); z-index: 3; width: calc(var(--u) * 5); height: calc(var(--u) * 5); display: flex; align-items: center; justify-content: center; background: var(--green); box-shadow: 0 0 0 var(--px) var(--ink); }
 /* banners + titles */
@@ -84,7 +84,7 @@
 .pf-tile.lock.cur .mn-banner.pf-tile-ban { filter: none; }
 .pf-tile.k-title .pf-tile-art { aspect-ratio: auto; min-height: calc(var(--u) * 9); }
 .pf-tile-ttl {
-  width: 100%; padding: 0.4em 0.3em; text-align: center; font-size: 1em; line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
+  width: 100%; padding: 0.4em 0.3em; text-align: center; font-size: max(var(--fmin), round(1em, var(--fq))); line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
   background: linear-gradient(#3a2a8a, #1c1450); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(255, 255, 255, 0.3);
 }
 .pf-tile.lock .pf-tile-ttl { color: #9aa6c8; background: linear-gradient(#2a2e50, #161a36); }
@@ -95,6 +95,6 @@ body.landscape .pf-card-av .pav.pf-av { --av: calc(var(--u) * 17); }
 body.landscape .pf-grid { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 17), 1fr)); }
 body.landscape .pf-grid.sm:not(.k-banner) { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 15), 1fr)); }
 /* pixel type (round 8): the bold pixel face runs wider, so the card name sizes down and the title may wrap */
-.pf-name { font-size: 1.6em; }
-.pf-title { font-size: 0.95em; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.1; }
-.pf-tile .pf-tile-n { font-size: 0.72em; overflow-wrap: normal; } /* long single words fit whole (no mid-word breaks) */
+.pf-name { font-size: max(var(--fmin), round(1.6em, var(--fq))); }
+.pf-title { font-size: max(var(--fmin), round(0.95em, var(--fq))); white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.1; }
+.pf-tile .pf-tile-n { font-size: max(var(--fmin), round(0.72em, var(--fq))); overflow-wrap: normal; } /* long single words fit whole (no mid-word breaks) */

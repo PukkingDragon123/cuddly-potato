@@ -30,13 +30,16 @@ export function applyScale() {
   de.setProperty('--u', u.toFixed(2) + 'px');
   de.setProperty('--px', px + 'px');
   de.setProperty('--pxs', Math.max(2, px - 1) + 'px');
-  // body text: comfortably readable on a 390 px phone (16 px) and in short landscape (15 px)
-  // ...snapped so one pixel of the 12 px body face lands on whole device pixels (crisp, never smeared),
-  // as long as that keeps it within ~12% of the wanted size
+  // Swarm Text has a 10 px em: a font-size of 10 device px x k draws every font pixel as k x k
+  // screen pixels. --fq is that step in CSS px; every font-size in the UI is round()ed to it
+  // (never below --fmin, the smallest step that is at least 10 CSS px), so no text is ever smeared.
+  const dpr = window.devicePixelRatio || 1, fq = 10 / dpr;
+  const fmin = Math.ceil(10 / fq - 0.01) * fq;
+  de.setProperty('--fq', +fq.toFixed(4) + 'px');
+  de.setProperty('--fmin', +fmin.toFixed(4) + 'px');
+  // body text: comfortably readable on a 390 px phone (~16 px) and in short landscape (15 px)
   const want = Math.max(15, Math.round(u * 4.1));
-  const dpr = window.devicePixelRatio || 1, grid = 12 / dpr;
-  const snapped = Math.max(1, Math.round(want / grid)) * grid;
-  de.setProperty('--fs', (Math.abs(snapped - want) / want <= 0.125 ? +snapped.toFixed(3) : want) + 'px');
+  de.setProperty('--fs', +(Math.max(fmin, Math.round(want / fq) * fq)).toFixed(4) + 'px');
 }
 if (typeof window !== 'undefined') {
   injectSkins();
@@ -211,7 +214,7 @@ export function pill(iconName, value, opts = {}) {
   const val = h('span', { class: 'val' }, typeof value === 'number' ? fmt(value) : value);
   const el = h('div', { class: 'pill trough ' + (opts.plus ? 'has-plus ' : '') + (opts.cls ?? '') }, animIcon(iconName), val);
   if (opts.plus) {
-    const plus = h('button', { class: 'btn sk-btn-green plus icon-only', type: 'button' }, h('span', { class: 't-d', style: { fontSize: '1.2em' } }, '+'));
+    const plus = h('button', { class: 'btn sk-btn-green plus icon-only', type: 'button' }, h('span', { class: 't-d', style: { fontSize: 'max(var(--fmin), round(1.2em, var(--fq)))' } }, '+'));
     plus.addEventListener('click', (e) => { e.stopPropagation(); audio.play('click'); opts.plus(); });
     el.appendChild(plus);
   }

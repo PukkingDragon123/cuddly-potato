@@ -30,8 +30,8 @@ body.landscape .cn-bar { height: 7vh; }
   padding-left: calc(var(--u) * 1.6); border-left: calc(var(--px) * 1.5) solid var(--ac, #9ff2ff);
   font-family: var(--font-d); color: #fff; text-shadow: var(--outline-thin); opacity: 0;
 }
-.cn-cap .k { font-size: calc(var(--u) * 3); letter-spacing: 0.32em; color: var(--ac, #9ff2ff); }
-.cn-cap .n { font-size: calc(var(--u) * 5.6); letter-spacing: 0.08em; line-height: 0.9; }
+.cn-cap .k { font-size: max(var(--fmin), round(calc(var(--u) * 3), var(--fq))); letter-spacing: 0; color: var(--ac, #9ff2ff); }
+.cn-cap .n { font-size: max(var(--fmin), round(calc(var(--u) * 5.6), var(--fq))); letter-spacing: 0; line-height: 0.9; }
 .cn-cap.go { animation: cnCap 4.6s cubic-bezier(.2, .9, .2, 1) both; }
 @keyframes cnCap { 0% { opacity: 0; transform: translateX(calc(var(--u) * -4)); } 14% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateX(calc(var(--u) * 2)); } }
 body.portrait .tt-cine .cn-cap { bottom: calc(var(--safe-b) + 9vh + var(--u) * 27); }
@@ -41,16 +41,16 @@ body.landscape .cn-cap { bottom: calc(var(--safe-b) + 7vh + var(--u) * 2.4); }
 .cn-logo { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1; }
 /* Swarm Block lettering (ui/bigType.js); 1em = one letter box */
 .cn-logo .l1, .cn-logo .l2 { display: block; position: relative; }
-.cn-logo .l1 { font-size: calc(var(--u) * 10.5); z-index: 1; }
-.cn-logo .l2 { font-size: calc(var(--u) * 15); margin-top: -0.06em; z-index: 2; }
+.cn-logo .l1 { font-size: max(var(--fmin), round(calc(var(--u) * 10.5), var(--fq))); z-index: 1; }
+.cn-logo .l2 { font-size: max(var(--fmin), round(calc(var(--u) * 15), var(--fq))); margin-top: -0.06em; z-index: 2; }
 .cn-logo .tag {
-  display: inline-block; position: relative; z-index: 3; margin-top: calc(var(--u) * 2.4); padding: 0.12em 1.1em 0.22em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); color: #fff;
+  display: inline-block; position: relative; z-index: 3; margin-top: calc(var(--u) * 2.4); padding: 0.12em 1.1em 0.22em; font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 4.6), var(--fq))); color: #fff;
   text-shadow: var(--outline-thin);
   background: linear-gradient(var(--ink) 0 var(--px), #d8f2ff var(--px) calc(var(--px) * 2), #7ad0ff calc(var(--px) * 2) 30%, #3a9cff 30% 64%, #2378e0 64% 84%, #1a52b0 84% calc(100% - var(--px)), var(--ink) calc(100% - var(--px)));
   clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 4) 50%, 100% 100%, 0 100%, calc(var(--px) * 4) 50%);
 }
-.cn-logo.sm .l1 { font-size: calc(var(--u) * 7.2); }
-.cn-logo.sm .l2 { font-size: calc(var(--u) * 10.5); }
+.cn-logo.sm .l1 { font-size: max(var(--fmin), round(calc(var(--u) * 7.2), var(--fq))); }
+.cn-logo.sm .l2 { font-size: max(var(--fmin), round(calc(var(--u) * 10.5), var(--fq))); }
 .cn-logo.reveal .tag { animation: cnTag 0.45s 1.75s cubic-bezier(.2, 1.4, .3, 1) both; }
 @keyframes cnTag { from { opacity: 0; transform: translateY(40%) scale(0.6); } to { opacity: 1; transform: none; } }
 /* the title logo: a live 3D voxel sign (titleLogo3d.js) over the top of the screen; letters fall in from above it */
@@ -68,8 +68,8 @@ body.landscape .tt-logo3d { height: 64vh; }
 .tt-wrap { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: space-between; pointer-events: none;
   padding: calc(var(--safe-t) + 9vh + var(--u) * 4) calc(var(--u) * 3) calc(var(--safe-b) + 9vh + var(--u) * 3); }
 body.landscape .tt-wrap { padding-top: calc(var(--safe-t) + 7vh + var(--u) * 2); padding-bottom: calc(var(--safe-b) + 7vh + var(--u) * 2); }
-body.landscape .tt-wrap .cn-logo .l1 { font-size: calc(var(--u) * 9); }
-body.landscape .tt-wrap .cn-logo .l2 { font-size: calc(var(--u) * 13); }
+body.landscape .tt-wrap .cn-logo .l1 { font-size: max(var(--fmin), round(calc(var(--u) * 9), var(--fq))); }
+body.landscape .tt-wrap .cn-logo .l2 { font-size: max(var(--fmin), round(calc(var(--u) * 13), var(--fq))); }
 .tt-logo-wrap { position: relative; }
 .tt-logo-wrap::before {
   /* dark scrim so the logo reads over any frame */
@@ -84,15 +84,15 @@ body.landscape .tt-wrap .cn-logo .l2 { font-size: calc(var(--u) * 13); }
 }
 /* TAP TO START: one clean label that breathes; on tap it presses in and the wipe takes over */
 .tt-start {
-  font-family: var(--font-d); font-size: calc(var(--u) * 7); letter-spacing: 0.08em; line-height: 1; color: #fff;
-  text-shadow: var(--outline), 0 calc(var(--px) * 2) 0 #2b8cf2, 0 calc(var(--px) * 3.4) 0 var(--ink);
+  font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 7), var(--fq))); letter-spacing: 0; line-height: 1; color: #fff;
+  text-shadow: var(--ring), 0 0.2em 0 #2b8cf2, 0 0.3em 0 var(--ink);
   animation: ttStartIn 0.5s 1.05s cubic-bezier(.2, 1, .3, 1) both, ttStartPulse 1.5s 1.6s ease-in-out infinite;
 }
 @keyframes ttStartIn { from { opacity: 0; transform: translateY(35%); } to { opacity: 1; transform: none; } }
 @keyframes ttStartPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .tt-cine.go .tt-start { animation: ttGo 0.22s cubic-bezier(.3, 1.4, .5, 1) both; }
 @keyframes ttGo { 0% { opacity: 1; transform: scale(1); } 45% { transform: scale(0.94); } 100% { opacity: 1; transform: scale(1.04); color: #fff6c0; } }
-.tt-disc { font-size: 0.62em; line-height: 1.3; color: #dfe8ff; text-align: center; max-width: calc(var(--u) * 110); text-shadow: var(--outline-thin); opacity: 0.7; animation: fadeIn 0.8s 1.6s both; }
+.tt-disc { font-size: max(var(--fmin), round(0.62em, var(--fq))); line-height: 1.3; color: #dfe8ff; text-align: center; max-width: calc(var(--u) * 110); text-shadow: var(--outline-thin); opacity: 0.7; animation: fadeIn 0.8s 1.6s both; }
 /* the wipe into the game: a navy panel with a gold and pink leading edge sweeps across */
 .tt-wipe { position: absolute; inset: 0; z-index: 20; pointer-events: none; background: #0b1230; transform: translateX(calc(-100% - var(--px) * 8)); }
 .tt-wipe::after {
@@ -143,8 +143,8 @@ body.landscape .tt-wrap .cn-logo .l2 { font-size: calc(var(--u) * 13); }
 body.landscape .ld-logo3d { width: min(52vw, 520px); }
 body.landscape .ld-logo { margin-bottom: calc(var(--u) * 6); }
 .ld-dest { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.8); margin-bottom: calc(var(--u) * 3.6); font-family: var(--font-d); text-shadow: var(--outline-thin); text-align: center; }
-.ld-dest .k { font-size: calc(var(--u) * 3.6); letter-spacing: 0.32em; padding-left: 0.3em; color: var(--ac, #9ff2ff); }
-.ld-dest .n { font-size: calc(var(--u) * 7.6); line-height: 0.95; letter-spacing: 0; text-shadow: var(--outline); }
+.ld-dest .k { font-size: max(var(--fmin), round(calc(var(--u) * 3.6), var(--fq))); letter-spacing: 0; color: var(--ac, #9ff2ff); }
+.ld-dest .n { font-size: max(var(--fmin), round(calc(var(--u) * 7.6), var(--fq))); line-height: 0.95; letter-spacing: 0; text-shadow: var(--outline); }
 
 /* the goo tube */
 .ld-tube { position: relative; flex: none; width: calc(var(--lp) * 104); height: calc(var(--lp) * 14); filter: drop-shadow(0 calc(var(--lp) * 1.5) 0 rgba(0, 0, 0, 0.45)); }
@@ -166,9 +166,9 @@ body.landscape .ld-logo { margin-bottom: calc(var(--u) * 6); }
 
 /* tips: one at a time, in big type */
 .ld-tips { position: relative; width: min(100%, calc(var(--u) * 92)); height: calc(var(--fs) * 4.3); margin-top: calc(var(--u) * 5); }
-.ld-tip { position: absolute; left: 0; right: 0; top: 0; margin: 0; text-align: center; font-size: calc(var(--fs) * 1.1); line-height: 1.3; color: #e8eeff; text-shadow: var(--outline-thin); opacity: 0;
+.ld-tip { position: absolute; left: 0; right: 0; top: 0; margin: 0; text-align: center; font-size: max(var(--fmin), round(calc(var(--fs) * 1.1), var(--fq))); line-height: 1.3; color: #e8eeff; text-shadow: var(--outline-thin); opacity: 0;
   animation: ldTip calc(var(--n) * 3.6s) calc(var(--i) * 3.6s - 0.25s) linear infinite both; }
-.ld-tip > b { margin-right: 0.45em; font-family: var(--font-d); font-weight: 400; letter-spacing: 0.16em; color: #ffd84a; }
+.ld-tip > b { margin-right: 0.45em; font-family: var(--font-d); font-weight: 400; letter-spacing: 0; color: #ffd84a; }
 .ld-tip .hl { color: #9ff2ff; font-weight: 700; }
 @keyframes ldTip { 0% { opacity: 0; transform: translateY(25%); } 3% { opacity: 1; transform: none; } 30% { opacity: 1; transform: none; } 33.3%, 100% { opacity: 0; transform: translateY(-25%); } }
 body.landscape .ld-tips { width: min(100%, calc(var(--u) * 150)); height: calc(var(--fs) * 2.9); margin-top: calc(var(--u) * 4); }
@@ -178,7 +178,7 @@ body.landscape .ld-tips { width: min(100%, calc(var(--u) * 150)); height: calc(v
   .cn-logo.reveal * { opacity: 1; }
 }
 /* round 9 polish: the portrait title logo keeps a margin from the screen edges on narrow phones */
-body:not(.landscape) .tt-wrap .cn-logo .l2 { font-size: min(calc(var(--u) * 15.5), 13.6vw); }
-body:not(.landscape) .tt-wrap .cn-logo .l1 { font-size: min(calc(var(--u) * 11), 10vw); }
+body:not(.landscape) .tt-wrap .cn-logo .l2 { font-size: max(var(--fmin), round(min(calc(var(--u) * 15.5), 13.6vw), var(--fq))); }
+body:not(.landscape) .tt-wrap .cn-logo .l1 { font-size: max(var(--fmin), round(min(calc(var(--u) * 11), 10vw), var(--fq))); }
 body:not(.landscape) .tt-wrap .cn-logo .tag { margin-top: calc(var(--u) * 9); }
 

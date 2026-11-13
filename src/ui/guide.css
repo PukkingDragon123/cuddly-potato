@@ -22,7 +22,7 @@
 .hm-tabbtn.pg-lock::before { display: none; }
 /* side buttons: the caption plate under the button turns into a black bar with the word in black */
 .hm-sb.pg-lock, .hm-side-play.pg-lock { filter: none !important; }
-.hm-sb.pg-lock::after { color: #000 !important; text-shadow: 0 calc(var(--px) * 0.5) 0 rgba(140, 170, 255, 0.35) !important; background: #06050c !important; box-shadow: 0 0 0 calc(var(--px) * 0.67) #000, inset 0 calc(var(--px) * 0.67) 0 rgba(140, 170, 255, 0.18) !important; }
+.hm-sb.pg-lock::after { color: #000 !important; text-shadow: 0 0.1em 0 rgba(140, 170, 255, 0.35) !important; background: #06050c !important; box-shadow: 0 0 0 calc(var(--px) * 0.67) #000, inset 0 calc(var(--px) * 0.67) 0 rgba(140, 170, 255, 0.18) !important; }
 /* vial slots: four black chambers, one padlock each (the pads sit in the row: no slot rebuild drops them) */
 .hm-slots.pg-lock { position: relative; }
 .hm-slots.pg-lock > .hm-slot { opacity: 1 !important; }
@@ -69,12 +69,12 @@ body.landscape .hm-slots { --pg-sw: calc(var(--u) * 18); }
 @keyframes pgPop { 0% { scale: 0.3; } 45% { scale: 1.35; } 70% { scale: 0.92; } 100% { scale: 1; } }
 .pg-newtag {
   position: absolute; z-index: 4; right: 2%; top: -4%; pointer-events: none; padding: 0.05em 0.3em; font-style: normal;
-  font-family: var(--font-d); font-size: 0.62em; line-height: 1; color: var(--ink); background: var(--gold); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink), 0 0 calc(var(--px) * 4) rgba(255, 216, 74, 0.8);
+  font-family: var(--font-d); font-size: max(var(--fmin), round(0.62em, var(--fq))); line-height: 1; color: var(--ink); background: var(--gold); box-shadow: 0 0 0 calc(var(--px) * 0.75) var(--ink), 0 0 calc(var(--px) * 4) rgba(255, 216, 74, 0.8);
   animation: badgeBob 1s ease-in-out infinite;
 }
 .hm-tabbtn .pg-newtag { right: 6%; top: 0; }
 .pg-newtag.pg-newtag { position: absolute; }
-.btn > .pg-newtag.pg-newtag { top: calc(var(--u) * -1.6); right: calc(var(--u) * -0.8); font-size: 0.5em; }
+.btn > .pg-newtag.pg-newtag { top: calc(var(--u) * -1.6); right: calc(var(--u) * -0.8); font-size: max(var(--fmin), round(0.5em, var(--fq))); }
 
 /* ---------------------------------------------------------------- spotlight */
 .gd-spot {
@@ -105,11 +105,11 @@ body.landscape .hm-slots { --pg-sw: calc(var(--u) * 18); }
 .gd-cap.up { translate: -50% -100%; }
 .gd-cap.bye { opacity: 0; transition: opacity 0.25s; }
 .gd-cap-k {
-  font-family: var(--font-d); font-size: 0.85em; letter-spacing: 0.16em; padding: 0.05em 0.6em; color: var(--ink);
+  font-family: var(--font-d); font-size: max(var(--fmin), round(0.85em, var(--fq))); letter-spacing: 0; padding: 0.05em 0.6em; color: var(--ink);
   background: var(--gold); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 5) rgba(255, 216, 74, 0.8);
 }
-.gd-cap b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 7.5); line-height: 0.95; color: #fff; text-shadow: var(--outline), 0 0 calc(var(--u) * 2) rgba(63, 242, 224, 0.75); }
-body.landscape .gd-cap b { font-size: calc(var(--u) * 6.5); }
+.gd-cap b { font-family: var(--font-d); font-weight: normal; font-size: max(var(--fmin), round(calc(var(--u) * 7.5), var(--fq))); line-height: 0.95; color: #fff; text-shadow: var(--outline), 0 0 calc(var(--u) * 2) rgba(63, 242, 224, 0.75); }
+body.landscape .gd-cap b { font-size: max(var(--fmin), round(calc(var(--u) * 6.5), var(--fq))); }
 
 /* ---------------------------------------------------------------- guided-step chip */
 .gd-chip {
@@ -124,9 +124,9 @@ body.landscape .gd-cap b { font-size: calc(var(--u) * 6.5); }
 @keyframes gdChipIn { from { opacity: 0; transform: translateY(calc(var(--u) * -4)) scale(0.8); } to { opacity: 1; transform: none; } }
 .gd-chip-ic { display: flex; flex: none; }
 .gd-chip-ic .pi { width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); }
-.gd-chip-t { font-family: var(--font-d); font-size: 0.95em; line-height: 1.05; color: #fff; text-shadow: var(--outline-thin); }
+.gd-chip-t { font-family: var(--font-d); font-size: max(var(--fmin), round(0.95em, var(--fq))); line-height: 1.05; color: #fff; text-shadow: var(--outline-thin); }
 .gd-chip-t b { color: var(--gold); font-weight: normal; }
-.gd-chip .gd-skip { flex: none; font-size: 0.72em !important; min-height: 0 !important; padding: 0.15em 0.55em !important; }
+.gd-chip .gd-skip { flex: none; font-size: max(var(--fmin), round(0.72em, var(--fq))) !important; min-height: 0 !important; padding: 0.15em 0.55em !important; }
 /* placement: .top (under the top bar) when the target sits low on screen, .bot (over the nav) otherwise */
 .gd-chip.bot { top: auto; bottom: calc(var(--safe-b) + var(--u) * 16); }
 .home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 11); }
@@ -151,7 +151,7 @@ body.landscape .home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 
 .gd-qt-pin { position: absolute; z-index: 2; left: 26px; top: -7px; width: 18px; height: 24px; background: var(--qb-pin-red) 0 0 / 100% 100%; image-rendering: pixelated; pointer-events: none; }
 .gd-qt-art { flex: none; width: 56px; height: 56px; image-rendering: pixelated; margin: -2px 0; }
 .gd-qt-txt { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1 1 auto; }
-.gd-qt-n { font-family: var(--font-d); font-weight: normal; font-size: 1.28em; line-height: 1; color: #2a1a0c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.gd-qt-n { font-family: var(--font-d); font-weight: normal; font-size: max(var(--fmin), round(1.28em, var(--fq))); line-height: 1; color: #2a1a0c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
 .gd-qt-row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
 .gd-qt-oi { position: relative; display: flex; flex: none; width: 28px; height: 28px; }
 .gd-qt-oi > .pi { width: 28px; height: 28px; }
@@ -161,14 +161,14 @@ body.landscape .home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 
 .gd-qt-tally { height: 28px; flex: none; image-rendering: pixelated; }
 .gd-qt-bar { position: relative; flex: 1 1 auto; height: 14px; min-width: 40px; background: rgba(255, 255, 255, 0.5); box-shadow: 0 0 0 2px #2a1a0c; }
 .gd-qt-bar > i { position: absolute; left: 0; top: 0; bottom: 0; display: block; background: repeating-linear-gradient(90deg, #c81e2a 0 2px, rgba(200, 30, 42, 0.32) 2px 5px); box-shadow: inset -2px 0 0 #c81e2a; }
-.gd-qt-cnt { font-family: var(--font-d); font-weight: normal; font-size: 1.3em; line-height: 1; color: #23306e; white-space: nowrap; }
+.gd-qt-cnt { font-family: var(--font-d); font-weight: normal; font-size: max(var(--fmin), round(1.3em, var(--fq))); line-height: 1; color: #23306e; white-space: nowrap; }
 .gd-qt-cnt.done { color: #1f8a3a; }
 .gd-qt-row.lock .gd-qt-cnt { color: #5a4a3a; }
 .gd-qt-rw { display: flex; align-items: center; gap: 2px; margin-left: auto; padding-left: 8px; font-family: var(--font-d); white-space: nowrap; border-left: 2px dashed rgba(42, 26, 12, 0.3); }
 .gd-qt-rw .pi { width: 26px; height: 26px; }
-.gd-qt-rw b { font-weight: normal; font-size: 1.25em; color: #2a1a0c; line-height: 1; }
+.gd-qt-rw b { font-weight: normal; font-size: max(var(--fmin), round(1.25em, var(--fq))); color: #2a1a0c; line-height: 1; }
 .gd-qt-claim {
-  display: flex; align-items: center; gap: 0.3em; align-self: flex-start; padding: 0.2em 0.6em 0.15em 0.4em; font-family: var(--font-d); font-size: 1.15em; line-height: 1;
+  display: flex; align-items: center; gap: 0.3em; align-self: flex-start; padding: 0.2em 0.6em 0.15em 0.4em; font-family: var(--font-d); font-size: max(var(--fmin), round(1.15em, var(--fq))); line-height: 1;
   color: #fff; text-shadow: var(--outline-thin); background: linear-gradient(#a8f07a 0 22%, var(--green) 22% 76%, #238a2e 76%); box-shadow: 0 0 0 2px var(--ink), 0 0 6px rgba(122, 255, 74, 0.9); animation: chargeReady 0.9s ease-in-out infinite;
 }
 .gd-qt-claim .pi { width: 24px; height: 24px; flex: none; }
@@ -180,7 +180,7 @@ body.landscape .home.tabbed .gd-chip.top { top: calc(var(--safe-t) + var(--u) * 
   display: flex; align-items: center; justify-content: center; pointer-events: none; font-style: normal; animation: gdBang 0.8s ease-in-out infinite;
 }
 .gd-qt-bang::before { content: ''; position: absolute; inset: 0; background: var(--qb-bang) center / 100% 100% no-repeat; image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgba(18, 12, 36, 0.6)); }
-.gd-qt-bang b { position: relative; z-index: 1; font-family: var(--font-d); font-weight: normal; font-size: 1.35em; line-height: 1; color: #fff; text-shadow: var(--outline-thin); }
+.gd-qt-bang b { position: relative; z-index: 1; font-family: var(--font-d); font-weight: normal; font-size: max(var(--fmin), round(1.35em, var(--fq))); line-height: 1; color: #fff; text-shadow: var(--outline-thin); }
 @keyframes gdBang { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.08); } }
 .gd-qt-in { animation: gdQtIn 0.6s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes gdQtIn { 0% { transform: translateX(-110%); } 60% { transform: translateX(4%); } 100% { transform: none; } }
@@ -202,9 +202,9 @@ body.landscape .gd-qt-art { width: 50px; height: 50px; }
 .gd-qt { align-items: flex-start; }
 .gd-qt-art { align-self: center; }
 .gd-qt-txt { gap: 4px; }
-.gd-qt-n { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.05; font-size: 1.2em; overflow-wrap: break-word; }
-.gd-qt-how { font-family: var(--font-b); font-size: 0.86em; line-height: 1.2; color: #4a3520; overflow-wrap: break-word; padding-right: 6px; }
+.gd-qt-n { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.05; font-size: max(var(--fmin), round(1.2em, var(--fq))); overflow-wrap: break-word; }
+.gd-qt-how { font-family: var(--font-b); font-size: max(var(--fmin), round(0.86em, var(--fq))); line-height: 1.2; color: #4a3520; overflow-wrap: break-word; padding-right: 6px; }
 .gd-qt-row { min-height: 28px; }
-.gd-qt-row.lock .gd-qt-cnt { font-size: 1em; }
-body.landscape .gd-qt-n { font-size: 1.1em; }
-body.landscape .gd-qt-how { font-size: 0.8em; }
+.gd-qt-row.lock .gd-qt-cnt { font-size: max(var(--fmin), round(1em, var(--fq))); }
+body.landscape .gd-qt-n { font-size: max(var(--fmin), round(1.1em, var(--fq))); }
+body.landscape .gd-qt-how { font-size: max(var(--fmin), round(0.8em, var(--fq))); }

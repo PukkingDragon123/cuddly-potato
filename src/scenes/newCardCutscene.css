@@ -19,12 +19,12 @@ body.landscape .vo-cut-bar { height: calc(var(--u) * 7); }
 /* equipped entrance chip (top-left, inside the bar) */
 .vo-cut-ent {
   position: absolute; z-index: 2; left: calc(var(--safe-l) + var(--u) * 3); top: calc(var(--safe-t) + var(--u) * 3.2);
-  display: flex; align-items: center; gap: 0.35em; font-family: var(--font-d); font-size: calc(var(--u) * 3.6); color: #dfe8ff; letter-spacing: 0.08em;
+  display: flex; align-items: center; gap: 0.35em; font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 3.6), var(--fq))); color: #dfe8ff; letter-spacing: 0;
   text-shadow: var(--outline-thin); opacity: 0; transform: translateX(-20%); transition: opacity 0.4s 0.3s, transform 0.4s 0.3s;
 }
 .vo-cut.in .vo-cut-ent { opacity: 0.9; transform: none; }
 .vo-cut-ent-ic { width: 1.2em; height: 1.2em; }
-body.landscape .vo-cut-ent { top: calc(var(--safe-t) + var(--u) * 1.4); font-size: calc(var(--u) * 3); }
+body.landscape .vo-cut-ent { top: calc(var(--safe-t) + var(--u) * 1.4); font-size: max(var(--fmin), round(calc(var(--u) * 3), var(--fq))); }
 .vo-cut-skip { position: absolute; z-index: 3; right: calc(var(--safe-r) + var(--u) * 2.6); top: calc(var(--safe-t) + var(--u) * 2.2); min-width: calc(var(--u) * 20); }
 body.landscape .vo-cut-skip { top: calc(var(--safe-t) + var(--u) * 0.6); }
 
@@ -37,7 +37,7 @@ body.landscape .vo-cut-panel { left: auto; right: calc(var(--safe-r) + var(--u) 
 
 .vo-cut-kicker { overflow: hidden; }
 .vo-cut-kicker span {
-  display: inline-block; padding: 0.05em 0.7em 0.1em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); letter-spacing: 0.08em; color: var(--ink, #15121f);
+  display: inline-block; padding: 0.05em 0.7em 0.1em; font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 4.6), var(--fq))); letter-spacing: 0; color: var(--ink, #15121f);
   background: linear-gradient(#fff6b0 0 22%, var(--gold) 22% 76%, #d8861a 76%); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--u) * 3) rgba(255, 216, 74, 0.7);
   transform: translateY(110%); transition: transform 0.35s cubic-bezier(.2, 1.4, .4, 1);
 }
@@ -45,10 +45,10 @@ body.landscape .vo-cut-panel { left: auto; right: calc(var(--safe-r) + var(--u) 
 
 .vo-cut-name {
   display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; font-family: var(--font-d); line-height: 0.92; letter-spacing: 0;
-  font-size: clamp(22px, calc(var(--u) * 15 * var(--nk, 1)), 120px); color: #fff; text-align: center; max-width: 100%;
-  text-shadow: var(--outline), 0 calc(var(--px) * 3) 0 var(--ink), 0 0 calc(var(--u) * 4) var(--rc);
+  font-size: max(var(--fmin), round(clamp(22px, calc(var(--u) * 15 * var(--nk, 1)), 120px), var(--fq))); color: #fff; text-align: center; max-width: 100%;
+  text-shadow: var(--outline), 0 0 calc(var(--u) * 4) var(--rc);
 }
-body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; font-size: clamp(22px, calc(var(--u) * 12 * var(--nk, 1)), 110px); }
+body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; font-size: max(var(--fmin), round(clamp(22px, calc(var(--u) * 12 * var(--nk, 1)), 110px), var(--fq))); }
 .vo-cut-word { display: inline-flex; white-space: nowrap; }
 .vo-cut-l1 { display: inline-block; opacity: 0; }
 .vo-cut-panel.in .vo-cut-l1 { animation: voCutLetter 0.32s cubic-bezier(.2, 1.5, .4, 1) both; }
@@ -63,14 +63,14 @@ body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; fon
 .vo-cut-tags { display: flex; align-items: center; gap: calc(var(--u) * 2.2); opacity: 0; transform: translateY(40%); transition: opacity 0.25s, transform 0.3s cubic-bezier(.2, 1.4, .4, 1); }
 .vo-cut-tags.in { opacity: 1; transform: none; }
 .vo-cut-rar {
-  padding: 0.08em 0.6em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin);
+  padding: 0.08em 0.6em; font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 4.6), var(--fq))); letter-spacing: 0; color: #fff; text-shadow: var(--outline-thin);
   background: linear-gradient(color-mix(in srgb, var(--rc) 55%, #fff 45%) 0 20%, var(--rc) 20% 76%, color-mix(in srgb, var(--rc) 60%, #000 40%) 76%);
   box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--u) * 2.4) var(--rc);
 }
-.vo-cut-series { font-family: var(--font-d); font-size: calc(var(--u) * 4); color: #dfe8ff; text-shadow: var(--outline-thin); white-space: nowrap; }
+.vo-cut-series { font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 4), var(--fq))); color: #dfe8ff; text-shadow: var(--outline-thin); white-space: nowrap; }
 .vo-cut-cost { position: relative; display: flex; align-items: center; justify-content: center; width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
 .vo-cut-cost-ic { position: absolute; inset: 0; width: 100%; height: 100%; }
-.vo-cut-cost b { position: relative; font-family: var(--font-d); font-size: calc(var(--u) * 4.5); color: #fff; text-shadow: var(--outline); }
+.vo-cut-cost b { position: relative; font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 4.5), var(--fq))); color: #fff; text-shadow: var(--outline); }
 
 .vo-cut-stats {
   display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 1.4) calc(var(--u) * 2.4); width: 100%; position: relative; isolation: isolate;
@@ -93,25 +93,25 @@ body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; fon
 @keyframes voCutSt { 0% { opacity: 0; transform: translateX(-30%); } 100% { opacity: 1; transform: none; } }
 .vo-cut-st-ic { flex: none; width: calc(var(--u) * 7); height: calc(var(--u) * 7); filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(0, 0, 0, 0.45)); }
 .vo-cut-st-t { display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 0.4em; min-width: 0; flex: 1 1 auto; }
-.vo-cut-l { font-size: calc(var(--u) * 3.2); color: var(--muted, #9aa6c8); text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vo-cut-v { font-family: var(--font-d); font-size: calc(var(--u) * 5); color: #fff; text-shadow: var(--outline-thin); white-space: nowrap; text-align: right; }
+.vo-cut-l { font-size: max(var(--fmin), round(calc(var(--u) * 3.2), var(--fq))); color: var(--muted, #9aa6c8); text-shadow: var(--outline-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vo-cut-v { font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 5), var(--fq))); color: #fff; text-shadow: var(--outline-thin); white-space: nowrap; text-align: right; }
 .vo-cut-bar2 { grid-column: 1 / -1; height: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 0.4); background: #0a0e2c; box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 0.6) rgba(127, 230, 255, 0.25); }
 .vo-cut-fill {
   display: block; height: 100%; width: 0; transition: width 0.55s cubic-bezier(.2, .9, .3, 1);
   background: linear-gradient(color-mix(in srgb, var(--rc) 40%, #fff 60%) 0 30%, var(--rc) 30%); box-shadow: 0 0 calc(var(--px) * 3) var(--rc);
 }
 .vo-cut-desc {
-  max-width: 100%; font-size: calc(var(--u) * 3.4); color: #dfe8ff; text-shadow: var(--outline-thin); text-align: center; line-height: 1.25;
+  max-width: 100%; font-size: max(var(--fmin), round(calc(var(--u) * 3.4), var(--fq))); color: #dfe8ff; text-shadow: var(--outline-thin); text-align: center; line-height: 1.25;
   opacity: 0; transition: opacity 0.4s;
 }
 body.landscape .vo-cut-desc { text-align: left; }
 .vo-cut-desc.in { opacity: 0.85; }
 .vo-cut-tap {
   position: absolute; z-index: 3; left: 50%; bottom: calc(var(--safe-b) + var(--u) * 3.4); translate: -50% 0;
-  font-family: var(--font-d); font-size: calc(var(--u) * 4.4); color: #dfe8ff; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) var(--rc); white-space: nowrap;
+  font-family: var(--font-d); font-size: max(var(--fmin), round(calc(var(--u) * 4.4), var(--fq))); color: #dfe8ff; text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) var(--rc); white-space: nowrap;
   animation: voBlink 1.2s ease-in-out 0.3s infinite both;
 }
-body.landscape .vo-cut-tap { bottom: calc(var(--safe-b) + var(--u) * 1.2); font-size: calc(var(--u) * 3.6); }
+body.landscape .vo-cut-tap { bottom: calc(var(--safe-b) + var(--u) * 1.2); font-size: max(var(--fmin), round(calc(var(--u) * 3.6), var(--fq))); }
 
 /* Glitch Teleport: RGB split scanlines + jitter over the whole stage */
 .vo-root.vo-glitch::after {

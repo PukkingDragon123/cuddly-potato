@@ -22,10 +22,10 @@
 }
 .trd-tro-ic { width: calc(var(--u) * 7); height: calc(var(--u) * 7); filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 216, 74, 0.6)); }
 .trd-tro-col { display: flex; flex-direction: column; line-height: 1; }
-.trd-tro-n { font-size: 1.45em; color: var(--gold); }
-.trd-tro-best { font-size: 0.72em; color: var(--muted); white-space: nowrap; }
+.trd-tro-n { font-size: max(var(--fmin), round(1.45em, var(--fq))); color: var(--gold); }
+.trd-tro-best { font-size: max(var(--fmin), round(0.72em, var(--fq))); color: var(--muted); white-space: nowrap; }
 .trd-curs { margin-left: auto; display: flex; gap: calc(var(--u) * 1); min-width: 0; }
-.trd-cur { font-size: 0.92em; }
+.trd-cur { font-size: max(var(--fmin), round(0.92em, var(--fq))); }
 
 .trd-sub {
   position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + var(--u) * 13.5); display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 1.4);
@@ -39,14 +39,14 @@
 }
 .trd-chap-dot { flex: none; width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); background: var(--ac); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), 0 0 calc(var(--px) * 3) var(--ac); }
 .trd-chap-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.05; }
-.trd-chap-no { font-size: 0.68em; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; }
-.trd-chap-n { font-size: 1.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trd-chap-no { font-size: max(var(--fmin), round(0.68em, var(--fq))); color: var(--muted); letter-spacing: 0; white-space: nowrap; }
+.trd-chap-n { font-size: max(var(--fmin), round(1.02em, var(--fq))); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trd-ready { flex: none; }
 
 /* YOU tag over your Commander */
 .trd-you {
   position: absolute; left: 0; top: 0; translate: -50% -100%; display: flex; align-items: center; gap: 0.25em; padding: 0.08em 0.5em 0.14em; white-space: nowrap;
-  font-size: 0.95em; color: var(--gold); text-shadow: var(--outline-thin); background: linear-gradient(#2b8cf2, #1460b8);
+  font-size: max(var(--fmin), round(0.95em, var(--fq))); color: var(--gold); text-shadow: var(--outline-thin); background: linear-gradient(#2b8cf2, #1460b8);
   box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 #8fd4ff, 0 0 calc(var(--px) * 3) rgba(63, 160, 255, 0.6);
 }
 .trd-you .pi { width: 1.15em; height: 1.15em; }
@@ -67,15 +67,15 @@
 .trd-card.locked .trd-art { filter: saturate(0.4) brightness(0.8); }
 .trd-card.claimed .trd-art { filter: saturate(0.6); }
 .trd-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); }
-.trd-kind { font-size: 0.7em; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.trd-name { font-size: 1.1em; line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.trd-req { display: flex; align-items: center; gap: 0.25em; color: var(--gold); font-size: 0.95em; text-shadow: var(--outline-thin); }
+.trd-kind { font-size: max(var(--fmin), round(0.7em, var(--fq))); color: var(--muted); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trd-name { font-size: max(var(--fmin), round(1.1em, var(--fq))); line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.trd-req { display: flex; align-items: center; gap: 0.25em; color: var(--gold); font-size: max(var(--fmin), round(0.95em, var(--fq))); text-shadow: var(--outline-thin); }
 .trd-req .pi { width: 1.1em; height: 1.1em; }
 .trd-act { flex: none; display: flex; align-items: center; gap: calc(var(--u) * 1); }
 .trd-claim { min-width: calc(var(--u) * 22); }
-.trd-got { display: flex; align-items: center; gap: 0.25em; color: var(--green-l); font-size: 1em; padding: 0 calc(var(--u) * 1); }
+.trd-got { display: flex; align-items: center; gap: 0.25em; color: var(--green-l); font-size: max(var(--fmin), round(1em, var(--fq))); padding: 0 calc(var(--u) * 1); }
 .trd-need { display: flex; flex-direction: column; align-items: stretch; gap: calc(var(--u) * 0.6); width: calc(var(--u) * 22); }
-.trd-need-t { display: flex; align-items: center; justify-content: center; gap: 0.25em; font-size: 0.85em; white-space: nowrap; }
+.trd-need-t { display: flex; align-items: center; justify-content: center; gap: 0.25em; font-size: max(var(--fmin), round(0.85em, var(--fq))); white-space: nowrap; }
 .trd-need-bar { position: relative; height: calc(var(--u) * 2); background: linear-gradient(#05071e, #16226a); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * 0.67) 0 rgba(170, 230, 255, 0.25); }
 .trd-need-bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#ffe680, #ffb21a); box-shadow: inset 0 calc(var(--px) * -0.67) 0 rgba(0, 0, 0, 0.25); }
 .trd-view { flex: none; width: calc(var(--u) * 7.4); }
@@ -119,20 +119,20 @@
 }
 .trd-fk-opt.mine { box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 0 0 calc(var(--px) * 1.3) var(--tc), 0 0 calc(var(--px) * 5) var(--tc); }
 .trd-fk-opt.dim { filter: saturate(0.3) brightness(0.72); }
-.trd-fk-n { display: flex; align-items: center; gap: 0.25em; color: var(--tc); font-size: 0.95em; white-space: nowrap; }
+.trd-fk-n { display: flex; align-items: center; gap: 0.25em; color: var(--tc); font-size: max(var(--fmin), round(0.95em, var(--fq))); white-space: nowrap; }
 .trd-fk-n .pi { width: 1.2em; height: 1.2em; }
 .trd-fk-row { display: flex; gap: calc(var(--u) * 1.2); justify-content: center; }
 .trd-fk-it { position: relative; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.3); }
 .trd-fk-it .mn-rw { --rw: calc(var(--u) * 11); }
 .trd-fk-it.claimed .mn-rw { filter: saturate(0.5) brightness(0.8); }
-.trd-fk-t { display: flex; align-items: center; gap: 0.2em; font-size: 0.78em; color: var(--gold); white-space: nowrap; }
+.trd-fk-t { display: flex; align-items: center; gap: 0.2em; font-size: max(var(--fmin), round(0.78em, var(--fq))); color: var(--gold); white-space: nowrap; }
 .trd-fk-t .pi { width: 1em; height: 1em; }
 .trd-fk-ck { position: absolute; right: -8%; top: -8%; width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); display: grid; place-items: center; background: var(--green, #3fbf4f); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink); }
 .trd-fk-ck .pi { width: 80%; height: 80%; }
-.trd-fk-st { display: flex; align-items: center; gap: 0.25em; font-size: 0.85em; min-height: calc(var(--u) * 7); white-space: nowrap; }
+.trd-fk-st { display: flex; align-items: center; gap: 0.25em; font-size: max(var(--fmin), round(0.85em, var(--fq))); min-height: calc(var(--u) * 7); white-space: nowrap; }
 .trd-fk-st.on { color: var(--green-l); }
 .trd-pick { min-width: calc(var(--u) * 19); }
-.trd-fk-note { font-size: 0.78em; color: var(--muted); text-align: center; line-height: 1.2; }
+.trd-fk-note { font-size: max(var(--fmin), round(0.78em, var(--fq))); color: var(--muted); text-align: center; line-height: 1.2; }
 @media (max-height: 520px) and (orientation: landscape) {
   .trd-card.fork { width: min(calc(100% - var(--u) * 4), calc(var(--u) * 104)); }
   .trd-fork { gap: calc(var(--u) * 0.6); }
@@ -144,7 +144,7 @@
   .trd-fk-opt { flex-direction: row; flex-wrap: wrap; justify-content: center; padding: calc(var(--u) * 0.7); }
   .trd-fk-n { width: 100%; justify-content: center; }
 }
-.trd-need-s { font-size: 0.72em; color: var(--muted); text-align: center; line-height: 1.15; }
+.trd-need-s { font-size: max(var(--fmin), round(0.72em, var(--fq))); color: var(--muted); text-align: center; line-height: 1.15; }
 .trd-need-w { width: calc(var(--u) * 26); }
 
 /* round 8: the treasure road. While your Commander walks: the card steps aside, a skip button + the loot bag */
@@ -161,7 +161,7 @@
 }
 .trd-bag.on { opacity: 1; transform: none; }
 .trd-bag-ic { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); }
-.trd-bag-n { font-size: 1.15em; color: var(--gold); text-shadow: var(--outline-thin); min-width: 1ch; }
+.trd-bag-n { font-size: max(var(--fmin), round(1.15em, var(--fq))); color: var(--gold); text-shadow: var(--outline-thin); min-width: 1ch; }
 .trd-bag.trd-bag-pop { animation: trdBagPop 0.3s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes trdBagPop { 0% { scale: 1.25 0.85; } 100% { scale: 1; } }
 .trd-bagfly { position: absolute; left: 0; top: 0; z-index: 61; pointer-events: none; transform: translate(-50%, -50%); opacity: 0; }
@@ -171,7 +171,7 @@
 /* the ready chip: a gift with the count (a skull when a boss waits) */
 .trd-ready { min-width: calc(var(--u) * 13); }
 .trd-ready.boss { filter: hue-rotate(250deg) saturate(1.4); }
-.trd-chap-n { font-size: 0.98em; }
+.trd-chap-n { font-size: max(var(--fmin), round(0.98em, var(--fq))); }
 
 /* card details: icon chips instead of a kind line */
 .trd-kind .pi { width: 1.6em; height: 1.6em; }
@@ -192,7 +192,7 @@
 .trd-fight { position: relative; min-width: calc(var(--u) * 22); }
 .trd-bank {
   position: absolute; right: calc(var(--u) * -1.4); top: calc(var(--u) * -3.4); display: flex; align-items: center; gap: 0.15em; padding: 0.05em 0.4em 0.1em;
-  font-size: 0.72em; font-style: normal; color: var(--gold); background: linear-gradient(#2a1a5e, #140c38); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink); white-space: nowrap;
+  font-size: max(var(--fmin), round(0.72em, var(--fq))); font-style: normal; color: var(--gold); background: linear-gradient(#2a1a5e, #140c38); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink); white-space: nowrap;
 }
 .trd-bank .pi { width: 1.1em; height: 1.1em; }
 .mn-boss-bank { display: inline-flex; align-items: center; gap: 0.2em; color: var(--gold); }
@@ -204,4 +204,4 @@
 @media (prefers-reduced-motion: reduce) {
   .trd-bag.trd-bag-pop { animation: none; }
 }
-.trd-name.long { font-size: 0.86em; -webkit-line-clamp: 3; }
+.trd-name.long { font-size: max(var(--fmin), round(0.86em, var(--fq))); -webkit-line-clamp: 3; }

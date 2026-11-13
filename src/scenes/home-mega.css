@@ -6,19 +6,19 @@
 .hm-mega img { width: calc(var(--u) * 24); height: calc(var(--u) * 24); image-rendering: auto; filter: drop-shadow(0 0 calc(var(--u) * 2) rgba(255, 46, 136, 0.45)); }
 .hm-mega.locked img { filter: brightness(0) opacity(0.55); }
 .hm-mega.eq { box-shadow: 0 0 0 var(--px) var(--gold), 0 0 calc(var(--u) * 3) rgba(255, 216, 74, 0.6); }
-.hm-mega .nm { font-size: 1.3em; }
-.hm-mega .sp { display: flex; align-items: center; gap: 0.25em; font-size: 0.75em; color: #ff9ad0; font-weight: 700; }
-.hm-mega .ds { font-size: 0.66em; color: var(--muted); line-height: 1.25; min-height: 3.6em; }
+.hm-mega .nm { font-size: max(var(--fmin), round(1.3em, var(--fq))); }
+.hm-mega .sp { display: flex; align-items: center; gap: 0.25em; font-size: max(var(--fmin), round(0.75em, var(--fq))); color: #ff9ad0; font-weight: 700; }
+.hm-mega .ds { font-size: max(var(--fmin), round(0.66em, var(--fq))); color: var(--muted); line-height: 1.25; min-height: 3.6em; }
 .hm-mega .eqt { color: var(--gold); text-shadow: var(--outline-thin); }
 .hm-mega .lk .pi { width: calc(var(--u) * 6); height: calc(var(--u) * 6); }
 /* round 2 (M): readable special line + intro clear of the close button */
 .hm-megas-intro { padding: 0 calc(var(--u) * 7); line-height: 1.3; }
-.hm-mega .sp { justify-content: center; text-align: center; font-size: 0.86em; line-height: 1.15; }
+.hm-mega .sp { justify-content: center; text-align: center; font-size: max(var(--fmin), round(0.86em, var(--fq))); line-height: 1.15; }
 .hm-mega .sp .pi { width: 1.2em; height: 1.2em; flex: none; }
-.hm-mega .ds { font-size: 0.78em; }
+.hm-mega .ds { font-size: max(var(--fmin), round(0.78em, var(--fq))); }
 .hm-mega .sp .pi, .hm-mega .lk .pi { filter: none; } .hm-mega.locked .sp .pi { filter: grayscale(1) brightness(0.75); }
 /* less text (round 8): a locked MEGA shows [road][trophy] + the trophy count; the intro is one icon line */
-.hm-mega .ds { display: flex; align-items: center; justify-content: center; gap: 0.2em; min-height: 0; font-family: var(--font-d); font-size: 0.9em; color: var(--gold); }
+.hm-mega .ds { display: flex; align-items: center; justify-content: center; gap: 0.2em; min-height: 0; font-family: var(--font-d); font-size: max(var(--fmin), round(0.9em, var(--fq))); color: var(--gold); }
 .hm-mega .ds .pi { width: 1.3em; height: 1.3em; }
 .hm-megas-intro { display: flex; align-items: center; justify-content: center; gap: 0.2em; }
 .hm-megas-intro .pi { width: 1.4em; height: 1.4em; }

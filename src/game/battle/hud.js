@@ -35,6 +35,7 @@ import { plateBounds } from './view.js';
 import { HAND_MAX } from './sim.js';
 import { LiveChibi } from './liveChibi.js';
 import { TugBar } from './tugBar.js';
+import { BaseEmblem } from './baseEmblem.js';
 import { sigColor } from './sigFx.js';
 
 const fmtT = (s) => {
@@ -219,10 +220,9 @@ export class BattleHUD {
         sideAvatarEl(c, { cls: 'tw-av', anim: false }),
         c.labLevel ? rankMedal(c.labLevel, { cls: 'tw-rank', shine: false }) : null,
         h('b', {}, c.name ?? (i ? 'Rival' : 'You'))); // trophies live on the VS intro, not on the battle HUD
-      const pc = h('b', { class: 'pc' }, '100');
-      const tier = h('i', { class: 'tn' }, '1');
-      const cap = h('div', { class: `tw-cap s${i}` }, icon('lab'), tier, pc);
-      return { nm, cap, pc, tier, lastHp: -1, lastTier: -1, frac: 1 };
+      // the base shield built into the bar's end: HP gauge + % + tier gems (baseEmblem.js)
+      const emb = new BaseEmblem(i);
+      return { nm, emb, cap: emb.el, lastHp: -1, lastTier: -1, frac: 1 };
     };
     this.sides = [end(0), end(1)];
     // the tube + the two Commanders pushing at the seam (tugBar.js)
@@ -827,7 +827,6 @@ export class BattleHUD {
         break;
       case 'labUp': {
         const sd = this.sides[ev.side];
-        bump(sd.cap, 'up');
         sparkle(sd.cap, { count: 14, colors: ['#ffd84a', '#ffffff', '#8fd4ff'] });
         if (ev.side === 0) this.baseUpFx(ev);
         break;
@@ -1061,25 +1060,25 @@ export class BattleHUD {
     for (let i = 0; i < 2; i++) {
       const sd = this.sides[i], b = sim.sides[i].lab;
       const frac = Math.max(0, b.hp / b.maxHp);
+      const t = sim.sides[i].overclock;
+      if (t !== sd.lastTier) {
+        sd.emb.setTier(t, { silent: sd.lastTier < 0 || reduced() });
+        sd.lastTier = t;
+        sd.cap.title = `T${t + 1} ${BASE_UPGRADES[t].name}`;
+      }
       if (b.hp !== sd.lastHp) {
+        let big = false;
         if (sd.lastHp > 0 && b.hp < sd.lastHp - 0.5 && !reduced()) {
-          const big = sd.lastHp - b.hp > b.maxHp * 0.04;
+          big = sd.lastHp - b.hp > b.maxHp * 0.04;
           hurt = Math.max(hurt, big ? 2 : 1);
           bump(sd.cap, big ? 'hurtbig' : 'hurt');
           this.tug.hit(i, big);
         }
+        sd.emb.setHp(frac, { big, calm: sd.lastHp < 0 || reduced() });
         sd.lastHp = b.hp;
         sd.frac = frac;
-        const pc = String(Math.max(0, Math.ceil(frac * 100)));
-        if (sd.pc.textContent !== pc) sd.pc.textContent = pc;
-        sd.cap.classList.toggle('low', frac < 0.3);
       }
-      const t = sim.sides[i].overclock;
-      if (t !== sd.lastTier) {
-        sd.lastTier = t;
-        sd.tier.textContent = String(t + 1);
-        sd.cap.title = `T${t + 1} ${BASE_UPGRADES[t].name}`;
-      }
+      sd.emb.update(dt);
     }
     if (hurt) bump(this.twBar, hurt > 1 ? 'shakebig' : 'shake');
     const f0 = this.sides[0].frac, f1 = this.sides[1].frac;

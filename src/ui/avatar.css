@@ -63,13 +63,13 @@
   .pav > .pav-pic:not(.loaded) { animation: none; }
 }
 /* title line (under a name) */
-.pav-title { display: block; font-size: 0.78em; line-height: 1.1; color: #ffe27a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--outline-thin); }
+.pav-title { display: block; font-size: max(var(--fmin), round(0.78em, var(--fq))); line-height: 1.1; color: #ffe27a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--outline-thin); }
 
 /* ---- shared placements (reward tiles, troop mastery banners) */
 .mn-ra.look > .pav.mn-ra-av { --av: 100%; width: 64%; height: auto; aspect-ratio: 1; }
 .mn-ra.title { padding: 0 6%; }
 .mn-ra-ttl {
-  width: 100%; padding: 0.35em 0.2em; text-align: center; font-size: 0.82em; line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
+  width: 100%; padding: 0.35em 0.2em; text-align: center; font-size: max(var(--fmin), round(0.82em, var(--fq))); line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
   background: linear-gradient(#3a2a8a, #1c1450); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(255, 255, 255, 0.3), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.3);
   overflow-wrap: anywhere;
 }
@@ -97,7 +97,7 @@ body.landscape .tw-nm .pav.tw-av + .rmedal.tw-rank { --rm: 1.25em; top: 0; margi
 .vsx.portrait .vsx-info.s0 .vsx-whot, .vsx.landscape .vsx-info.s1 .vsx-whot { align-items: flex-end; }
 .vsx-who .pav.vsx-av { --av: calc(var(--u) * 15); }
 .vsx.landscape .vsx-who .pav.vsx-av { --av: calc(var(--u) * 13); }
-.vsx-ttl { font-family: var(--font-d); font-size: clamp(12px, 0.95em, 18px); line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; }
+.vsx-ttl { font-family: var(--font-d); font-size: max(var(--fmin), round(clamp(12px, 0.95em, 18px), var(--fq))); line-height: 1; color: #ffe27a; text-shadow: var(--outline-thin); white-space: nowrap; }
 /* Beast News result: picture by each name in BASE HP LEFT, the rank medal beside it (not on the picture) */
 .cn-base .pav.cn-av { margin: calc(var(--av) * 0.12); }
 .cn-base .pav.cn-av + .rmedal.cn-rank { z-index: 2; margin: 0; }
@@ -112,10 +112,10 @@ body.landscape .bk-gears { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .bk-gear-art { height: calc(var(--u) * 22); }
 .bk-gear-art > .pav.bk-gear-av { --av: calc(var(--u) * 15); }
 .bk-gear-ttl > b { font-weight: normal; }
-.bk-gear-ttl-nm { font-size: 1.2em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bk-gear-ttl-nm { font-size: max(var(--fmin), round(1.2em, var(--fq))); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .bk-gear-ttl {
   display: flex; flex-direction: column; align-items: center; gap: 0.2em;
-  max-width: 92%; padding: 0.45em 0.7em; text-align: center; font-size: 1.05em; line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
+  max-width: 92%; padding: 0.45em 0.7em; text-align: center; font-size: max(var(--fmin), round(1.05em, var(--fq))); line-height: 1.05; color: #ffe27a; text-shadow: var(--outline-thin);
   background: linear-gradient(#3a2a8a, #1c1450); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 rgba(255, 255, 255, 0.3), inset 0 calc(var(--px) * -2) 0 rgba(0, 0, 0, 0.3);
 }
 .cn-base:has(> .nm > .pav.cn-av) { grid-template-columns: minmax(0, 47%) 1fr; }

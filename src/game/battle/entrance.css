@@ -69,13 +69,13 @@
 .ent-card-in { position: relative; display: flex; align-items: center; gap: clamp(10px, 2.4vmin, 18px); padding: calc(clamp(10px, 2.2vmin, 16px) + var(--pxl) * 2) clamp(12px, 2.8vmin, 20px) clamp(10px, 2.2vmin, 16px); }
 .ent-card-rk { --rm: clamp(52px, 13vmin, 84px); }
 .ent-card-tx { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(4px, 1vmin, 8px); min-width: 0; flex: 1 1 auto; }
-.ent-card-tag { font-family: var(--font-d); font-size: clamp(12px, 2.8vmin, 16px); letter-spacing: 0.08em; line-height: 1; padding: 4px 8px 3px; color: #fff; white-space: nowrap; }
+.ent-card-tag { font-family: var(--font-d); font-size: max(var(--fmin), round(clamp(12px, 2.8vmin, 16px), var(--fq))); letter-spacing: 0; line-height: 1; padding: 4px 8px 3px; color: #fff; white-space: nowrap; }
 .ent-card-nm {
   font-family: var(--font-d); line-height: 0.95; letter-spacing: 0; color: #fff; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-  font-size: calc(clamp(30px, 8.4vmin, 54px) * var(--nk, 1));
-  text-shadow: 0 3px 0 #05030c, 3px 0 0 #05030c, -3px 0 0 #05030c, 0 -3px 0 #05030c, 2px 2px 0 #05030c, -2px 2px 0 #05030c;
+  font-size: max(var(--fmin), round(calc(clamp(30px, 8.4vmin, 54px) * var(--nk, 1)), var(--fq)));
+  text-shadow: 0 0.2em 0 #05030c, 0.2em 0 0 #05030c, -0.2em 0 0 #05030c, 0 -0.2em 0 #05030c, 0.1em 0.1em 0 #05030c, -0.1em 0.1em 0 #05030c;
 }
-.ent-card-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-family: var(--font-d); font-size: clamp(14px, 3.2vmin, 19px); line-height: 1; color: #fff; letter-spacing: 0.08em; }
+.ent-card-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-family: var(--font-d); font-size: max(var(--fmin), round(clamp(14px, 3.2vmin, 19px), var(--fq))); line-height: 1; color: #fff; letter-spacing: 0; }
 .ent-card-tr { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 5px; background: rgba(5, 3, 20, 0.7); box-shadow: 0 0 0 2px #05030c; }
 .ent-card-tr b { color: #ffd84a; font-weight: 400; }
 .ent-card-ic { width: 1.15em; height: 1.15em; image-rendering: pixelated; }
@@ -86,7 +86,7 @@
   --tx: 50%;
   position: absolute; left: 0; top: 0; z-index: 4; max-width: min(72vw, 380px); pointer-events: none;
   padding: clamp(8px, 1.8vmin, 12px) clamp(12px, 2.6vmin, 16px);
-  background: #fff; color: #15121f; font-family: var(--font-d); font-size: clamp(17px, 4.4vmin, 26px); line-height: 1.05; letter-spacing: 0; text-align: center;
+  background: #fff; color: #15121f; font-family: var(--font-d); font-size: max(var(--fmin), round(clamp(17px, 4.4vmin, 26px), var(--fq))); line-height: 1.05; letter-spacing: 0; text-align: center;
   box-shadow: 0 0 0 var(--pxl) #15121f, 0 calc(var(--pxl) * 2) 0 var(--pxl) rgba(5, 3, 12, 0.5);
   opacity: 0; scale: 0.6; transition: opacity 0.12s, scale 0.22s cubic-bezier(.2, 1.6, .4, 1);
 }
@@ -112,10 +112,10 @@
 .ent.inl .ent-card-av { --av: clamp(24px, 8.5cqmin, 40px); }
 .ent.inl .ent-card-rk { --rm: clamp(28px, 9.5cqmin, 46px); }
 .ent.inl .ent-card-tx { gap: clamp(3px, 1cqmin, 5px); }
-.ent.inl .ent-card-tag { font-size: clamp(9px, 2.8cqmin, 12px); padding: 2px 6px 1px; }
-.ent.inl .ent-card-nm { font-size: calc(clamp(14px, 6.4cqmin, 26px) * var(--nk, 1)); text-shadow: 0 2px 0 #05030c, 2px 0 0 #05030c, -2px 0 0 #05030c, 0 -2px 0 #05030c; }
-.ent.inl .ent-card-sub { font-size: clamp(10px, 3.4cqmin, 14px); gap: 6px; }
-.ent.inl .ent-say { max-width: min(78cqw, 300px); font-size: clamp(13px, 5.2cqmin, 20px); padding: clamp(5px, 1.6cqmin, 8px) clamp(8px, 2.4cqmin, 12px); }
+.ent.inl .ent-card-tag { font-size: max(var(--fmin), round(clamp(9px, 2.8cqmin, 12px), var(--fq))); padding: 2px 6px 1px; }
+.ent.inl .ent-card-nm { font-size: max(var(--fmin), round(calc(clamp(14px, 6.4cqmin, 26px) * var(--nk, 1)), var(--fq))); text-shadow: var(--outline); }
+.ent.inl .ent-card-sub { font-size: max(var(--fmin), round(clamp(10px, 3.4cqmin, 14px), var(--fq))); gap: 6px; }
+.ent.inl .ent-say { max-width: min(78cqw, 300px); font-size: max(var(--fmin), round(clamp(13px, 5.2cqmin, 20px), var(--fq))); padding: clamp(5px, 1.6cqmin, 8px) clamp(8px, 2.4cqmin, 12px); }
 @media (prefers-reduced-motion: reduce) { .ent-card, .ent-say, .ent-bar { transition: none !important; } }
 /* profile picture + frame on the title card (src/ui/avatar.js) */
 .ent-card-av { --av: clamp(44px, 11vmin, 70px); flex: 0 0 auto; margin: calc(var(--av) * 0.22); }

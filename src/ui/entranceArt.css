@@ -82,10 +82,10 @@ body.landscape .mn-ents { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .mn-ent.eq { box-shadow: 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) var(--ec), 0 0 calc(var(--u) * 3) color-mix(in srgb, var(--ec) 60%, transparent); }
 .mn-ent-art { height: calc(var(--u) * 26); }
-.mn-ent-n { font-size: calc(var(--u) * 4.6); line-height: 1; color: #fff; }
-.mn-ent-s { font-size: calc(var(--u) * 3); color: var(--muted, #9aa6c8); line-height: 1.2; flex: 1 1 auto; }
+.mn-ent-n { font-size: max(var(--fmin), round(calc(var(--u) * 4.6), var(--fq))); line-height: 1; color: #fff; }
+.mn-ent-s { font-size: max(var(--fmin), round(calc(var(--u) * 3), var(--fq))); color: var(--muted, #9aa6c8); line-height: 1.2; flex: 1 1 auto; }
 .mn-ent-btns { display: flex; align-items: center; gap: calc(var(--u) * 1.6); }
 .mn-ent-btns > :last-child { flex: 1 1 auto; }
 .mn-ent-pv { flex: none; min-width: 0; padding-left: calc(var(--u) * 2); padding-right: calc(var(--u) * 2); }
-.mn-ent-pass { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: calc(var(--u) * 3.4); color: #ff8ac4; }
+.mn-ent-pass { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: max(var(--fmin), round(calc(var(--u) * 3.4), var(--fq))); color: #ff8ac4; }
 .mn-ent-confirm { width: calc(var(--u) * 40); height: calc(var(--u) * 30); margin: 0 auto; }

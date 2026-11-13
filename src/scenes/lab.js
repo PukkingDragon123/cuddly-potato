@@ -41,7 +41,7 @@ const CSS = `
 .lb-back { position: absolute; left: calc(var(--safe-l) + var(--u) * 3); top: calc(var(--safe-t) + var(--u) * 3); pointer-events: auto; }
 .lb-name { display: flex; flex-direction: column; gap: calc(var(--u) * 2); align-items: stretch; }
 .lb-name input {
-  font-family: var(--font-d); font-size: 1.4em; text-align: center; padding: 0.3em 0.5em; color: var(--ink); background: #fff;
+  font-family: var(--font-d); font-size: max(var(--fmin), round(1.4em, var(--fq))); text-align: center; padding: 0.3em 0.5em; color: var(--ink); background: #fff;
   border: none; outline: none; box-shadow: 0 0 0 var(--px) var(--ink), inset 0 calc(var(--px) * 2) 0 #d8e4ff; border-radius: calc(var(--u) * 2);
 }
 `;
