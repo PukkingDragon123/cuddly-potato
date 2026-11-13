@@ -22,6 +22,7 @@ import { audio } from '../../core/audio.js';
 import { h, icon, $overlay } from '../../ui/ui.js';
 import { rankMedal } from '../../ui/rankMedal.js';
 import { sideAvatarEl } from '../../ui/avatar.js';
+import { bannerArtEl } from '../../ui/bannerArt.js';
 import { voiceOf } from '../../data/characters.js';
 import { BANNERS } from '../../data/season.js';
 import { entranceDef, ghostEntrance } from '../../data/entrances.js';
@@ -195,7 +196,7 @@ function titleCard(info, side, e) {
   const sub = [];
   if (info.trophies !== undefined && info.trophies !== null) sub.push(h('span', { class: 'ent-card-tr' }, icon('trophy', 'ent-card-ic'), h('b', {}, Number(info.trophies).toLocaleString('en-US'))));
   return h('div', { class: `ent-card s${side}`, style: { '--tc': TEAM[side], '--ec': e.color, '--nk': String(Math.min(1, 10 / Math.max(10, name.length))) } },
-    h('i', { class: 'ent-card-bn', style: { background: b.css } }),
+    h('i', { class: 'ent-card-bn', style: { background: b.css } }, bannerArtEl(BANNERS[info.banner] ? info.banner : 'default', { render: false })), // the banner's pixel scene if it is already rendered (no 3D work mid-battle)
     h('i', { class: 'ent-card-shade' }),
     h('i', { class: 'ent-card-trim' }),
     h('div', { class: 'ent-card-in' },

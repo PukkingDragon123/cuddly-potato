@@ -23,6 +23,7 @@ import { TROPHY_ROAD, SECRETS, BOSSES } from '../../data/arenas.js';
 import { ENTRANCES } from '../../data/entrances.js';
 import { entranceArt } from '../entranceThumb.js';
 import { rankMedal } from '../rankMedal.js';
+import { bannerArtEl } from '../bannerArt.js';
 // profile looks (pictures / frames / titles) [engineer F]
 import { avatarEl } from '../avatar.js';
 import { AVATARS, FRAMES, TITLES } from '../../data/profileItems.js';
@@ -388,7 +389,10 @@ export function bannerEl(id, cls = '', ...children) {
   const b = BANNERS[id] || BANNERS.default;
   const el = h('div', { class: `mn-banner ${b.animated ? 'anim anim-' + b.animated : ''} ${cls}` });
   el.appendChild(h('div', { class: 'mn-ban-bg', style: { background: b.css } }));
-  // Troop Mastery banners (src/data/profileItems.js): the troop stands on the right
+  // the banner itself: an animated pixel-art scene captured from a 3D set (bannerArt.js); the
+  // CSS look above stays underneath until it has rendered
+  el.appendChild(bannerArtEl(BANNERS[id] ? id : 'default'));
+  // Troop Mastery banners (src/data/profileItems.js): the troop stands on the right (until the scene, which has it, is in)
   if (b.troop) el.appendChild(swarmImg(b.troop, 'base', null, 128, 'mn-ban-troop'));
   el.appendChild(h('div', { class: 'mn-ban-sheen' }));
   if (children.length) el.appendChild(h('div', { class: 'mn-ban-c' }, ...children));
