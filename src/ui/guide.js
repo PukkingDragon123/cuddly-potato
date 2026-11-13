@@ -86,7 +86,7 @@ const STEPS = {
     feature: 'road', chip: 'Claim your first Trophy Road reward',
     can: () => trophyRoadClaimable().length > 0,
     done: () => Object.keys(P().trophyRoad).length > 0,
-    targets: [['[data-guide="road-claim"]', 'Claim!'], ['.trd-claim', 'Claim!'], ['.trd-ready', 'Tap!'], ['.mn-tr .btn.sk-btn-green.pulse', 'Claim!'], ['.hm-sb-road', 'Road']],
+    targets: [['[data-guide="road-claim"]', 'Claim!'], ['.trd-claim', 'Claim!'], ['.trd-ready', 'Tap!'], ['.mn-tr .btn.sk-btn-green.pulse', 'Claim!'], ['.hm-zbox', 'Road']],
   },
   vial: {
     feature: 'vials', chip: 'Open your vial', who: 'jimmy',
@@ -248,7 +248,7 @@ function featureEl(hm, id) {
   if (!hm?.root) return null;
   const f = FEATURES[id];
   if (f?.tab) return hm.navBtns?.find((b) => b.dataset.tab === id) ?? null;
-  if (id === 'road') return hm.roadBtn ?? hm.root.querySelector('.hm-sb-road');
+  if (id === 'road') return hm.zBox ?? hm.root.querySelector('.hm-zbox');
   if (id === 'friends') return hm.root.querySelector('.hm-sb-fr');
   if (id === 'train') return hm.practiceBtn ?? null;
   if (id === 'vials') return hm.slotsEl ?? null;
@@ -282,15 +282,15 @@ function setPads(host, n, on) {
 }
 
 function decorate(hm) {
-  for (const id of ['road', 'vials', 'cards', 'shop', 'friends', 'pass', 'train', 'lab', 'profile', 'roadSign']) {
-    // the arena sign opens the Trophy Road too: same gate, no second lock
+  for (const id of ['vials', 'cards', 'shop', 'friends', 'pass', 'train', 'lab', 'profile', 'roadSign']) {
+    // the arena sign is the Trophy Road's entry (no ROAD button): gated, never blacked out
     const el = id === 'roadSign' ? hm.zBox : featureEl(hm, id);
     if (!el) continue;
     if (id === 'roadSign') {
       el.classList.toggle('pg-gate', !featureRevealed('road'));
       if (!el._pgGate) {
         el._pgGate = true;
-        el.addEventListener('click', (e) => { if (!el.classList.contains('pg-gate')) return; e.stopImmediatePropagation(); e.preventDefault(); denyLocked('road', hm.roadBtn); }, true);
+        el.addEventListener('click', (e) => { if (!el.classList.contains('pg-gate')) return; e.stopImmediatePropagation(); e.preventDefault(); denyLocked('road', hm.zBox); }, true);
       }
       continue;
     }

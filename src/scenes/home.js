@@ -392,8 +392,8 @@ export class HomeScene {
     // side buttons (right edge only: the free vial lives in the SHOP, the MEGA in CARDS, the Lab visit in LAB)
     root.appendChild(h('div', { class: 'hm-side right' },
       button('', () => this.openModal('settings', 'openSettings'), 'gray icon-only hm-sb hm-sb-set', { icon: 'gear' }),
-      button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only hm-sb hm-sb-fr', { icon: 'friends' }),
-      this.roadBtn = button('', () => this.openRoad(), 'gold icon-only hm-sb hm-sb-road', { icon: 'road' })));
+      button('', () => this.openModal('friend', 'openFriendBattle'), 'teal icon-only hm-sb hm-sb-fr', { icon: 'friends' })));
+    // no ROAD button: Trophy Road rewards are claimed on the island path (the arena sign opens it, and after a win the Commander walks there)
     // tags over the island
     this.tagLayer = h('div', { class: 'hm-tags' });
     for (const pk of this.pickables) if (pk.tag) this.tagLayer.appendChild(pk.tag);
@@ -606,8 +606,8 @@ export class HomeScene {
         const n = b[btn.dataset.tab] ?? 0;
         if (n > 0) btn.appendChild(h('div', { class: 'badge' }, n > 99 ? '99+' : String(n)));
       }
-      this.roadBtn.querySelector('.badge')?.remove();
-      if (b.road > 0) this.roadBtn.appendChild(h('div', { class: 'badge' }, b.road > 9 ? '9+' : String(b.road)));
+      this.zBox.querySelector(':scope > .badge')?.remove();
+      if (b.road > 0) this.zBox.appendChild(h('div', { class: 'badge' }, b.road > 9 ? '9+' : String(b.road)));
     } catch (e) { /* screens not available yet */ }
   }
 

@@ -37,6 +37,19 @@
 .hm-side.right { right: calc(var(--safe-r) + var(--u) * 1.6); align-items: flex-end; }
 .hm-side .btn { min-height: calc(var(--u) * 9) !important; }
 .hm-side.right { gap: calc(var(--u) * 3.6); }
+/* right-hand console buttons: hand-pixeled frame — dark ink outline, light/dark bevel, recessed inner panel */
+.hm-side.right .hm-sb {
+  position: relative; width: calc(var(--u) * 10); height: calc(var(--u) * 10); min-height: 0 !important; padding: 0 !important;
+  display: grid; place-items: center; border-radius: 0 !important;
+  box-shadow: 0 0 0 calc(var(--px) * 1.5) var(--ink), inset calc(var(--px) * 1.5) calc(var(--px) * 1.5) 0 rgba(255, 255, 255, 0.4), inset calc(var(--px) * -1.5) calc(var(--px) * -2.5) 0 rgba(0, 0, 0, 0.4), 0 calc(var(--px) * 2.5) 0 calc(var(--px) * 1.5) rgba(0, 0, 0, 0.45) !important;
+}
+.hm-side.right .hm-sb::before {
+  content: ''; position: absolute; inset: calc(var(--px) * 3); pointer-events: none;
+  background: rgba(4, 10, 34, 0.35); box-shadow: inset 0 calc(var(--px) * 1.5) 0 rgba(0, 0, 0, 0.45), 0 calc(var(--px) * 1) 0 rgba(255, 255, 255, 0.25);
+}
+.hm-side.right .hm-sb > * { position: relative; z-index: 1; }
+.hm-side.right .hm-sb .pi, .hm-side.right .hm-sb img { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); image-rendering: pixelated; filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(0, 0, 0, 0.5)); }
+.hm-zbox { position: relative; }
 /* captions under the right-hand console buttons */
 .hm-sb::after {
   position: absolute; left: 50%; top: 100%; translate: -50% calc(var(--px) * -1); z-index: 2; pointer-events: none; padding: 0 0.35em 0.05em;
@@ -47,9 +60,6 @@
 .hm-side.right .hm-sb::after { left: auto; right: calc(var(--px) * -1); translate: 0 calc(var(--px) * -1); }
 .hm-sb-set::after { content: 'SETTINGS'; }
 .hm-sb-fr::after { content: 'FRIENDS'; }
-.hm-sb-road::after { content: 'ROAD'; color: var(--gold); }
-.hm-sb-road { filter: drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 200, 40, 0.55)); }
-.hm-sb-road:has(.badge) { animation: hmRoadGlow 1.4s ease-in-out infinite; }
 @keyframes hmRoadGlow { 0%, 100% { filter: drop-shadow(0 0 calc(var(--px) * 2) rgba(255, 200, 40, 0.5)); } 50% { filter: drop-shadow(0 0 calc(var(--px) * 5) rgba(255, 220, 80, 1)); } }
 .hm-mini {
   position: relative; width: calc(var(--u) * 15); padding: calc(var(--u) * 0.8) calc(var(--u) * 0.6) calc(var(--u) * 1); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.4);
@@ -261,7 +271,7 @@ body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
 .hm-mid { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.2); }
 
 @media (prefers-reduced-motion: reduce) {
-  .hm-mini::after, .hm-slot::after, .hm-play::before, .hm-play::after, .hm-tabbtn.on::before, .hm-sb-road, .hm-tabbtn.on .pi { animation: none !important; }
+  .hm-mini::after, .hm-slot::after, .hm-play::before, .hm-play::after, .hm-tabbtn.on::before, .hm-tabbtn.on .pi { animation: none !important; }
 }
 
 /* =========================================================================
@@ -298,9 +308,7 @@ body.landscape .hm-side { top: calc(var(--safe-t) + var(--u) * 12); }
 }
 .hm-side.right .hm-sb { animation: hmSbHop 6s ease-in-out infinite; }
 .hm-side.right .hm-sb:nth-child(2) { animation-delay: 1.2s; }
-.hm-side.right .hm-sb:nth-child(3) { animation-delay: 2.4s; }
 @keyframes hmSbHop { 0%, 88%, 100% { translate: 0 0; } 92% { translate: 0 calc(var(--px) * -3); } 96% { translate: 0 calc(var(--px) * 0.5); } }
-.hm-sb-road:has(.badge) { animation: hmRoadGlow 1.4s ease-in-out infinite, hmSbHop 6s 2.4s ease-in-out infinite; }
 
 /* ---- arena sign: progress tube to the next arena */
 .hm-ztrow { display: flex; align-items: center; gap: calc(var(--u) * 1); }

@@ -197,7 +197,7 @@ export function setupIslandRoad(home) {
     const F = { B, rig, k, t: 0, next: 2 + Math.random() * 2, dying: null, n: 0 };
     figs.set(B.id, F);
     home.addPick(rig.root, async () => {
-      if (roadLocked()) { home.roadBtn.click(); return; }
+      if (roadLocked()) { home.zBox.click(); return; }
       // onto the road, and straight into the fight when it blocks you
       await ctl.open('boss:' + B.id);
       const k = stopOfMs.get('b:' + B.id);
@@ -246,17 +246,17 @@ export function setupIslandRoad(home) {
     }
   }
   // the road's own taps (chests, fork signs) open the road too
-  const roadLocked = () => home.roadBtn?.classList.contains('pg-lock');
+  const roadLocked = () => home.zBox?.classList.contains('pg-gate');
   applyRoute();
   applyStates();
   placeYou();
   ms.forEach((M, i) => home.addPick(M.chest, () => {
     // the road button knows whether the Trophy Road is unlocked yet (ui/guide.js gates its taps)
-    if (roadLocked()) { home.roadBtn.click(); return; }
+    if (roadLocked()) { home.zBox.click(); return; }
     ctl.open(i);
   }, { radius: 1.3 }));
   for (const f of forks) for (const sd of ['a', 'b']) {
-    home.addPick(f.signs[sd].mesh, () => { if (roadLocked()) { home.roadBtn.click(); return; } ctl.open('fork:' + f.id); }, { radius: 1.4, tagH: 2.4 });
+    home.addPick(f.signs[sd].mesh, () => { if (roadLocked()) { home.zBox.click(); return; } ctl.open('fork:' + f.id); }, { radius: 1.4, tagH: 2.4 });
   }
 
   // ------------------------------------------------ reward art (painted progressively, nearest first)
