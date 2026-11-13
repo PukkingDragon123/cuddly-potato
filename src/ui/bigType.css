@@ -64,8 +64,8 @@
   100% { opacity: 0; transform: translate(calc(var(--dx) * var(--a)), calc(var(--dy) * var(--a) - 2 * var(--a))) scale(0.34); }
 }
 /* skipped / instant: everything lands at once */
-.now .bt-ch, .bt.now .bt-ch { animation-duration: 0.01s !important; animation-delay: 0s !important; }
-.now .bt-dust, .bt.now .bt-dust { display: none; }
+.ecv.now .bt-ch, .bt.now .bt-ch { animation-duration: 0.01s !important; animation-delay: 0s !important; }
+.ecv.now .bt-dust, .bt.now .bt-dust { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .bt .bt-ch { animation-duration: 0.01s !important; animation-delay: 0s !important; }
   .bt-dust, .bt-sh { display: none; }

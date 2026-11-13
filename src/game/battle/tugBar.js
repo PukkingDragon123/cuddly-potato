@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { engine } from '../../core/engine.js';
 import { Chibi, CHIBI_HEIGHT, definePoses } from '../../core/chibi.js';
 import { CHARACTERS } from '../../data/characters.js';
+import { COMMANDERS } from '../../data/commanders.js';
 import { h } from '../../ui/ui.js';
 
 const { sin, abs, max, min, PI } = Math;
@@ -25,12 +26,12 @@ const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-
 // shoulder in, arms locked on the rival, back leg driving: a trembling strain loop
 function pushPose(t, p) {
   const s = sin(t * 5.2), tr = sin(t * 41) * 0.6 + sin(t * 57) * 0.4;
-  p.torsoRX = 0.4 + s * 0.05; p.torsoRZ = tr * 0.025;
-  p.headRX = -0.3 - s * 0.03; p.headRZ = tr * 0.03;
-  p.armLX = -1.3 + s * 0.06 + tr * 0.03; p.armRX = -1.36 + s * 0.06 - tr * 0.03;
-  p.armLZ = -0.16; p.armRZ = 0.16; p.elbowL = p.elbowR = -0.4;
+  p.torsoRX = 0.24 + s * 0.04; p.torsoRZ = tr * 0.025;
+  p.headRX = -0.16 - s * 0.03; p.headRZ = tr * 0.03;
+  p.armLX = -1.62 + s * 0.05 + tr * 0.03; p.armRX = -1.66 + s * 0.05 - tr * 0.03;
+  p.armLZ = 0.12; p.armRZ = -0.12; p.elbowL = p.elbowR = -0.08;
   p.hl = p.hr = 'open';
-  p.legLX = -0.5; p.kneeL = 0.7; p.legRX = 0.62 + s * 0.04; p.kneeR = 0.12;
+  p.legLX = -0.55; p.kneeL = 0.75; p.legRX = 0.7 + s * 0.04; p.kneeR = 0.1;
   p.y = -0.07 + s * 0.012; p.sy = 0.97 + s * 0.02; p.sx = 1.02 - s * 0.012;
 }
 definePoses({
@@ -39,8 +40,8 @@ definePoses({
   tugLunge(t, p, k, d) {
     const e = sin(clamp(t / (d || 0.5), 0, 1) * PI);
     pushPose(t, p);
-    p.torsoRX = 0.4 + e * 0.32; p.headRX = -0.3 - e * 0.12;
-    p.armLX = p.armRX = -1.33 - e * 0.25; p.elbowL = p.elbowR = -0.4 + e * 0.35;
+    p.torsoRX = 0.24 + e * 0.26; p.headRX = -0.16 - e * 0.12;
+    p.armLX = p.armRX = -1.64 - e * 0.1; p.elbowL = p.elbowR = -0.08;
     p.hl = p.hr = 'fist';
     p.legRX = 0.62 + e * 0.35; p.kneeL = 0.7 + e * 0.25; p.legLX = -0.5 - e * 0.25;
     p.y = -0.07 + e * 0.05; p.sx = 1.02 + e * 0.05; p.sy = 0.97 - e * 0.03;
@@ -50,9 +51,9 @@ definePoses({
     const e = sin(clamp(t / (d || 0.6), 0, 1) * PI), w = sin(t * 24);
     pushPose(t, p);
     const m = (a, b) => a + (b - a) * e;
-    p.torsoRX = m(0.4, -0.28); p.headRX = m(-0.3, 0.18); p.headRZ = w * 0.08 * e;
-    p.armLX = m(-1.3, -2.3 + w * 0.5); p.armRX = m(-1.36, -1.9 - w * 0.5);
-    p.armLZ = m(-0.16, -0.7); p.armRZ = m(0.16, 0.7); p.elbowL = p.elbowR = m(-0.4, -0.2);
+    p.torsoRX = m(0.24, -0.28); p.headRX = m(-0.16, 0.18); p.headRZ = w * 0.08 * e;
+    p.armLX = m(-1.62, -2.6 + w * 0.5); p.armRX = m(-1.66, -2.2 - w * 0.5);
+    p.armLZ = m(0.12, -0.5); p.armRZ = m(-0.12, 0.5); p.elbowL = p.elbowR = m(-0.08, -0.2);
     p.legLX = m(-0.5, -0.9); p.kneeL = m(0.7, 0.2); p.legRX = m(0.62, 0.15); p.kneeR = m(0.12, 0.6);
     p.y = -0.07 + e * 0.06;
   },
@@ -94,8 +95,8 @@ function sprite(name, tint) {
 
 // tube palettes (rows top -> bottom inside the frame) per team
 const TEAM = [
-  { hi: [200, 240, 255], a: [79, 180, 255], b: [43, 140, 242], c: [20, 96, 192], floor: [10, 52, 128], glow: '#4fb4ff', conf: '#6fd0ff' },
-  { hi: [255, 216, 220], a: [255, 122, 138], b: [255, 61, 85], c: [176, 28, 52], floor: [110, 14, 32], glow: '#ff5a70', conf: '#ff8a9a' },
+  { hi: [200, 240, 255], a: [79, 180, 255], b: [43, 140, 242], c: [20, 96, 192], floor: [10, 52, 128], glow: '#4fb4ff', conf: '#6fd0ff', cloth: 0x2b8cf2 },
+  { hi: [255, 216, 220], a: [255, 122, 138], b: [255, 61, 85], c: [176, 28, 52], floor: [110, 14, 32], glow: '#ff5a70', conf: '#ff8a9a', cloth: 0xff3d55 },
 ];
 const INK = [10, 8, 32], STEEL_HI = [214, 222, 244], STEEL = [132, 142, 184], STEEL_LO = [58, 62, 104];
 
@@ -131,11 +132,20 @@ export class TugBar {
   }
 
   build3D(cfg) {
+    let mine = null;
     const mk = (i) => {
-      const cmd = cfg.sides[i]?.commander ?? { char: i ? 'recruit' : 'recruit' };
-      const def = { ...(CHARACTERS[cmd.char ?? cmd.id] ?? CHARACTERS.recruit), ...(cmd.override ?? {}) };
+      const cmd = cfg.sides[i]?.commander ?? { char: 'recruit' };
+      let key = cmd.char ?? cmd.id;
+      // a mirror match still shows two different people: the rival borrows another Commander
+      if (i === 1 && key === mine) key = Object.values(COMMANDERS).map((c) => c.char).find((k) => k !== mine && CHARACTERS[k]) ?? key;
+      if (i === 0) mine = key;
+      const base = CHARACTERS[key] ?? CHARACTERS.recruit;
+      // team-coloured clothes (shirt + trim)
+      const def = { ...base, ...(key === (cmd.char ?? cmd.id) ? cmd.override ?? {} : {}), shirt: TEAM[i].cloth, accent: TEAM[i].cloth };
       const ch = new Chibi(def, { scale: 1 });
-      ch.root.rotation.y = (i ? -1 : 1) * (PI / 2 - 0.8); // 3/4: facing the rival, face to camera
+      ch.root.rotation.y = (i ? -1 : 1) * (PI / 2 - 0.2); // side profile, a hair toward the camera
+      // cartoon-long arms so the hands meet at the seam with a gap between the bodies
+      for (const a of [ch.armL, ch.armR]) a.scale.set(1, 2.1, 1);
       ch.play('tugPush');
       ch.mood('determined');
       ch.animT = i * 0.37; // out of phase
@@ -189,7 +199,7 @@ export class TugBar {
     this.push.height = Math.round(chh * dpr);
     // ortho frame: the floor (inner bottom row of the tube) at y = 0, a standing chibi spans the inner tube
     const inner = (this.rows - 4) * px; // css px between the steel rails
-    const wpp = (CHIBI_HEIGHT * 1.02) / inner; // world units per css px
+    const wpp = (CHIBI_HEIGHT * 1.16) / inner; // world units per css px
     this.wpp = wpp;
     const floorUp = 2 * px; // floor sits 2 art px above the tube's bottom edge
     this.cam.left = (-cw / 2) * wpp;
@@ -377,7 +387,7 @@ export class TugBar {
     this.push.style.transform = `translate(${(x - this.cw / 2).toFixed(1)}px, 0)`;
     this.pairOff = x;
     if (!this.ch) return;
-    const gap = 0.9;
+    const gap = 1.02;
     const [a, b] = this.ch;
     a.ch.root.position.x = -gap + this.shift * 0.12 + min(0, a.ox) * 0.12 + max(0, a.ox) * 0.06;
     b.ch.root.position.x = gap + this.shift * 0.12 + max(0, b.ox) * 0.12 + min(0, b.ox) * 0.06;
