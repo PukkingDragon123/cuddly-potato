@@ -53,27 +53,27 @@
   --o: calc(var(--px) * 0.67);
   /* text over the 3D view: a 1 font-pixel ink ring (0.1em = one pixel of Swarm Text) plus a 1 px drop.
      Every text outline uses this one style; --ring alone is for the slab-extruded titles. */
-  --ring: -0.1em -0.1em 0 var(--ink), 0 -0.1em 0 var(--ink), 0.1em -0.1em 0 var(--ink), -0.1em 0 0 var(--ink), 0.1em 0 0 var(--ink),
-    -0.1em 0.1em 0 var(--ink), 0 0.1em 0 var(--ink), 0.1em 0.1em 0 var(--ink);
-  --outline: var(--ring), -0.1em 0.2em 0 var(--ink), 0 0.2em 0 var(--ink), 0.1em 0.2em 0 var(--ink);
+  --ring: -0.07em -0.07em 0 var(--ink), 0 -0.07em 0 var(--ink), 0.07em -0.07em 0 var(--ink), -0.07em 0 0 var(--ink), 0.07em 0 0 var(--ink),
+    -0.07em 0.07em 0 var(--ink), 0 0.07em 0 var(--ink), 0.07em 0.07em 0 var(--ink);
+  --outline: var(--ring), -0.07em 0.14em 0 var(--ink), 0 0.14em 0 var(--ink), 0.07em 0.14em 0 var(--ink);
   --outline-thin: var(--outline);
   /* font sizes snap to whole multiples of --fq (10 device px = one 10 px em at 1:1), never below --fmin
      (ui.js sets both from devicePixelRatio; these media queries are the pre-JS defaults) */
-  --fq: 10px;
-  --fmin: 10px;
+  --fq: 1px;
+  --fmin: 11px;
   /* tiled texture sizes (art px) */
   --tx-bub-size: calc(24 * var(--px)) calc(32 * var(--px));
   --tx-bubsm-size: calc(16 * var(--px)) calc(24 * var(--px));
 }
 
-@media (min-resolution: 2dppx) { :root { --fq: 5px; } }
-@media (min-resolution: 3dppx) { :root { --fq: 3.333333px; } }
+@media (min-resolution: 2dppx) { :root { --fq: 1px; } }
+@media (min-resolution: 3dppx) { :root { --fq: 1px; } }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
   margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
   background: #0b1230; color: #fff;
-  font-family: var(--font-b);
+  font-family: var(--font-b); letter-spacing: -0.03em; word-spacing: -0.08em;
   font-size: max(var(--fmin), round(var(--fs), var(--fq)));
   -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none;

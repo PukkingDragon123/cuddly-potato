@@ -1,25 +1,18 @@
 /* =========================================================================
-   Game type: 'Swarm Text', a proportional pixel font hand-made for this game
-   (bitmaps + builder in tools/pixelfont/build.py, no runtime CDN). One family,
-   two real weights, one construction:
-     10 px em, cap height 7, x-height 5, descenders 2, letters exactly 1 px apart.
-     Regular: 1 px stems.  Bold: 2 px vertical stems, counters kept open.
-   'Swarm Body'    - paragraphs, labels, dialogue. 600+ (<b>, <strong>) is the Bold cut.
-   'Swarm Display' - titles, buttons, numbers, names: always the Bold cut (every weight
-                     maps to it, so nothing is ever synthesised).
-   The big headline letters (bigType.js) are drawn with the same rules at 10 px caps.
-   Crisp by construction: font sizes are snapped to whole multiples of 10 device px
-   (--fq, ui.js + the round() in every font-size), so each font pixel is k x k screen pixels.
+   Game type: two human-designed pixel fonts (SIL OFL, bundled, no CDN):
+   'Swarm Display' = Jersey 15 (Sarah Cadigan-Fried): titles, buttons, numbers, names, big headlines.
+   'Swarm Body'    = Pixelify Sans 400/700 (Stefie Justprince): paragraphs, labels, dialogue.
+   Licences: assets/fonts/OFL-*.txt
    ========================================================================= */
 @font-face {
   font-family: 'Swarm Display'; font-style: normal; font-display: block; font-weight: 100 900;
-  src: url('../assets/fonts/swarm-text-bold.woff2') format('woff2');
+  src: url('../assets/fonts/jersey-15-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Swarm Body'; font-style: normal; font-display: block; font-weight: 100 599;
-  src: url('../assets/fonts/swarm-text-regular.woff2') format('woff2');
+  src: url('../assets/fonts/pixelify-sans-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Swarm Body'; font-style: normal; font-display: block; font-weight: 600 900;
-  src: url('../assets/fonts/swarm-text-bold.woff2') format('woff2');
+  src: url('../assets/fonts/pixelify-sans-latin-700-normal.woff2') format('woff2');
 }

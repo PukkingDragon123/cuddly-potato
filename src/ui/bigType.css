@@ -7,7 +7,7 @@
 .bt-ch { position: relative; display: block; flex: none; width: calc(var(--w) * var(--ap)); height: calc(14 * var(--ap)); margin-right: calc(var(--ap) * -1); }
 .bt-ch:last-child { margin-right: 0; }
 .bt-sp { display: block; flex: none; width: calc(var(--w) * var(--ap)); }
-.bt-g, .bt-fl { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; -webkit-user-drag: none; user-select: none; }
+.bt-g, .bt-fl { display: block; width: 100%; height: 100%; -webkit-user-drag: none; user-select: none; }
 .bt-fl { position: absolute; inset: 0; opacity: 0; }
 
 .bt-stamp .bt-ch, .bt-drop .bt-ch { opacity: 0; }

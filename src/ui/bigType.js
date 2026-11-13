@@ -1,4 +1,5 @@
-// "Swarm Arcade": the headline cut of the game's one type family (Swarm Text, fonts.css /
+// Big headline text drawn from the bundled Jersey 15 face (see glyph art below).
+// Former note: "Swarm Arcade": the headline cut of the game's one type family (Swarm Text, fonts.css /
 // tools/pixelfont/build.py) for BIG text (VICTORY / DEFEAT / DRAW, VS, LEVEL UP, banners).
 // Same construction as Swarm Text Bold, scaled to 10 px caps: 2 px stems, 1 px cut corners
 // on the round letters, the same letter skeletons (C / G / S / 2 / 3 / 5 terminals, open-top
@@ -96,35 +97,60 @@ function themeOf(t) {
 }
 
 // ---------------------------------------------------------------- glyph art
+// Letters are drawn with the bundled Jersey 15 face (human-designed pixel font, fonts.css)
+// at S canvas px per font px, then given a 1-font-px ink outline and a hard drop shadow.
+const S = 4;
+const FONT = "'Swarm Display'";
+let capPx = 0;
+function measureCtx() {
+  const g = document.createElement('canvas').getContext('2d');
+  if (!capPx) { g.font = `100px ${FONT}`; const m = g.measureText('H'); capPx = (m.actualBoundingBoxAscent || 70) / 100; }
+  g.font = `${(10 * S) / capPx}px ${FONT}`;
+  return g;
+}
 const artCache = new Map();
 /** { url, flash, w } for one glyph: w x BOX_H font px, face at (1, 1). */
 function glyphArt(ch, T) {
   const key = ch + '|' + T.hi + T.lo + T.sh;
   let a = artCache.get(key);
   if (a) return a;
-  const rows = G[ch], gw = rows[0].length;
-  const W = gw + 3, H = BOX_H;
-  const face = (x, y) => { x -= 1; y -= 1; return y >= 0 && y < ROWS && x >= 0 && x < gw && rows[y][x] === '#'; };
-  const sil = (x, y) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (face(x + dx, y + dy)) return true; return false; };
+  const mg = measureCtx();
+  const adv = Math.max(2, Math.ceil(mg.measureText(ch).width / S));
+  const W = adv + 3, H = BOX_H, cw = W * S, ch2 = H * S;
   const paint = (flash) => {
-    const cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    const g = cv.getContext('2d');
-    const img = g.createImageData(W, H);
-    const put = (x, y, c) => { const [r, gg, b] = hex(c); const i = (y * W + x) * 4; img.data[i] = r; img.data[i + 1] = gg; img.data[i + 2] = b; img.data[i + 3] = 255; };
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (face(x, y)) put(x, y, flash ? '#ffffff' : y - 1 < 5 ? T.hi : T.lo);
-      else if (sil(x, y)) put(x, y, T.ink);
-      else if (sil(x - 1, y - 2)) put(x, y, T.sh);
-    }
-    g.putImageData(img, 0, 0);
-    return cv.toDataURL();
+    const face = document.createElement('canvas'); face.width = cw; face.height = ch2;
+    const f = face.getContext('2d');
+    f.font = mg.font; f.textBaseline = 'alphabetic';
+    const base = (1 + 10) * S;
+    const gr = f.createLinearGradient(0, S, 0, base);
+    gr.addColorStop(0, flash ? '#fff' : T.hi); gr.addColorStop(0.5, flash ? '#fff' : T.hi);
+    gr.addColorStop(0.5, flash ? '#fff' : T.lo); gr.addColorStop(1, flash ? '#fff' : T.lo);
+    f.fillStyle = gr; f.fillText(ch, S, base);
+    const out = document.createElement('canvas'); out.width = cw; out.height = ch2;
+    const o = out.getContext('2d');
+    const stamp = (dx, dy, col) => {
+      const t = document.createElement('canvas'); t.width = cw; t.height = ch2;
+      const tg = t.getContext('2d'); tg.drawImage(face, 0, 0); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, cw, ch2);
+      o.drawImage(t, dx, dy);
+    };
+    for (let dy = -S; dy <= S; dy += S / 2) for (let dx = -S; dx <= S; dx += S / 2) stamp(dx + S, dy + 2 * S, T.sh);
+    for (let dy = -S; dy <= S; dy += S / 2) for (let dx = -S; dx <= S; dx += S / 2) stamp(dx, dy, T.ink);
+    o.drawImage(face, 0, 0);
+    return out.toDataURL();
   };
   a = { url: paint(false), flash: paint(true), w: W };
   artCache.set(key, a);
   return a;
 }
-const glyphAdv = (ch) => (G[ch] ? G[ch][0].length + 2 : SPACE);
+const glyphAdv = (ch) => (G[ch] ? glyphArt(ch, THEMES.white).w - 1 : SPACE);
+// redraw headlines made before the font finished loading
+if (typeof document !== 'undefined' && document.fonts?.load) {
+  document.fonts.load(`40px ${FONT}`).then(() => {
+    if (!artCache.size) return;
+    artCache.clear(); capPx = 0;
+    for (const el of document.querySelectorAll('.bt')) el._redraw?.();
+  }).catch(() => {});
+}
 
 /** Width of a headline in em (1em = one letter box), for fitting it to the screen. */
 export function bigTextWidth(text) {
@@ -186,6 +212,7 @@ export function bigText(text, o = {}) {
     const art = glyphArt(ch, T);
     const s = document.createElement('span');
     s.className = 'bt-ch';
+    s.dataset.c = ch;
     s.style.setProperty('--w', art.w);
     s.style.setProperty('--d', (delay + i * stagger).toFixed(3) + 's');
     const im = document.createElement('img');
@@ -199,6 +226,7 @@ export function bigText(text, o = {}) {
     el.appendChild(s);
     i++;
   }
+  el._redraw = () => { for (const s of el.querySelectorAll('.bt-ch')) { const c = s.dataset.c, art = glyphArt(c, T); s.style.setProperty('--w', art.w); s.querySelector('.bt-g').src = art.url; const fl = s.querySelector('.bt-fl'); if (fl) fl.src = art.flash; } };
   el._end = delay + Math.max(0, i - 1) * stagger + dur; // when the last letter has landed (s)
   if (o.play !== false) el.classList.add('go');
   snapSoon(el);

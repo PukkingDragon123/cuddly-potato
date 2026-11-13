@@ -30,11 +30,8 @@ export function applyScale() {
   de.setProperty('--u', u.toFixed(2) + 'px');
   de.setProperty('--px', px + 'px');
   de.setProperty('--pxs', Math.max(2, px - 1) + 'px');
-  // Swarm Text has a 10 px em: a font-size of 10 device px x k draws every font pixel as k x k
-  // screen pixels. --fq is that step in CSS px; every font-size in the UI is round()ed to it
-  // (never below --fmin, the smallest step that is at least 10 CSS px), so no text is ever smeared.
-  const dpr = window.devicePixelRatio || 1, fq = 10 / dpr;
-  const fmin = Math.ceil(10 / fq - 0.01) * fq;
+  // fonts are higher-res pixel faces (Pixelify Sans / Jersey 15): sizes round to whole CSS px
+  const fq = 1, fmin = 11;
   de.setProperty('--fq', +fq.toFixed(6) + 'px');
   de.setProperty('--fmin', +fmin.toFixed(6) + 'px');
   // body text: comfortably readable on a 390 px phone (~16 px) and in short landscape (15 px)
