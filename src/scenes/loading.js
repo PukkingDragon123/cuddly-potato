@@ -11,6 +11,7 @@
 // The cineBackdrop / cineDressing / cineLogo helpers are shared with the title.
 import './cinematic.css';
 import { h } from '../ui/ui.js';
+import { tx } from '../ui/transitions.js';
 import { bigText } from '../ui/bigType.js';
 import { logoImg } from './titleLogo3d.js';
 import { arenaById, currentArena } from '../data/arenas.js';
@@ -112,7 +113,8 @@ function gooTube() {
 /**
  * Show the loading screen for a scene change. Returns { done() }: call done()
  * once the scene is built; it tops the tube up, then fades onto the new scene.
- * done() resolves as the fade starts.
+ * done() resolves as the fade starts. done(kind) hands off with a pixel
+ * transition (ui/transitions.js) instead, resolving as it starts to uncover.
  */
 export function showLoading(name, params = {}) {
   const app = document.getElementById('app');
@@ -139,7 +141,7 @@ export function showLoading(name, params = {}) {
   let finished = false;
   return {
     el,
-    done() {
+    done(outTx) {
       if (finished) return Promise.resolve();
       finished = true;
       return new Promise((res) => {
@@ -157,6 +159,11 @@ export function showLoading(name, params = {}) {
           el.classList.add('fin');
           bar.clip.style.transform = bar.inner.style.transform = 'none';
           setTimeout(() => {
+            if (outTx) {
+              // a pixel transition covers the screen, takes it away and uncovers the new scene
+              tx.cover(outTx).then(() => { el.remove(); tx.reveal(outTx); res(); });
+              return;
+            }
             el.classList.add('out');
             setTimeout(res, 60);
             setTimeout(() => el.remove(), 400);

@@ -4,8 +4,9 @@ import { clearUI } from '../ui/ui.js';
 import { audio } from '../core/audio.js';
 import { state } from './state.js';
 import { showLoading, prewarmLoading } from '../scenes/loading.js';
+import { tx } from '../ui/transitions.js';
 
-// heavy scenes get the cinematic loading screen (scenes/loading.js) instead of the plain fade
+// heavy scenes get the cinematic loading screen (scenes/loading.js) between the pixel transitions
 const LOADING_SCREEN = new Set(['battle', 'home', 'lab']);
 
 const loaders = {
@@ -26,18 +27,17 @@ const loaders = {
 };
 
 let transitioning = false;
-let fadeEl = null;
 
-function fader() {
-  if (!fadeEl) {
-    fadeEl = document.createElement('div');
-    Object.assign(fadeEl.style, {
-      position: 'absolute', inset: '0', background: '#0b1230', opacity: '0', pointerEvents: 'none', zIndex: '60',
-      transition: 'opacity 0.25s',
-    });
-    document.getElementById('app').appendChild(fadeEl);
-  }
-  return fadeEl;
+/**
+ * Which pixel transitions a scene change uses (ui/transitions.js): `in` covers
+ * the old screen, `out` uncovers the new one (or the loading screen hands off
+ * with it once the scene is built).
+ */
+function txPlan(from, to) {
+  if (to === 'battle') return { in: 'swarm', out: 'blast' }; // swarm iris -> loading -> blast doors open on the arena
+  if (from === 'title') return { in: 'stampede', out: to === 'home' ? 'crack' : 'goo' }; // troops stampede; the sign cracks off the island
+  if (LOADING_SCREEN.has(to)) return { in: 'goo', out: 'goo' };
+  return { in: 'dither', out: 'dither' };
 }
 
 export const game = {
@@ -46,14 +46,21 @@ export const game = {
   async go(name, params = {}) {
     if (transitioning) return;
     transitioning = true;
-    const ld = !params.instant && LOADING_SCREEN.has(name) ? showLoading(name, params) : null;
-    const f = fader();
-    f.style.pointerEvents = 'auto';
-    f.style.opacity = '1';
-    await new Promise((r) => setTimeout(r, params.instant ? 0 : 260));
+    const plan = params.instant ? null : txPlan(this.currentName, name);
+    const loadCls = loaders[name]();
+    loadCls.catch(() => {}); // reported below
+    let ld = null;
+    if (plan) {
+      await tx.cover(plan.in);
+      if (LOADING_SCREEN.has(name)) {
+        // the loading screen goes up under the cover, which then lifts off it
+        ld = showLoading(name, { ...params, cover: true });
+        await tx.reveal(plan.in === 'swarm' ? 'swarm' : plan.in === 'goo' ? 'goo' : 'dither');
+      }
+    }
     let sc = null;
     try {
-      const Cls = await loaders[name]();
+      const Cls = await loadCls;
       clearUI();
       sc = new Cls();
       this.current = sc;
@@ -62,9 +69,8 @@ export const game = {
     } catch (e) {
       console.error('Scene load failed', name, e);
     }
-    if (ld) { f.style.opacity = '0'; await ld.done(); }
-    f.style.opacity = '0';
-    f.style.pointerEvents = 'none';
+    if (ld) await ld.done(plan.out);
+    else if (plan) tx.reveal(plan.out);
     transitioning = false;
     // scenes may hold their entrance until the screen is actually visible
     try { if (sc && engine.current === sc) sc.shown?.(); } catch (e) { console.error(e); }
