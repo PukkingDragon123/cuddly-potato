@@ -10,6 +10,7 @@
 //   tx.cover(kind)  -> resolves once fully covered (overlay stays up)
 //   tx.reveal(kind) -> uncovers; resolves when gone
 //   tx.play(kind)   -> one-shot effect over the screen ('roll')
+//   (options: { speed } scales the duration, { freeze: t } holds the frame at t for tools)
 //   tabSwap(host, rect, tab, dir) -> resolves when the panel area is covered;
 //                     the reveal then runs by itself
 //
@@ -598,11 +599,12 @@ KINDS.crack = {
       const rot = Math.round(ch.rot * u * 20) / 20;
       g.save();
       g.translate(st.cx + dx, st.cy + dy); g.rotate(rot); g.translate(-st.cx, -st.cy);
-      g.beginPath();
-      ch.poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-      g.closePath();
-      g.save(); g.clip(); g.drawImage(st.cv, 0, 0); g.restore();
-      g.lineWidth = 1.5; g.strokeStyle = C.ink; g.stroke();
+      const poly = () => { g.beginPath(); ch.poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); };
+      poly(); g.clip();
+      g.drawImage(st.cv, 0, 0);
+      // a dark broken edge, only where the chunk has slab
+      g.beginPath(); g.rect(0, 0, W, H); g.clip();
+      poly(); g.lineWidth = 2; g.strokeStyle = C.ink; g.stroke();
       g.restore();
     }
   },
@@ -934,6 +936,13 @@ class Stage {
         if (s !== last && frame(Math.min(s, nSteps)) >= 1) { finish(); return; }
         requestAnimationFrame(tick);
       };
+      if (o.freeze != null) {
+        // tools / screenshots: play the steps up to `freeze` (0..1) at once and hold that frame
+        const to = Math.round(clamp01(o.freeze) * nSteps);
+        for (let s = 0; s <= to; s++) frame(s);
+        done = true; clearTimeout(safety); this.fin = null; res();
+        return;
+      }
       frame(0);
       requestAnimationFrame(tick);
     });
