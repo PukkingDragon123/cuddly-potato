@@ -1,0 +1,12 @@
+/* Battle entrance tiles (src/ui/entranceThumb.js): a framed 3D still of the entrance. */
+.ent-art {
+  --ec: #29b6f6;
+  position: relative; width: 100%; height: 100%; min-height: calc(var(--u) * 14); overflow: hidden; isolation: isolate;
+  background: radial-gradient(ellipse at 50% 85%, color-mix(in srgb, var(--ec) 45%, #1d1650) 0%, #0b0d2a 75%);
+  box-shadow: inset 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) var(--ec);
+}
+.ent-art > .ent-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+.ent-art > .ent-still.loaded { opacity: 1; }
+/* the frame on top of the picture */
+.ent-art::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; box-shadow: inset 0 0 0 var(--px) var(--ink), inset 0 0 0 calc(var(--px) * 2) var(--ec); }
+@media (prefers-reduced-motion: reduce) { .ent-art > .ent-still { transition: none; } }

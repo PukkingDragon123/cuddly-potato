@@ -23,7 +23,7 @@ import { BANNERS, SWARM_SKINS, CMD_SKINS } from '../../data/season.js';
 import { ENTRANCES } from '../../data/entrances.js';
 import { featureUnlocked, featureHint, lockInfo } from '../../game/progression.js';
 import { CHARACTERS, voiceOf } from '../../data/characters.js';
-import { entranceArt } from '../entranceArt.js';
+import { entranceArt } from '../entranceThumb.js';
 import {
   screenShell, countdown, midnightMs, vialArt, rewardArt, rewardLabel, showRewards, confirmBox,
   refreshCtx, fmtN, bannerEl, swarmImg, cmdFullImg, cmdSkinOwned, charFullImg,

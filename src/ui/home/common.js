@@ -21,7 +21,7 @@ import { MEGAS } from '../../data/megas.js';
 import { BANNERS, SWARM_SKINS, LAB_SKINS, CMD_SKINS, PASS_TIERS } from '../../data/season.js';
 import { TROPHY_ROAD, SECRETS, BOSSES } from '../../data/arenas.js';
 import { ENTRANCES } from '../../data/entrances.js';
-import { entranceArt } from '../entranceArt.js';
+import { entranceArt } from '../entranceThumb.js';
 import { rankMedal } from '../rankMedal.js';
 // profile looks (pictures / frames / titles) [engineer F]
 import { avatarEl } from '../avatar.js';

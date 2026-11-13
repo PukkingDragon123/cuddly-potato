@@ -211,7 +211,7 @@ function titleCard(info, side, e) {
 
 /**
  * Play one Commander's entrance on a stage. o: { short (rival cut), info (side cfg: name,
- * trophies, labLevel, banner, clan, commander), wrap (shared overlay), last, preview }.
+ * trophies, labLevel, banner, clan, commander), wrap (shared overlay), last, preview, still }.
  * Returns ctl { wait (Promise), done, update(dt), skip(), finish(), ownsCamera }.
  */
 export function playEntrance(stage, side, id, o = {}) {
@@ -269,7 +269,7 @@ export function playEntrance(stage, side, id, o = {}) {
     flashEl.classList.add('go');
   };
   wrap.classList.toggle('s1', side === 1);
-  const card = titleCard(info, side, e);
+  const card = o.still ? h('div') : titleCard(info, side, e); // a still has no title card
   card.classList.add(portrait() ? 'port' : 'land');
   wrap.appendChild(card);
   const sayEl = h('div', { class: 'ent-say' }, h('span', {}, e.line), h('i', { class: 'ent-say-tail' }));
@@ -346,7 +346,10 @@ export function playEntrance(stage, side, id, o = {}) {
   const cur = { pos: cam.position.clone(), look: V() };
   cam.getWorldDirection(_f);
   cur.look.copy(cam.position).addScaledVector(_f, 10);
+  // o.still({ M, H, shot }): one fixed camera for the whole run (the shop tile's 3D still, entranceThumb.js)
+  const fixed = o.still ? o.still({ M, H, shot, dir }) : null;
   const place = (s, dt) => {
+    if (fixed) { cam.position.copy(fixed.pos); cam.lookAt(fixed.look); return; }
     if (!s) return;
     if (s.key !== undefined && s.key !== camKey) {
       camKey = s.key;
@@ -568,6 +571,6 @@ export function playEntrance(stage, side, id, o = {}) {
     const off = engine.onFrame((dt) => { if (tick(dt)) off(); });
     resolveDone();
   };
-  if (import.meta.env.DEV) window.__ent = ctl;
+  if (import.meta.env.DEV && !o.still) window.__ent = ctl;
   return ctl;
 }

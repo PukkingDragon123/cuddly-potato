@@ -594,24 +594,7 @@ class Engine {
     // integer k with nearest-neighbour. opts.sprite = false keeps the smooth render; opts.px sets k.
     const sprite = opts.sprite !== false && W0 >= 16 && H0 >= 16;
     const k = sprite ? Math.max(1, Math.round(opts.px ?? spriteScale(W0, H0))) : 1;
-    if (!this.thumbRenderer) {
-      const c = document.createElement('canvas');
-      const tr = (this.thumbRenderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }));
-      tr.outputColorSpace = THREE.SRGBColorSpace;
-      tr.toneMapping = THREE.NeutralToneMapping;
-      tr.toneMappingExposure = 1.12;
-      const sc = (this.thumbScene = new THREE.Scene());
-      sc.add(new THREE.HemisphereLight(0xe8f4ff, 0x5a4a6a, 1.5));
-      const key = new THREE.DirectionalLight(0xfff4e6, 2.6);
-      key.position.set(3, 5, 6);
-      const rim = new THREE.DirectionalLight(0x9fe6ff, 2.2);
-      rim.position.set(-5, 3, -4);
-      const fill = new THREE.DirectionalLight(0xffc8ec, 0.8);
-      fill.position.set(-4, -1, 5);
-      sc.add(key, rim, fill);
-      this.thumbCam = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
-      this.thumbEnv = makeEnvMap(tr);
-    }
+    this.thumbInit();
     const r = this.thumbRenderer;
     const w = Math.ceil(W0 / k), hgt = Math.ceil(H0 / k);
     // the WebGL canvas only ever grows (a resize reallocates its drawing buffer and stalls the
@@ -678,6 +661,72 @@ class Engine {
     // integer nearest-neighbour upscale, centred (the low-res grid may overhang by < k px)
     g.imageSmoothingEnabled = false;
     g.drawImage(lo, 0, 0, w, hgt, Math.floor((W0 - w * k) / 2), Math.floor((H0 - hgt * k) / 2), w * k, hgt * k);
+    return out;
+  }
+  /** The small dedicated thumbnail renderer, its studio scene, camera and env map (built once). */
+  thumbInit() {
+    if (this.thumbRenderer) return this.thumbRenderer;
+    const c = document.createElement('canvas');
+    const tr = (this.thumbRenderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }));
+    tr.outputColorSpace = THREE.SRGBColorSpace;
+    tr.toneMapping = THREE.NeutralToneMapping;
+    tr.toneMappingExposure = 1.12;
+    const sc = (this.thumbScene = new THREE.Scene());
+    sc.add(new THREE.HemisphereLight(0xe8f4ff, 0x5a4a6a, 1.5));
+    const key = new THREE.DirectionalLight(0xfff4e6, 2.6);
+    key.position.set(3, 5, 6);
+    const rim = new THREE.DirectionalLight(0x9fe6ff, 2.2);
+    rim.position.set(-5, 3, -4);
+    const fill = new THREE.DirectionalLight(0xffc8ec, 0.8);
+    fill.position.set(-4, -1, 5);
+    sc.add(key, rim, fill);
+    this.thumbCam = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
+    this.thumbEnv = makeEnvMap(tr);
+    return this.thumbRenderer;
+  }
+  /**
+   * Draw a whole scene (its own lights, background and camera) with the thumbnail renderer, at
+   * w x h, no sprite pass. compileAsync first so a new set of materials never stalls a frame.
+   * Resolves to `engine.thumbCanvas` (valid until the next thumbnail).
+   */
+  async drawScene(scene, camera, o = {}) {
+    const r = this.thumbInit();
+    const w = o.w ?? 256, hgt = o.h ?? 256;
+    const swap = (on) => scene.traverse((ob) => {
+      for (const m of Array.isArray(ob.material) ? ob.material : ob.material ? [ob.material] : []) {
+        if (on && m.envMap === this.envMap) { m.envMap = this.thumbEnv; m.userData.thumbEnv = true; }
+        else if (!on && m.userData.thumbEnv) { m.envMap = this.envMap; delete m.userData.thumbEnv; }
+      }
+    });
+    // the materials are shared with the live scene: swapped only while this renderer uses them
+    swap(true);
+    let ready = null;
+    try { ready = r.compileAsync?.(scene, camera); } catch (e) { /* compiled on draw */ }
+    swap(false);
+    try { await ready; } catch (e) { /* compiled on draw */ }
+    swap(true);
+    if (r.getPixelRatio() !== 1) r.setPixelRatio(1);
+    const cur = r.getSize(_tsz);
+    if (cur.x < w || cur.y < hgt) { r.setSize(Math.max(cur.x, w), Math.max(cur.y, hgt), false); r.getSize(cur); }
+    r.setViewport(0, 0, w, hgt);
+    r.setClearColor(0x000000, 0);
+    camera.aspect = w / hgt;
+    camera.updateProjectionMatrix();
+    const saved = Object.values(GRADE).map((v) => [v.x, v.y, v.z, v.w]);
+    for (const v of Object.values(GRADE)) v.x = v.y = v.z = v.w = 0;
+    try {
+      r.clear();
+      r.render(scene, camera);
+    } finally {
+      swap(false);
+      Object.values(GRADE).forEach((v, i) => { [v.x, v.y, v.z, v.w] = saved[i]; });
+      r.setViewport(0, 0, cur.x, cur.y);
+    }
+    const out = this.thumbCanvas ?? (this.thumbCanvas = document.createElement('canvas'));
+    if (out.width !== w || out.height !== hgt) { out.width = w; out.height = hgt; }
+    const g = out.getContext('2d');
+    g.clearRect(0, 0, w, hgt);
+    g.drawImage(r.domElement, 0, cur.y - hgt, w, hgt, 0, 0, w, hgt);
     return out;
   }
   /** Copy the bottom-left w x h of the thumbnail renderer into a reusable 2D canvas (this[slot]). */
