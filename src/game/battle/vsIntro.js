@@ -11,6 +11,7 @@
 //  * then the panels split apart to reveal the battlefield
 //
 // vsIntro(parent, cfg, { hold, arena }) -> Promise (resolves when the intro is gone)
+import { bigText } from '../../ui/bigType.js';
 import './vsIntro.css';
 import * as THREE from 'three';
 import { h, icon } from '../../ui/ui.js';
@@ -146,7 +147,7 @@ export async function vsIntro(parent, cfg, opts = {}) {
     svg.appendChild(g);
     bolts.push({ g, glow, core });
   }
-  const vs = h('div', { class: 'vsx-vs' }, h('span', { class: 'v' }, 'V'), h('span', { class: 's' }, 'S'));
+  const vs = h('div', { class: 'vsx-vs' }, h('span', { class: 'v' }, bigText('V', { theme: 'gold', drop: 'none', shine: false })), h('span', { class: 's' }, bigText('S', { theme: 'gold', drop: 'none', shine: false })));
   const infos = [info(sides[0], 0), info(sides[1], 1)];
   const arenaEl = arena ? h('div', { class: 'vsx-arena' }, opts.boss ? icon('boss', 'vsx-arena-ic') : null, h('span', {}, arena.name)) : null;
   const root = h('div', { class: `vsx ${portrait ? 'portrait' : 'landscape'}` },

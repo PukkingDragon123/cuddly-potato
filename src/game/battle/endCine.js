@@ -15,6 +15,7 @@ import { audio } from '../../core/audio.js';
 import { VoxGrid, makeMesh } from '../../core/voxel.js';
 import { voiceOf } from '../../data/characters.js';
 import { $overlay, h } from '../../ui/ui.js';
+import { bigText } from '../../ui/bigType.js';
 import { pixSystem, defineSprite } from './pixfx.js';
 import { battleStage, makeWrap, wrapOut } from './entranceCine.js';
 import { sunAt, captureFrame } from './baseFall.js';
@@ -122,8 +123,8 @@ function run(view, o, resolve) {
     flashEl.classList.add('go');
   };
   const titleTxt = win ? 'VICTORY' : loss ? 'DEFEAT' : 'DRAW';
-  const title = h('div', { class: `ecv ${result}` },
-    h('div', { class: 'ecv-title' }, [...titleTxt].map((c, i) => h('span', { style: { '--i': i } }, c))));
+  const titleBt = bigText(titleTxt, { theme: win ? 'gold' : loss ? 'ice' : 'violet', drop: loss ? 'thud' : 'slam', delay: 0.05, play: false });
+  const title = h('div', { class: `ecv ${result}` }, h('div', { class: 'ecv-title' }, titleBt));
   const gloom = loss ? h('i', { class: 'ecv-gloom' }) : null;
   const sayEl = h('div', { class: 'ecv-say' }, h('span', {}), h('i', { class: 'ecv-say-tail' }));
   if (gloom) wrap.appendChild(gloom);
@@ -300,10 +301,11 @@ function run(view, o, resolve) {
   { let a = 0.25; for (const p of winPoses) { winAt.push(a); a += p[1]; } }
   const showTitle = () => {
     title.classList.add('in');
+    titleBt.classList.add('go');
     if (win) { audio.jingle?.('victory'); audio.play('cheer', { vol: 0.8 }); flash('#fff6d0', 0.55); }
     else if (loss) { audio.jingle?.('defeat'); setTimeout(() => audio.play('sadTrombone', { vol: 0.6 }), 450); }
     else audio.play('bell');
-    setTimeout(() => { if (title.isConnected) { audio.play('stamp', { pitch: loss ? 0.7 : 1 }); engine.shake(loss ? 0.18 : 0.12); } }, 120 + titleTxt.length * 70);
+    setTimeout(() => { if (title.isConnected) { audio.play('stamp', { pitch: loss ? 0.7 : 1 }); engine.shake(loss ? 0.18 : 0.12); } }, Math.max(150, titleBt._end * 1000 - (loss ? 260 : 300)));
   };
 
   const enterHero = () => {
@@ -406,7 +408,7 @@ function run(view, o, resolve) {
     done = true; // the camera holds its last frame until the news covers it
     wrap.removeEventListener('pointerdown', onTap);
     star?.talk(false);
-    if (!title.classList.contains('in')) title.classList.add('in', 'now');
+    if (!title.classList.contains('in')) { title.classList.add('in', 'now'); titleBt.classList.add('go'); }
     if (!view.replay?.frames?.length) captureFrame(view);
     // the news takes over the screen; tidy up behind it
     setTimeout(() => {

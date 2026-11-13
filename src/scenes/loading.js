@@ -11,6 +11,7 @@
 // The cineBackdrop / cineDressing / cineLogo helpers are shared with the title.
 import './cinematic.css';
 import { h } from '../ui/ui.js';
+import { bigText } from '../ui/bigType.js';
 import { arenaById, currentArena } from '../data/arenas.js';
 import { state } from '../game/state.js';
 import * as Art from './labLoadArt.js';
@@ -47,10 +48,13 @@ export function cineDressing() {
 }
 /** The game logo (layered pixel lettering + tag); `reveal` plays the title entrance. */
 export function cineLogo(o = {}) {
-  const name = 'SWARMERS';
-  return h('div', { class: `cn-logo ${o.reveal ? 'reveal' : ''} ${o.small ? 'sm' : ''}` },
-    h('span', { class: 'l1' }, 'MrBeast'),
-    h('span', { class: 'l2' }, [...name].map((ch, i) => h('span', { style: { '--i': i } }, ch))),
+  const rv = !!o.reveal;
+  // Swarm Block lettering (ui/bigType.js): on the title the letters slam in one by one, kick up dust and catch a shine
+  const l1 = bigText('MRBEAST', { theme: 'pink', drop: rv ? 'slam' : 'none', delay: 0.15, stagger: 0.055, shine: rv ? 'loop' : false });
+  const l2 = bigText('SWARMERS', { theme: 'gold', drop: rv ? 'slam' : 'none', delay: 0.62, stagger: 0.065, shine: rv ? 'loop' : false });
+  return h('div', { class: `cn-logo ${rv ? 'reveal' : ''} ${o.small ? 'sm' : ''}` },
+    h('div', { class: 'l1' }, l1),
+    h('div', { class: 'l2' }, l2),
     o.tag === false ? null : h('div', { class: 'tag' }, 'BEAST ISLAND'));
 }
 

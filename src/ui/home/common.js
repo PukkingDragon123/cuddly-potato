@@ -2,6 +2,7 @@
 // debounced state refresh, section headers, segmented tabs, pixel-art vial
 // products, banners, Commander portraits, reward art/tiles + reward popup,
 // confirm dialog, timers and small juice helpers.
+import { bigText } from '../bigType.js';
 import './home.css';
 import { h, icon, animIcon, button, modal, toast, clear, sparkle, burst, flyIcons, $overlay } from '../ui.js';
 import { cardEl } from '../cards.js';
@@ -78,7 +79,8 @@ export function flyText(el, text, cls = '') {
 
 /** Big slam text over an element ("LEVEL UP!"). */
 export function slam(parent, text, cls = '') {
-  const t = h('div', { class: 'mn-slam t-d outline ' + cls }, text);
+  const theme = /gold/.test(cls) ? 'gold' : /pink/.test(cls) ? 'pink' : /blue/.test(cls) ? 'ice' : 'gold';
+  const t = h('div', { class: 'mn-slam ' + cls }, bigText(text, { theme, drop: 'pop', stagger: 0.04 }));
   parent.appendChild(t);
   setTimeout(() => t.remove(), 1500);
   return t;

@@ -373,14 +373,11 @@ div.lab-fizz { position: absolute; inset: 0; pointer-events: none; overflow: hid
 @keyframes toastIn { 0% { transform: translateY(-20px) scale(0.6); opacity: 0; } 7% { transform: translateY(0) scale(1.08); opacity: 1; } 11% { transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
 .banner-big {
   position: absolute; left: 50%; top: 38%; translate: -50% -50%; z-index: 55; pointer-events: none; text-align: center;
-  font-family: var(--font-d); font-size: clamp(36px, calc(var(--u) * 15), 130px); letter-spacing: 0.04em; line-height: 0.9; white-space: nowrap;
-  /* banded fill built from the banner colour (text-fill transparent keeps `color` as currentColor), outline + extrusion as drop-shadows */
-  -webkit-text-fill-color: transparent; text-shadow: none; -webkit-background-clip: text; background-clip: text;
-  background-image: linear-gradient(color-mix(in srgb, currentColor 18%, #fff) 0 24%, color-mix(in srgb, currentColor 55%, #fff) 24% 40%, currentColor 40% 68%, color-mix(in srgb, currentColor 72%, #2a0a30) 68%);
-  filter: drop-shadow(var(--o) 0 0 var(--ink)) drop-shadow(calc(var(--o) * -1) 0 0 var(--ink)) drop-shadow(0 var(--o) 0 var(--ink)) drop-shadow(0 calc(var(--o) * -1) 0 var(--ink))
-    drop-shadow(0 calc(var(--px) * 2.5) 0 color-mix(in srgb, currentColor 45%, #1a0830)) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink)) drop-shadow(0 0 calc(var(--u) * 2.5) color-mix(in srgb, currentColor 70%, transparent));
-  animation: slam 0.45s cubic-bezier(.2, 1.5, .4, 1);
+  display: flex; flex-direction: column; align-items: center;
+  font-family: var(--font-d); font-size: min(clamp(40px, calc(var(--u) * 13), 120px), var(--fit, 999px)); line-height: 1; white-space: nowrap;
+  filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(10, 6, 24, 0.45)) drop-shadow(0 0 calc(var(--u) * 2.5) color-mix(in srgb, currentColor 55%, transparent));
 }
+.banner-big > .bt { max-width: 96vw; }
 .banner-big small { -webkit-text-fill-color: #fff; background: none; }
 .banner-big::before {
   /* electric zap streaks behind the slam text */

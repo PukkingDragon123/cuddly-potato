@@ -189,8 +189,8 @@ body.landscape .vo-cur { left: 56%; top: 50%; translate: 0 -50%; }
 .vo-fly { position: absolute; z-index: 40; width: calc(var(--u) * 7); height: calc(var(--u) * 7); pointer-events: none; }
 
 /* ---------------------------------------------------------------- big banner tweak */
-.banner-big.vo-banner { top: 15%; font-size: clamp(34px, calc(var(--u) * 14), 110px); }
-body.landscape .banner-big.vo-banner { left: 30%; top: 24%; font-size: clamp(30px, calc(var(--u) * 13), 90px); }
+.banner-big.vo-banner { top: 15%; font-size: min(clamp(34px, calc(var(--u) * 12.5), 100px), var(--fit, 999px)); }
+body.landscape .banner-big.vo-banner { left: 30%; top: 24%; font-size: min(clamp(30px, calc(var(--u) * 11.5), 84px), calc(var(--fit, 999px) * 0.55)); }
 
 /* ---------------------------------------------------------------- summary */
 .vo-sum {

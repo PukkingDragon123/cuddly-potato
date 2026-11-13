@@ -5,6 +5,7 @@
 //  * openOnline(ctx, tab): the hub - QUICK MATCH (radar search), FRIENDS (who is
 //    online, CHALLENGE), CODE (the old WebRTC copy/paste friend battle).
 import './online.css';
+import { bigText } from '../bigType.js';
 import { h, icon, button, modal, clear, $overlay } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import { lobby } from '../../net/lobby.js';
@@ -142,7 +143,7 @@ function vsHandoff(c, match) {
   const el = h('div', { class: 'ol-vs' },
     h('i', { class: 'ol-vs-band b0' }), h('i', { class: 'ol-vs-band b1' }),
     side('me', me.commanders.equipped, me.commanders.owned[me.commanders.equipped]?.skin ?? null, plain(me.name), me.trophies),
-    h('div', { class: 'ol-vs-mid' }, h('div', { class: 'ol-vs-vs' }, 'VS'), h('div', { class: 'ol-vs-arena' }, arena.name), num),
+    h('div', { class: 'ol-vs-mid' }, h('div', { class: 'ol-vs-vs' }, bigText('VS', { theme: 'gold', drop: 'none', delay: 0.6 })), h('div', { class: 'ol-vs-arena' }, arena.name), num),
     side('them', rem.commander?.id, null, rem.name, rem.trophies ?? 0),
     h('div', { class: 'ol-vs-tag' }, icon('swords'), 'LIVE ONLINE BATTLE'));
   $overlay().appendChild(el);

@@ -38,37 +38,28 @@ body.portrait .tt-cine .cn-cap { bottom: calc(var(--safe-b) + 9vh + var(--u) * 2
 body.landscape .cn-cap { bottom: calc(var(--safe-b) + 7vh + var(--u) * 2.4); }
 
 /* ------------------------------------------------------------------ logo */
-.cn-logo { position: relative; text-align: center; font-family: var(--font-d); line-height: 0.82; --lo: calc(var(--px) * 0.8); }
-.cn-logo .l1, .cn-logo .l2 span { color: transparent; -webkit-background-clip: text; background-clip: text; }
-.cn-logo .l1 {
-  display: block; font-size: calc(var(--u) * 13); letter-spacing: 0.04em;
-  background-image: linear-gradient(#ffffff 0 34%, #ffeaf4 34% 52%, #ffc4e0 52% 70%, #ff9acc 70% 86%, #ff7ab8 86%);
-  filter: drop-shadow(var(--lo) 0 0 var(--ink)) drop-shadow(calc(var(--lo) * -1) 0 0 var(--ink)) drop-shadow(0 var(--lo) 0 var(--ink)) drop-shadow(0 calc(var(--lo) * -1) 0 var(--ink))
-    drop-shadow(0 calc(var(--px) * 2) 0 #ff2e88) drop-shadow(0 calc(var(--px) * 1.5) 0 #a8145a) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink));
-}
-.cn-logo .l2 { display: block; font-size: calc(var(--u) * 19); letter-spacing: 0.02em; white-space: nowrap; }
-.cn-logo .l2 span {
-  display: inline-block;
-  background-image: linear-gradient(#fffbe0 0 16%, #fff2a0 16% 30%, #ffe14a 30% 50%, #ffc21a 50% 68%, #ff9a1a 68% 84%, #f07a10 84%);
-  filter: drop-shadow(var(--lo) 0 0 var(--ink)) drop-shadow(calc(var(--lo) * -1) 0 0 var(--ink)) drop-shadow(0 var(--lo) 0 var(--ink)) drop-shadow(0 calc(var(--lo) * -1) 0 var(--ink))
-    drop-shadow(0 calc(var(--px) * 2.5) 0 #d8661a) drop-shadow(0 calc(var(--px) * 2) 0 #8a3a0c) drop-shadow(0 calc(var(--px) * 1.5) 0 var(--ink));
-}
+.cn-logo { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1; }
+/* Swarm Block lettering (ui/bigType.js); 1em = one letter box */
+.cn-logo .l1, .cn-logo .l2 { display: block; position: relative; }
+.cn-logo .l1 { font-size: calc(var(--u) * 10.5); z-index: 1; }
+.cn-logo .l2 { font-size: calc(var(--u) * 15); margin-top: -0.06em; z-index: 2; }
+.cn-logo .l1 .bt { filter: drop-shadow(0 calc(var(--px) * 1.5) 0 rgba(8, 4, 24, 0.5)); }
+.cn-logo .l2 .bt { filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(8, 4, 24, 0.5)) drop-shadow(0 0 calc(var(--u) * 4) rgba(255, 170, 40, 0.28)); }
 .cn-logo .tag {
-  display: inline-block; position: relative; margin-top: calc(var(--u) * 2.4); padding: 0.12em 1.1em 0.22em; font-size: calc(var(--u) * 4.6); color: #fff;
+  display: inline-block; position: relative; z-index: 3; margin-top: calc(var(--u) * 2.4); padding: 0.12em 1.1em 0.22em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); color: #fff;
   text-shadow: var(--outline-thin);
   background: linear-gradient(var(--ink) 0 var(--px), #d8f2ff var(--px) calc(var(--px) * 2), #7ad0ff calc(var(--px) * 2) 30%, #3a9cff 30% 64%, #2378e0 64% 84%, #1a52b0 84% calc(100% - var(--px)), var(--ink) calc(100% - var(--px)));
   clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 4) 50%, 100% 100%, 0 100%, calc(var(--px) * 4) 50%);
 }
-.cn-logo.sm .l1 { font-size: calc(var(--u) * 8.5); }
-.cn-logo.sm .l2 { font-size: calc(var(--u) * 13); }
-
-/* title entrance: the name drops in, the letters rise one after another, then it holds still */
-.cn-logo.reveal .l1 { animation: cnL1 0.55s 0.1s cubic-bezier(.2, 1, .3, 1) both; }
-.cn-logo.reveal .l2 span { animation: cnLetter 0.5s calc(0.3s + var(--i) * 0.045s) cubic-bezier(.2, 1.25, .35, 1) both; }
-.cn-logo.reveal .tag { animation: cnTag 0.45s 0.85s cubic-bezier(.2, 1, .3, 1) both; }
-@keyframes cnL1 { from { opacity: 0; transform: translateY(-35%); } to { opacity: 1; transform: none; } }
-@keyframes cnLetter { from { opacity: 0; transform: translateY(45%); } to { opacity: 1; transform: none; } }
-@keyframes cnTag { from { opacity: 0; transform: translateY(40%); } to { opacity: 1; transform: none; } }
+.cn-logo.sm .l1 { font-size: calc(var(--u) * 7.2); }
+.cn-logo.sm .l2 { font-size: calc(var(--u) * 10.5); }
+.cn-logo.reveal .tag { animation: cnTag 0.45s 1.75s cubic-bezier(.2, 1.4, .3, 1) both; }
+@keyframes cnTag { from { opacity: 0; transform: translateY(40%) scale(0.6); } to { opacity: 1; transform: none; } }
+/* troops on the title logo (titleTroops.js): a transparent 3D stage over the lettering */
+.tt-troops { position: absolute; left: -9%; right: -9%; top: -70%; bottom: -40%; z-index: 4; pointer-events: none; }
+.tt-troops > canvas { display: block; }
+.tt-puff { position: absolute; z-index: 5; width: 0; height: 1em; }
+.tt-puff .bt-dust { bottom: 0; }
 
 /* ================================================================== TITLE */
 .tt-cine { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; }
@@ -78,8 +69,8 @@ body.landscape .cn-cap { bottom: calc(var(--safe-b) + 7vh + var(--u) * 2.4); }
 .tt-wrap { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: space-between; pointer-events: none;
   padding: calc(var(--safe-t) + 9vh + var(--u) * 4) calc(var(--u) * 3) calc(var(--safe-b) + 9vh + var(--u) * 3); }
 body.landscape .tt-wrap { padding-top: calc(var(--safe-t) + 7vh + var(--u) * 2); padding-bottom: calc(var(--safe-b) + 7vh + var(--u) * 2); }
-body.landscape .tt-wrap .cn-logo .l1 { font-size: calc(var(--u) * 10.5); }
-body.landscape .tt-wrap .cn-logo .l2 { font-size: calc(var(--u) * 15); }
+body.landscape .tt-wrap .cn-logo .l1 { font-size: calc(var(--u) * 9); }
+body.landscape .tt-wrap .cn-logo .l2 { font-size: calc(var(--u) * 13); }
 .tt-logo-wrap { position: relative; }
 .tt-logo-wrap::before {
   /* dark scrim so the logo reads over any frame */
@@ -186,5 +177,7 @@ body.landscape .ld-tips { width: min(100%, calc(var(--u) * 150)); height: calc(v
   .cn-logo.reveal * { opacity: 1; }
 }
 /* round 9 polish: the portrait title logo keeps a margin from the screen edges on narrow phones */
-body:not(.landscape) .tt-wrap .cn-logo .l2 { font-size: min(calc(var(--u) * 19), 17.2vw); }
-body:not(.landscape) .tt-wrap .cn-logo .l1 { font-size: min(calc(var(--u) * 13), 11.8vw); }
+body:not(.landscape) .tt-wrap .cn-logo .l2 { font-size: min(calc(var(--u) * 15.5), 13.6vw); }
+body:not(.landscape) .tt-wrap .cn-logo .l1 { font-size: min(calc(var(--u) * 11), 10vw); }
+body:not(.landscape) .tt-wrap .cn-logo .tag { margin-top: calc(var(--u) * 9); }
+body:not(.landscape) .tt-logo-wrap { margin-top: calc(var(--u) * 8); }

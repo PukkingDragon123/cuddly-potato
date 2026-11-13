@@ -78,13 +78,9 @@
 /* VS */
 .vsx-vs {
   position: absolute; left: 50%; top: 50%; translate: -50% -52%; display: flex; gap: 0.02em; pointer-events: none;
-  font-family: var(--font-d); font-size: clamp(64px, 19vmin, 150px); line-height: 0.9; letter-spacing: -0.02em; opacity: 0;
+  font-size: clamp(66px, 20vmin, 156px); line-height: 1; opacity: 0;
 }
-.vsx-vs span {
-  display: inline-block; color: #fff6c8;
-  background: linear-gradient(#fffbe8 0 30%, #ffd84a 30% 62%, #ff9a1a 62%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 0 var(--ink)) drop-shadow(calc(var(--px) * 1.2) 0 0 var(--ink)) drop-shadow(calc(var(--px) * -1.2) 0 0 var(--ink)) drop-shadow(0 calc(var(--px) * 1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * -1.2) 0 var(--ink)) drop-shadow(0 calc(var(--px) * 3) 0 #5a1a00) drop-shadow(0 0 calc(var(--px) * 6) rgba(255, 210, 80, 0.85));
-}
+.vsx-vs > span { display: block; filter: drop-shadow(0 0 calc(var(--px) * 6) rgba(255, 210, 80, 0.85)); }
 .vsx-vs .v { translate: 0 -0.06em; } /* never tilted: house rule */
 .vsx-vs .s { translate: 0 0.06em; }
 .vsx.vs-in .vsx-vs { animation: vsxVs 0.42s cubic-bezier(.2, 1.6, .35, 1) both, vsxBuzz 0.12s steps(2) 0.5s infinite; }

@@ -407,23 +407,11 @@ body.cine-end .tut-hand, body.cine-end .tut-ring, body.cine-end .tut-tip { visib
   display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.2vh, 12px); opacity: 0;
 }
 .ecv.in { opacity: 1; }
-.ecv-title { display: flex; font-family: var(--font-d); font-size: clamp(58px, 17vmin, 132px); line-height: 0.86; letter-spacing: 0.02em; white-space: nowrap; }
-.landscape .ecv-title { font-size: clamp(54px, 17vh, 112px); }
-.ecv-title span {
-  display: inline-block; opacity: 0;
-  background: linear-gradient(#fffbe8 0 26%, #ffd84a 26% 58%, #ff9a1a 58%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(calc(var(--px) * 1.4) 0 0 #120c24) drop-shadow(calc(var(--px) * -1.4) 0 0 #120c24) drop-shadow(0 calc(var(--px) * 1.4) 0 #120c24) drop-shadow(0 calc(var(--px) * -1.4) 0 #120c24) drop-shadow(0 calc(var(--px) * 4) 0 #4a1400) drop-shadow(0 0 calc(var(--px) * 8) rgba(255, 210, 80, 0.55));
-}
-.ecv.in .ecv-title span { animation: ecvDrop 0.42s cubic-bezier(.2, 1.7, .35, 1) both; animation-delay: calc(var(--i) * 70ms); }
-.ecv.now .ecv-title span { animation-duration: 0.01s; animation-delay: 0s; }
-@keyframes ecvDrop { 0% { opacity: 0; transform: translateY(-0.9em) scale(1.9); } 55% { opacity: 1; transform: translateY(0.05em) scale(0.92, 1.08); } 100% { opacity: 1; transform: none; } }
-.ecv.loss .ecv-title span {
-  background: linear-gradient(#ffffff 0 26%, #b8c8ff 26% 58%, #5a6ad8 58%); -webkit-background-clip: text; background-clip: text;
-  filter: drop-shadow(calc(var(--px) * 1.4) 0 0 #0a0820) drop-shadow(calc(var(--px) * -1.4) 0 0 #0a0820) drop-shadow(0 calc(var(--px) * 1.4) 0 #0a0820) drop-shadow(0 calc(var(--px) * -1.4) 0 #0a0820) drop-shadow(0 calc(var(--px) * 4) 0 #14104a);
-}
-.ecv.loss.in .ecv-title span { animation: ecvThud 0.5s cubic-bezier(.5, 0, .75, 0) both; animation-delay: calc(var(--i) * 90ms); }
-@keyframes ecvThud { 0% { opacity: 0; transform: translateY(-1.4em); } 70% { opacity: 1; transform: translateY(0.04em) scale(1.06, 0.9); } 100% { opacity: 1; transform: none; } }
-.ecv.draw .ecv-title span { background: linear-gradient(#ffffff 0 26%, #d8c0ff 26% 58%, #8a5aff 58%); -webkit-background-clip: text; background-clip: text; }
+.ecv-title { display: flex; justify-content: center; font-size: clamp(56px, 17.5vmin, 150px); line-height: 1; white-space: nowrap; filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(10, 6, 24, 0.45)); }
+.landscape .ecv-title { font-size: clamp(60px, 19vh, 128px); }
+/* VICTORY glows warm once it has landed; DEFEAT stays cold */
+.ecv.win.in .ecv-title { animation: ecvGlow 2.4s 0.8s ease-in-out infinite; }
+@keyframes ecvGlow { 0%, 100% { filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(10, 6, 24, 0.45)) drop-shadow(0 0 calc(var(--px) * 3) rgba(255, 210, 80, 0.35)); } 50% { filter: drop-shadow(0 calc(var(--px) * 2) 0 rgba(10, 6, 24, 0.45)) drop-shadow(0 0 calc(var(--px) * 7) rgba(255, 210, 80, 0.6)); } }
 @keyframes ecvSub { 0% { opacity: 0; transform: scaleX(0.15); } 100% { opacity: 1; transform: none; } }
 .ecv-gloom { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(rgba(30, 40, 90, 0.38), rgba(10, 12, 40, 0.18) 60%, rgba(10, 12, 40, 0.42)); animation: fadeIn 0.6s both; }
 .ecv-say {
@@ -449,5 +437,5 @@ body.cine-end .tut-hand, body.cine-end .tut-ring, body.cine-end .tut-tip { visib
   clip-path: polygon(0 0, 100% 0, 100% 25%, 75% 25%, 75% 50%, 62% 50%, 62% 75%, 50% 75%, 50% 100%, 38% 100%, 38% 50%, 25% 50%, 25% 25%, 0 25%);
 }
 .ecv-say.d .ecv-say-tail::after { right: auto; left: 3px; top: -1px; width: 10px; height: 8px; clip-path: polygon(0 0, 100% 0, 100% 30%, 70% 30%, 70% 65%, 50% 65%, 50% 100%, 30% 100%, 30% 30%, 0 30%); }
-@media (prefers-reduced-motion: reduce) { .ecv-title span { animation-duration: 0.01s !important; } }
+@media (prefers-reduced-motion: reduce) { .ecv-title { animation: none !important; } }
 

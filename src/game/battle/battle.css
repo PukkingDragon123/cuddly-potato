@@ -354,9 +354,10 @@ body.landscape .res-sub { margin-top: calc(var(--u) * 0.6); font-size: 0.85em; }
 @keyframes emoIcon { 50% { rotate: -10deg; scale: 1.15; } }
 
 /* =========================================================================
-   TOP: one slim tug-of-war bar. Your blue base HP and the rival's red base
-   HP share a single glass tube and meet at a white-hot seam that slides
-   toward whoever is losing (HP fractions, so tiers stay fair). Names +
+   TOP: the tug-of-war tube (tugBar.js). Your blue base HP and the rival's
+   red base HP share one pixel-art tube and meet at a white-hot seam where
+   both Commanders shove each other; it slides toward whoever is losing
+   (HP fractions, so tiers stay fair). Names +
    trophies ride above the ends with a compact clock tab between them; the
    end caps carry the base tier + HP %. A WINNING / LOSING chip follows the
    seam, hits flash the hurt side and shake the bar, and a hairline lane
@@ -408,7 +409,7 @@ body.landscape .res-sub { margin-top: calc(var(--u) * 0.6); font-size: 0.85em; }
 @keyframes twTick { 0% { scale: 1.25; } 30%, 100% { scale: 1; } }
 
 /* the bar */
-.tw-bar { position: relative; display: flex; align-items: center; height: calc(var(--u) * 6.4); pointer-events: auto; touch-action: none; cursor: pointer; }
+.tw-bar { position: relative; display: flex; align-items: center; height: calc(var(--u) * 13); pointer-events: auto; touch-action: none; cursor: pointer; }
 .tw-cap {
   position: relative; z-index: 2; flex: none; width: var(--capw); height: 100%;
   display: flex; align-items: center; justify-content: center; gap: 0.06em;
@@ -441,49 +442,12 @@ body.landscape .res-sub { margin-top: calc(var(--u) * 0.6); font-size: 0.85em; }
 .tw-cap.up { animation: twCapUp 0.6s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes twCapUp { 0% { scale: 1; } 30% { scale: 1.3 0.85; filter: brightness(1.8); } 60% { scale: 0.92 1.1; } 100% { scale: 1; } }
 
+/* the tube is pixel art drawn by tugBar.js (frame, fills, seam); the Commanders shove at the seam */
 .tw-track {
-  position: relative; flex: 1; min-width: 0; height: calc(var(--u) * 4); margin: 0 calc(var(--px) * -1); z-index: 1;
-  background: linear-gradient(#03041a, #0c1240); box-shadow: 0 0 0 var(--px) var(--ink), inset 0 var(--px) 0 #000;
+  position: relative; flex: 1; min-width: 0; height: calc(var(--u) * 13); margin: 0 calc(var(--px) * -1); z-index: 1;
 }
-.tw-track::after { /* glass highlight */
-  content: ''; position: absolute; left: 2%; right: 2%; top: calc(var(--px) * 0.67); height: var(--px); z-index: 3; pointer-events: none; background: rgba(255, 255, 255, 0.5);
-}
-.tw-f { position: absolute; top: 0; bottom: 0; display: block; }
-.tw-f.s0 {
-  left: 0; width: 50%;
-  background: var(--tx-bubbles-tube) 0 0 / calc(48 * var(--px)) calc(12 * var(--px)), linear-gradient(#c8f0ff 0 18%, #4fb4ff 18% 42%, #2b8cf2 42% 76%, #1460c0 76%);
-  animation: tubeFizz 2.4s steps(12) infinite;
-}
-.tw-f.s1 {
-  left: 50%; right: 0;
-  background: var(--tx-bubbles-tube) 0 0 / calc(48 * var(--px)) calc(12 * var(--px)), linear-gradient(#ffd8dc 0 18%, #ff7a8a 18% 42%, #ff3d55 42% 76%, #b01c34 76%);
-  animation: tubeFizz 2.4s steps(12) infinite;
-}
-.tw-f.hit { animation: twFillHit 0.28s ease-out, tubeFizz 2.4s steps(12) infinite; }
-@keyframes twFillHit { 0% { filter: brightness(2.4) saturate(0.4); } 100% { filter: none; } }
-.tw-ghost { position: absolute; top: 0; bottom: 0; z-index: 1; display: block; background: #fff6dc; opacity: 0.9; }
-.tw-mid { position: absolute; left: 50%; top: calc(var(--px) * -1); bottom: calc(var(--px) * -1); width: var(--px); translate: -50% 0; z-index: 2; display: block; background: repeating-linear-gradient(rgba(255, 255, 255, 0.7) 0 var(--px), transparent var(--px) calc(var(--px) * 2)); opacity: 0.6; }
-.tw-seam {
-  position: absolute; left: 50%; top: calc(var(--u) * -0.9); bottom: calc(var(--u) * -0.9); z-index: 4; width: calc(var(--px) * 1.5); translate: -50% 0; display: block;
-  background: #fff; box-shadow: 0 0 0 calc(var(--px) * 0.5) var(--ink), 0 0 calc(var(--u) * 1.2) #fff, 0 0 calc(var(--u) * 2.6) #ffe9a0;
-}
-.tw-seam .sp {
-  position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 6); aspect-ratio: 1; translate: -50% -50%; display: block; pointer-events: none;
-  background: var(--ic-spark) center / 100% 100% no-repeat; image-rendering: pixelated;
-  animation: twSpark 0.24s steps(2) infinite;
-}
-@keyframes twSpark { 0% { scale: 0.8; } 100% { scale: 1.15; } }
-/* chevrons pushing into the losing side */
-.tw-seam .chev {
-  position: absolute; top: 50%; width: calc(var(--u) * 8); height: calc(var(--u) * 2.6); translate: 0 -50%; display: none; pointer-events: none; opacity: 0.85;
-  background: linear-gradient(90deg, transparent, #fff) 0 0 / 100% 100% no-repeat;
-  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(var(--px) * 1.5), transparent calc(var(--px) * 1.5) calc(var(--px) * 4)); mask: repeating-linear-gradient(90deg, #000 0 calc(var(--px) * 1.5), transparent calc(var(--px) * 1.5) calc(var(--px) * 4));
-  clip-path: polygon(0 0, 80% 0, 100% 50%, 80% 100%, 0 100%, 20% 50%);
-}
-.tw.lead0 .tw-seam .chev { display: block; left: calc(var(--u) * 0.6); animation: twPushR 0.5s linear infinite; }
-.tw.lead1 .tw-seam .chev { display: block; right: calc(var(--u) * 0.6); scale: -1 1; animation: twPushL 0.5s linear infinite; }
-@keyframes twPushR { 0% { translate: calc(var(--u) * -1.2) -50%; opacity: 0; } 40% { opacity: 0.85; } 100% { translate: calc(var(--u) * 1.2) -50%; opacity: 0; } }
-@keyframes twPushL { 0% { translate: calc(var(--u) * 1.2) -50%; opacity: 0; } 40% { opacity: 0.85; } 100% { translate: calc(var(--u) * -1.2) -50%; opacity: 0; } }
+.tw-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.tw-push { position: absolute; left: 0; bottom: 0; display: block; pointer-events: none; will-change: transform; }
 .tw-bar.shake { animation: twShake 0.26s; }
 .tw-bar.shakebig { animation: twShake 0.42s; --sh: 2; }
 @keyframes twShake { 0%, 100% { translate: 0 0; } 20% { translate: calc(var(--px) * -1.5 * var(--sh, 1)) calc(var(--px) * 0.5); } 45% { translate: calc(var(--px) * 1.5 * var(--sh, 1)) 0; } 70% { translate: calc(var(--px) * -0.8 * var(--sh, 1)) calc(var(--px) * -0.5); } }
@@ -509,11 +473,12 @@ body.landscape .res-sub { margin-top: calc(var(--u) * 0.6); font-size: 0.85em; }
 
 .bh-pause { position: absolute; right: calc(var(--safe-r) + var(--u) * 1.4); top: calc(var(--safe-t) + var(--u) * 1.6); pointer-events: auto; width: calc(var(--u) * 8.6); min-height: calc(var(--u) * 8.6) !important; font-size: 0.85em !important; }
 
+body.landscape .tw-track, body.landscape .tw-bar { height: calc(var(--u) * 14); }
 body.landscape .tw { left: 50%; right: auto; width: min(calc(100% - var(--u) * 34), calc(var(--u) * 124)); translate: -50% 0; top: calc(var(--safe-t) + var(--u) * 0.8); }
 body.landscape .bh-pause { top: calc(var(--safe-t) + var(--u) * 1); }
 
 @media (prefers-reduced-motion: reduce) {
-  .tw-f, .tw-seam .sp, .tw-seam .chev, .tw-cap.low, .tw-clock .tag.in { animation: none !important; }
+  .tw-cap.low, .tw-clock .tag.in { animation: none !important; }
 }
 .tw-cap .tn { font-size: calc(var(--u) * 2.7); }
 /* pixel type (round 8): the wider pixel digits keep "100%" and the base icon inside the cap */
@@ -523,3 +488,6 @@ body.landscape .bh-pause { top: calc(var(--safe-t) + var(--u) * 1); }
 /* round 9 polish: long names ("Training Bot") wrap to a second line in portrait instead of "Training ..." */
 body.portrait .tw-nm b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 0.95; overflow-wrap: anywhere; }
 body.portrait .tw-nm.s1 b { text-align: right; }
+/* round 15: taller tube: the cap stacks the base icon over the HP % */
+.tw-cap { flex-direction: column; justify-content: center; gap: calc(var(--px) * 0.5); height: calc(100% - var(--px) * 2); }
+.tw-cap.s1 { flex-direction: column; }

@@ -2,6 +2,7 @@
 // pills, bars, ribbons, modals, toasts, slam banners, typewriter dialogue,
 // world-anchored speech bubbles & floating combat text, tutorial pointers,
 // DOM sparkles and number roll-ups. Pixel scale adapts to the screen.
+import { bigText, bigTextWidth } from './bigType.js';
 import * as THREE from 'three';
 import { engine } from '../core/engine.js';
 import { audio } from '../core/audio.js';
@@ -305,7 +306,10 @@ export function toast(text, opts = {}) {
 }
 
 export function bigBanner(text, sub = '', opts = {}) {
-  const el = h('div', { class: 'banner-big ' + (opts.cls ?? ''), style: { color: opts.color ?? '#fff' } }, text, sub ? h('small', { class: 'outline-sm' }, sub) : null);
+  // the headline is Swarm Block pixel art (bigType.js): letters pop in with dust, then a shine sweeps across
+  const head = typeof text === 'string' ? bigText(text, { theme: opts.color ?? 'white', drop: 'pop', stagger: 0.04 }) : text;
+  const fit = typeof text === 'string' ? `${(94 / bigTextWidth(text)).toFixed(2)}vw` : '999px';
+  const el = h('div', { class: 'banner-big ' + (opts.cls ?? ''), style: { color: opts.color ?? '#fff', '--fit': fit } }, head, sub ? h('small', { class: 'outline-sm' }, sub) : null);
   $overlay().appendChild(el);
   if (opts.dur !== 0) setTimeout(() => {
     el.style.transition = 'opacity 0.3s, translate 0.3s';

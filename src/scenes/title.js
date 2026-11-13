@@ -22,6 +22,7 @@ import { state } from '../game/state.js';
 import { game } from '../game/game.js';
 import { currentArena } from '../data/arenas.js';
 import { cineBackdrop, cineDressing, cineLogo } from './loading.js';
+import { logoTroops } from './titleTroops.js';
 
 const frames = (n = 2) => new Promise((r) => { const f = () => (--n <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -51,7 +52,7 @@ export class TitleScene {
       h('div', { class: 'tt-pre' }, cineBackdrop()),
       h('div', { class: 'cn-layer' }, cineDressing(), this.cut, this.flash, this.cap),
       h('div', { class: 'tt-wrap' },
-        h('div', { class: 'tt-logo-wrap' }, cineLogo({ reveal: true })),
+        h('div', { class: 'tt-logo-wrap' }, this.logo = cineLogo({ reveal: true })),
         h('div', { class: 'tt-foot' },
           this.startEl,
           h('div', { class: 'tt-disc' }, 'Unofficial fan-made game. Not affiliated with MrBeast or Moose Toys. MrBeast Lab Swarms are toys by Moose Toys.'))),
@@ -68,6 +69,8 @@ export class TitleScene {
       audio.play('go');
       this.start();
     };
+    // real 3D troops climbing, peeking and hanging on the lettering
+    try { this.troops = logoTroops(this.logo); } catch (e) { console.warn('title troops', e); }
     this.root.addEventListener('pointerdown', this.onTap);
     engine.canvas.addEventListener('pointerdown', this.onTap);
     window.addEventListener('keydown', this.onTap);
@@ -184,6 +187,8 @@ export class TitleScene {
     this.exited = true;
     this.unbind();
     closeDialogue();
+    this.troops?.dispose();
+    this.troops = null;
     // free the frozen battle once the next scene has taken over
     const fb = this.fb;
     this.fb = null;

@@ -1,6 +1,7 @@
 // Battle HUD (DOM): a Clash Royale card cycle in a Battle Cats control dock.
-//   top    - one slim tug-of-war bar: your (blue) and the rival's (red) base
-//            HP meet at a crackling seam that slides toward whoever is losing,
+//   top    - a pixel-art tug-of-war tube (tugBar.js): your (blue) and the rival's
+//            (red) base HP meet at a crackling seam where both Commanders, as
+//            live 3D chibis, shove each other; it slides toward whoever is losing,
 //            names + trophies at the ends, a compact clock with 2x / overtime
 //            tags, a WINNING / LOSING lean chip, hit flashes + shakes, a tiny
 //            lane strip (camera window, tap / drag to pan) and pause
@@ -33,6 +34,7 @@ import { FIELD } from './field.js';
 import { plateBounds } from './view.js';
 import { HAND_MAX } from './sim.js';
 import { LiveChibi } from './liveChibi.js';
+import { TugBar } from './tugBar.js';
 import { sigColor } from './sigFx.js';
 
 const fmtT = (s) => {
@@ -220,13 +222,12 @@ export class BattleHUD {
       const pc = h('b', { class: 'pc' }, '100');
       const tier = h('i', { class: 'tn' }, '1');
       const cap = h('div', { class: `tw-cap s${i}` }, icon('lab'), tier, pc);
-      const fill = h('i', { class: `tw-f s${i}` });
-      return { nm, cap, pc, tier, fill, lastHp: -1, lastTier: -1, frac: 1 };
+      return { nm, cap, pc, tier, lastHp: -1, lastTier: -1, frac: 1 };
     };
     this.sides = [end(0), end(1)];
-    this.twGhost = h('i', { class: 'tw-ghost' });
-    this.twSeam = h('i', { class: 'tw-seam' }, h('i', { class: 'sp' }), h('i', { class: 'chev' }));
-    this.twTrack = h('div', { class: 'tw-track' }, this.sides[0].fill, this.sides[1].fill, this.twGhost, h('i', { class: 'tw-mid' }), this.twSeam);
+    // the tube + the two Commanders pushing at the seam (tugBar.js)
+    this.tug = new TugBar(cfg);
+    this.twTrack = this.tug.el;
     this.twLean = h('div', { class: 'tw-lean' }, '');
     this.twLaneWin = h('i', { class: 'win' });
     this.twLane = h('div', { class: 'tw-lane' }, this.twLaneWin);
@@ -239,7 +240,6 @@ export class BattleHUD {
       this.twBar, this.twLane, this.twLean);
     root.appendChild(this.top);
     this.split = 0.5;
-    this.ghostSplit = 0.5;
     this.dots = [];
     // tap / drag the bar (or the lane strip under it) to pan the camera
     const lanePick = (e) => {
@@ -1066,7 +1066,7 @@ export class BattleHUD {
           const big = sd.lastHp - b.hp > b.maxHp * 0.04;
           hurt = Math.max(hurt, big ? 2 : 1);
           bump(sd.cap, big ? 'hurtbig' : 'hurt');
-          bump(sd.fill, 'hit');
+          this.tug.hit(i, big);
         }
         sd.lastHp = b.hp;
         sd.frac = frac;
@@ -1084,14 +1084,9 @@ export class BattleHUD {
     if (hurt) bump(this.twBar, hurt > 1 ? 'shakebig' : 'shake');
     const f0 = this.sides[0].frac, f1 = this.sides[1].frac;
     const target = f0 + f1 > 0 ? f0 / (f0 + f1) : 0.5;
-    this.split += (target - this.split) * Math.min(1, dt * 10);
-    this.ghostSplit += (this.split - this.ghostSplit) * Math.min(1, dt * 2.2);
-    const sp = this.split * 100, gs = this.ghostSplit * 100;
-    this.sides[0].fill.style.width = sp.toFixed(2) + '%';
-    this.sides[1].fill.style.left = sp.toFixed(2) + '%';
-    this.twSeam.style.left = sp.toFixed(2) + '%';
-    this.twGhost.style.left = Math.min(sp, gs).toFixed(2) + '%';
-    this.twGhost.style.width = Math.abs(sp - gs).toFixed(2) + '%';
+    this.tug.update(dt, target, { over: sim.over, visible: this.root.style.display !== 'none' && !this.root.classList.contains('cine') });
+    this.split = this.tug.split;
+    const sp = this.split * 100;
     const lead = target - 0.5;
     const lean = sim.over ? '' : lead > 0.025 ? 'win' : lead < -0.025 ? 'lose' : '';
     if (lean !== this.lastLean) {
@@ -1204,6 +1199,7 @@ export class BattleHUD {
     this.dragEnd();
     this.live?.dispose();
     this.live = null;
+    this.tug?.dispose();
     document.body.classList.remove('cine');
     this.root.remove();
   }
