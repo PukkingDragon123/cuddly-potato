@@ -55,11 +55,12 @@ body.landscape .cn-cap { bottom: calc(var(--safe-b) + 7vh + var(--u) * 2.4); }
 .cn-logo.sm .l2 { font-size: calc(var(--u) * 10.5); }
 .cn-logo.reveal .tag { animation: cnTag 0.45s 1.75s cubic-bezier(.2, 1.4, .3, 1) both; }
 @keyframes cnTag { from { opacity: 0; transform: translateY(40%) scale(0.6); } to { opacity: 1; transform: none; } }
-/* troops on the title logo (titleTroops.js): a transparent 3D stage over the lettering */
-.tt-troops { position: absolute; left: -9%; right: -9%; top: -70%; bottom: -40%; z-index: 4; pointer-events: none; }
-.tt-troops > canvas { display: block; }
-.tt-puff { position: absolute; z-index: 5; width: 0; height: 1em; }
-.tt-puff .bt-dust { bottom: 0; }
+/* the title logo: a live 3D voxel sign (titleLogo3d.js) over the top of the screen; letters fall in from above it */
+.tt-logo3d { position: absolute; left: 0; right: 0; top: 0; height: 50vh; z-index: 6; pointer-events: none; }
+.tt-logo3d > canvas { display: block; }
+body.landscape .tt-logo3d { height: 64vh; }
+.tt-logo3d::before { content: ''; position: absolute; left: -10%; right: -10%; top: 30%; bottom: -12%; z-index: -1;
+  background: radial-gradient(ellipse 50% 46% at 50% 55%, rgba(4, 4, 20, 0.5), rgba(4, 4, 20, 0.2) 60%, transparent 76%); }
 
 /* ================================================================== TITLE */
 .tt-cine { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; }
@@ -180,4 +181,4 @@ body.landscape .ld-tips { width: min(100%, calc(var(--u) * 150)); height: calc(v
 body:not(.landscape) .tt-wrap .cn-logo .l2 { font-size: min(calc(var(--u) * 15.5), 13.6vw); }
 body:not(.landscape) .tt-wrap .cn-logo .l1 { font-size: min(calc(var(--u) * 11), 10vw); }
 body:not(.landscape) .tt-wrap .cn-logo .tag { margin-top: calc(var(--u) * 9); }
-body:not(.landscape) .tt-logo-wrap { margin-top: calc(var(--u) * 8); }
+
