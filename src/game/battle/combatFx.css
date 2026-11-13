@@ -1,7 +1,7 @@
 /* Combat damage numbers (view.js UnitActor.flushDamage -> floatText 'hitn ...').
    Chunky pixel digits with an ink outline and a coloured drop; crits get a
    spinning pixel starburst behind them and a CRIT tag; K.O. is a slammed stamp. */
-.ftext.hitn { font-family: var(--font-d); letter-spacing: 0.02em; line-height: 1; color: #fff;
+.ftext.hitn { font-family: var(--font-d); letter-spacing: 0; line-height: 1; color: #fff;
   --sh: #8a6a2a;
   text-shadow: calc(var(--px) * 0.9) 0 0 var(--ink), calc(var(--px) * -0.9) 0 0 var(--ink), 0 calc(var(--px) * 0.9) 0 var(--ink), 0 calc(var(--px) * -0.9) 0 var(--ink),
     0 calc(var(--px) * 1.8) 0 var(--sh), 0 calc(var(--px) * 2.6) 0 var(--ink); }
@@ -21,10 +21,10 @@
   clip-path: polygon(50% 0, 58% 34%, 86% 14%, 67% 42%, 100% 50%, 67% 58%, 86% 86%, 58% 66%, 50% 100%, 42% 66%, 14% 86%, 33% 58%, 0 50%, 33% 42%, 14% 14%, 42% 34%);
   animation: hitnBurst 0.5s steps(4) both; }
 @keyframes hitnBurst { 0% { transform: scale(0.3); opacity: 1; } 60% { opacity: 0.9; } 100% { transform: scale(1.2); opacity: 0; } }
-.ftext.hitn.t-tag { font-size: calc(var(--u) * 2.2); letter-spacing: 0.18em; color: #fff; padding: 0.1em 0.45em 0.15em; background: #e8202a;
+.ftext.hitn.t-tag { font-size: calc(var(--u) * 2.2); letter-spacing: 0.16em; color: #fff; padding: 0.1em 0.45em 0.15em; background: #e8202a;
   text-shadow: 0 calc(var(--px) * 1) 0 #6a0a10; box-shadow: 0 0 0 calc(var(--px) * 1) var(--ink), 0 calc(var(--px) * 1.6) 0 calc(var(--px) * 1) var(--ink);
   clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 3) 50%, 100% 100%, 0 100%, calc(var(--px) * 3) 50%); }
-.ftext.hitn.t-ko { font-size: calc(var(--u) * 6.4); color: #fff; --sh: #ff2e88; letter-spacing: 0.04em;
+.ftext.hitn.t-ko { font-size: calc(var(--u) * 6.4); color: #fff; --sh: #ff2e88; letter-spacing: 0;
   text-shadow: calc(var(--px) * 1.2) 0 0 var(--ink), calc(var(--px) * -1.2) 0 0 var(--ink), 0 calc(var(--px) * 1.2) 0 var(--ink), 0 calc(var(--px) * -1.2) 0 var(--ink),
     0 calc(var(--px) * 2.4) 0 #ff2e88, 0 calc(var(--px) * 3.6) 0 var(--ink), 0 0 calc(var(--u) * 3) rgba(255, 46, 136, 0.7); }
 /* pooled heal ticks share the damage-number type, in green */
@@ -32,7 +32,7 @@
 /* a floater sits at the page corner until its first world-UI update places it: keep it hidden until then */
 .ftext:not([style*="transform"]) { visibility: hidden; }
 /* troop trait callouts (troopFx.js): a small pixel plate, colour by mood - never rotated */
-.ftext.hitn.t-call { font-size: calc(var(--u) * 2.4); letter-spacing: 0.12em; color: #fff; padding: 0.12em 0.5em 0.18em; background: #e8202a; --pl: #6a0a10;
+.ftext.hitn.t-call { font-size: calc(var(--u) * 2.4); letter-spacing: 0.16em; color: #fff; padding: 0.12em 0.5em 0.18em; background: #e8202a; --pl: #6a0a10;
   text-shadow: 0 calc(var(--px) * 1) 0 var(--pl); box-shadow: 0 0 0 calc(var(--px) * 1) var(--ink), 0 calc(var(--px) * 1.6) 0 calc(var(--px) * 1) var(--ink);
   white-space: nowrap; }
 .ftext.hitn.t-call.c-gold { background: #f0a81a; --pl: #7a4a0a; }

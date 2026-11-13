@@ -19,7 +19,7 @@ body.landscape .vo-cut-bar { height: calc(var(--u) * 7); }
 /* equipped entrance chip (top-left, inside the bar) */
 .vo-cut-ent {
   position: absolute; z-index: 2; left: calc(var(--safe-l) + var(--u) * 3); top: calc(var(--safe-t) + var(--u) * 3.2);
-  display: flex; align-items: center; gap: 0.35em; font-family: var(--font-d); font-size: calc(var(--u) * 3.6); color: #dfe8ff; letter-spacing: 0.06em;
+  display: flex; align-items: center; gap: 0.35em; font-family: var(--font-d); font-size: calc(var(--u) * 3.6); color: #dfe8ff; letter-spacing: 0.08em;
   text-shadow: var(--outline-thin); opacity: 0; transform: translateX(-20%); transition: opacity 0.4s 0.3s, transform 0.4s 0.3s;
 }
 .vo-cut.in .vo-cut-ent { opacity: 0.9; transform: none; }
@@ -44,7 +44,7 @@ body.landscape .vo-cut-panel { left: auto; right: calc(var(--safe-r) + var(--u) 
 .vo-cut-panel.in .vo-cut-kicker span { transform: none; }
 
 .vo-cut-name {
-  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; font-family: var(--font-d); line-height: 0.92; letter-spacing: 0.02em;
+  display: flex; flex-wrap: wrap; justify-content: center; column-gap: 0.3em; font-family: var(--font-d); line-height: 0.92; letter-spacing: 0;
   font-size: clamp(22px, calc(var(--u) * 15 * var(--nk, 1)), 120px); color: #fff; text-align: center; max-width: 100%;
   text-shadow: var(--outline), 0 calc(var(--px) * 3) 0 var(--ink), 0 0 calc(var(--u) * 4) var(--rc);
 }
@@ -63,7 +63,7 @@ body.landscape .vo-cut-name { justify-content: flex-start; text-align: left; fon
 .vo-cut-tags { display: flex; align-items: center; gap: calc(var(--u) * 2.2); opacity: 0; transform: translateY(40%); transition: opacity 0.25s, transform 0.3s cubic-bezier(.2, 1.4, .4, 1); }
 .vo-cut-tags.in { opacity: 1; transform: none; }
 .vo-cut-rar {
-  padding: 0.08em 0.6em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); letter-spacing: 0.06em; color: #fff; text-shadow: var(--outline-thin);
+  padding: 0.08em 0.6em; font-family: var(--font-d); font-size: calc(var(--u) * 4.6); letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin);
   background: linear-gradient(color-mix(in srgb, var(--rc) 55%, #fff 45%) 0 20%, var(--rc) 20% 76%, color-mix(in srgb, var(--rc) 60%, #000 40%) 76%);
   box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--u) * 2.4) var(--rc);
 }

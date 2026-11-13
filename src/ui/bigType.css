@@ -1,72 +1,32 @@
 /* =========================================================================
-   Swarm Block headlines (bigType.js): pixel-art letters, 1em = one letter box.
-   Entrances animate transform / opacity only (compositor friendly).
+   Swarm Arcade headlines (bigType.js). 1em = one 14 px letter box; --ap (one font
+   pixel) is snapped by JS to a whole number of device pixels.
+   Entrances are stepped frames (steps(1, end) between keyframes), never tweened.
    ========================================================================= */
-.bt { --a: calc(1em / 36); display: inline-flex; align-items: flex-start; height: 1em; line-height: 1; white-space: nowrap; vertical-align: top; pointer-events: none; }
-.bt-ch { position: relative; display: block; flex: none; width: calc(var(--w) * var(--a)); height: 1em; transform-origin: 50% 90%; }
-.bt-sp { display: block; flex: none; width: calc(var(--w) * var(--a)); }
-.bt-g { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; -webkit-user-drag: none; user-select: none; }
+.bt { --ap: calc(1em / 14); display: inline-flex; align-items: flex-start; height: calc(14 * var(--ap)); line-height: 1; white-space: nowrap; vertical-align: top; pointer-events: none; }
+.bt-ch { position: relative; display: block; flex: none; width: calc(var(--w) * var(--ap)); height: calc(14 * var(--ap)); margin-right: calc(var(--ap) * -1); }
+.bt-ch:last-child { margin-right: 0; }
+.bt-sp { display: block; flex: none; width: calc(var(--w) * var(--ap)); }
+.bt-g, .bt-fl { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; -webkit-user-drag: none; user-select: none; }
+.bt-fl { position: absolute; inset: 0; opacity: 0; }
 
-/* shine: a hard-edged pixel glare masked to the letter face, sweeping left to right */
-.bt-sh {
-  position: absolute; inset: 0; opacity: 0; pointer-events: none;
-  -webkit-mask: var(--m) 0 0 / 100% 100% no-repeat; mask: var(--m) 0 0 / 100% 100% no-repeat;
-  background: linear-gradient(90deg, transparent 0 41%, rgba(255, 255, 255, 0.92) 41% 47%, transparent 47% 50.5%, rgba(255, 255, 255, 0.7) 50.5% 52.5%, transparent 52.5%) 100% 0 / 300% 100% no-repeat;
-}
-.bt.go .bt-sh { animation: btShine 0.5s var(--sd) steps(10) both; }
-.bt.go.bt-loop .bt-sh { animation: btShine 0.5s var(--sd) steps(10) both, btShineLoop 5s calc(var(--sd) + 1.2s) steps(100) infinite; }
-@keyframes btShine { 0% { opacity: 1; background-position: 100% 0; } 100% { opacity: 1; background-position: 0 0; } }
-@keyframes btShineLoop { 0% { opacity: 1; background-position: 100% 0; } 10% { opacity: 1; background-position: 0 0; } 10.1%, 100% { opacity: 0; background-position: 0 0; } }
+.bt-stamp .bt-ch, .bt-drop .bt-ch { opacity: 0; }
+/* stamp: one frame at exactly 2x, then in place */
+.bt.go.bt-stamp .bt-ch { animation: btStamp 0.15s var(--d) steps(1, end) both; }
+@keyframes btStamp { 0% { opacity: 0; } 1% { opacity: 1; transform: scale(2); } 40%, 100% { opacity: 1; transform: none; } }
+/* drop: two falling frames, then in place */
+.bt.go.bt-drop .bt-ch { animation: btDrop 0.2s var(--d) steps(1, end) both; }
+@keyframes btDrop { 0% { opacity: 0; } 1% { opacity: 1; transform: translateY(-60%); } 30% { transform: translateY(-25%); } 60%, 100% { opacity: 1; transform: none; } }
+/* the single white flash frame as a letter lands */
+.bt.go.bt-stamp .bt-fl { animation: btFlash 0.15s var(--d) steps(1, end) both; }
+.bt.go.bt-drop .bt-fl { animation: btFlashD 0.2s var(--d) steps(1, end) both; }
+@keyframes btFlash { 0%, 39% { opacity: 0; } 40% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@keyframes btFlashD { 0%, 59% { opacity: 0; } 60% { opacity: 1; } 85%, 100% { opacity: 0; } }
 
-/* entrances: letters wait invisible until .go */
-.bt-slam .bt-ch, .bt-thud .bt-ch, .bt-pop .bt-ch { opacity: 0; }
-.bt.go.bt-slam .bt-ch { animation: btSlam var(--dur) var(--d) both; }
-.bt.go.bt-thud .bt-ch { animation: btThud var(--dur) var(--d) both; }
-.bt.go.bt-pop .bt-ch { animation: btPop var(--dur) var(--d) both; }
-/* falls in stretched, squashes flat on impact, springs up tall, settles */
-@keyframes btSlam {
-  0% { opacity: 0; transform: translateY(-170%) scale(0.86, 1.34); animation-timing-function: cubic-bezier(.5, 0, 1, .6); }
-  12% { opacity: 1; }
-  46% { transform: translateY(0) scale(0.86, 1.3); animation-timing-function: cubic-bezier(0, .6, .4, 1); }
-  52% { transform: translateY(0) scale(1.36, 0.6); animation-timing-function: cubic-bezier(.3, 0, .4, 1); }
-  68% { transform: translateY(-16%) scale(0.88, 1.14); animation-timing-function: cubic-bezier(.5, 0, .8, .5); }
-  82% { transform: translateY(0) scale(1.1, 0.9); }
-  92% { transform: translateY(0) scale(0.97, 1.03); }
-  100% { opacity: 1; transform: none; }
-}
-/* heavy: drops like a brick, flattens, sinks back up with no bounce */
-@keyframes btThud {
-  0% { opacity: 0; transform: translateY(-150%); animation-timing-function: cubic-bezier(.6, 0, 1, .7); }
-  15% { opacity: 1; }
-  60% { transform: translateY(0) scale(1, 1.08); animation-timing-function: ease-out; }
-  70% { transform: translateY(4%) scale(1.22, 0.72); animation-timing-function: cubic-bezier(.3, 0, .3, 1); }
-  100% { opacity: 1; transform: none; }
-}
-@keyframes btPop {
-  0% { opacity: 0; transform: translateY(30%) scale(0.2); animation-timing-function: cubic-bezier(.3, 0, .6, 1); }
-  45% { opacity: 1; transform: translateY(-12%) scale(1.06, 1.24); }
-  58% { transform: translateY(0) scale(1.3, 0.72); }
-  78% { transform: translateY(0) scale(0.92, 1.08); }
-  100% { opacity: 1; transform: none; }
-}
-
-/* pixel dust + sparkles (squares and pixel pluses, never circles) */
-.bt-dust { position: absolute; left: 50%; bottom: calc(4 * var(--a)); width: 0; height: 0; z-index: 2; }
-.bt-dust i {
-  position: absolute; left: calc(var(--x) * var(--a)); top: 0; width: calc(var(--s) * var(--a)); height: calc(var(--s) * var(--a)); margin: calc(var(--s) * var(--a) / -2);
-  background: var(--c); box-shadow: 0 0 0 calc(var(--a) * 0.6) rgba(23, 11, 36, 0.55); opacity: 0;
-}
-.bt-dust i.sp { box-shadow: none; clip-path: polygon(40% 0, 60% 0, 60% 40%, 100% 40%, 100% 60%, 60% 60%, 60% 100%, 40% 100%, 40% 60%, 0 60%, 0 40%, 40% 40%); }
-.bt.go .bt-dust i { animation: btDust var(--t) var(--at) steps(8) both; }
-@keyframes btDust {
-  0% { opacity: 1; transform: translate(0, 0) scale(1); }
-  35% { opacity: 1; transform: translate(calc(var(--dx) * var(--a) * 0.7), calc(var(--dy) * var(--a) * 0.7)) scale(1); }
-  100% { opacity: 0; transform: translate(calc(var(--dx) * var(--a)), calc(var(--dy) * var(--a) - 2 * var(--a))) scale(0.34); }
-}
-/* skipped / instant: everything lands at once */
-.ecv.now .bt-ch, .bt.now .bt-ch { animation-duration: 0.01s !important; animation-delay: 0s !important; }
-.ecv.now .bt-dust, .bt.now .bt-dust { display: none; }
+/* skipped / instant */
+.ecv.now .bt-ch, .bt.now .bt-ch { animation: none !important; opacity: 1; }
+.ecv.now .bt-fl, .bt.now .bt-fl { display: none; }
 @media (prefers-reduced-motion: reduce) {
-  .bt .bt-ch { animation-duration: 0.01s !important; animation-delay: 0s !important; }
-  .bt-dust, .bt-sh { display: none; }
+  .bt .bt-ch { animation: none !important; opacity: 1; }
+  .bt-fl { display: none; }
 }

@@ -22,8 +22,8 @@
 .ol-entry.live .ol-entry-ring.r2 { animation-delay: 1s; }
 .ol-entry.busy { animation-duration: 0.8s; }
 .ol-entry-face { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 0.82; text-shadow: var(--outline-thin); }
-.ol-entry-face b { font-size: calc(var(--u) * 4.4); letter-spacing: 0.02em; }
-.ol-entry-face small { font-size: calc(var(--u) * 2.5); letter-spacing: 0.12em; color: #fff36a; }
+.ol-entry-face b { font-size: calc(var(--u) * 4.4); letter-spacing: 0; }
+.ol-entry-face small { font-size: calc(var(--u) * 2.5); letter-spacing: 0.16em; color: #fff36a; }
 .ol-entry-ic { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); margin-bottom: calc(var(--u) * 0.1); filter: drop-shadow(0 var(--px) 0 var(--ink)); }
 .ol-entry-n:empty { display: none; }
 .ol-entry-n {
@@ -148,8 +148,8 @@ body.landscape .ol-entry { width: calc(var(--u) * 15.5); height: calc(var(--u) *
 .ol-vs-tr { display: inline-flex; align-items: center; gap: 0.3em; padding: 0 0.5em; font-family: var(--font-d); font-size: calc(var(--u) * 4); color: var(--gold); background: rgba(0, 0, 0, 0.45); box-shadow: 0 0 0 var(--px) var(--ink); text-shadow: var(--outline-thin); }
 .ol-vs-tr .pi { width: 1em; height: 1em; }
 .ol-vs-mid { position: relative; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); }
-.ol-vs-vs { font-size: calc(var(--u) * 15); line-height: 1; filter: drop-shadow(0 0 calc(var(--u) * 3) rgba(255, 216, 74, 0.7)); animation: olVs 0.5s 0.4s cubic-bezier(.3, 2, .5, 1) both, olShake 0.12s 0.9s 4; }
-@keyframes olVs { from { opacity: 0; transform: scale(3); } }
+.ol-vs-vs { font-size: calc(var(--u) * 15); line-height: 1; animation: olVs 0.2s 0.4s steps(1, end) both, olShake 0.12s 0.9s 4 steps(1, end); }
+@keyframes olVs { 0% { opacity: 1; transform: scale(3); } 33% { transform: scale(2); } 66%, 100% { opacity: 1; transform: none; } }
 @keyframes olShake { 50% { translate: calc(var(--px) * 2) calc(var(--px) * -1); } }
 .ol-vs-arena { font-family: var(--font-d); font-size: calc(var(--u) * 3.4); color: #fff; padding: 0.05em 0.6em; background: rgba(0, 0, 0, 0.5); box-shadow: 0 0 0 var(--px) var(--ink); white-space: nowrap; animation: olFade 0.3s 0.8s both; }
 .ol-vs-count { font-family: var(--font-d); font-size: calc(var(--u) * 12); color: #fff; text-shadow: var(--outline); animation: olFade 0.3s 0.9s both; }

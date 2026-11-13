@@ -1,6 +1,7 @@
 // Settings modal: sound / music / SFX (mute + volumes), graphics quality,
 // pixel mode, screen shake, fullscreen, credits and a double-confirmed
 // progress reset.
+import { logoImageCached } from '../../scenes/titleLogo3d.js';
 import { h, icon, button, modal, toast, fullscreenToggle, clear } from '../ui.js';
 import { audio } from '../../core/audio.js';
 import { engine } from '../../core/engine.js';
@@ -64,7 +65,8 @@ export function openSettings(ctx) {
       row('arrowR', 'Fullscreen', toggle(!!document.fullscreenElement, () => { fullscreenToggle(); setTimeout(render, 400); })),
       subHead('CREDITS'),
       h('div', { class: 'mn-credits' },
-        h('b', { class: 't-d outline mn-credits-t' }, 'MRBEAST ', h('span', { class: 'c-pink' }, 'SWARMERS')),
+        logoImageCached() ? h('img', { class: 'mn-credits-logo', src: logoImageCached(), alt: 'MrBeast Swarmers', draggable: 'false' })
+          : h('b', { class: 't-d outline mn-credits-t' }, 'MRBEAST ', h('span', { class: 'c-pink' }, 'SWARMERS')),
         h('span', { class: 't-sm' }, 'A voxel + pixel-art fan game. Every model, sound and tune is generated in code.'),
         h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Ark Pixel by TakWolf (OFL)'),
         h('span', { class: 'mn-disclaimer' }, icon('alert', 's'), DISCLAIMER)),

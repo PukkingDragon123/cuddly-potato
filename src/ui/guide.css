@@ -105,7 +105,7 @@ body.landscape .hm-slots { --pg-sw: calc(var(--u) * 18); }
 .gd-cap.up { translate: -50% -100%; }
 .gd-cap.bye { opacity: 0; transition: opacity 0.25s; }
 .gd-cap-k {
-  font-family: var(--font-d); font-size: 0.85em; letter-spacing: 0.12em; padding: 0.05em 0.6em; color: var(--ink);
+  font-family: var(--font-d); font-size: 0.85em; letter-spacing: 0.16em; padding: 0.05em 0.6em; color: var(--ink);
   background: var(--gold); box-shadow: 0 0 0 var(--px) var(--ink), 0 0 calc(var(--px) * 5) rgba(255, 216, 74, 0.8);
 }
 .gd-cap b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 7.5); line-height: 0.95; color: #fff; text-shadow: var(--outline), 0 0 calc(var(--u) * 2) rgba(63, 242, 224, 0.75); }

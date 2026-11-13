@@ -17,7 +17,7 @@
 /* hazard-striped alarm strip across the top letterbox */
 .mc-warn {
   position: absolute; left: 0; right: 0; top: 13%; margin-top: 10px; padding: 6px 0;
-  text-align: center; font-family: var(--font-d); font-size: clamp(14px, 3.6vw, 26px); letter-spacing: 0.12em; color: #fff;
+  text-align: center; font-family: var(--font-d); font-size: clamp(14px, 3.6vw, 26px); letter-spacing: 0.16em; color: #fff;
   text-shadow: var(--outline-thin, 0 2px 0 #000);
   background: repeating-linear-gradient(-45deg, rgba(255, 194, 26, 0.92) 0 18px, rgba(18, 12, 36, 0.92) 18px 36px);
   opacity: 0; transform: scaleY(0);
@@ -38,17 +38,17 @@
   font-family: var(--font-d); color: #fff; text-align: center; opacity: 0;
 }
 .mc-title small {
-  font-size: clamp(12px, 2.8vw, 20px); letter-spacing: 0.3em; padding: 3px 14px; background: var(--mb);
+  font-size: clamp(12px, 2.8vw, 20px); letter-spacing: 0.32em; padding: 3px 14px; background: var(--mb);
   box-shadow: 0 0 0 3px #05030c, 0 0 0 5px #fff; text-shadow: 0 2px 0 #05030c; margin-bottom: 8px;
 }
 .mc-title span {
-  font-size: clamp(38px, 11vw, 96px); line-height: 0.9; letter-spacing: 0.04em;
+  font-size: clamp(38px, 11vw, 96px); line-height: 0.9; letter-spacing: 0;
   color: #fff; -webkit-text-stroke: 3px #05030c; paint-order: stroke fill;
   text-shadow: 0 6px 0 #05030c, 0 0 24px var(--mc), 0 0 60px var(--mb);
   background: linear-gradient(180deg, #fff 0 45%, var(--mc) 46% 100%); -webkit-background-clip: text; background-clip: text;
 }
 .mc-title em {
-  font-style: normal; font-size: clamp(13px, 3vw, 22px); letter-spacing: 0.12em; margin-top: 6px; color: var(--gold, #ffd84a);
+  font-style: normal; font-size: clamp(13px, 3vw, 22px); letter-spacing: 0.16em; margin-top: 6px; color: var(--gold, #ffd84a);
   text-shadow: 0 2px 0 #05030c, 0 0 12px var(--mb);
 }
 .mc-title.go { animation: mc-slam 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) forwards; }

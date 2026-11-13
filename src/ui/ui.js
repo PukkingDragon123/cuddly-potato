@@ -31,7 +31,12 @@ export function applyScale() {
   de.setProperty('--px', px + 'px');
   de.setProperty('--pxs', Math.max(2, px - 1) + 'px');
   // body text: comfortably readable on a 390 px phone (16 px) and in short landscape (15 px)
-  de.setProperty('--fs', Math.max(15, Math.round(u * 4.1)) + 'px');
+  // ...snapped so one pixel of the 12 px body face lands on whole device pixels (crisp, never smeared),
+  // as long as that keeps it within ~12% of the wanted size
+  const want = Math.max(15, Math.round(u * 4.1));
+  const dpr = window.devicePixelRatio || 1, grid = 12 / dpr;
+  const snapped = Math.max(1, Math.round(want / grid)) * grid;
+  de.setProperty('--fs', (Math.abs(snapped - want) / want <= 0.125 ? +snapped.toFixed(3) : want) + 'px');
 }
 if (typeof window !== 'undefined') {
   injectSkins();

@@ -85,7 +85,7 @@
 /* ---------------------------------------------------------------- branch tags */
 .rs-tag {
   position: absolute; z-index: 2; translate: -50% 0; height: 30px; display: flex; align-items: center; gap: 5px;
-  padding: 0 10px 0 5px; white-space: nowrap; font-size: 22px; line-height: 1; letter-spacing: 0.04em; color: var(--bi);
+  padding: 0 10px 0 5px; white-space: nowrap; font-size: 22px; line-height: 1; letter-spacing: 0; color: var(--bi);
   background: linear-gradient(180deg, color-mix(in srgb, var(--bc) 70%, #fff) 0 3px, var(--bc) 3px calc(100% - 4px), color-mix(in srgb, var(--bc) 60%, #000) calc(100% - 4px));
   box-shadow: 0 0 0 2px #120c24, 3px 4px 0 2px rgba(4, 4, 18, 0.5);
   clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
@@ -171,11 +171,11 @@
 .rs-title-ic { width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
 .rs-title-t { display: flex; flex-direction: column; gap: 0.12em; line-height: 1; }
 .rs-title-t > b { font-size: 1.45em; font-weight: 400; }
-.rs-count { font-size: 0.8em; white-space: nowrap; color: #b4ff8a; letter-spacing: 0.05em; text-shadow: var(--outline-thin); }
+.rs-count { font-size: 0.8em; white-space: nowrap; color: #b4ff8a; letter-spacing: 0.08em; text-shadow: var(--outline-thin); }
 .rs-myrank { display: flex; align-items: center; gap: calc(var(--u) * 1); }
 .rs-myrank .rmedal { --rm: calc(var(--u) * 10); }
 .rs-myrank-t { display: flex; flex-direction: column; line-height: 1; white-space: nowrap; }
-.rs-myrank-t small { font-size: 0.7em; color: var(--muted); letter-spacing: 0.06em; }
+.rs-myrank-t small { font-size: 0.7em; color: var(--muted); letter-spacing: 0.08em; }
 .rs-myrank-t b { font-size: 1.15em; font-weight: 400; }
 
 /* ---------------------------------------------------------------- zoom buttons */

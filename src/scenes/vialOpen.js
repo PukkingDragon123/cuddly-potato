@@ -1556,7 +1556,7 @@ export class VialOpenScene {
       g.fillStyle = '#15121f';
       g.fillRect(18, H - 74, W - 36, 56);
       g.fillStyle = '#fff';
-      g.font = 'bold 26px sans-serif';
+      g.font = '26px "Swarm Display", "Swarm Body", monospace';
       g.textAlign = 'center';
       g.fillText((d.name ?? '').toUpperCase().slice(0, 18), W / 2, H - 38);
       // cost gem (a stepped pixel diamond)
@@ -1572,7 +1572,7 @@ export class VialOpenScene {
       }
       g.fillStyle = '#fff';
       const cost = String(d.elixir ?? 0);
-      g.font = `bold ${cost.length > 2 ? 21 : 27}px sans-serif`;
+      g.font = `${cost.length > 2 ? 20 : 30}px "Swarm Display", "Swarm Body", monospace`;
       g.fillText(cost, 42, 53);
     };
     draw(null);

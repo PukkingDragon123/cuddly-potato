@@ -275,7 +275,7 @@ body.touch .cf .key { display: none; }
   background: var(--ic-energy) center / 100% 100% no-repeat; image-rendering: pixelated;
   transition: filter 0.2s;
 }
-.cf .cost b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 4.3); line-height: 1; color: #fff; text-shadow: var(--outline-thin); margin-top: calc(var(--px) * -0.5); letter-spacing: -0.04em; }
+.cf .cost b { font-family: var(--font-d); font-weight: normal; font-size: calc(var(--u) * 4.3); line-height: 1; color: #fff; text-shadow: var(--outline-thin); margin-top: calc(var(--px) * -0.5); letter-spacing: 0; }
 .cf .cost.d3 b { font-size: calc(var(--u) * 3.3); }
 .cf .cost.cheap { filter: hue-rotate(-110deg) saturate(1.3) brightness(1.1); }
 .cf .cost.bump { animation: bump 0.4s; }
@@ -422,7 +422,7 @@ body.landscape .bh-float { padding-bottom: calc(var(--u) * 1.2); }
 @keyframes ucHero { 0% { translate: -70vw 0; } 22% { translate: 0 0; scale: 1.08; } 30% { scale: 1; } 84% { translate: 3vw 0; opacity: 1; } 100% { translate: 60vw 0; opacity: 0; } }
 .uc-txt { position: absolute; right: 13%; top: 50%; translate: 0 -50%; transform: none; display: flex; flex-direction: column; align-items: flex-end; text-align: right; max-width: 54%; }
 .uc-txt small {
-  text-transform: uppercase; font-family: var(--font-d); font-size: clamp(13px, 3.4vw, 24px); letter-spacing: 0.18em; color: var(--ink); padding: 0 0.6em; background: var(--uc); box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px #fff; white-space: nowrap;
+  text-transform: uppercase; font-family: var(--font-d); font-size: clamp(13px, 3.4vw, 24px); letter-spacing: 0.16em; color: var(--ink); padding: 0 0.6em; background: var(--uc); box-shadow: 0 0 0 3px var(--ink), 0 0 0 5px #fff; white-space: nowrap;
   animation: ucKick var(--dur) ease-out both;
 }
 .uc-txt b {

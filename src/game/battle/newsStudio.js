@@ -21,7 +21,7 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const clamp01 = (k) => (k < 0 ? 0 : k > 1 ? 1 : k);
 const lerp = (a, b, k) => a + (b - a) * k;
 const inOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
-const FONT = '"Swarm Display", "Arial Narrow", sans-serif';
+const FONT = '"Swarm Display", "Swarm Body", monospace';
 
 function canvasTex(w, hgt, draw) {
   const c = document.createElement('canvas');
@@ -36,7 +36,7 @@ function canvasTex(w, hgt, draw) {
 }
 /** Pixel text: drawn small, then the anti-aliased edges are snapped to hard pixels. */
 function pixText(g, txt, x, y, size, col, align = 'center') {
-  g.font = `800 ${size}px ${FONT}`;
+  g.font = `${size}px ${FONT}`;
   g.textAlign = align; g.textBaseline = 'middle';
   g.fillStyle = col;
   g.fillText(txt, x, y);

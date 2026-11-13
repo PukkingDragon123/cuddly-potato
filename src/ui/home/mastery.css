@@ -46,7 +46,7 @@
 .ms-task.done .ms-bar > i { background: linear-gradient(#c8ff9a 0 35%, #4cd24a 35%); }
 .ms-bar > span { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.72em; line-height: 1; color: #fff; text-shadow: var(--outline-thin); }
 .ms-rw { display: flex; align-items: center; gap: calc(var(--u) * 1.2); flex-wrap: wrap; }
-.ms-rw-l { color: #ffd27a; letter-spacing: 0.06em; }
+.ms-rw-l { color: #ffd27a; letter-spacing: 0.08em; }
 .ms-rw-t { display: flex; align-items: center; gap: calc(var(--u) * 0.6); min-width: 0; }
 .ms-rw-t .mn-rw { --rw: calc(var(--u) * 10); }
 .ms-rw-n { display: flex; flex-direction: column; gap: 0.15em; font-size: 0.82em; line-height: 1.05; max-width: calc(var(--u) * 30); }

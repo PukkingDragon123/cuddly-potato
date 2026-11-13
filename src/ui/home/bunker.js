@@ -62,11 +62,11 @@ function decal(text, o = {}) {
   const ph = o.px ?? 14; // canvas px per text line
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  ctx.font = `${ph}px "Swarm Display", monospace`;
+  ctx.font = `${ph}px "Swarm Display", "Swarm Body", monospace`;
   const lines = String(text).split('\n');
   const w = Math.ceil(Math.max(...lines.map((l) => ctx.measureText(l).width)) + 4), hgt = Math.ceil(lines.length * ph * 0.92 + 3);
   c.width = w; c.height = hgt;
-  ctx.font = `${ph}px "Swarm Display", monospace`;
+  ctx.font = `${ph}px "Swarm Display", "Swarm Body", monospace`;
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fff';

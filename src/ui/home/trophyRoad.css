@@ -39,7 +39,7 @@
 }
 .trd-chap-dot { flex: none; width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); background: var(--ac); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), 0 0 calc(var(--px) * 3) var(--ac); }
 .trd-chap-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.05; }
-.trd-chap-no { font-size: 0.68em; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; }
+.trd-chap-no { font-size: 0.68em; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; }
 .trd-chap-n { font-size: 1.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trd-ready { flex: none; }
 
@@ -67,7 +67,7 @@
 .trd-card.locked .trd-art { filter: saturate(0.4) brightness(0.8); }
 .trd-card.claimed .trd-art { filter: saturate(0.6); }
 .trd-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); }
-.trd-kind { font-size: 0.7em; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trd-kind { font-size: 0.7em; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trd-name { font-size: 1.1em; line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .trd-req { display: flex; align-items: center; gap: 0.25em; color: var(--gold); font-size: 0.95em; text-shadow: var(--outline-thin); }
 .trd-req .pi { width: 1.1em; height: 1.1em; }

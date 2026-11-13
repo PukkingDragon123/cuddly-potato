@@ -417,8 +417,8 @@ function stripURL(id, q) {
 // Every picture is a 3D render of a real game model on a pixel-art plate: "Me" pictures are YOUR
 // Commander (the chibi in the outfit you wear; a rival's own Commander on their side config),
 // Commander / NPC pictures are those chibis, troop pictures are the Swarm models. Portraits are
-// drawn straight from the thumbnail renderer's canvas into the picture (no PNG round trip), get a
-// 1-texel ink outline so they read at 24 px, and the finished picture is PNG-encoded off the main
+// drawn straight from the thumbnail renderer's canvas into the picture (no PNG round trip), already
+// pixel sprites with a coloured outline (core/spriteFx.js) so they read at 24 px, and the finished picture is PNG-encoded off the main
 // thread (canvas.toBlob) where the browser can.
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
@@ -543,24 +543,6 @@ function troopShot(id, px) {
   V *= t.fit ?? 1;
   return engine.drawThumb(rig.root, { size: px, yaw, pitch: 0.14, focusObj: focus, focusDy: dy + V * (t.dy ?? 0), focusDx: V * (t.dx ?? 0), fit: V / 1.2 });
 }
-let inkCanvas = null;
-/** Draw `src` onto `g` with a 1-texel ink outline (dilated silhouette) underneath. */
-function drawInked(g, src, px, w = 1) {
-  const sil = (inkCanvas ??= document.createElement('canvas'));
-  if (sil.width !== px || sil.height !== px) { sil.width = px; sil.height = px; }
-  const sg = sil.getContext('2d');
-  sg.globalCompositeOperation = 'copy';
-  sg.drawImage(src, 0, 0, px, px);
-  sg.globalCompositeOperation = 'source-in';
-  sg.fillStyle = '#120c24';
-  sg.fillRect(0, 0, px, px);
-  sg.globalCompositeOperation = 'source-over';
-  g.save();
-  g.globalAlpha = 0.9;
-  for (const [dx, dy] of [[-w, 0], [w, 0], [0, -w], [0, w]]) g.drawImage(sil, dx, dy);
-  g.restore();
-  g.drawImage(src, 0, 0, px, px);
-}
 /** Picture size buckets (px of the composited PNG). */
 const PIC_PX = [64, 128, 224];
 /** Composite a picture: plate + 3D portrait, clipped to the stepped window. Resolves to an image URL. */
@@ -583,7 +565,9 @@ function composePicture(spec, px) {
   g.imageSmoothingEnabled = true;
   try {
     const src = spec.troop ? troopShot(spec.troop, px) : chibiShot(spec.chibi, px);
-    drawInked(g, src, px, px >= 160 ? 2 : 1);
+    // the thumbnail renderer already draws it as a pixel sprite (toon bands + coloured outline: core/spriteFx.js)
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0, px, px);
   } catch (e) { console.warn('avatar portrait', spec.key, e); }
   // stepped corner window (matches the frames' window)
   const ch = Math.max(1, Math.round((CHW / (W1 - W0)) * px));

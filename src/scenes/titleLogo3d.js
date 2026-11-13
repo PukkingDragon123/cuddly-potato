@@ -150,14 +150,14 @@ function plinthGrid() {
   return g;
 }
 
-/** BEAST ISLAND on a painted board (2D Swarm Block glyphs, 1 voxel per cell). */
+/** BEAST ISLAND on a painted board (Swarm Arcade pixel glyphs, 1 voxel per pixel). */
 function boardGrid(text) {
   const g = new VoxGrid();
   const chars = [...text];
   let w = 0;
   for (const c of chars) w += (GLYPHS[c] ? GLYPHS[c][0].length : 3) + 1;
   w -= 1;
-  const W = w + 6, H = 13;
+  const W = w + 6, H = 16;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const rim = y === 0 || y === H - 1 || x === 0 || x === W - 1;
     if (rim && (x === 0 || x === W - 1) && (y === 0 || y === H - 1)) continue;
@@ -168,10 +168,10 @@ function boardGrid(text) {
   for (const c of chars) {
     const rows = GLYPHS[c];
     if (!rows) { cx += 4; continue; }
-    for (let ry = 0; ry < 7; ry++) for (let x = 0; x < rows[0].length; x++) {
+    for (let ry = 0; ry < rows.length; ry++) for (let x = 0; x < rows[0].length; x++) {
       if (rows[ry][x] !== '#') continue;
       const y = H - 4 - ry;
-      g.set(cx + x, y, 2, ry < 2 ? 0xffffff : ry < 5 ? 0xf2f6ff : 0xc8dcff);
+      g.set(cx + x, y, 2, ry < 5 ? 0xffffff : 0xd2e2ff);
       if (!(rows[ry + 1]?.[x] === '#')) g.set(cx + x, y - 1, 2, INK);
     }
     cx += rows[0].length + 1;
@@ -190,7 +190,11 @@ const CAST = [
   { id: 'pizzaSlicer', role: 'hang', line: 0, at: -1, h: 0.5 },
 ];
 
-export function titleLogo3d(host) {
+export function titleLogo3d(host, o = {}) {
+  const cap = !!o.capture; // render once at rest for a still image (loading screen, boot, credits)
+  let vclock = 0;
+  const clock = () => (cap ? vclock : performance.now());
+  let snapNext = null; // set to a callback: the next render is cropped to the sign and handed to it
   const st = new Stage3D({ fov: 20, maxPixels: 1.5e6, rimA: 0xff8ad0, rimB: 0xffd84a, rimI: 1.3, key: 2.4, hemi: 0.85, exposure: 0.98 });
   const sc = st.scene;
   const sun = st.key;
@@ -205,6 +209,28 @@ export function titleLogo3d(host) {
   st.renderFn = (R, scene, cam) => {
     if (!R.shadowMap.enabled) { R.shadowMap.enabled = true; R.shadowMap.type = THREE.PCFShadowMap; }
     R.render(scene, cam);
+    if (snapNext) { const f = snapNext; snapNext = null; try { f(cropSign(R, cam)); } catch (e) { f(null); } }
+  };
+  const cropSign = (R, cam) => {
+    const box = new THREE.Box3().setFromObject(rest);
+    for (const a of actors) if (a.pivot.visible) box.expandByObject(a.pivot);
+    const cw = R.domElement.width, ch = R.domElement.height;
+    let x0 = cw, y0 = ch, x1 = 0, y1 = 0;
+    const v = new THREE.Vector3();
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+      v.set(x, y, z).project(cam);
+      const px = (v.x * 0.5 + 0.5) * cw, py = (0.5 - v.y * 0.5) * ch;
+      x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+    }
+    const pad = (x1 - x0) * 0.02;
+    x0 = Math.max(0, Math.floor(x0 - pad)); y0 = Math.max(0, Math.floor(y0 - pad)); x1 = Math.min(cw, Math.ceil(x1 + pad)); y1 = Math.min(ch, Math.ceil(y1 + pad));
+    const sw = x1 - x0, sh = y1 - y0;
+    if (sw < 8 || sh < 8) return null;
+    const k = Math.min(1, 1000 / sw);
+    const out = document.createElement('canvas');
+    out.width = Math.round(sw * k); out.height = Math.round(sh * k);
+    out.getContext('2d').drawImage(R.domElement, x0, y0, sw, sh, 0, 0, out.width, out.height);
+    return out.toDataURL('image/webp', 0.9);
   };
   const disposables = [];
   const meshOf = (geo, mats) => {
@@ -252,7 +278,7 @@ export function titleLogo3d(host) {
 
   // ---- the board
   const bd = boardGrid('BEAST ISLAND');
-  const BV = 0.062;
+  const BV = 0.05;
   const board = { holder: new THREE.Group(), y: 0, vy: 0, sq: 0, sqv: 0, state: reduce ? 'rest' : 'wait', t0: 2.45, hits: 0, spin: 0.2, w: bd.W * BV, v: BV, paint: PAINT.gold, line: 2 };
   board.mesh = meshOf(bd.g.build({ scale: BV, pivot: [bd.W / 2, 0, 0], jitter: 0.03 }), Mats.pair);
   board.holder.add(board.mesh);
@@ -332,6 +358,7 @@ export function titleLogo3d(host) {
       spawn(_v.set(p.x + side * f.w * rr(0.2, 0.55), p.y + rr(0.03, 0.12), p.z + rr(-0.05, 0.35)), [0xf2e8d2, 0xd8ccb0, 0xe8dcc4][k % 3], rr(0.13, 0.26) * big, new THREE.Vector3(side * rr(1.2, 3.2) * big, rr(0.2, 0.9), rr(-0.2, 0.9)), rr(0.7, 1.1), true, -99);
     }
     shake = Math.min(0.32, shake + (f.line === 1 ? 0.13 : 0.08));
+    if (cap) return;
     engine.shake?.(f.line === 1 ? 0.07 : 0.04);
     audio.play('stamp', { vol: 0.35 * Math.min(1, speed / 20), pitch: f.line === 1 ? rr(0.75, 0.9) : rr(0.95, 1.15), gap: 0.03 });
   };
@@ -420,8 +447,8 @@ export function titleLogo3d(host) {
     // wall-clock timeline, started once the first frames (shader compiles) are out of the way;
     // physics in small fixed substeps so a slow frame rate never desyncs it
     if (++frames < 3) return;
-    if (!t0) t0 = performance.now();
-    const now = (performance.now() - t0) / 1000;
+    if (!t0) t0 = clock() || 1e-6;
+    const now = (clock() - t0) / 1000;
     const rdt = Math.min(0.3, Math.max(0, now - t));
     const n = Math.max(1, Math.ceil(rdt / 0.016));
     for (let i = 0; i < n; i++) { t += rdt / n; stepFallers(rdt / n); tickParticles(rdt / n); }
@@ -456,7 +483,7 @@ export function titleLogo3d(host) {
         rig.boing(0.6);
         if (a.role !== 'hang') puffAt(a.tgt, a.role === 'stand' ? 1 : 0.7);
         shake = Math.min(0.32, shake + 0.04);
-        audio.play('boing', { vol: 0.22, pitch: rr(1.1, 1.5), gap: 0.08 });
+        if (!cap) audio.play('boing', { vol: 0.22, pitch: rr(1.1, 1.5), gap: 0.08 });
       }
       body.rotation.x = 0;
       const U = T - leap;
@@ -495,15 +522,66 @@ export function titleLogo3d(host) {
     shake *= Math.exp(-dt * 7);
     st.camera.position.set(camBase.x + Math.sin(t * 71) * shake * 0.35, camBase.y + Math.sin(t * 89 + 1) * shake * 0.3, camBase.z);
     st.camera.lookAt(look.x + Math.sin(t * 53) * shake * 0.12, look.y, look.z);
+    // the live title keeps a still of the settled sign for the loading screen / boot / credits
+    if (!cap && !stored && actors.length && actors.every((a) => a.landed) && t > Math.max(...actors.map((a) => a.t)) + 1.8 && shake < 0.01) {
+      stored = true;
+      snapNext = (url) => { if (url) storeLogoImage(url); };
+    }
   });
+  let stored = !!logoImageCached();
 
-  const hostEl = host;
-  st.mount(hostEl);
+  st.mount(host);
   st.start();
   return {
+    /** capture mode: run the whole entrance on a virtual clock, render once, return the cropped still. */
+    captureNow() {
+      for (let i = 0; i < 300; i++) { vclock += 1000 / 30; for (const fn of st.updaters) fn(1 / 30); }
+      let url = null;
+      snapNext = (u) => { url = u; };
+      st.frame(0);
+      snapNext = null;
+      return url;
+    },
     dispose() {
       st.dispose();
       for (const d of disposables) d.dispose();
     },
   };
+}
+
+// ---------------------------------------------------------------- still image of the sign
+const LS_KEY = 'swarm.logo3d.v1';
+let still = null;
+export function logoImageCached() {
+  if (still) return still;
+  try { still = localStorage.getItem(LS_KEY); } catch (e) { /* storage blocked */ }
+  return still;
+}
+function storeLogoImage(url) {
+  still = url;
+  try { localStorage.setItem(LS_KEY, url); } catch (e) { /* storage full or blocked: memory only */ }
+}
+/** The game logo as an image (the 3D sign, rendered once and kept); renders it now if there is none yet. */
+export function logoImage() {
+  const c = logoImageCached();
+  if (c) return c;
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:0;top:0;width:1000px;height:640px;opacity:0;pointer-events:none;z-index:-1';
+  document.body.appendChild(host);
+  let url = null, L = null;
+  try { L = titleLogo3d(host, { capture: true }); url = L.captureNow(); } catch (e) { console.warn('logo still failed', e); }
+  try { L?.dispose(); } catch (e) { /* ignore */ }
+  host.remove();
+  if (url) storeLogoImage(url);
+  return url;
+}
+/** <img> of the 3D game logo (class gl-logo). */
+export function logoImg(cls = '') {
+  const im = document.createElement('img');
+  im.className = 'gl-logo ' + cls;
+  im.alt = 'MrBeast Swarmers';
+  im.draggable = false;
+  const url = logoImage();
+  if (url) im.src = url;
+  return im;
 }

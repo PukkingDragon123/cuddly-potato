@@ -11,6 +11,7 @@ import { updateTweens } from './tween.js';
 import { particles } from './particles.js';
 import { allVariantMaterials, variantMaterials, Mats } from './voxel.js';
 import { clamp } from './util.js';
+import { spriteize, spriteScale, makeSpriteDepthMaterial } from './spriteFx.js';
 
 /**
  * Quality presets.
@@ -587,6 +588,12 @@ class Engine {
    */
   drawThumb(obj, opts = {}) {
     const size = opts.size ?? 128;
+    const W0 = opts.w ?? size, H0 = opts.h ?? size;
+    // sprite look (default): render at a low internal resolution (1/k), pixel-process it (toon
+    // bands, palette clamp, inner lines, rim, coloured outline: spriteFx.js) and upscale by the
+    // integer k with nearest-neighbour. opts.sprite = false keeps the smooth render; opts.px sets k.
+    const sprite = opts.sprite !== false && W0 >= 16 && H0 >= 16;
+    const k = sprite ? Math.max(1, Math.round(opts.px ?? spriteScale(W0, H0))) : 1;
     if (!this.thumbRenderer) {
       const c = document.createElement('canvas');
       const tr = (this.thumbRenderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }));
@@ -606,7 +613,7 @@ class Engine {
       this.thumbEnv = makeEnvMap(tr);
     }
     const r = this.thumbRenderer;
-    const w = opts.w ?? size, hgt = opts.h ?? size;
+    const w = Math.ceil(W0 / k), hgt = Math.ceil(H0 / k);
     // the WebGL canvas only ever grows (a resize reallocates its drawing buffer and stalls the
     // GPU pipeline; thumbnails of many sizes, and the live ULT Commander, share it): each image
     // is drawn into its bottom-left corner and copied out at its exact size
@@ -645,8 +652,13 @@ class Engine {
     // thumbnails are never graded (the shared grade uniforms belong to the current scene)
     const saved = Object.values(GRADE).map((v) => [v.x, v.y, v.z, v.w]);
     for (const v of Object.values(GRADE)) v.x = v.y = v.z = v.w = 0;
+    let lo = null, depth = null;
     try {
       r.render(this.thumbScene, this.thumbCam);
+      if (sprite) {
+        lo = this.copyThumb(r, cur, w, hgt, 'spriteLo');
+        depth = this.thumbDepth(holder, c, sz, cur, w, hgt);
+      }
     } finally {
       for (const m of swapped) m.envMap = this.envMap;
       Object.values(GRADE).forEach((v, i) => { [v.x, v.y, v.z, v.w] = saved[i]; });
@@ -654,11 +666,59 @@ class Engine {
     }
     this.thumbScene.remove(holder);
     const out = this.thumbCanvas ?? (this.thumbCanvas = document.createElement('canvas'));
-    if (out.width !== w || out.height !== hgt) { out.width = w; out.height = hgt; }
+    if (out.width !== W0 || out.height !== H0) { out.width = W0; out.height = H0; }
     const g = out.getContext('2d');
+    g.clearRect(0, 0, W0, H0);
+    if (!sprite) {
+      g.drawImage(r.domElement, 0, cur.y - hgt, w, hgt, 0, 0, w, hgt);
+      return out;
+    }
+    const lg = lo.getContext('2d', { willReadFrequently: true });
+    lg.putImageData(spriteize(lg.getImageData(0, 0, w, hgt), w, hgt, depth, opts.spriteFx), 0, 0);
+    // integer nearest-neighbour upscale, centred (the low-res grid may overhang by < k px)
+    g.imageSmoothingEnabled = false;
+    g.drawImage(lo, 0, 0, w, hgt, Math.floor((W0 - w * k) / 2), Math.floor((H0 - hgt * k) / 2), w * k, hgt * k);
+    return out;
+  }
+  /** Copy the bottom-left w x h of the thumbnail renderer into a reusable 2D canvas (this[slot]). */
+  copyThumb(r, cur, w, hgt, slot) {
+    const c = this[slot] ?? (this[slot] = document.createElement('canvas'));
+    if (c.width !== w || c.height !== hgt) { c.width = w; c.height = hgt; }
+    const g = c.getContext('2d', { willReadFrequently: true });
     g.clearRect(0, 0, w, hgt);
     g.drawImage(r.domElement, 0, cur.y - hgt, w, hgt, 0, 0, w, hgt);
-    return out;
+    return c;
+  }
+  /**
+   * Linear view-depth pass of what drawThumb just framed (for the sprite inner lines): see-through
+   * parts (glows, glass, ghosts) are left out so they draw no lines. Returns ImageData or null.
+   */
+  thumbDepth(holder, c, sz, cur, w, hgt) {
+    const r = this.thumbRenderer, sc = this.thumbScene;
+    const mat = this.thumbDepthMat ?? (this.thumbDepthMat = makeSpriteDepthMaterial());
+    const dist = this.thumbCam.position.distanceTo(c), R = Math.max(1e-3, sz.length() / 2);
+    mat.uniforms.zN.value = dist - R;
+    mat.uniforms.zF.value = dist + R;
+    const hidden = [];
+    holder.traverse((o) => {
+      if (!o.visible || !(o.isMesh || o.isSprite || o.isPoints || o.isLine)) return;
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      if (o.isSprite || o.isPoints || o.isLine || ms.every((m) => !m || (m.transparent && m.opacity < 0.7) || m.blending === THREE.AdditiveBlending || m.depthWrite === false || m.visible === false)) {
+        o.visible = false;
+        hidden.push(o);
+      }
+    });
+    sc.overrideMaterial = mat;
+    try {
+      r.clear();
+      r.render(sc, this.thumbCam);
+      return this.copyThumb(r, cur, w, hgt, 'spriteDepth').getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, hgt);
+    } catch (e) {
+      return null;
+    } finally {
+      sc.overrideMaterial = null;
+      for (const o of hidden) o.visible = true;
+    }
   }
 }
 

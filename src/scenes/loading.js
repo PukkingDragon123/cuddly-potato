@@ -12,6 +12,7 @@
 import './cinematic.css';
 import { h } from '../ui/ui.js';
 import { bigText } from '../ui/bigType.js';
+import { logoImg } from './titleLogo3d.js';
 import { arenaById, currentArena } from '../data/arenas.js';
 import { state } from '../game/state.js';
 import * as Art from './labLoadArt.js';
@@ -46,12 +47,18 @@ export function cineBackdrop() {
 export function cineDressing() {
   return [h('i', { class: 'cn-vig' }), h('i', { class: 'cn-bar top' }), h('i', { class: 'cn-bar bot' })];
 }
-/** The game logo (layered pixel lettering + tag); `reveal` plays the title entrance. */
+/** The game name is always the 3D voxel sign (a still of it); the flat lettering only if WebGL is out. */
+function gameLogo() {
+  let im = null;
+  try { im = logoImg('ld-logo3d'); } catch (e) { im = null; }
+  return im?.src ? im : cineLogo({ small: true, tag: false });
+}
+/** Flat fallback logo (Swarm Arcade lettering + tag), used only where the 3D sign cannot render. */
 export function cineLogo(o = {}) {
   const rv = !!o.reveal;
   // Swarm Block lettering (ui/bigType.js): on the title the letters slam in one by one, kick up dust and catch a shine
-  const l1 = bigText('MRBEAST', { theme: 'pink', drop: rv ? 'slam' : 'none', delay: 0.15, stagger: 0.055, shine: rv ? 'loop' : false });
-  const l2 = bigText('SWARMERS', { theme: 'gold', drop: rv ? 'slam' : 'none', delay: 0.62, stagger: 0.065, shine: rv ? 'loop' : false });
+  const l1 = bigText('MRBEAST', { theme: 'pink', drop: rv ? 'stamp' : 'none', delay: 0.15 });
+  const l2 = bigText('SWARMERS', { theme: 'gold', drop: rv ? 'stamp' : 'none', delay: 0.6 });
   return h('div', { class: `cn-logo ${rv ? 'reveal' : ''} ${o.small ? 'sm' : ''}` },
     h('div', { class: 'l1' }, l1),
     h('div', { class: 'l2' }, l2),
@@ -118,7 +125,7 @@ export function showLoading(name, params = {}) {
   const el = h('div', { class: 'ld', style: { '--ac': dst.ac, '--lp': lp + 'px' } },
     h('div', { class: 'ld-bg' }),
     h('div', { class: 'ld-col' },
-      h('div', { class: 'ld-logo' }, cineLogo({ small: true, tag: false })),
+      h('div', { class: 'ld-logo' }, gameLogo()),
       h('div', { class: 'ld-dest' }, h('span', { class: 'k' }, dst.k), dst.n ? h('span', { class: 'n' }, dst.n) : null),
       bar.tube,
       h('div', { class: 'ld-tips', style: { '--n': tips.length } },

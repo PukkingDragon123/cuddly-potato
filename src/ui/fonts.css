@@ -16,19 +16,19 @@
    in tight line boxes (line-height 0.9 to 1.2 is used all over the UI).
    ========================================================================= */
 @font-face {
-  font-family: 'Swarm Display'; font-style: normal; font-display: swap; font-weight: 100 900;
+  font-family: 'Swarm Display'; font-style: normal; font-display: block; font-weight: 100 900;
   size-adjust: 80%; ascent-override: 96%; descent-override: 26%; line-gap-override: 0%;
   src: url('../assets/fonts/swarm-pixel-bold.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'Swarm Body'; font-style: normal; font-display: swap; font-weight: 100 749;
+  font-family: 'Swarm Body'; font-style: normal; font-display: block; font-weight: 100 749;
   ascent-override: 95%; descent-override: 27%; line-gap-override: 0%;
   src: url('../assets/fonts/swarm-pixel-text.woff2') format('woff2');
 }
 /* bold body text (<b> / <strong> = 800, see ui.css; font-weight 750+) is the real pixel bold, scaled to the
    text face's cap height. Labels styled 400-700 all use the crisp text face. */
 @font-face {
-  font-family: 'Swarm Body'; font-style: normal; font-display: swap; font-weight: 750 900;
+  font-family: 'Swarm Body'; font-style: normal; font-display: block; font-weight: 750 900;
   size-adjust: 104%; ascent-override: 91%; descent-override: 26%; line-gap-override: 0%;
   src: url('../assets/fonts/swarm-pixel-bold.woff2') format('woff2');
 }

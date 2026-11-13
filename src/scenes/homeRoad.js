@@ -287,7 +287,7 @@ export function setupIslandRoad(home) {
   }
   const RAR = { common: '#b8c6e8', rare: '#ff9a2e', epic: '#c063ff', legendary: '#3ff2c8', mythic: '#ff2e88', mega: '#ff4fa3', gold: '#ffc21a' };
   function outlined(ctx, str, x, y, size, fill) {
-    ctx.font = `${size}px "Swarm Display", sans-serif`;
+    ctx.font = `${size}px "Swarm Display", "Swarm Body", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     const o = Math.max(2, Math.round(size / 9));

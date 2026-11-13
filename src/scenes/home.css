@@ -40,7 +40,7 @@
 /* captions under the right-hand console buttons */
 .hm-sb::after {
   position: absolute; left: 50%; top: 100%; translate: -50% calc(var(--px) * -1); z-index: 2; pointer-events: none; padding: 0 0.35em 0.05em;
-  font-family: var(--font-d); font-size: 0.6em; letter-spacing: 0.06em; line-height: 1.1; white-space: nowrap; color: #fff; text-shadow: var(--outline-thin);
+  font-family: var(--font-d); font-size: 0.6em; letter-spacing: 0.08em; line-height: 1.1; white-space: nowrap; color: #fff; text-shadow: var(--outline-thin);
   background: rgba(4, 8, 30, 0.82); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink);
 }
 .hm-sb-set::after { content: 'SETTINGS'; }
@@ -94,7 +94,7 @@
 .hm-zbox { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.3); cursor: pointer; pointer-events: auto; }
 .hm-zbox .ribbon { font-size: 1.3em; min-width: calc(var(--u) * 52); }
 .hm-zbox .an {
-  font-family: var(--font-d); font-size: 0.75em; color: var(--lab-cyan); letter-spacing: 0.14em; padding: 0 0.6em; line-height: 1.15;
+  font-family: var(--font-d); font-size: 0.75em; color: var(--lab-cyan); letter-spacing: 0.16em; padding: 0 0.6em; line-height: 1.15;
   text-shadow: var(--outline-thin), 0 0 calc(var(--px) * 3) rgba(63, 242, 224, 0.8);
   background: rgba(4, 8, 30, 0.72); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink), inset 0 calc(var(--px) * -0.67) 0 rgba(63, 242, 224, 0.35);
 }

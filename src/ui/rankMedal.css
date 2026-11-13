@@ -22,7 +22,7 @@
     0 calc(var(--ro) * 2) 0 var(--ink), var(--ro) calc(var(--ro) * 2) 0 var(--ink), calc(var(--ro) * -1) calc(var(--ro) * 2) 0 var(--ink);
   pointer-events: none;
 }
-.rmedal.rm-d2 > .rm-n { font-size: max(10px, calc(var(--rm) * var(--fr, 0.46) * 0.96)); letter-spacing: -0.02em; }
+.rmedal.rm-d2 > .rm-n { font-size: max(10px, calc(var(--rm) * var(--fr, 0.46) * 0.96)); letter-spacing: 0; }
 /* two-tone pixel fill: white top, tier-tinted lower half (the outline stays on the parent) */
 .rmedal > .rm-n::after {
   content: attr(data-n); position: absolute; inset: 0; text-shadow: none; color: transparent;

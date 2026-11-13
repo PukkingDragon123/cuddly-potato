@@ -17,6 +17,10 @@
       <div id="overlay"></div>
       <div id="boot">
         <div class="boot-logo">MrBeast<br/><span>SWARMERS</span></div>
+        <script>
+          // the game name is the 3D voxel sign: show the still the title saved last time, if there is one
+          try { var u = localStorage.getItem('swarm.logo3d.v1'); if (u) { var b = document.currentScript.previousElementSibling; var im = new Image(); im.src = u; im.alt = 'MrBeast Swarmers'; im.className = 'boot-logo3d'; b.replaceWith(im); } } catch (e) {}
+        </script>
         <div class="boot-bar"><i></i></div>
         <div class="boot-tip">Warming up the lab</div>
       </div>

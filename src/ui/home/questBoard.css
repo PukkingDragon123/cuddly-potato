@@ -39,7 +39,7 @@ body.landscape .qb-head { grid-template-columns: auto auto 1fr auto auto; grid-t
 .qb-sign { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 18px 0 20px; }
 .qb-sign .pi { width: 26px; height: 26px; filter: drop-shadow(0 2px 0 rgba(30, 12, 2, 0.55)); }
 .qb-sign b {
-  font-family: var(--font-d); font-weight: normal; font-size: 1.6em; line-height: 1; letter-spacing: 0.06em; white-space: nowrap; color: #ffe8b0;
+  font-family: var(--font-d); font-weight: normal; font-size: 1.6em; line-height: 1; letter-spacing: 0.08em; white-space: nowrap; color: #ffe8b0;
   text-shadow: -1px -1px 0 #3a1c06, 1px -1px 0 #3a1c06, -1px 1px 0 #3a1c06, 2px 2px 0 #3a1c06, 0 3px 0 rgba(30, 12, 2, 0.6);
 }
 body.landscape .qb-sign { height: 38px; padding: 0 14px 0 16px; }
@@ -224,7 +224,7 @@ button.qb-note { cursor: pointer; }
 .qb-bub.out { animation: qbBubOut 0.18s ease-in both; }
 @keyframes qbBubIn { 0% { scale: 0.4; opacity: 0; } 100% { scale: 1; opacity: 1; } }
 @keyframes qbBubOut { to { scale: 0.85; opacity: 0; } }
-.qb-bub-n { display: inline-block; margin: -4px 0 4px; padding: 2px 8px 1px; font-family: var(--font-d); font-weight: normal; font-size: 0.95em; line-height: 1.1; letter-spacing: 0.05em; color: #fff; text-shadow: var(--outline-thin); background: var(--pc); box-shadow: 0 0 0 2px #1c1430; }
+.qb-bub-n { display: inline-block; margin: -4px 0 4px; padding: 2px 8px 1px; font-family: var(--font-d); font-weight: normal; font-size: 0.95em; line-height: 1.1; letter-spacing: 0.08em; color: #fff; text-shadow: var(--outline-thin); background: var(--pc); box-shadow: 0 0 0 2px #1c1430; }
 .qb-bub-t.cdlg-txt { font-family: var(--font-b); font-size: 1.12em; line-height: 1.3; color: #1c1430; text-shadow: none; }
 .qb-bub-tail { position: absolute; left: var(--tx); width: 16px; height: 14px; background: var(--qb-tail) 0 0 / 100% 100%; image-rendering: pixelated; }
 .qb-bub.up .qb-bub-tail { top: calc(100% + 11px); }
@@ -277,7 +277,7 @@ body.landscape .qb-main {
   grid-area: no; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 52px; font-family: var(--font-d); font-size: 2em; line-height: 0.85; color: var(--qred);
   border: 3px solid var(--qred); -webkit-mask: var(--qb-ink) 0 0 / 48px 48px; mask: var(--qb-ink) 0 0 / 48px 48px; mix-blend-mode: multiply;
 }
-.qb-chap-no small { font-size: 0.42em; letter-spacing: 0.1em; }
+.qb-chap-no small { font-size: 0.42em; letter-spacing: 0.08em; }
 .qb-chap-t { grid-area: t; font-family: var(--font-d); font-weight: normal; font-size: 1.6em; line-height: 1; color: var(--qi); }
 .qb-chap-boxes { grid-area: boxes; display: flex; gap: 4px; flex-wrap: wrap; }
 .qb-box { position: relative; display: flex; width: 28px; height: 28px; }
@@ -441,7 +441,7 @@ body.landscape .qb-hero .qb-how { font-size: 1em; }
 body.landscape .qb-how.sm { font-size: 0.88em; }
 /* reward label under the gift */
 .qb-rws-k { flex-direction: column; align-items: center; gap: 1px; }
-.qb-rws-k small { font-family: var(--font-d); font-size: 0.62em; line-height: 1; letter-spacing: 0.04em; color: #7a5a30; font-style: normal; }
+.qb-rws-k small { font-family: var(--font-d); font-size: 0.62em; line-height: 1; letter-spacing: 0; color: #7a5a30; font-style: normal; }
 /* the next note: title + its instruction beside the picture */
 .qb-next-t { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 auto; }
 /* chapter: done count after the boxes */
@@ -454,12 +454,12 @@ body.landscape .qb-next .qb-how { display: none; }
 .qb-dhead { margin-right: 3%; }
 .qb-timer-w { display: flex; flex-direction: column; gap: 3px; }
 body.landscape .qb-timer-w { align-items: center; }
-.qb-timer-k { font-family: var(--font-d); font-size: 0.8em; line-height: 1; letter-spacing: 0.04em; color: #7a5a30; }
+.qb-timer-k { font-family: var(--font-d); font-size: 0.8em; line-height: 1; letter-spacing: 0; color: #7a5a30; }
 /* folder / pile captions */
-.qb-note-k { font-family: var(--font-d); font-size: 0.95em; line-height: 1; letter-spacing: 0.04em; color: #5a4024; white-space: nowrap; }
+.qb-note-k { font-family: var(--font-d); font-size: 0.95em; line-height: 1; letter-spacing: 0; color: #5a4024; white-space: nowrap; }
 .qb-pile .qb-note-k { margin-top: -2px; }
 /* crew file: which quest of the chain this is */
-.qb-case-s { margin-top: -4px; font-family: var(--font-d); font-size: 0.95em; line-height: 1; letter-spacing: 0.04em; color: #5a4024; white-space: nowrap; }
+.qb-case-s { margin-top: -4px; font-family: var(--font-d); font-size: 0.95em; line-height: 1; letter-spacing: 0; color: #5a4024; white-space: nowrap; }
 /* the daily list's reset timer */
 .qb-dhead .qb-how { max-width: 26ch; }
 .qb-lockt { font-size: 1.1em; }
