@@ -6,7 +6,7 @@ import { state } from './state.js';
 import { showLoading, prewarmLoading } from '../scenes/loading.js';
 import { tx } from '../ui/transitions.js';
 
-// heavy scenes get the cinematic loading screen (scenes/loading.js) between the pixel transitions
+// heavy scenes get the cinematic loading screen (scenes/loading.js) between the bubble lab transitions
 const LOADING_SCREEN = new Set(['battle', 'home', 'lab']);
 
 const loaders = {
@@ -28,34 +28,22 @@ const loaders = {
 
 let transitioning = false;
 
-/**
- * Which pixel transitions a scene change uses (ui/transitions.js): `in` covers
- * the old screen, `out` uncovers the new one (or the loading screen hands off
- * with it once the scene is built).
- */
-function txPlan(from, to) {
-  if (to === 'battle') return { in: 'swarm', out: 'blast' }; // swarm iris -> loading -> blast doors open on the arena
-  if (from === 'title') return { in: 'stampede', out: to === 'home' ? 'crack' : 'goo' }; // troops stampede; the sign cracks off the island
-  if (LOADING_SCREEN.has(to)) return { in: 'goo', out: 'goo' };
-  return { in: 'dither', out: 'dither' };
-}
-
 export const game = {
   current: null,
   currentName: null,
   async go(name, params = {}) {
     if (transitioning) return;
     transitioning = true;
-    const plan = params.instant ? null : txPlan(this.currentName, name);
+    const tr = !params.instant; // the bubble lab transition (ui/transitions.js)
     const loadCls = loaders[name]();
     loadCls.catch(() => {}); // reported below
     let ld = null;
-    if (plan) {
-      await tx.cover(plan.in);
+    if (tr) {
+      await tx.cover();
       if (LOADING_SCREEN.has(name)) {
         // the loading screen goes up under the cover, which then lifts off it
         ld = showLoading(name, { ...params, cover: true });
-        await tx.reveal(); // (the stampede settles with a dither)
+        await tx.reveal();
       }
     }
     let sc = null;
@@ -69,8 +57,8 @@ export const game = {
     } catch (e) {
       console.error('Scene load failed', name, e);
     }
-    if (ld) await ld.done(plan.out);
-    else if (plan) tx.reveal(plan.out);
+    if (ld) await ld.done(true);
+    else if (tr) tx.reveal();
     transitioning = false;
     // scenes may hold their entrance until the screen is actually visible
     try { if (sc && engine.current === sc) sc.shown?.(); } catch (e) { console.error(e); }

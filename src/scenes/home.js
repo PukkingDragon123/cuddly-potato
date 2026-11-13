@@ -652,8 +652,7 @@ export class HomeScene {
     this.tabEl = null;
     const disposeOld = () => { if (oldTab) { try { oldTab.dispose?.(); } catch (e) { console.error(e); } } oldEl?.remove(); };
     const dir = idx > prevIdx ? 1 : -1;
-    // a pixel transition per tab covers the panel area (ui/transitions.js: bunker hatch, card deal,
-    // lab shutter, pass chevrons, island slide); the screens swap under it, then it uncovers
+    // a short bubble lab fill covers the panel area (ui/transitions.js); the screens swap under it, then it drains
     const swap = !instant && changed;
     const covered = swap ? tabSwap(this.root, this.tabRect(), id, dir, this.dock) : null;
     if (oldEl && swap) {

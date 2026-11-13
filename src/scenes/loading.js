@@ -113,7 +113,7 @@ function gooTube() {
 /**
  * Show the loading screen for a scene change. Returns { done() }: call done()
  * once the scene is built; it tops the tube up, then fades onto the new scene.
- * done() resolves as the fade starts. done(kind) hands off with a pixel
+ * done() resolves as the fade starts. done(true) hands off with the bubble lab
  * transition (ui/transitions.js) instead, resolving as it starts to uncover.
  */
 export function showLoading(name, params = {}) {
@@ -141,7 +141,7 @@ export function showLoading(name, params = {}) {
   let finished = false;
   return {
     el,
-    done(outTx) {
+    done(bubble) {
       if (finished) return Promise.resolve();
       finished = true;
       return new Promise((res) => {
@@ -159,9 +159,9 @@ export function showLoading(name, params = {}) {
           el.classList.add('fin');
           bar.clip.style.transform = bar.inner.style.transform = 'none';
           setTimeout(() => {
-            if (outTx) {
-              // a pixel transition covers the screen, takes it away and uncovers the new scene
-              tx.cover(outTx).then(() => { el.remove(); tx.reveal(outTx); res(); });
+            if (bubble) {
+              // the bubble lab liquid fills over it, takes it away and drains off the new scene
+              tx.cover().then(() => { el.remove(); tx.reveal(); res(); });
               return;
             }
             el.classList.add('out');

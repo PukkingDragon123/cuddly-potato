@@ -168,8 +168,8 @@ export async function showResult(parent, opts) {
   if (replay === undefined) { try { replay = engine.current?.view?.replay ?? null; } catch (e) { replay = null; } }
   const portrait = () => window.innerHeight > window.innerWidth;
 
-  // the arena feed switches off like an old TV (ui/transitions.js) before the static and the studio
-  await tx.cover('tv');
+  // bubble lab liquid fills over the arena (ui/transitions.js), then drains off the news static
+  await tx.cover();
   injectNewsArt();
   const root = h('div', { class: `cres r-${result} ${portrait() ? 'portrait' : 'landscape'}` });
   parent.appendChild(root);
@@ -205,7 +205,7 @@ export async function showResult(parent, opts) {
   const stat = staticCanvas();
   root.appendChild(stat.cv);
   stat.run(380);
-  tx.clear();
+  tx.reveal();
   SND.static();
   await new Promise((res) => setTimeout(res, 340 * slowK()));
   // red / white / navy bands wipe across, the BEAST NEWS plates slam in on top
@@ -217,7 +217,6 @@ export async function showResult(parent, opts) {
   SND.news();
   await new Promise((res) => setTimeout(res, 420 * slowK()));
   stat.cv.remove();
-  tx.play('roll'); // the picture rolls into place as the channel lands
   if (!root.isConnected) { end(); return 'ok'; }
 
   // ======================= the broadcast =======================

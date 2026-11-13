@@ -7,8 +7,8 @@
 // starts its shots: a slow pull-back reveal of the whole fight, then a loop of
 // push-ins and tracking moves with dips to black and lower-third captions.
 //
-// TAP TO START: the label presses in, one "go" sound, a pixel stampede of troops
-// crosses the screen and the loading screen takes over underneath it.
+// TAP TO START: the label presses in, one "go" sound, bubbling lab liquid
+// fills the screen and the loading screen takes over underneath it.
 //   new players -> inside the Lab (scenes/lab.js): Jimmy, your name, your
 //                  FIRST PACK, then the tutorial battle and back to the Lab
 //   everyone else -> Beast Island home
@@ -157,7 +157,7 @@ export class TitleScene {
   }
 
   async start() {
-    // the label presses in, then the troops stampede across the title (game.go -> ui/transitions.js)
+    // the label presses in, then bubbling lab liquid fills the screen (game.go -> ui/transitions.js)
     this.root.querySelector('.tt-wipe')?.remove();
     this.root.classList.add('go');
     await wait(0.14);
