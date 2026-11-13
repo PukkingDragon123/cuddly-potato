@@ -55,7 +55,7 @@ export const game = {
       if (LOADING_SCREEN.has(name)) {
         // the loading screen goes up under the cover, which then lifts off it
         ld = showLoading(name, { ...params, cover: true });
-        await tx.reveal(plan.in === 'swarm' ? 'swarm' : plan.in === 'goo' ? 'goo' : 'dither');
+        await tx.reveal(); // (the stampede settles with a dither)
       }
     }
     let sc = null;

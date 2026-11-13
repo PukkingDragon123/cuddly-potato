@@ -33,6 +33,7 @@ import { sideAvatarEl } from '../../ui/avatar.js';
 import { MASTERY_NAMES } from '../../data/mastery.js';
 import { createNewsStudio } from './newsStudio.js';
 import { injectNewsArt } from './newsArt.js';
+import { tx } from '../../ui/transitions.js';
 
 const fmtN = (n) => Math.round(n).toLocaleString('en-US');
 const fmtBig = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e5 ? Math.round(n / 1e3) + 'K' : fmtN(n));
@@ -167,6 +168,8 @@ export async function showResult(parent, opts) {
   if (replay === undefined) { try { replay = engine.current?.view?.replay ?? null; } catch (e) { replay = null; } }
   const portrait = () => window.innerHeight > window.innerWidth;
 
+  // the arena feed switches off like an old TV (ui/transitions.js) before the static and the studio
+  await tx.cover('tv');
   injectNewsArt();
   const root = h('div', { class: `cres r-${result} ${portrait() ? 'portrait' : 'landscape'}` });
   parent.appendChild(root);
@@ -202,6 +205,7 @@ export async function showResult(parent, opts) {
   const stat = staticCanvas();
   root.appendChild(stat.cv);
   stat.run(380);
+  tx.clear();
   SND.static();
   await new Promise((res) => setTimeout(res, 340 * slowK()));
   // red / white / navy bands wipe across, the BEAST NEWS plates slam in on top
@@ -213,6 +217,7 @@ export async function showResult(parent, opts) {
   SND.news();
   await new Promise((res) => setTimeout(res, 420 * slowK()));
   stat.cv.remove();
+  tx.play('roll'); // the picture rolls into place as the channel lands
   if (!root.isConnected) { end(); return 'ok'; }
 
   // ======================= the broadcast =======================

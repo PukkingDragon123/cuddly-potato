@@ -38,6 +38,7 @@ import {
   equipMega, pendingArenaUnlock, markArenaSeen, currentDeck, deployInfo, findSecret, questState, acceptQuest, completeQuest,
 } from '../game/state.js';
 import { game } from '../game/game.js';
+import { tabSwap } from '../ui/transitions.js';
 import { batchStatic } from '../core/staticBatch.js';
 import { ONLINE_ENABLED } from '../ui/home/friend.js';
 import * as G from '../ui/guide.js';
@@ -642,7 +643,6 @@ export class HomeScene {
     if (!G.tabAllowed(id)) return; // not unlocked yet (game/progression.js)
     const prevIdx = TABS.findIndex((t) => t.id === this.tab);
     const idx = TABS.findIndex((t) => t.id === id);
-    const homeIdx = TABS.findIndex((t) => t.id === 'battle');
     const changed = prevIdx !== idx;
     this.tab = id;
     this.navBtns.forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
@@ -652,11 +652,14 @@ export class HomeScene {
     this.tabEl = null;
     const disposeOld = () => { if (oldTab) { try { oldTab.dispose?.(); } catch (e) { console.error(e); } } oldEl?.remove(); };
     const dir = idx > prevIdx ? 1 : -1;
-    if (oldEl && !instant && changed) {
-      // the old screen leaves in the direction of travel (or drops away when going home), then is disposed
+    // a pixel transition per tab covers the panel area (ui/transitions.js: bunker hatch, card deal,
+    // lab shutter, pass chevrons, island slide); the screens swap under it, then it uncovers
+    const swap = !instant && changed;
+    const covered = swap ? tabSwap(this.root, this.tabRect(), id, dir, this.dock) : null;
+    if (oldEl && swap) {
       oldEl.classList.add('hm-tab-out');
       oldEl.style.pointerEvents = 'none';
-      M.tabOut(oldEl, id === 'battle' ? 0 : dir).then(disposeOld);
+      covered.then(disposeOld);
     } else disposeOld();
     this.root.classList.toggle('tabbed', id !== 'battle');
     // once a tab panel has slid in it hides the island completely: stop drawing it meanwhile
@@ -670,7 +673,7 @@ export class HomeScene {
     const el = (this.tabEl = h('div', { class: 'hm-tab' }));
     this.layoutTab();
     this.root.insertBefore(el, this.dock);
-    if (!instant && changed) M.tabIn(el, prevIdx === homeIdx ? 0 : dir);
+    if (swap) { el.style.visibility = 'hidden'; covered.then(() => { if (this.tabEl === el) el.style.visibility = ''; }); }
     try {
       const mod = await loadOpt(`../ui/home/${id}.js`);
       if (this.tab !== id || this.tabEl !== el) return;
@@ -679,6 +682,13 @@ export class HomeScene {
       console.warn('tab unavailable', id, e);
       el.appendChild(h('div', { class: 'hm-soon' }, icon(TABS[idx].icon, 'xl'), h('div', { class: 't-d outline t-xl' }, TABS[idx].label), h('div', { class: 'c-muted' }, 'Coming soon!')));
     }
+  }
+  /** The panel area between the top bar and the nav, in root px. */
+  tabRect() {
+    const topEl = this.root.querySelector('.hm-top');
+    const top = topEl ? topEl.offsetTop + topEl.offsetHeight : 0;
+    const bottom = this.root.clientHeight - (this.nav?.offsetHeight ?? 0);
+    return { x: 0, y: top, w: this.root.clientWidth, h: Math.max(40, bottom - top) };
   }
   layoutTab() {
     if (this.navInd) M.slideIndicator(this.navInd, this.navBtns[TABS.findIndex((t) => t.id === this.tab)], true);

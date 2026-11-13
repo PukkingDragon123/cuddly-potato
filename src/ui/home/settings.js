@@ -68,7 +68,7 @@ export function openSettings(ctx) {
         logoImageCached() ? h('img', { class: 'mn-credits-logo', src: logoImageCached(), alt: 'MrBeast Swarmers', draggable: 'false' })
           : h('b', { class: 't-d outline mn-credits-t' }, 'MRBEAST ', h('span', { class: 'c-pink' }, 'SWARMERS')),
         h('span', { class: 't-sm' }, 'A voxel + pixel-art fan game. Every model, sound and tune is generated in code.'),
-        h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Fonts: Ark Pixel by TakWolf (OFL)'),
+        h('span', { class: 't-xs c-muted' }, 'Built with Three.js + Vite · Font: Swarm Text (hand-made pixel font)'),
         h('span', { class: 'mn-disclaimer' }, icon('alert', 's'), DISCLAIMER)),
       subHead('SAVE DATA'),
       row('skull', 'Reset progress', button('RESET', resetFlow, 'red sm', { icon: 'trash' })),

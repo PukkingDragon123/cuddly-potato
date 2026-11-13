@@ -67,7 +67,7 @@
 }
 
 @media (min-resolution: 2dppx) { :root { --fq: 5px; } }
-@media (min-resolution: 3dppx) { :root { --fq: 3.3333px; } }
+@media (min-resolution: 3dppx) { :root { --fq: 3.333333px; } }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {

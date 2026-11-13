@@ -153,8 +153,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the code layout.
 
 ## Credits
 
-- Fonts: **Swarm Pixel** (titles, buttons, numbers) and **Swarm Pixel Text** (body copy) are modified versions of the
-  Latin sets of [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font) /
-  [Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font) by TakWolf (the 10 px set pixel-bolded, the 12 px set as is),
-  under the SIL Open Font License 1.1: see `src/assets/fonts/OFL.txt`.
+- Font: **Swarm Text** (Regular + Bold), an original proportional pixel font made for this game; the glyph
+  bitmaps and the woff2 builder live in `tools/pixelfont/build.py` (`pip install fonttools brotli`).
 - Sound effects and music: CC0, see `src/assets/sfx/CREDITS.md`.

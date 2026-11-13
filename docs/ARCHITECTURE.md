@@ -129,8 +129,8 @@ src/
                        it), unlock reveals (spotlight, padlock snaps, silhouette floods back to colour, voiced line),
                        guided first-session steps (pointing hand, skippable), the main quest tracker note (opens the
                        QUEST BOARD), battle locks + lessons
-    fonts.css          the two pixel faces (src/assets/fonts, OFL): Swarm Display = pixel-bold Ark Pixel 10 px,
-                       Swarm Body = Ark Pixel 12 px (its bold = Swarm Display); cinematics skip with a pixel >>| icon (.px-skip)
+    fonts.css          Swarm Text (hand-made, tools/pixelfont/build.py): Swarm Display = Bold, Swarm Body = Regular
+                       (+ Bold for 600+); font sizes round() to --fq so pixels stay whole; cinematics skip icon (.px-skip)
     ui.css, ui.js      pixel UI kit: h(), button(), icon(), panel(), ribbon(), pill(), bar(), modal(), toast(),
                        say() dialogue, speech(), floatText(), pointAt(), sparkle(), rollNumber()
     skin.js, icons.js  procedural 9-slice pixel frame skins (sk-*, glass tanks, plates, pods, ensureSkin tints),

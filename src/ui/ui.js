@@ -35,11 +35,11 @@ export function applyScale() {
   // (never below --fmin, the smallest step that is at least 10 CSS px), so no text is ever smeared.
   const dpr = window.devicePixelRatio || 1, fq = 10 / dpr;
   const fmin = Math.ceil(10 / fq - 0.01) * fq;
-  de.setProperty('--fq', +fq.toFixed(4) + 'px');
-  de.setProperty('--fmin', +fmin.toFixed(4) + 'px');
+  de.setProperty('--fq', +fq.toFixed(6) + 'px');
+  de.setProperty('--fmin', +fmin.toFixed(6) + 'px');
   // body text: comfortably readable on a 390 px phone (~16 px) and in short landscape (15 px)
   const want = Math.max(15, Math.round(u * 4.1));
-  de.setProperty('--fs', +(Math.max(fmin, Math.round(want / fq) * fq)).toFixed(4) + 'px');
+  de.setProperty('--fs', +(Math.max(fmin, Math.round(want / fq) * fq)).toFixed(6) + 'px');
 }
 if (typeof window !== 'undefined') {
   injectSkins();

@@ -40,9 +40,11 @@
 /* captions under the right-hand console buttons */
 .hm-sb::after {
   position: absolute; left: 50%; top: 100%; translate: -50% calc(var(--px) * -1); z-index: 2; pointer-events: none; padding: 0 0.35em 0.05em;
-  font-family: var(--font-d); font-size: max(var(--fmin), round(0.6em, var(--fq))); letter-spacing: 0; line-height: 1.1; white-space: nowrap; color: #fff; text-shadow: var(--outline-thin);
+  font-family: var(--font-d); font-size: var(--fmin); letter-spacing: 0; line-height: 1.2; white-space: nowrap; color: #fff; text-shadow: var(--outline-thin);
   background: rgba(4, 8, 30, 0.82); box-shadow: 0 0 0 calc(var(--px) * 0.67) var(--ink);
 }
+/* right column: captions hug the button's right edge so wide words never run off screen */
+.hm-side.right .hm-sb::after { left: auto; right: calc(var(--px) * -1); translate: 0 calc(var(--px) * -1); }
 .hm-sb-set::after { content: 'SETTINGS'; }
 .hm-sb-fr::after { content: 'FRIENDS'; }
 .hm-sb-road::after { content: 'ROAD'; color: var(--gold); }
